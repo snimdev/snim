@@ -1,45 +1,46 @@
-#ifndef CAPTURE_AREASELECTOR_H
-#define CAPTURE_AREASELECTOR_H
+// AreaSelector.h
+#ifndef AREASELECTOR_H
+#define AREASELECTOR_H
 
 #include <QWidget>
-#include <QRect>
-#include <QPoint>
-#include <QPixmap>
 #include <QRubberBand>
 #include <QMouseEvent>
 #include <QKeyEvent>
-#include <QPaintEvent>
+#include <QPixmap>
 
 namespace Capture {
 
-class AreaSelector : public QWidget
-{
-    Q_OBJECT
+    class AreaSelector : public QWidget
+    {
+        Q_OBJECT
 
-public:
-    explicit AreaSelector(QWidget *parent = nullptr);
-    QRect selectedArea() const { return m_selectedArea; }
-    void setScreenshot(const QPixmap &screenshot) { m_screenshot = screenshot; }
+    public:
+        explicit AreaSelector(QWidget *parent = nullptr);
 
-signals:
-    void areaSelected(const QRect &area);
+        void setScreenshot(const QPixmap &screenshot) {
+            m_screenshot = screenshot;
+            update();
+        }
 
-protected:
-    void mousePressEvent(QMouseEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
-    void mouseReleaseEvent(QMouseEvent *event) override;
-    void paintEvent(QPaintEvent *event) override;
-    void keyPressEvent(QKeyEvent *event) override;
+        signals:
+            void areaSelected(const QRect &area);
 
-private:
-    bool m_selecting;
-    QPoint m_startPoint;
-    QPoint m_endPoint;
-    QRect m_selectedArea;
-    QRubberBand *m_rubberBand;
-    QPixmap m_screenshot;
-};
+    protected:
+        void mousePressEvent(QMouseEvent *event) override;
+        void mouseMoveEvent(QMouseEvent *event) override;
+        void mouseReleaseEvent(QMouseEvent *event) override;
+        void paintEvent(QPaintEvent *event) override;
+        void keyPressEvent(QKeyEvent *event) override;
+
+    private:
+        QPoint m_startPoint;
+        QPoint m_endPoint;
+        QRect m_selectedArea;
+        bool m_selecting;
+        QRubberBand *m_rubberBand;
+        QPixmap m_screenshot;
+    };
 
 } // namespace Capture
 
-#endif // CAPTURE_AREASELECTOR_H
+#endif // AREASELECTOR_H

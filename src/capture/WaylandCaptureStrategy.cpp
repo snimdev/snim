@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <QApplication>
+#include <QUuid>
 #include <QScreen>
 #include <QWidget>
 #include <QtDBus/QDBusConnection>
@@ -20,6 +21,7 @@
 #include <QFile>
 #include <QMessageBox>
 
+#include "AreaSelector.h"
 #include "core/ScreenshotDialog.h"
 
 namespace Capture {
@@ -123,66 +125,217 @@ namespace Capture {
 
     bool WaylandCaptureStrategy::usePortalCapture() {
         if (!m_portalInterface || !m_portalInterface->isValid()) {
-            qDebug() << "Portal interface not available, falling back";
+            qDebug() << "Portal interface not available";
             return useFallbackCapture();
         }
 
-        // Generate a unique token for this request
-        m_requestToken = generateSessionToken();
+        // Generate unique token
+        QString token = QUuid::createUuid().toString()
+                .remove('-').remove('{').remove('}');
 
-        // Prepare options for the screenshot
+        // Pre-create Request interface to avoid race condition
+        QString requestPath = "/org/freedesktop/portal/desktop/request/" +
+                              QDBusConnection::sessionBus().baseService()
+                              .remove(':').replace('.', '_') + "/" + token;
+
+        QDBusInterface requestInterface(
+            "org.freedesktop.portal.Desktop",
+            requestPath,
+            "org.freedesktop.portal.Request",
+            QDBusConnection::sessionBus()
+        );
+
+        if (!requestInterface.isValid()) {
+            qDebug() << "Failed to create request interface";
+            return false;
+        }
+
+        // Setup event loop for synchronous operation
+        QEventLoop loop;
+        QPixmap result;
+        bool success = false;
+
+        // Connect Response signal BEFORE making the call
+        QDBusConnection::sessionBus().connect(
+            "org.freedesktop.portal.Desktop",
+            requestPath,
+            "org.freedesktop.portal.Request",
+            "Response",
+            this,
+            SLOT(handlePortalResponse(uint, QVariantMap))
+        );
+
+        // Prepare options
         QVariantMap options;
-        options["handle_token"] = m_requestToken;
+        options["handle_token"] = token;
+        options["interactive"] = false; // Minimize dialogs
+        options["modal"] = false;
 
-        // Set options to minimize or avoid dialogs
-        options["modal"] = false; // Don't make the dialog modal
-        options["cursor"] = true; // Include cursor in screenshot
-
-        // For full screen capture, use non-interactive mode
-        if (!m_captureArea) {
-            options["interactive"] = false; // Force non-interactive for full screen
-            // Try to set a specific output/screen to avoid selection dialog
-            // This is implementation-specific but might help
-            options["output"] = ""; // Empty string might default to current screen
-        } else {
-            // For area capture, we want to capture the current screen without interaction.
-            options["interactive"] = false; // Set to false for non-interactive screen capture.
-            if (QApplication::activeWindow()) {
-                if (QScreen *screen = QApplication::activeWindow()->screen()) {
-                    options["output"] = screen->name();
-                }
-            }
-        }
-
-        // Get the parent window identifier - try both Wayland and X11 formats
-        QString parentWindow = "";
-        if (QApplication::activeWindow()) {
-            // Try Wayland format first
-            QString waylandDisplay = QProcessEnvironment::systemEnvironment().value("WAYLAND_DISPLAY");
-            if (!waylandDisplay.isEmpty()) {
-                parentWindow = QString("wayland:");
-            } else {
-                // Fallback to X11 format
-                parentWindow = QString("x11:%1").arg(static_cast<qulonglong>(QApplication::activeWindow()->winId()));
-            }
-        }
-
-        qDebug() << "Requesting screenshot via portal with token:" << m_requestToken;
-        qDebug() << "Interactive mode:" << options["interactive"].toBool();
-        qDebug() << "Parent window:" << parentWindow;
-
-        // Call the Screenshot method asynchronously
-        QDBusPendingCall pendingCall = m_portalInterface->asyncCall(
+        // Call Screenshot with empty parent window
+        QDBusReply<QDBusObjectPath> reply = m_portalInterface->call(
             "Screenshot",
-            parentWindow,
+            QString(""), // Empty parent window
             QVariant::fromValue(options)
         );
 
-        const auto *watcher = new QDBusPendingCallWatcher(pendingCall, this);
-        connect(watcher, &QDBusPendingCallWatcher::finished,
-                this, &WaylandCaptureStrategy::onPortalResponse);
+        if (reply.isValid()) {
+            qDebug() << "Screenshot call failed:" << reply.error().message();
+            return false;
+        }
+
+        // Wait for response (implement timeout if needed)
+        // Process the response in handlePortalResponse()
 
         return true;
+    }
+
+    void WaylandCaptureStrategy::handlePortalResponse(
+        uint status,
+        QVariantMap results) {
+        if (status != 0) {
+            qDebug() << "Portal request cancelled or failed";
+            emit screenshotFailed("Portal request cancelled or failed");
+            return;
+        }
+
+        QUrl uri = results["uri"].toString();
+        QString filePath = uri.toLocalFile();
+
+        QImage fullImage(filePath);
+        if (fullImage.isNull()) {
+            qDebug() << "Failed to load screenshot";
+            QFile::remove(filePath);
+            emit screenshotFailed("Failed to load screenshot");
+            return;
+        }
+
+        // Crop to current screen
+        QPixmap croppedScreenshot = cropToCurrentScreen(fullImage);
+
+        QFile::remove(filePath);
+
+        if (croppedScreenshot.isNull()) {
+            qDebug() << "Failed to crop screenshot";
+            emit screenshotFailed("Failed to crop screenshot");
+            return;
+        }
+
+        // Show area selector
+        showAreaSelector(croppedScreenshot);
+    }
+
+    void WaylandCaptureStrategy::showAreaSelector(const QPixmap &screenshot) {
+        // Get the screen where we want to show the selector
+        QScreen *currentScreen = nullptr;
+        if (QApplication::activeWindow()) {
+            currentScreen = QApplication::activeWindow()->screen();
+        }
+        if (!currentScreen) {
+            currentScreen = QGuiApplication::primaryScreen();
+        }
+
+        // Create area selector
+        auto *selector = new Capture::AreaSelector();
+        selector->setScreenshot(screenshot);
+
+        // Set geometry to match the current screen
+        QRect screenGeometry = currentScreen->geometry();
+        selector->setGeometry(screenGeometry);
+
+        // Make it fullscreen on the current screen
+        selector->setWindowState(Qt::WindowFullScreen);
+        selector->showFullScreen();
+
+        // Connect to area selection
+        connect(selector, &Capture::AreaSelector::areaSelected,
+                this, [this, selector, screenshot](const QRect &area) {
+                    selector->deleteLater();
+
+                    if (area.isEmpty()) {
+                        // User cancelled (pressed Escape)
+                        qDebug() << "Area selection cancelled";
+                        //emit screenshotCancelled();
+                        return;
+                    }
+
+                    // Crop the screenshot to the selected area
+                    qreal dpr = screenshot.devicePixelRatio();
+                    QRect physicalArea(
+                        area.x() * dpr,
+                        area.y() * dpr,
+                        area.width() * dpr,
+                        area.height() * dpr
+                    );
+
+                    QPixmap finalScreenshot = screenshot.copy(physicalArea);
+                    finalScreenshot.setDevicePixelRatio(dpr);
+
+                    qDebug() << "Selected area:" << area;
+                    qDebug() << "Final screenshot size:" << finalScreenshot.size();
+
+                    emit screenshotReady(finalScreenshot);
+                });
+    }
+
+
+    QPixmap WaylandCaptureStrategy::cropToCurrentScreen(const QImage &fullImage) {
+        // Get current screen
+        QScreen *currentScreen = nullptr;
+        if (QApplication::activeWindow()) {
+            currentScreen = QApplication::activeWindow()->screen();
+        }
+        if (!currentScreen) {
+            currentScreen = QGuiApplication::primaryScreen();
+        }
+
+        // Calculate virtual desktop geometry
+        QList<QScreen*> screens = QGuiApplication::screens();
+        QRect virtualDesktop;
+        for (QScreen *screen : screens) {
+            virtualDesktop = virtualDesktop.united(screen->geometry());
+        }
+
+        // Calculate DPR from image size vs logical size
+        qreal dprX = fullImage.width() * 1.0 / virtualDesktop.width();
+        qreal dprY = fullImage.height() * 1.0 / virtualDesktop.height();
+        qreal dpr = qMax(dprX, dprY);
+
+        qDebug() << "Virtual desktop (logical):" << virtualDesktop;
+        qDebug() << "Full image size (physical):" << fullImage.size();
+        qDebug() << "Calculated DPR:" << dpr;
+        qDebug() << "Current screen:" << currentScreen->name()
+                 << currentScreen->geometry();
+
+        // Get current screen geometry relative to virtual desktop
+        QRect screenLogical = currentScreen->geometry();
+        QPoint offset = screenLogical.topLeft() - virtualDesktop.topLeft();
+
+        // Convert to physical coordinates
+        QRect cropRect(
+            offset.x() * dpr,
+            offset.y() * dpr,
+            screenLogical.width() * dpr,
+            screenLogical.height() * dpr
+        );
+
+        // Ensure crop rect is within image bounds
+        cropRect = cropRect.intersected(fullImage.rect());
+
+        if (cropRect.isEmpty()) {
+            qDebug() << "Invalid crop rectangle";
+            return QPixmap();
+        }
+
+        qDebug() << "Cropping to:" << cropRect;
+
+        // Crop the image
+        QImage cropped = fullImage.copy(cropRect);
+
+        // Convert to pixmap and set DPR
+        QPixmap result = QPixmap::fromImage(cropped);
+        result.setDevicePixelRatio(dpr);
+
+        return result;
     }
 
     bool WaylandCaptureStrategy::hasAvailableFallbackTools() const {
@@ -327,71 +480,6 @@ namespace Capture {
         }
 
         cleanupTempFile();
-    }
-
-    void WaylandCaptureStrategy::onPortalResponse(QDBusPendingCallWatcher *watcher) {
-        QDBusPendingReply<QDBusObjectPath> reply = *watcher;
-        watcher->deleteLater();
-
-        if (reply.isError()) {
-            qDebug() << "Portal screenshot request failed:" << reply.error().message();
-            emit screenshotFailed("Portal request failed: " + reply.error().message());
-            return;
-        }
-
-        // The reply contains the object path for the Request
-        QDBusObjectPath requestPath = reply.value();
-        qDebug() << "Portal request created at:" << requestPath.path();
-
-        // Connect to the Response signal on the unique request path
-        m_sessionBus.connect(
-            "org.freedesktop.portal.Desktop",
-            requestPath.path(),
-            "org.freedesktop.portal.Request",
-            "Response",
-            this,
-            SLOT(handleScreenshotResponse(uint,QVariantMap))
-        );
-    }
-
-    void WaylandCaptureStrategy::handleScreenshotResponse(uint response, const QVariantMap &results) {
-        qDebug() << "Portal screenshot response:" << response << results;
-
-        if (response != 0) {
-            // User cancelled or error occurred
-            emit screenshotFailed("Screenshot was cancelled or failed");
-            return;
-        }
-
-        // Extract the URI from the results
-        if (!results.contains("uri")) {
-            emit screenshotFailed("No screenshot URI in portal response");
-            return;
-        }
-
-
-        QString uri = results["uri"].toString();
-        qDebug() << "Screenshot saved to:" << uri;
-
-        // Convert URI to local path and load the image
-        QUrl url(uri);
-        QString localPath = url.toLocalFile();
-
-        if (localPath.isEmpty()) {
-            emit screenshotFailed("Invalid screenshot URI");
-            return;
-        }
-
-        QPixmap screenshot(localPath);
-        if (screenshot.isNull()) {
-            emit screenshotFailed("Failed to load screenshot from " + localPath);
-            return;
-        }
-
-        emit screenshotReady(screenshot);
-
-        // Clean up the temporary file created by the portal
-        QFile::remove(localPath);
     }
 
     void WaylandCaptureStrategy::connectToPortalSignals() {

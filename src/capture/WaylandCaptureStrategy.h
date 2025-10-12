@@ -41,8 +41,7 @@ public:
 
 private slots:
     void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
-    void onPortalResponse(QDBusPendingCallWatcher *watcher);
-    void handleScreenshotResponse(uint response, const QVariantMap &results);
+    void handlePortalResponse(uint status, QVariantMap results);
 
 private:
     bool usePortalCapture();
@@ -51,6 +50,10 @@ private:
     bool executeScreenshotTool(const QString &tool);
     void cleanupTempFile();
     void connectToPortalSignals();
+
+    void showAreaSelector(const QPixmap &screenshot);
+
+    static QPixmap cropToCurrentScreen(const QImage &fullImage);
 
     static QString generateSessionToken();
 
