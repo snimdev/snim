@@ -9,6 +9,8 @@
 #include <QDir>
 #include <QStyle>
 
+#include "editor/ImageEditor.h"
+
 namespace Core {
     ScreenshotApp::ScreenshotApp(int &argc, char **argv)
         : QApplication(argc, argv)
@@ -27,6 +29,11 @@ namespace Core {
                 Capture::CaptureFactory::StrategyType::Auto,
                 this
             );
+
+        connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotReady, this, &ScreenshotApp::onScreenshotReady);
+        connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotFailed, this, [](const QString &error) {
+            QMessageBox::warning(nullptr, "Screenshot Failed", error);
+        });
 
         setupSystemTray();
     }
@@ -119,6 +126,18 @@ namespace Core {
         auto *settingsDialog = new SettingsDialog();
         settingsDialog->setAttribute(Qt::WA_DeleteOnClose);
         settingsDialog->exec();
+    }
+
+
+    void ScreenshotApp::onScreenshotReady(const QPixmap &screenshot) {
+        qDebug() << "Screenshot ready, opening ImageEditor";
+
+        // Create and show the ImageEditor with the captured screenshot
+        auto *editor = new ImageEditor::ImageEditor(screenshot);
+        editor->setAttribute(Qt::WA_DeleteOnClose);
+        editor->show();
+        editor->raise();
+        editor->activateWindow();
     }
 
     void ScreenshotApp::quit() {

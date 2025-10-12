@@ -31,6 +31,7 @@ public:
 private slots:
     void captureArea() const;
     void captureWindow() const;
+    void onScreenshotReady(const QPixmap &screenshot);
     static void showSettings();
     static void showAbout();
     static void quit();

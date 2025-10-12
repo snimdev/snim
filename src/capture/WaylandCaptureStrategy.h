@@ -51,14 +51,8 @@ private:
     bool executeScreenshotTool(const QString &tool);
     void cleanupTempFile();
     void connectToPortalSignals();
-    void connectToScreenshotToolSignals();
-
-    static void showScreenshotDialog(const QPixmap &screenshot);
 
     static QString generateSessionToken();
-
-    static void onScreenshotReady(const QPixmap &screenshot) ;
-    static void onScreenshotFailed(const QString &error) ;
 
     QDBusInterface *m_portalInterface;
     QDBusInterface *m_sessionInterface;

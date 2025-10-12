@@ -58,6 +58,11 @@ bool NativeCaptureStrategy::isAvailable() const
 
 void NativeCaptureStrategy::onAreaSelected(const QRect &area)
 {
+    // Close the area selector first
+    if (auto *selector = qobject_cast<AreaSelector*>(sender())) {
+        selector->close();
+    }
+
     if (!area.isNull() && !m_fullScreenshot.isNull()) {
         QPixmap croppedScreenshot = m_fullScreenshot.copy(area);
         emit screenshotReady(croppedScreenshot);

@@ -37,8 +37,6 @@ namespace Capture {
             this
         );
 
-        connectToScreenshotToolSignals();
-
         connectToPortalSignals();
     }
 
@@ -377,33 +375,6 @@ namespace Capture {
 
         // Clean up the temporary file created by the portal
         QFile::remove(localPath);
-    }
-
-
-    void WaylandCaptureStrategy::onScreenshotReady(const QPixmap &screenshot) {
-        // Simply show the screenshot dialog - the strategy handles all the complexity
-        showScreenshotDialog(screenshot);
-    }
-
-    void WaylandCaptureStrategy::onScreenshotFailed(const QString &error) {
-        QMessageBox::warning(nullptr, "Screenshot Failed",
-                             QString("Failed to capture screenshot: %1").arg(error));
-    }
-
-
-    void WaylandCaptureStrategy::showScreenshotDialog(const QPixmap &screenshot) {
-        auto *dialog = new Core::ScreenshotDialog(screenshot);
-        dialog->setAttribute(Qt::WA_DeleteOnClose);
-        dialog->exec();
-    }
-
-
-    void WaylandCaptureStrategy::connectToScreenshotToolSignals() {
-        // Connect strategy signals
-        connect(this, &Capture::WaylandCaptureStrategy::screenshotReady, this,
-                &WaylandCaptureStrategy::onScreenshotReady);
-        connect(this, &Capture::WaylandCaptureStrategy::screenshotFailed, this,
-                &WaylandCaptureStrategy::onScreenshotFailed);
     }
 
     void WaylandCaptureStrategy::connectToPortalSignals() {
