@@ -13,7 +13,30 @@ find_package(Qt6 COMPONENTS
         Widgets
         REQUIRED)
 
-add_executable(Niceshort2 main.cpp screenshotapp.cpp screenshotapp.h)
+add_executable(Niceshort2
+    main.cpp
+    screenshotapp.cpp
+    screenshotapp.h
+    DrawingGraphicsView.cpp
+    DrawingGraphicsView.h
+    EditableTextItem.cpp
+    EditableTextItem.h
+    ArrowItem.cpp
+    ArrowItem.h
+    Layer.cpp
+    Layer.h
+    LayerManager.cpp
+    LayerManager.h
+    LayerProperties.cpp
+    LayerProperties.h
+    AreaSelector.cpp
+    AreaSelector.h
+    ScreenshotDialog.cpp
+    ScreenshotDialog.h
+    ImageEditor.cpp
+    ImageEditor.h
+)
+
 target_link_libraries(Niceshort2
         Qt::Core
         Qt::Gui
