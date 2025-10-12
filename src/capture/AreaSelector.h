@@ -1,5 +1,5 @@
-#ifndef AREASELECTOR_H
-#define AREASELECTOR_H
+#ifndef CAPTURE_AREASELECTOR_H
+#define CAPTURE_AREASELECTOR_H
 
 #include <QWidget>
 #include <QRect>
@@ -9,6 +9,8 @@
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QPaintEvent>
+
+namespace Capture {
 
 class AreaSelector : public QWidget
 {
@@ -30,12 +32,14 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
+    bool m_selecting;
     QPoint m_startPoint;
     QPoint m_endPoint;
     QRect m_selectedArea;
-    bool m_selecting;
     QRubberBand *m_rubberBand;
     QPixmap m_screenshot;
 };
 
-#endif // AREASELECTOR_H
+} // namespace Capture
+
+#endif // CAPTURE_AREASELECTOR_H

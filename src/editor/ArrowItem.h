@@ -1,10 +1,12 @@
-#ifndef ARROWITEM_H
-#define ARROWITEM_H
+#ifndef IMAGEEDITOR_ARROWITEM_H
+#define IMAGEEDITOR_ARROWITEM_H
 
 #include <QGraphicsItemGroup>
 #include <QGraphicsLineItem>
 #include <QPen>
 #include <QPointF>
+
+namespace ImageEditor {
 
 class ArrowItem : public QGraphicsItemGroup
 {
@@ -30,4 +32,6 @@ private:
     QGraphicsLineItem *m_arrowHead2;
 };
 
-#endif // ARROWITEM_H
+} // namespace ImageEditor
+
+#endif // IMAGEEDITOR_ARROWITEM_H

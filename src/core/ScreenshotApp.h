@@ -1,20 +1,23 @@
-#ifndef SCREENSHOTAPP_H
-#define SCREENSHOTAPP_H
+#ifndef CORE_SCREENSHOTAPP_H
+#define CORE_SCREENSHOTAPP_H
 
 #include <QApplication>
 #include <QSystemTrayIcon>
 #include <QMenu>
 #include <QAction>
 
-// Include the separated class headers
-#include "DrawingGraphicsView.h"
-#include "EditableTextItem.h"
-#include "Layer.h"
-#include "LayerManager.h"
-#include "LayerProperties.h"
-#include "AreaSelector.h"
-#include "ScreenshotDialog.h"
-#include "ImageEditor.h"
+namespace Core {
+
+class ScreenshotDialog;
+class SettingsDialog;
+
+} // namespace Core
+
+namespace Capture {
+class AreaSelector;
+} // namespace Capture
+
+namespace Core {
 
 class ScreenshotApp : public QApplication
 {
@@ -27,6 +30,7 @@ public:
 private slots:
     void captureArea();
     void captureWindow();
+    void showSettings();
     void showAbout();
     void quit();
 
@@ -40,9 +44,11 @@ private:
     QMenu *m_trayMenu;
     QAction *m_captureAreaAction;
     QAction *m_captureWindowAction;
+    QAction *m_settingsAction;
     QAction *m_aboutAction;
     QAction *m_quitAction;
 };
 
+} // namespace Core
 
-#endif // SCREENSHOTAPP_H
+#endif // CORE_SCREENSHOTAPP_H

@@ -6,7 +6,6 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-
 find_package(Qt6 COMPONENTS
         Core
         Gui
@@ -15,26 +14,40 @@ find_package(Qt6 COMPONENTS
 
 add_executable(Niceshort2
     main.cpp
-    screenshotapp.cpp
-    screenshotapp.h
-    DrawingGraphicsView.cpp
-    DrawingGraphicsView.h
-    EditableTextItem.cpp
-    EditableTextItem.h
-    ArrowItem.cpp
-    ArrowItem.h
-    Layer.cpp
-    Layer.h
-    LayerManager.cpp
-    LayerManager.h
-    LayerProperties.cpp
-    LayerProperties.h
-    AreaSelector.cpp
-    AreaSelector.h
-    ScreenshotDialog.cpp
-    ScreenshotDialog.h
-    ImageEditor.cpp
-    ImageEditor.h
+
+    # Core application files
+    src/core/ScreenshotApp.cpp
+    src/core/ScreenshotApp.h
+    src/core/ScreenshotDialog.cpp
+    src/core/ScreenshotDialog.h
+    src/core/SettingsDialog.cpp
+    src/core/SettingsDialog.h
+
+    # Capture functionality
+    src/capture/AreaSelector.cpp
+    src/capture/AreaSelector.h
+
+    # Image editor functionality
+    src/editor/ImageEditor.cpp
+    src/editor/ImageEditor.h
+    src/editor/DrawingGraphicsView.cpp
+    src/editor/DrawingGraphicsView.h
+    src/editor/ArrowItem.cpp
+    src/editor/ArrowItem.h
+    src/editor/Layer.cpp
+    src/editor/Layer.h
+    src/editor/LayerManager.cpp
+    src/editor/LayerManager.h
+    src/editor/LayerProperties.cpp
+    src/editor/LayerProperties.h
+    src/editor/EditableTextItem.cpp
+    src/editor/EditableTextItem.h
+)
+
+# Set include directories for the organized structure
+target_include_directories(Niceshort2 PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 target_link_libraries(Niceshort2

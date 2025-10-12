@@ -4,6 +4,7 @@
 #include "LayerProperties.h"
 #include "Layer.h"
 #include "EditableTextItem.h"
+#include "ArrowItem.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -20,7 +21,7 @@
 #include <QDebug>
 #include <cmath>
 
-#include "ArrowItem.h"
+namespace ImageEditor {
 
 ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     : QMainWindow(parent)
@@ -130,6 +131,8 @@ void ImageEditor::setupUI()
     m_splitter->setStretchFactor(1, 1);
 }
 
+// ...existing code...
+
 void ImageEditor::setupToolbar()
 {
     m_toolbar = addToolBar("Tools");
@@ -178,6 +181,8 @@ void ImageEditor::setupToolbar()
     connect(m_textAction, &QAction::triggered, this, &ImageEditor::selectTextTool);
     m_toolbar->addAction(m_textAction);
 }
+
+// ...existing code...
 
 void ImageEditor::saveAs()
 {
@@ -302,6 +307,8 @@ Layer* ImageEditor::createBackgroundLayer()
     return layer;
 }
 
+// ...existing implementation methods...
+
 void ImageEditor::onLayerVisibilityChanged(Layer *layer, bool visible)
 {
     // Layer visibility is handled automatically by the Layer class
@@ -373,3 +380,5 @@ void ImageEditor::mouseReleaseEvent(QMouseEvent *event)
 {
     QMainWindow::mouseReleaseEvent(event);
 }
+
+} // namespace ImageEditor

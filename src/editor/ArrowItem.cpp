@@ -2,6 +2,8 @@
 #include <QtMath>
 #include <cmath>
 
+namespace ImageEditor {
+
 ArrowItem::ArrowItem(const QPointF &start, const QPointF &end, QGraphicsItem *parent)
     : QGraphicsItemGroup(parent)
     , m_startPoint(start)
@@ -84,3 +86,5 @@ void ArrowItem::setPen(const QPen &pen)
     if (m_arrowHead1) m_arrowHead1->setPen(pen);
     if (m_arrowHead2) m_arrowHead2->setPen(pen);
 }
+
+} // namespace ImageEditor

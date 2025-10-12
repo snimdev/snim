@@ -1,15 +1,17 @@
-#include "screenshotapp.h"
+#include "ScreenshotApp.h"
+#include "ScreenshotDialog.h"
+#include "SettingsDialog.h"
+#include "../capture/AreaSelector.h"
 #include <QScreen>
 #include <QPainter>
 #include <QTimer>
 #include <QKeyEvent>
 #include <QMessageBox>
-#include <QStandardPaths>
 #include <QDir>
-#include <QDateTime>
 #include <QDesktopServices>
-#include <QUrl>
-#include <cmath>
+#include <QStyle>
+
+namespace Core {
 
 ScreenshotApp::ScreenshotApp(int &argc, char **argv)
     : QApplication(argc, argv)
@@ -46,6 +48,9 @@ void ScreenshotApp::setupSystemTray()
     connect(m_captureWindowAction, &QAction::triggered, this, &ScreenshotApp::captureWindow);
 
     m_aboutAction = new QAction("About", this);
+    m_settingsAction = new QAction("Settings", this);
+    connect(m_settingsAction, &QAction::triggered, this, &ScreenshotApp::showSettings);
+
     connect(m_aboutAction, &QAction::triggered, this, &ScreenshotApp::showAbout);
 
     m_quitAction = new QAction("Quit", this);
@@ -56,6 +61,7 @@ void ScreenshotApp::setupSystemTray()
     m_trayMenu->addAction(m_captureAreaAction);
     m_trayMenu->addAction(m_captureWindowAction);
     m_trayMenu->addSeparator();
+    m_trayMenu->addAction(m_settingsAction);
     m_trayMenu->addAction(m_aboutAction);
     m_trayMenu->addSeparator();
     m_trayMenu->addAction(m_quitAction);
@@ -102,6 +108,13 @@ void ScreenshotApp::showAbout()
                       "• Ctrl+Shift+W: Capture Window");
 }
 
+void ScreenshotApp::showSettings()
+{
+    auto *settingsDialog = new SettingsDialog();
+    settingsDialog->setAttribute(Qt::WA_DeleteOnClose);
+    settingsDialog->exec();
+}
+
 void ScreenshotApp::quit()
 {
     QApplication::quit();
@@ -134,14 +147,14 @@ QPixmap ScreenshotApp::captureScreenArea()
     QTimer::singleShot(100, [this]() {
         QPixmap fullScreenshot = captureScreen();
 
-        auto *selector = new AreaSelector();
+        auto *selector = new Capture::AreaSelector();
         selector->setAttribute(Qt::WA_DeleteOnClose);
         selector->setScreenshot(fullScreenshot);
 
         // Make the selector fullscreen
         selector->showFullScreen();
 
-        connect(selector, &AreaSelector::areaSelected, [this, fullScreenshot, selector](const QRect &area) {
+        connect(selector, &Capture::AreaSelector::areaSelected, [this, fullScreenshot, selector](const QRect &area) {
             // Close the selector first
             selector->close();
 
@@ -159,3 +172,5 @@ QPixmap ScreenshotApp::captureScreenArea()
 
     return QPixmap(); // Return empty pixmap as the actual capture is handled asynchronously
 }
+
+} // namespace Core

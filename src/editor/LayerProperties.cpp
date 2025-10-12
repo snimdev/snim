@@ -1,5 +1,7 @@
 #include "LayerProperties.h"
 #include "Layer.h"
+#include "ArrowItem.h"
+#include "EditableTextItem.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -10,8 +12,7 @@
 #include <QPainter>
 #include <QPen>
 
-#include "ArrowItem.h"
-#include "EditableTextItem.h"
+namespace ImageEditor {
 
 LayerProperties::LayerProperties(QWidget *parent)
     : QWidget(parent)
@@ -193,3 +194,5 @@ void LayerProperties::onArrowColorButtonClicked()
         }
     }
 }
+
+} // namespace ImageEditor

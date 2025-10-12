@@ -8,6 +8,8 @@
 #include <QListWidgetItem>
 #include <QTimer>
 
+namespace ImageEditor {
+
 LayerManager::LayerManager(QWidget *parent)
     : QWidget(parent)
 {
@@ -157,3 +159,5 @@ void LayerManager::updateLayerList()
         m_layerList->setItemWidget(item, widget);
     }
 }
+
+} // namespace ImageEditor

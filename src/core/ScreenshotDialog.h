@@ -1,10 +1,12 @@
-#ifndef SCREENSHOTDIALOG_H
-#define SCREENSHOTDIALOG_H
+#ifndef CORE_SCREENSHOTDIALOG_H
+#define CORE_SCREENSHOTDIALOG_H
 
 #include <QDialog>
 #include <QPixmap>
 #include <QLabel>
 #include <QPushButton>
+
+namespace Core {
 
 class ScreenshotDialog : public QDialog
 {
@@ -25,4 +27,6 @@ private:
     QPushButton *m_cancelButton;
 };
 
-#endif // SCREENSHOTDIALOG_H
+} // namespace Core
+
+#endif // CORE_SCREENSHOTDIALOG_H

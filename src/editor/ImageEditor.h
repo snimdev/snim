@@ -1,5 +1,5 @@
-#ifndef IMAGEEDITOR_H
-#define IMAGEEDITOR_H
+#ifndef IMAGEEDITOR_IMAGEEDITOR_H
+#define IMAGEEDITOR_IMAGEEDITOR_H
 
 #include <QMainWindow>
 #include <QPixmap>
@@ -11,6 +11,8 @@
 #include <QSplitter>
 #include <QGraphicsLineItem>
 #include <QMouseEvent>
+
+namespace ImageEditor {
 
 class DrawingGraphicsView;
 class LayerManager;
@@ -86,4 +88,6 @@ private:
     QAction *m_textAction;
 };
 
-#endif // IMAGEEDITOR_H
+} // namespace ImageEditor
+
+#endif // IMAGEEDITOR_IMAGEEDITOR_H

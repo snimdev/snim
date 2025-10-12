@@ -1,10 +1,12 @@
-#ifndef EDITABLETEXTITEM_H
-#define EDITABLETEXTITEM_H
+#ifndef IMAGEEDITOR_EDITABLETEXTITEM_H
+#define IMAGEEDITOR_EDITABLETEXTITEM_H
 
 #include <QGraphicsTextItem>
 #include <QGraphicsSceneMouseEvent>
 #include <QFocusEvent>
 #include <QGraphicsSceneWheelEvent>
+
+namespace ImageEditor {
 
 class EditableTextItem : public QGraphicsTextItem
 {
@@ -22,4 +24,6 @@ signals:
     void textChanged();
 };
 
-#endif // EDITABLETEXTITEM_H
+} // namespace ImageEditor
+
+#endif // IMAGEEDITOR_EDITABLETEXTITEM_H

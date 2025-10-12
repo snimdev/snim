@@ -1,7 +1,7 @@
-#include "screenshotapp.h"
+#include "src/core/ScreenshotApp.h"
 
 int main(int argc, char *argv[]) {
-    ScreenshotApp app(argc, argv);
+    Core::ScreenshotApp app(argc, argv);
 
     // Set application properties
     app.setApplicationName("Screenshot App");

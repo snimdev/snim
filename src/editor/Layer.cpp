@@ -1,5 +1,7 @@
 #include "Layer.h"
 
+namespace ImageEditor {
+
 Layer::Layer(const QString &name, LayerType type, QObject *parent)
     : QObject(parent)
     , m_name(name)
@@ -27,3 +29,5 @@ void Layer::setItem(QGraphicsItem *item)
         m_item->setVisible(m_visible);
     }
 }
+
+} // namespace ImageEditor

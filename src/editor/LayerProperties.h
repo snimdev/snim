@@ -1,9 +1,11 @@
-#ifndef LAYERPROPERTIES_H
-#define LAYERPROPERTIES_H
+#ifndef IMAGEEDITOR_LAYERPROPERTIES_H
+#define IMAGEEDITOR_LAYERPROPERTIES_H
 
 #include <QWidget>
 #include <QGroupBox>
 #include <QPushButton>
+
+namespace ImageEditor {
 
 class Layer;
 
@@ -38,4 +40,6 @@ private:
     QPushButton *m_arrowColorButton;
 };
 
-#endif // LAYERPROPERTIES_H
+} // namespace ImageEditor
+
+#endif // IMAGEEDITOR_LAYERPROPERTIES_H

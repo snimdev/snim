@@ -1,8 +1,10 @@
-#ifndef LAYER_H
-#define LAYER_H
+#ifndef IMAGEEDITOR_LAYER_H
+#define IMAGEEDITOR_LAYER_H
 
 #include <QObject>
 #include <QGraphicsItem>
+
+namespace ImageEditor {
 
 class Layer : public QObject
 {
@@ -39,4 +41,6 @@ private:
     QGraphicsItem *m_item;
 };
 
-#endif // LAYER_H
+} // namespace ImageEditor
+
+#endif // IMAGEEDITOR_LAYER_H

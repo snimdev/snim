@@ -1,10 +1,12 @@
-#ifndef DRAWINGGRAPHICSVIEW_H
-#define DRAWINGGRAPHICSVIEW_H
+#ifndef IMAGEEDITOR_DRAWINGGRAPHICSVIEW_H
+#define IMAGEEDITOR_DRAWINGGRAPHICSVIEW_H
 
 #include <QGraphicsView>
 #include <QMouseEvent>
 #include <QGraphicsLineItem>
 #include "ArrowItem.h"
+
+namespace ImageEditor {
 
 class DrawingGraphicsView : public QGraphicsView
 {
@@ -46,4 +48,6 @@ private:
     ArrowItem *m_currentArrow;
 };
 
-#endif // DRAWINGGRAPHICSVIEW_H
+} // namespace ImageEditor
+
+#endif // IMAGEEDITOR_DRAWINGGRAPHICSVIEW_H

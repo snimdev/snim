@@ -1,6 +1,8 @@
 #include "EditableTextItem.h"
 #include <QFont>
 
+namespace ImageEditor {
+
 EditableTextItem::EditableTextItem(const QString &text, QGraphicsItem *parent)
     : QGraphicsTextItem(text, parent)
 {
@@ -53,3 +55,5 @@ void EditableTextItem::wheelEvent(QGraphicsSceneWheelEvent *event)
         QGraphicsTextItem::wheelEvent(event);
     }
 }
+
+} // namespace ImageEditor

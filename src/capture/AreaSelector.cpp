@@ -1,6 +1,8 @@
 #include "AreaSelector.h"
 #include <QPainter>
 
+namespace Capture {
+
 AreaSelector::AreaSelector(QWidget *parent)
     : QWidget(parent)
     , m_selecting(false)
@@ -66,3 +68,5 @@ void AreaSelector::keyPressEvent(QKeyEvent *event)
         emit areaSelected(QRect());
     }
 }
+
+} // namespace Capture

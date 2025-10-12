@@ -1,11 +1,13 @@
-#ifndef LAYERMANAGER_H
-#define LAYERMANAGER_H
+#ifndef IMAGEEDITOR_LAYERMANAGER_H
+#define IMAGEEDITOR_LAYERMANAGER_H
 
 #include <QWidget>
 #include <QListWidget>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QScrollArea>
+
+namespace ImageEditor {
 
 class Layer;
 
@@ -39,4 +41,6 @@ private:
     QList<Layer*> m_layers;
 };
 
-#endif // LAYERMANAGER_H
+} // namespace ImageEditor
+
+#endif // IMAGEEDITOR_LAYERMANAGER_H

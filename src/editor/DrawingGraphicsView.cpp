@@ -1,10 +1,13 @@
 #include "DrawingGraphicsView.h"
+#include "ArrowItem.h"
 #include <QGraphicsScene>
 #include <QPen>
 #include <QTransform>
 #include <QPainter>
 #include <QWheelEvent>
 #include <QtMath>
+
+namespace ImageEditor {
 
 DrawingGraphicsView::DrawingGraphicsView(QWidget *parent)
     : QGraphicsView(parent)
@@ -166,3 +169,5 @@ QPoint DrawingGraphicsView::clampToImageBounds(const QPoint &point) const
 
     return QPoint(clampedX, clampedY);
 }
+
+} // namespace ImageEditor
