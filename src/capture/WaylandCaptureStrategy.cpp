@@ -1,5 +1,8 @@
 #include "WaylandCaptureStrategy.h"
+
+#include <iostream>
 #include <QApplication>
+#include <QScreen>
 #include <QWidget>
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QDBusInterface>
@@ -142,7 +145,13 @@ namespace Capture {
             // This is implementation-specific but might help
             options["output"] = ""; // Empty string might default to current screen
         } else {
-            options["interactive"] = true; // Interactive mode for area selection
+            // For area capture, we want to capture the current screen without interaction.
+            options["interactive"] = false; // Set to false for non-interactive screen capture.
+            if (QApplication::activeWindow()) {
+                if (QScreen *screen = QApplication::activeWindow()->screen()) {
+                    options["output"] = screen->name();
+                }
+            }
         }
 
         // Get the parent window identifier - try both Wayland and X11 formats
@@ -334,8 +343,15 @@ namespace Capture {
         QDBusObjectPath requestPath = reply.value();
         qDebug() << "Portal request created at:" << requestPath.path();
 
-        // The actual response will come via the Response signal
-        // which is handled by connectToPortalSignals()
+        // Connect to the Response signal on the unique request path
+        m_sessionBus.connect(
+            "org.freedesktop.portal.Desktop",
+            requestPath.path(),
+            "org.freedesktop.portal.Request",
+            "Response",
+            this,
+            SLOT(handleScreenshotResponse(uint,QVariantMap))
+        );
     }
 
     void WaylandCaptureStrategy::handleScreenshotResponse(uint response, const QVariantMap &results) {
@@ -352,6 +368,7 @@ namespace Capture {
             emit screenshotFailed("No screenshot URI in portal response");
             return;
         }
+
 
         QString uri = results["uri"].toString();
         qDebug() << "Screenshot saved to:" << uri;
@@ -382,16 +399,6 @@ namespace Capture {
             qWarning() << "D-Bus session bus not connected";
             return;
         }
-
-        // Connect to the Response signal for screenshot requests
-        m_sessionBus.connect(
-            "org.freedesktop.portal.Desktop",
-            "/org/freedesktop/portal/desktop",
-            "org.freedesktop.portal.Request",
-            "Response",
-            this,
-            SLOT(handleScreenshotResponse(uint, QVariantMap))
-        );
     }
 
     QString WaylandCaptureStrategy::generateSessionToken() {
