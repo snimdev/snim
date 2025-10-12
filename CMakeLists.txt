@@ -10,6 +10,7 @@ find_package(Qt6 COMPONENTS
         Core
         Gui
         Widgets
+        DBus
         REQUIRED)
 
 add_executable(Niceshort2
@@ -26,6 +27,14 @@ add_executable(Niceshort2
     # Capture functionality
     src/capture/AreaSelector.cpp
     src/capture/AreaSelector.h
+    src/capture/CaptureStrategy.cpp
+    src/capture/CaptureStrategy.h
+    src/capture/CaptureFactory.cpp
+    src/capture/CaptureFactory.h
+    src/capture/NativeCaptureStrategy.cpp
+    src/capture/NativeCaptureStrategy.h
+    src/capture/WaylandCaptureStrategy.cpp
+    src/capture/WaylandCaptureStrategy.h
 
     # Image editor functionality
     src/editor/ImageEditor.cpp
@@ -54,4 +63,5 @@ target_link_libraries(Niceshort2
         Qt::Core
         Qt::Gui
         Qt::Widgets
+        Qt::DBus
 )
