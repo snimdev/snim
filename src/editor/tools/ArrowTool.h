@@ -8,7 +8,7 @@
 #include <QPen>
 #include <QPointF>
 
-namespace ImageEditor {
+namespace ImageEditor::Tools {
 
 class ArrowTool : public QGraphicsItemGroup
 {

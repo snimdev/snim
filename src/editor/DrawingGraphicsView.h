@@ -7,9 +7,9 @@
 #include <QGraphicsItem>
 #include <QRect>
 
-namespace ImageEditor {
+#include "tools/ArrowTool.h"
 
-class ArrowTool;
+namespace ImageEditor {
 
 class DrawingGraphicsView : public QGraphicsView
 {
@@ -48,7 +48,7 @@ private:
     QPoint m_startPoint;
     QPoint m_endPoint;
     QRect m_imageBounds;
-    ArrowTool *m_currentArrow;
+    Tools::ArrowTool *m_currentArrow;
 };
 
 } // namespace ImageEditor

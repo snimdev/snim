@@ -1,9 +1,8 @@
 #include "ArrowTool.h"
-#include <QtMath>
 #include <cmath>
 #include <QGraphicsPolygonItem>
 
-namespace ImageEditor {
+namespace ImageEditor::Tools {
 
 ArrowTool::ArrowTool(const QPointF &start, const QPointF &end, QGraphicsItem *parent)
     : QGraphicsItemGroup(parent)

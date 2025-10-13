@@ -6,7 +6,7 @@
 #include <QFocusEvent>
 #include <QGraphicsSceneWheelEvent>
 
-namespace ImageEditor {
+namespace ImageEditor::Tools {
 
 class TextTool : public QGraphicsTextItem
 {

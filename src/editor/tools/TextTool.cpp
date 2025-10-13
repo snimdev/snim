@@ -1,7 +1,7 @@
 #include "TextTool.h"
 #include <QFont>
 
-namespace ImageEditor {
+namespace ImageEditor::Tools {
 
 TextTool::TextTool(const QString &text, QGraphicsItem *parent)
     : QGraphicsTextItem(text, parent)

@@ -3,8 +3,8 @@
 #include "LayerManager.h"
 #include "LayerProperties.h"
 #include "Layer.h"
-#include "TextTool.h"
-#include "ArrowTool.h"
+#include "tools/TextTool.h"
+#include "tools/ArrowTool.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -257,7 +257,7 @@ void ImageEditor::selectTextTool()
 
 void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
 {
-    auto *textItem = new TextTool(text);
+    auto *textItem = new Tools::TextTool(text);
     textItem->setPos(position);
     textItem->setDefaultTextColor(Qt::black);
 
@@ -265,7 +265,7 @@ void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
     auto *layer = new Layer(QString("Text: %1").arg(text), Layer::Text, this);
     layer->setItem(textItem);
 
-    connect(textItem, &TextTool::textChanged, [this, layer, textItem]() {
+    connect(textItem, &Tools::TextTool::textChanged, [this, layer, textItem]() {
         QString newText = textItem->toPlainText();
         if (newText.length() > 20) {
             newText = newText.left(20) + "...";
@@ -290,7 +290,7 @@ void ImageEditor::addArrowLayer(const QPoint &start, const QPoint &end)
 
     // Create the arrow item with proper pen
     QPen pen(Qt::red, 3);
-    ArrowTool *arrowItem = new ArrowTool(start, end);
+    auto *arrowItem = new Tools::ArrowTool(start, end);
     arrowItem->setPen(pen);
 
     // Add the arrow item to the scene (not separate line items)

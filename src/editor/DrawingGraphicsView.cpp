@@ -1,11 +1,12 @@
 #include "DrawingGraphicsView.h"
-#include "ArrowTool.h"
+#include "tools/ArrowTool.h"
 #include <QGraphicsScene>
 #include <QPen>
 #include <QTransform>
 #include <QPainter>
 #include <QWheelEvent>
 #include <QtMath>
+
 
 namespace ImageEditor {
 
@@ -69,7 +70,7 @@ void DrawingGraphicsView::mouseMoveEvent(QMouseEvent *event)
 
         // Create new temporary arrow using ArrowTool for consistency
         QPen pen(Qt::red, 3);
-        m_currentArrow = new ArrowTool(m_startPoint, m_endPoint);
+        m_currentArrow = new Tools::ArrowTool(m_startPoint, m_endPoint);
         m_currentArrow->setPen(pen);
         scene()->addItem(m_currentArrow);
 
