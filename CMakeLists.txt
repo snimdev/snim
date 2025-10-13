@@ -41,16 +41,16 @@ add_executable(Niceshort2
     src/editor/ImageEditor.h
     src/editor/DrawingGraphicsView.cpp
     src/editor/DrawingGraphicsView.h
-    src/editor/ArrowItem.cpp
-    src/editor/ArrowItem.h
+    src/editor/ArrowTool.cpp
+    src/editor/ArrowTool.h
     src/editor/Layer.cpp
     src/editor/Layer.h
     src/editor/LayerManager.cpp
     src/editor/LayerManager.h
     src/editor/LayerProperties.cpp
     src/editor/LayerProperties.h
-    src/editor/EditableTextItem.cpp
-    src/editor/EditableTextItem.h
+    src/editor/TextTool.cpp
+    src/editor/TextTool.h
 )
 
 # Set include directories for the organized structure

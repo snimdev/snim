@@ -1,9 +1,9 @@
-#include "EditableTextItem.h"
+#include "TextTool.h"
 #include <QFont>
 
 namespace ImageEditor {
 
-EditableTextItem::EditableTextItem(const QString &text, QGraphicsItem *parent)
+TextTool::TextTool(const QString &text, QGraphicsItem *parent)
     : QGraphicsTextItem(text, parent)
 {
     setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -13,7 +13,7 @@ EditableTextItem::EditableTextItem(const QString &text, QGraphicsItem *parent)
     setTextInteractionFlags(Qt::NoTextInteraction);
 }
 
-void EditableTextItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
+void TextTool::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 {
     setTextInteractionFlags(Qt::TextEditorInteraction);
     setFlag(QGraphicsItem::ItemIsMovable, false);
@@ -21,7 +21,7 @@ void EditableTextItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
     QGraphicsTextItem::mouseDoubleClickEvent(event);
 }
 
-void EditableTextItem::focusOutEvent(QFocusEvent *event)
+void TextTool::focusOutEvent(QFocusEvent *event)
 {
     setTextInteractionFlags(Qt::NoTextInteraction);
     setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -30,7 +30,7 @@ void EditableTextItem::focusOutEvent(QFocusEvent *event)
     QGraphicsTextItem::focusOutEvent(event);
 }
 
-void EditableTextItem::wheelEvent(QGraphicsSceneWheelEvent *event)
+void TextTool::wheelEvent(QGraphicsSceneWheelEvent *event)
 {
     if (event->modifiers() & Qt::ControlModifier && isSelected()) {
         QFont currentFont = font();

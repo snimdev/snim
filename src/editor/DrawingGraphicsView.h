@@ -3,17 +3,20 @@
 
 #include <QGraphicsView>
 #include <QMouseEvent>
-#include <QGraphicsLineItem>
-#include "ArrowItem.h"
+#include <QWheelEvent>
+#include <QGraphicsItem>
+#include <QRect>
 
 namespace ImageEditor {
+
+class ArrowTool;
 
 class DrawingGraphicsView : public QGraphicsView
 {
     Q_OBJECT
 
 public:
-    enum Tool {
+    enum ToolType {
         None,
         Pointer,
         Arrow,
@@ -22,7 +25,7 @@ public:
 
     explicit DrawingGraphicsView(QWidget *parent = nullptr);
 
-    void setCurrentTool(Tool tool) { m_currentTool = tool; }
+    void setCurrentTool(ToolType tool) { m_currentTool = tool; }
     void setImageBounds(const QRect &bounds) { m_imageBounds = bounds; }
 
 signals:
@@ -40,12 +43,12 @@ private:
     bool isWithinImageBounds(const QPoint &point) const;
     QPoint clampToImageBounds(const QPoint &point) const;
 
-    Tool m_currentTool;
+    ToolType m_currentTool;
     bool m_drawing;
     QPoint m_startPoint;
     QPoint m_endPoint;
     QRect m_imageBounds;
-    ArrowItem *m_currentArrow;
+    ArrowTool *m_currentArrow;
 };
 
 } // namespace ImageEditor

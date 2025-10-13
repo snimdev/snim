@@ -3,8 +3,8 @@
 #include "LayerManager.h"
 #include "LayerProperties.h"
 #include "Layer.h"
-#include "EditableTextItem.h"
-#include "ArrowItem.h"
+#include "TextTool.h"
+#include "ArrowTool.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -25,14 +25,23 @@ namespace ImageEditor {
 
 ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     : QMainWindow(parent)
+    , m_view(nullptr)
+    , m_scene(nullptr)
+    , m_pixmapItem(nullptr)
+    , m_toolbar(nullptr)
+    , m_saveAsAction(nullptr)
+    , m_copyAction(nullptr)
+    , m_pointerAction(nullptr)
+    , m_arrowAction(nullptr)
+    , m_textAction(nullptr)
+    , m_splitter(nullptr)
+    , m_rightSplitter(nullptr)
+    , m_layerManager(nullptr)
+    , m_layerProperties(nullptr)
     , m_originalScreenshot(screenshot)
     , m_currentTool(None)
     , m_drawing(false)
     , m_currentArrow(nullptr)
-    , m_layerManager(nullptr)
-    , m_layerProperties(nullptr)
-    , m_splitter(nullptr)
-    , m_rightSplitter(nullptr)
     , m_backgroundLayer(nullptr)
 {
     qDebug() << "ImageEditor constructor called with screenshot size:" << screenshot.size();
@@ -131,8 +140,6 @@ void ImageEditor::setupUI()
     m_splitter->setStretchFactor(1, 1);
 }
 
-// ...existing code...
-
 void ImageEditor::setupToolbar()
 {
     m_toolbar = addToolBar("Tools");
@@ -181,8 +188,6 @@ void ImageEditor::setupToolbar()
     connect(m_textAction, &QAction::triggered, this, &ImageEditor::selectTextTool);
     m_toolbar->addAction(m_textAction);
 }
-
-// ...existing code...
 
 void ImageEditor::saveAs()
 {
@@ -252,7 +257,7 @@ void ImageEditor::selectTextTool()
 
 void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
 {
-    auto *textItem = new EditableTextItem(text);
+    auto *textItem = new TextTool(text);
     textItem->setPos(position);
     textItem->setDefaultTextColor(Qt::black);
 
@@ -260,7 +265,7 @@ void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
     auto *layer = new Layer(QString("Text: %1").arg(text), Layer::Text, this);
     layer->setItem(textItem);
 
-    connect(textItem, &EditableTextItem::textChanged, [this, layer, textItem]() {
+    connect(textItem, &TextTool::textChanged, [this, layer, textItem]() {
         QString newText = textItem->toPlainText();
         if (newText.length() > 20) {
             newText = newText.left(20) + "...";
@@ -285,7 +290,7 @@ void ImageEditor::addArrowLayer(const QPoint &start, const QPoint &end)
 
     // Create the arrow item with proper pen
     QPen pen(Qt::red, 3);
-    ArrowItem *arrowItem = new ArrowItem(start, end);
+    ArrowTool *arrowItem = new ArrowTool(start, end);
     arrowItem->setPen(pen);
 
     // Add the arrow item to the scene (not separate line items)

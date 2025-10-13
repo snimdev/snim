@@ -1,5 +1,5 @@
 #include "DrawingGraphicsView.h"
-#include "ArrowItem.h"
+#include "ArrowTool.h"
 #include <QGraphicsScene>
 #include <QPen>
 #include <QTransform>
@@ -67,9 +67,9 @@ void DrawingGraphicsView::mouseMoveEvent(QMouseEvent *event)
             delete m_currentArrow;
         }
 
-        // Create new temporary arrow using ArrowItem for consistency
+        // Create new temporary arrow using ArrowTool for consistency
         QPen pen(Qt::red, 3);
-        m_currentArrow = new ArrowItem(m_startPoint, m_endPoint);
+        m_currentArrow = new ArrowTool(m_startPoint, m_endPoint);
         m_currentArrow->setPen(pen);
         scene()->addItem(m_currentArrow);
 

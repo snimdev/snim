@@ -1,5 +1,5 @@
-#ifndef IMAGEEDITOR_EDITABLETEXTITEM_H
-#define IMAGEEDITOR_EDITABLETEXTITEM_H
+#ifndef IMAGEEDITOR_TEXTTOOL_H
+#define IMAGEEDITOR_TEXTTOOL_H
 
 #include <QGraphicsTextItem>
 #include <QGraphicsSceneMouseEvent>
@@ -8,12 +8,12 @@
 
 namespace ImageEditor {
 
-class EditableTextItem : public QGraphicsTextItem
+class TextTool : public QGraphicsTextItem
 {
     Q_OBJECT
 
 public:
-    explicit EditableTextItem(const QString &text = "", QGraphicsItem *parent = nullptr);
+    explicit TextTool(const QString &text = "", QGraphicsItem *parent = nullptr);
 
 protected:
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
@@ -26,4 +26,4 @@ signals:
 
 } // namespace ImageEditor
 
-#endif // IMAGEEDITOR_EDITABLETEXTITEM_H
+#endif // IMAGEEDITOR_TEXTTOOL_H

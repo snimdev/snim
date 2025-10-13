@@ -1,7 +1,7 @@
 #include "LayerProperties.h"
 #include "Layer.h"
-#include "ArrowItem.h"
-#include "EditableTextItem.h"
+#include "ArrowTool.h"
+#include "TextTool.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -198,7 +198,7 @@ void LayerProperties::onTextColorButtonClicked()
             QString("background-color: %1; border: 1px solid black;").arg(color.name()));
 
         if (m_currentLayer->item()) {
-            auto *textItem = qgraphicsitem_cast<EditableTextItem*>(m_currentLayer->item());
+            auto *textItem = qgraphicsitem_cast<TextTool*>(m_currentLayer->item());
             if (textItem) {
                 textItem->setDefaultTextColor(color);
             }
@@ -218,8 +218,8 @@ void LayerProperties::onArrowColorButtonClicked()
             QString("background-color: %1; border: 1px solid black;").arg(color.name()));
 
         if (m_currentLayer->item()) {
-            // Try to cast to ArrowItem first
-            auto *arrowItem = qgraphicsitem_cast<ArrowItem*>(m_currentLayer->item());
+            // Try to cast to ArrowTool first
+            auto *arrowItem = qgraphicsitem_cast<ArrowTool*>(m_currentLayer->item());
             if (arrowItem) {
                 QPen currentPen = arrowItem->pen();
                 currentPen.setColor(color);  // Only change color, preserve width
@@ -246,7 +246,7 @@ void LayerProperties::onArrowSizeChanged(int index)
     int penWidth = m_arrowSizeCombo->itemData(index).toInt();
 
     if (m_currentLayer->item()) {
-        auto *arrowItem = qgraphicsitem_cast<ArrowItem*>(m_currentLayer->item());
+        auto *arrowItem = qgraphicsitem_cast<ArrowTool*>(m_currentLayer->item());
         if (arrowItem) {
             QPen currentPen = arrowItem->pen();
             currentPen.setWidth(penWidth);
@@ -262,10 +262,10 @@ void LayerProperties::onArrowHeadTypeChanged()
     }
 
     if (m_currentLayer->item()) {
-        auto *arrowItem = qgraphicsitem_cast<ArrowItem*>(m_currentLayer->item());
+        auto *arrowItem = qgraphicsitem_cast<ArrowTool*>(m_currentLayer->item());
         if (arrowItem) {
-            ArrowItem::ArrowHeadType type = m_outlinedArrowHead->isChecked() ?
-                ArrowItem::Outlined : ArrowItem::Filled;
+            ArrowTool::ArrowHeadType type = m_outlinedArrowHead->isChecked() ?
+                ArrowTool::Outlined : ArrowTool::Filled;
             arrowItem->setArrowHeadType(type);
         }
     }

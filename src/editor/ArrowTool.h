@@ -1,5 +1,5 @@
-#ifndef IMAGEEDITOR_ARROWITEM_H
-#define IMAGEEDITOR_ARROWITEM_H
+#ifndef IMAGEEDITOR_ARROWTOOL_H
+#define IMAGEEDITOR_ARROWTOOL_H
 
 #include <QGraphicsItemGroup>
 #include <QGraphicsLineItem>
@@ -10,7 +10,7 @@
 
 namespace ImageEditor {
 
-class ArrowItem : public QGraphicsItemGroup
+class ArrowTool : public QGraphicsItemGroup
 {
 public:
     enum ArrowHeadType {
@@ -18,7 +18,7 @@ public:
         Filled     // Completely filled
     };
 
-    explicit ArrowItem(const QPointF &start, const QPointF &end, QGraphicsItem *parent = nullptr);
+    explicit ArrowTool(const QPointF &start, const QPointF &end, QGraphicsItem *parent = nullptr);
 
     void updateArrow(const QPointF &start, const QPointF &end);
     void setPen(const QPen &pen);
@@ -50,4 +50,4 @@ private:
 
 } // namespace ImageEditor
 
-#endif // IMAGEEDITOR_ARROWITEM_H
+#endif // IMAGEEDITOR_ARROWTOOL_H

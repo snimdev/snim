@@ -1,11 +1,11 @@
-#include "ArrowItem.h"
+#include "ArrowTool.h"
 #include <QtMath>
 #include <cmath>
 #include <QGraphicsPolygonItem>
 
 namespace ImageEditor {
 
-ArrowItem::ArrowItem(const QPointF &start, const QPointF &end, QGraphicsItem *parent)
+ArrowTool::ArrowTool(const QPointF &start, const QPointF &end, QGraphicsItem *parent)
     : QGraphicsItemGroup(parent)
     , m_startPoint(start)
     , m_endPoint(end)
@@ -54,7 +54,7 @@ ArrowItem::ArrowItem(const QPointF &start, const QPointF &end, QGraphicsItem *pa
     updateArrow(start, end);
 }
 
-void ArrowItem::updateArrow(const QPointF &start, const QPointF &end)
+void ArrowTool::updateArrow(const QPointF &start, const QPointF &end)
 {
     m_startPoint = start;
     m_endPoint = end;
@@ -69,7 +69,7 @@ void ArrowItem::updateArrow(const QPointF &start, const QPointF &end)
     updateSelectionBorder();
 }
 
-void ArrowItem::createArrowHead()
+void ArrowTool::createArrowHead()
 {
     // Calculate arrow properties
     double dx = m_endPoint.x() - m_startPoint.x();
@@ -116,7 +116,7 @@ void ArrowItem::createArrowHead()
     }
 }
 
-void ArrowItem::setPen(const QPen &pen)
+void ArrowTool::setPen(const QPen &pen)
 {
     m_pen = pen;
     if (m_mainLine) m_mainLine->setPen(pen);
@@ -128,13 +128,13 @@ void ArrowItem::setPen(const QPen &pen)
     }
 }
 
-void ArrowItem::setArrowHeadType(ArrowHeadType type)
+void ArrowTool::setArrowHeadType(ArrowHeadType type)
 {
     m_arrowHeadType = type;
     createArrowHead();
 }
 
-QVariant ArrowItem::itemChange(GraphicsItemChange change, const QVariant &value)
+QVariant ArrowTool::itemChange(GraphicsItemChange change, const QVariant &value)
 {
     if (change == ItemSelectedChange) {
         updateSelectionBorder();
@@ -142,7 +142,7 @@ QVariant ArrowItem::itemChange(GraphicsItemChange change, const QVariant &value)
     return QGraphicsItemGroup::itemChange(change, value);
 }
 
-void ArrowItem::updateSelectionBorder()
+void ArrowTool::updateSelectionBorder()
 {
     if (!m_selectionBorder) return;
 
