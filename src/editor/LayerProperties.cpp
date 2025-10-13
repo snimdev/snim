@@ -11,6 +11,9 @@
 #include <QGraphicsLineItem>
 #include <QPainter>
 #include <QPen>
+#include <QComboBox>
+#include <QButtonGroup>
+#include <QRadioButton>
 
 namespace ImageEditor {
 
@@ -23,6 +26,10 @@ LayerProperties::LayerProperties(QWidget *parent)
     , m_textColorButton(nullptr)
     , m_arrowGroup(nullptr)
     , m_arrowColorButton(nullptr)
+    , m_arrowSizeCombo(nullptr)
+    , m_arrowHeadTypeGroup(nullptr)
+    , m_outlinedArrowHead(nullptr)
+    , m_filledArrowHead(nullptr)
 {
     setFixedWidth(200);
     setWindowTitle("Layer Properties");
@@ -33,6 +40,7 @@ void LayerProperties::setupUI()
 {
     auto *layout = new QVBoxLayout(this);
 
+    // Background Properties
     m_backgroundGroup = new QGroupBox("Background Properties");
     auto *backgroundLayout = new QVBoxLayout(m_backgroundGroup);
 
@@ -46,6 +54,7 @@ void LayerProperties::setupUI()
 
     layout->addWidget(m_backgroundGroup);
 
+    // Text Properties
     m_textGroup = new QGroupBox("Text Properties");
     auto *textLayout = new QVBoxLayout(m_textGroup);
 
@@ -59,9 +68,11 @@ void LayerProperties::setupUI()
 
     layout->addWidget(m_textGroup);
 
+    // Arrow Properties
     m_arrowGroup = new QGroupBox("Arrow Properties");
     auto *arrowLayout = new QVBoxLayout(m_arrowGroup);
 
+    // Arrow Color
     auto *arrowColorLayout = new QHBoxLayout();
     arrowColorLayout->addWidget(new QLabel("Arrow Color:"));
     m_arrowColorButton = createColorButton(QColor(255, 0, 0));
@@ -69,6 +80,36 @@ void LayerProperties::setupUI()
             this, &LayerProperties::onArrowColorButtonClicked);
     arrowColorLayout->addWidget(m_arrowColorButton);
     arrowLayout->addLayout(arrowColorLayout);
+
+    // Arrow Size
+    auto *arrowSizeLayout = new QHBoxLayout();
+    arrowSizeLayout->addWidget(new QLabel("Size:"));
+    m_arrowSizeCombo = new QComboBox();
+    m_arrowSizeCombo->addItem("Small (2px)", 2);
+    m_arrowSizeCombo->addItem("Medium (4px)", 4);
+    m_arrowSizeCombo->addItem("Large (6px)", 6);
+    m_arrowSizeCombo->setCurrentIndex(1); // Default to medium
+    connect(m_arrowSizeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &LayerProperties::onArrowSizeChanged);
+    arrowSizeLayout->addWidget(m_arrowSizeCombo);
+    arrowLayout->addLayout(arrowSizeLayout);
+
+    // Arrow Head Type
+    arrowLayout->addWidget(new QLabel("Arrow Head:"));
+    m_arrowHeadTypeGroup = new QButtonGroup(this);
+
+    m_outlinedArrowHead = new QRadioButton("Outlined");
+    m_filledArrowHead = new QRadioButton("Filled");
+    m_outlinedArrowHead->setChecked(true); // Default to outlined
+
+    m_arrowHeadTypeGroup->addButton(m_outlinedArrowHead, 0);
+    m_arrowHeadTypeGroup->addButton(m_filledArrowHead, 1);
+
+    connect(m_arrowHeadTypeGroup, QOverload<int>::of(&QButtonGroup::idClicked),
+            this, &LayerProperties::onArrowHeadTypeChanged);
+
+    arrowLayout->addWidget(m_outlinedArrowHead);
+    arrowLayout->addWidget(m_filledArrowHead);
 
     layout->addWidget(m_arrowGroup);
 
@@ -180,8 +221,9 @@ void LayerProperties::onArrowColorButtonClicked()
             // Try to cast to ArrowItem first
             auto *arrowItem = qgraphicsitem_cast<ArrowItem*>(m_currentLayer->item());
             if (arrowItem) {
-                QPen pen(color, 3);
-                arrowItem->setPen(pen);
+                QPen currentPen = arrowItem->pen();
+                currentPen.setColor(color);  // Only change color, preserve width
+                arrowItem->setPen(currentPen);
             } else {
                 // Fallback for old line items (if any still exist)
                 auto *lineItem = qgraphicsitem_cast<QGraphicsLineItem*>(m_currentLayer->item());
@@ -191,6 +233,40 @@ void LayerProperties::onArrowColorButtonClicked()
                     lineItem->setPen(pen);
                 }
             }
+        }
+    }
+}
+
+void LayerProperties::onArrowSizeChanged(int index)
+{
+    if (!m_currentLayer || m_currentLayer->type() != Layer::Arrow) {
+        return;
+    }
+
+    int penWidth = m_arrowSizeCombo->itemData(index).toInt();
+
+    if (m_currentLayer->item()) {
+        auto *arrowItem = qgraphicsitem_cast<ArrowItem*>(m_currentLayer->item());
+        if (arrowItem) {
+            QPen currentPen = arrowItem->pen();
+            currentPen.setWidth(penWidth);
+            arrowItem->setPen(currentPen);
+        }
+    }
+}
+
+void LayerProperties::onArrowHeadTypeChanged()
+{
+    if (!m_currentLayer || m_currentLayer->type() != Layer::Arrow) {
+        return;
+    }
+
+    if (m_currentLayer->item()) {
+        auto *arrowItem = qgraphicsitem_cast<ArrowItem*>(m_currentLayer->item());
+        if (arrowItem) {
+            ArrowItem::ArrowHeadType type = m_outlinedArrowHead->isChecked() ?
+                ArrowItem::Outlined : ArrowItem::Filled;
+            arrowItem->setArrowHeadType(type);
         }
     }
 }

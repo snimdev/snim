@@ -1,6 +1,7 @@
 #include "ArrowItem.h"
 #include <QtMath>
 #include <cmath>
+#include <QGraphicsPolygonItem>
 
 namespace ImageEditor {
 
@@ -9,19 +10,23 @@ ArrowItem::ArrowItem(const QPointF &start, const QPointF &end, QGraphicsItem *pa
     , m_startPoint(start)
     , m_endPoint(end)
     , m_pen(Qt::red, 3)
+    , m_arrowHeadType(Outlined)
     , m_mainLine(nullptr)
     , m_arrowHead1(nullptr)
     , m_arrowHead2(nullptr)
+    , m_filledArrowHead(nullptr)
+    , m_selectionBorder(nullptr)
 {
     setFlag(QGraphicsItem::ItemIsSelectable, true);
     setFlag(QGraphicsItem::ItemIsMovable, true);
+    setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
 
     // Create the main line
     m_mainLine = new QGraphicsLineItem(0, 0, 0, 0);
     m_mainLine->setPen(m_pen);
     addToGroup(m_mainLine);
 
-    // Create arrowhead lines
+    // Create arrowhead lines (for outlined arrow)
     m_arrowHead1 = new QGraphicsLineItem(0, 0, 0, 0);
     m_arrowHead1->setPen(m_pen);
     addToGroup(m_arrowHead1);
@@ -29,6 +34,21 @@ ArrowItem::ArrowItem(const QPointF &start, const QPointF &end, QGraphicsItem *pa
     m_arrowHead2 = new QGraphicsLineItem(0, 0, 0, 0);
     m_arrowHead2->setPen(m_pen);
     addToGroup(m_arrowHead2);
+
+    // Create filled arrowhead (initially hidden)
+    m_filledArrowHead = new QGraphicsPolygonItem();
+    m_filledArrowHead->setPen(m_pen);
+    m_filledArrowHead->setBrush(QBrush(m_pen.color()));
+    m_filledArrowHead->setVisible(false);
+    addToGroup(m_filledArrowHead);
+
+    // Create selection border (initially hidden)
+    m_selectionBorder = new QGraphicsRectItem();
+    QPen borderPen(Qt::blue, 1, Qt::DashLine);
+    m_selectionBorder->setPen(borderPen);
+    m_selectionBorder->setBrush(Qt::NoBrush);
+    m_selectionBorder->setVisible(false);
+    addToGroup(m_selectionBorder);
 
     // Update the arrow with the provided points
     updateArrow(start, end);
@@ -44,6 +64,9 @@ void ArrowItem::updateArrow(const QPointF &start, const QPointF &end)
 
     // Calculate and update arrowhead
     createArrowHead();
+
+    // Update selection border if visible
+    updateSelectionBorder();
 }
 
 void ArrowItem::createArrowHead()
@@ -57,6 +80,7 @@ void ArrowItem::createArrowHead()
         // Too short for arrowhead
         m_arrowHead1->setLine(0, 0, 0, 0);
         m_arrowHead2->setLine(0, 0, 0, 0);
+        m_filledArrowHead->setPolygon(QPolygonF());
         return;
     }
 
@@ -74,9 +98,22 @@ void ArrowItem::createArrowHead()
         -arrowLength * std::sin(angle + arrowAngle)
     );
 
-    // Update arrowhead lines
-    m_arrowHead1->setLine(m_endPoint.x(), m_endPoint.y(), arrowP1.x(), arrowP1.y());
-    m_arrowHead2->setLine(m_endPoint.x(), m_endPoint.y(), arrowP2.x(), arrowP2.y());
+    if (m_arrowHeadType == Outlined) {
+        // Show outlined arrowhead, hide filled
+        m_arrowHead1->setLine(m_endPoint.x(), m_endPoint.y(), arrowP1.x(), arrowP1.y());
+        m_arrowHead2->setLine(m_endPoint.x(), m_endPoint.y(), arrowP2.x(), arrowP2.y());
+        m_arrowHead1->setVisible(true);
+        m_arrowHead2->setVisible(true);
+        m_filledArrowHead->setVisible(false);
+    } else {
+        // Show filled arrowhead, hide outlined
+        QPolygonF triangle;
+        triangle << m_endPoint << arrowP1 << arrowP2;
+        m_filledArrowHead->setPolygon(triangle);
+        m_filledArrowHead->setVisible(true);
+        m_arrowHead1->setVisible(false);
+        m_arrowHead2->setVisible(false);
+    }
 }
 
 void ArrowItem::setPen(const QPen &pen)
@@ -85,6 +122,44 @@ void ArrowItem::setPen(const QPen &pen)
     if (m_mainLine) m_mainLine->setPen(pen);
     if (m_arrowHead1) m_arrowHead1->setPen(pen);
     if (m_arrowHead2) m_arrowHead2->setPen(pen);
+    if (m_filledArrowHead) {
+        m_filledArrowHead->setPen(pen);
+        m_filledArrowHead->setBrush(QBrush(pen.color()));
+    }
+}
+
+void ArrowItem::setArrowHeadType(ArrowHeadType type)
+{
+    m_arrowHeadType = type;
+    createArrowHead();
+}
+
+QVariant ArrowItem::itemChange(GraphicsItemChange change, const QVariant &value)
+{
+    if (change == ItemSelectedChange) {
+        updateSelectionBorder();
+    }
+    return QGraphicsItemGroup::itemChange(change, value);
+}
+
+void ArrowItem::updateSelectionBorder()
+{
+    if (!m_selectionBorder) return;
+
+    if (isSelected()) {
+        // Calculate bounding rectangle for the arrow
+        QRectF arrowBounds = boundingRect();
+
+        // Add some padding around the arrow
+        qreal padding = 5.0;
+        arrowBounds.adjust(-padding, -padding, padding, padding);
+
+        // Update the selection border rectangle
+        m_selectionBorder->setRect(arrowBounds);
+        m_selectionBorder->setVisible(true);
+    } else {
+        m_selectionBorder->setVisible(false);
+    }
 }
 
 } // namespace ImageEditor

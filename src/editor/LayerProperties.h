@@ -4,6 +4,9 @@
 #include <QWidget>
 #include <QGroupBox>
 #include <QPushButton>
+#include <QComboBox>
+#include <QButtonGroup>
+#include <QRadioButton>
 
 namespace ImageEditor {
 
@@ -21,6 +24,8 @@ private slots:
     void onBackgroundColorButtonClicked();
     void onTextColorButtonClicked();
     void onArrowColorButtonClicked();
+    void onArrowSizeChanged(int index);
+    void onArrowHeadTypeChanged();
 
 private:
     void setupUI();
@@ -38,6 +43,10 @@ private:
 
     QGroupBox *m_arrowGroup;
     QPushButton *m_arrowColorButton;
+    QComboBox *m_arrowSizeCombo;
+    QButtonGroup *m_arrowHeadTypeGroup;
+    QRadioButton *m_outlinedArrowHead;
+    QRadioButton *m_filledArrowHead;
 };
 
 } // namespace ImageEditor
