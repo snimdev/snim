@@ -1,6 +1,8 @@
 #include "ArrowTool.h"
 #include <cmath>
 #include <QGraphicsPolygonItem>
+#include <QColor>
+#include <QGraphicsRectItem>
 
 namespace ImageEditor::Tools {
 
@@ -64,7 +66,7 @@ void ArrowTool::updateArrow(const QPointF &start, const QPointF &end)
     // Calculate and update arrowhead
     createArrowHead();
 
-    // Update selection border if visible
+    // Update selection border
     updateSelectionBorder();
 }
 
@@ -136,6 +138,8 @@ void ArrowTool::setArrowHeadType(ArrowHeadType type)
 QVariant ArrowTool::itemChange(GraphicsItemChange change, const QVariant &value)
 {
     if (change == ItemSelectedChange) {
+        m_selectionBorder->setVisible(value.toBool());
+    } else if (change == ItemPositionHasChanged) {
         updateSelectionBorder();
     }
     return QGraphicsItemGroup::itemChange(change, value);
@@ -145,19 +149,60 @@ void ArrowTool::updateSelectionBorder()
 {
     if (!m_selectionBorder) return;
 
-    if (isSelected()) {
-        // Calculate bounding rectangle for the arrow
-        QRectF arrowBounds = boundingRect();
+    QRectF arrowBounds = childrenBoundingRect();
+    qreal padding = 5.0;
+    arrowBounds.adjust(-padding, -padding, padding, padding);
+    m_selectionBorder->setRect(arrowBounds);
+}
 
-        // Add some padding around the arrow
-        qreal padding = 5.0;
-        arrowBounds.adjust(-padding, -padding, padding, padding);
+QList<ToolProperty> ArrowTool::getProperties() const
+{
+    QList<ToolProperty> properties;
 
-        // Update the selection border rectangle
-        m_selectionBorder->setRect(arrowBounds);
-        m_selectionBorder->setVisible(true);
-    } else {
-        m_selectionBorder->setVisible(false);
+    ToolProperty colorProp;
+    colorProp.id = "color";
+    colorProp.name = "Color";
+    colorProp.value = m_pen.color();
+    colorProp.controlType = "color";
+    properties.append(colorProp);
+
+    ToolProperty widthProp;
+    widthProp.id = "width";
+    widthProp.name = "Width";
+    widthProp.value = m_pen.widthF();
+    widthProp.controlType = "slider";
+    widthProp.options[ "min" ] = 1;
+    widthProp.options[ "max" ] = 20;
+    properties.append(widthProp);
+
+    ToolProperty headTypeProp;
+    headTypeProp.id = "headType";
+    headTypeProp.name = "Arrow Head";
+    headTypeProp.value = m_arrowHeadType == Filled ? "Filled" : "Outlined";
+    headTypeProp.controlType = "dropdown";
+    headTypeProp.options[ "items" ] = QStringList{ "Outlined", "Filled" };
+    properties.append(headTypeProp);
+
+    return properties;
+}
+
+void ArrowTool::setProperty(const QString& propertyId, const QVariant& value)
+{
+    if (propertyId == "color" && value.canConvert<QColor>()) {
+        QPen newPen = m_pen;
+        newPen.setColor(value.value<QColor>());
+        setPen(newPen);
+    } else if (propertyId == "width" && value.canConvert<qreal>()) {
+        QPen newPen = m_pen;
+        newPen.setWidthF(value.toReal());
+        setPen(newPen);
+    } else if (propertyId == "headType" && value.canConvert<QString>()) {
+        QString type = value.toString();
+        if (type == "Filled") {
+            setArrowHeadType(Filled);
+        } else {
+            setArrowHeadType(Outlined);
+        }
     }
 }
 

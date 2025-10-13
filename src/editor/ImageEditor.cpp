@@ -119,6 +119,9 @@ void ImageEditor::setupUI()
     // Create right side widget with splitter for layer manager and properties
     m_rightSplitter = new QSplitter(Qt::Vertical);
 
+    // Remove margins to align with the view
+    m_rightSplitter->setContentsMargins(0, 0, 0, 0);
+
     // Create layer manager and properties panel
     m_layerManager = new LayerManager();
     m_layerProperties = new LayerProperties();
@@ -126,10 +129,6 @@ void ImageEditor::setupUI()
     // Add widgets to right splitter
     m_rightSplitter->addWidget(m_layerManager);
     m_rightSplitter->addWidget(m_layerProperties);
-
-    // Set equal proportions for layer manager and properties
-    m_rightSplitter->setStretchFactor(0, 1);
-    m_rightSplitter->setStretchFactor(1, 1);
 
     // Add main widgets to main splitter
     m_splitter->addWidget(m_view);
@@ -228,31 +227,31 @@ QPixmap ImageEditor::renderScene()
 void ImageEditor::selectPointerTool()
 {
     m_currentTool = None;
-    m_view->setCurrentTool(DrawingGraphicsView::Pointer);
-
-    m_pointerAction->setChecked(true);
+    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Pointer);
     m_arrowAction->setChecked(false);
     m_textAction->setChecked(false);
+    m_pointerAction->setChecked(true);
+    m_layerProperties->setLayer(nullptr);
 }
 
 void ImageEditor::selectArrowTool()
 {
     m_currentTool = Arrow;
-    m_view->setCurrentTool(DrawingGraphicsView::Arrow);
-
+    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Arrow);
     m_pointerAction->setChecked(false);
-    m_arrowAction->setChecked(true);
     m_textAction->setChecked(false);
+    m_arrowAction->setChecked(true);
+    m_layerProperties->setLayer(nullptr);
 }
 
 void ImageEditor::selectTextTool()
 {
     m_currentTool = Text;
-    m_view->setCurrentTool(DrawingGraphicsView::Text);
-
+    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Text);
     m_pointerAction->setChecked(false);
     m_arrowAction->setChecked(false);
     m_textAction->setChecked(true);
+    m_layerProperties->setLayer(nullptr);
 }
 
 void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
@@ -331,8 +330,9 @@ void ImageEditor::onDeleteLayerRequested(Layer *layer)
         delete layer->item();
     }
 
-    // Remove from layer manager
+    // Remove from layer manager and properties panel
     m_layerManager->removeLayer(layer);
+    m_layerProperties->removeLayer(layer);
 
     // Delete the layer
     layer->deleteLater();

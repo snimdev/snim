@@ -35,6 +35,10 @@ void DrawingGraphicsView::mousePressEvent(QMouseEvent *event)
             // Handle pointer tool - select items
             QGraphicsItem *item = scene()->itemAt(mapToScene(event->pos()), QTransform());
             if (item) {
+                // Get the top-level item (not child items of a group)
+                while (item->parentItem() != nullptr) {
+                    item = item->parentItem();
+                }
                 emit itemClicked(item);
             }
             QGraphicsView::mousePressEvent(event);

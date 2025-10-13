@@ -1,273 +1,131 @@
 #include "LayerProperties.h"
 #include "Layer.h"
-#include "tools/ArrowTool.h"
-#include "tools/TextTool.h"
+#include "tools/ITool.h"
 #include <QVBoxLayout>
-#include <QHBoxLayout>
+#include <QStackedWidget>
 #include <QLabel>
 #include <QColorDialog>
-#include <QGraphicsPixmapItem>
-#include <QBrush>
-#include <QGraphicsLineItem>
-#include <QPainter>
-#include <QPen>
+#include <QPushButton>
 #include <QComboBox>
-#include <QButtonGroup>
-#include <QRadioButton>
+#include <QVariant>
+#include <QSlider>
 
 namespace ImageEditor {
 
 LayerProperties::LayerProperties(QWidget *parent)
     : QWidget(parent)
-    , m_currentLayer(nullptr)
-    , m_backgroundGroup(nullptr)
-    , m_backgroundColorButton(nullptr)
-    , m_textGroup(nullptr)
-    , m_textColorButton(nullptr)
-    , m_arrowGroup(nullptr)
-    , m_arrowColorButton(nullptr)
-    , m_arrowSizeCombo(nullptr)
-    , m_arrowHeadTypeGroup(nullptr)
-    , m_outlinedArrowHead(nullptr)
-    , m_filledArrowHead(nullptr)
 {
+    auto* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(5, 5, 5, 5);  // Minimal margins instead of default
+    m_stackedWidget = new QStackedWidget(this);
+    m_originalPalette = m_stackedWidget->palette();
+    mainLayout->addWidget(m_stackedWidget);
+
+    m_emptyWidget = new QWidget();
+    m_stackedWidget->addWidget(m_emptyWidget);
+
     setFixedWidth(200);
-    setWindowTitle("Layer Properties");
-    setupUI();
-}
-
-void LayerProperties::setupUI()
-{
-    auto *layout = new QVBoxLayout(this);
-
-    // Background Properties
-    m_backgroundGroup = new QGroupBox("Background Properties");
-    auto *backgroundLayout = new QVBoxLayout(m_backgroundGroup);
-
-    auto *bgColorLayout = new QHBoxLayout();
-    bgColorLayout->addWidget(new QLabel("Background Color:"));
-    m_backgroundColorButton = createColorButton(QColor(255, 255, 255));
-    connect(m_backgroundColorButton, &QPushButton::clicked,
-            this, &LayerProperties::onBackgroundColorButtonClicked);
-    bgColorLayout->addWidget(m_backgroundColorButton);
-    backgroundLayout->addLayout(bgColorLayout);
-
-    layout->addWidget(m_backgroundGroup);
-
-    // Text Properties
-    m_textGroup = new QGroupBox("Text Properties");
-    auto *textLayout = new QVBoxLayout(m_textGroup);
-
-    auto *textColorLayout = new QHBoxLayout();
-    textColorLayout->addWidget(new QLabel("Text Color:"));
-    m_textColorButton = createColorButton(QColor(0, 0, 0));
-    connect(m_textColorButton, &QPushButton::clicked,
-            this, &LayerProperties::onTextColorButtonClicked);
-    textColorLayout->addWidget(m_textColorButton);
-    textLayout->addLayout(textColorLayout);
-
-    layout->addWidget(m_textGroup);
-
-    // Arrow Properties
-    m_arrowGroup = new QGroupBox("Arrow Properties");
-    auto *arrowLayout = new QVBoxLayout(m_arrowGroup);
-
-    // Arrow Color
-    auto *arrowColorLayout = new QHBoxLayout();
-    arrowColorLayout->addWidget(new QLabel("Arrow Color:"));
-    m_arrowColorButton = createColorButton(QColor(255, 0, 0));
-    connect(m_arrowColorButton, &QPushButton::clicked,
-            this, &LayerProperties::onArrowColorButtonClicked);
-    arrowColorLayout->addWidget(m_arrowColorButton);
-    arrowLayout->addLayout(arrowColorLayout);
-
-    // Arrow Size
-    auto *arrowSizeLayout = new QHBoxLayout();
-    arrowSizeLayout->addWidget(new QLabel("Size:"));
-    m_arrowSizeCombo = new QComboBox();
-    m_arrowSizeCombo->addItem("Small (2px)", 2);
-    m_arrowSizeCombo->addItem("Medium (4px)", 4);
-    m_arrowSizeCombo->addItem("Large (6px)", 6);
-    m_arrowSizeCombo->setCurrentIndex(1); // Default to medium
-    connect(m_arrowSizeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &LayerProperties::onArrowSizeChanged);
-    arrowSizeLayout->addWidget(m_arrowSizeCombo);
-    arrowLayout->addLayout(arrowSizeLayout);
-
-    // Arrow Head Type
-    arrowLayout->addWidget(new QLabel("Arrow Head:"));
-    m_arrowHeadTypeGroup = new QButtonGroup(this);
-
-    m_outlinedArrowHead = new QRadioButton("Outlined");
-    m_filledArrowHead = new QRadioButton("Filled");
-    m_outlinedArrowHead->setChecked(true); // Default to outlined
-
-    m_arrowHeadTypeGroup->addButton(m_outlinedArrowHead, 0);
-    m_arrowHeadTypeGroup->addButton(m_filledArrowHead, 1);
-
-    connect(m_arrowHeadTypeGroup, QOverload<int>::of(&QButtonGroup::idClicked),
-            this, &LayerProperties::onArrowHeadTypeChanged);
-
-    arrowLayout->addWidget(m_outlinedArrowHead);
-    arrowLayout->addWidget(m_filledArrowHead);
-
-    layout->addWidget(m_arrowGroup);
-
-    layout->addStretch();
-
-    m_backgroundGroup->hide();
-    m_textGroup->hide();
-    m_arrowGroup->hide();
-}
-
-QPushButton* LayerProperties::createColorButton(const QColor &color)
-{
-    auto *button = new QPushButton();
-    button->setFixedSize(30, 20);
-    button->setStyleSheet(QString("background-color: %1; border: 1px solid black;").arg(color.name()));
-    return button;
+    setWindowTitle("Properties");
 }
 
 void LayerProperties::setLayer(Layer *layer)
 {
-    m_currentLayer = layer;
-    updatePropertiesForLayer();
-}
-
-void LayerProperties::updatePropertiesForLayer()
-{
-    m_backgroundGroup->hide();
-    m_textGroup->hide();
-    m_arrowGroup->hide();
-
-    if (!m_currentLayer) {
+    if (!layer) {
+        hidePropertiesStyle();
+        m_stackedWidget->setCurrentWidget(m_emptyWidget);
         return;
     }
 
-    switch (m_currentLayer->type()) {
-        case Layer::Background:
-            m_backgroundGroup->show();
-            break;
-        case Layer::Text:
-            m_textGroup->show();
-            break;
-        case Layer::Arrow:
-            m_arrowGroup->show();
-            break;
+    showPropertiesStyle();
+    if (m_layerWidgetMap.contains(layer)) {
+        m_stackedWidget->setCurrentWidget(m_layerWidgetMap[layer]);
+    } else {
+        buildPropertiesUI(layer);
     }
 }
 
-void LayerProperties::onBackgroundColorButtonClicked()
+void LayerProperties::removeLayer(Layer *layer)
 {
-    if (!m_currentLayer || m_currentLayer->type() != Layer::Background) {
-        return;
-    }
-
-    QColor color = QColorDialog::getColor(Qt::white, this, "Select Background Color");
-    if (color.isValid()) {
-        m_backgroundColorButton->setStyleSheet(
-            QString("background-color: %1; border: 1px solid black;").arg(color.name()));
-
-        if (m_currentLayer->item()) {
-            auto *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(m_currentLayer->item());
-            if (pixmapItem) {
-                // Update background color by recreating pixmap with new background
-                QPixmap originalPixmap = pixmapItem->pixmap();
-                QPixmap newPixmap(originalPixmap.size());
-                newPixmap.fill(color);
-
-                QPainter painter(&newPixmap);
-                painter.drawPixmap(0, 0, originalPixmap);
-                painter.end();
-
-                pixmapItem->setPixmap(newPixmap);
-            }
+    if (m_layerWidgetMap.contains(layer)) {
+        QWidget *widget = m_layerWidgetMap.take(layer);
+        m_stackedWidget->removeWidget(widget);
+        widget->deleteLater();
+        if (m_layerWidgetMap.isEmpty()) {
+            hidePropertiesStyle();
         }
     }
 }
 
-void LayerProperties::onTextColorButtonClicked()
+void LayerProperties::buildPropertiesUI(Layer *layer)
 {
-    if (!m_currentLayer || m_currentLayer->type() != Layer::Text) {
+    auto* tool = dynamic_cast<Tools::ITool*>(layer->getTool());
+    if (!tool) {
+        m_stackedWidget->setCurrentWidget(m_emptyWidget);
         return;
     }
 
-    QColor color = QColorDialog::getColor(Qt::black, this, "Select Text Color");
-    if (color.isValid()) {
-        m_textColorButton->setStyleSheet(
-            QString("background-color: %1; border: 1px solid black;").arg(color.name()));
+    auto* propertiesWidget = new QWidget();
+    auto* layout = new QVBoxLayout(propertiesWidget);
+    layout->setSpacing(10);
+    layout->setAlignment(Qt::AlignTop);
 
-        if (m_currentLayer->item()) {
-            auto *textItem = qgraphicsitem_cast<Tools::TextTool*>(m_currentLayer->item());
-            if (textItem) {
-                textItem->setDefaultTextColor(color);
-            }
-        }
-    }
-}
+    QList<Tools::ToolProperty> properties = tool->getProperties();
 
-void LayerProperties::onArrowColorButtonClicked()
-{
-    if (!m_currentLayer || m_currentLayer->type() != Layer::Arrow) {
-        return;
-    }
+    for (const auto& prop : properties) {
+        auto *propLayout = new QVBoxLayout();
+        propLayout->addWidget(new QLabel(prop.name + ":"));
 
-    QColor color = QColorDialog::getColor(Qt::red, this, "Select Arrow Color");
-    if (color.isValid()) {
-        m_arrowColorButton->setStyleSheet(
-            QString("background-color: %1; border: 1px solid black;").arg(color.name()));
-
-        if (m_currentLayer->item()) {
-            // Try to cast to ArrowTool first
-            auto *arrowItem = qgraphicsitem_cast<Tools::ArrowTool*>(m_currentLayer->item());
-            if (arrowItem) {
-                QPen currentPen = arrowItem->pen();
-                currentPen.setColor(color);  // Only change color, preserve width
-                arrowItem->setPen(currentPen);
-            } else {
-                // Fallback for old line items (if any still exist)
-                auto *lineItem = qgraphicsitem_cast<QGraphicsLineItem*>(m_currentLayer->item());
-                if (lineItem) {
-                    QPen pen = lineItem->pen();
-                    pen.setColor(color);
-                    lineItem->setPen(pen);
+        if (prop.controlType == "color") {
+            auto *button = new QPushButton("Select Color", propertiesWidget);
+            connect(button, &QPushButton::clicked, this, [this, tool, p = prop]() {
+                auto initialColor = p.value.value<QColor>();
+                QColor color = QColorDialog::getColor(initialColor, this, "Select Color");
+                if (color.isValid()) {
+                    tool->setProperty(p.id, color);
                 }
-            }
+            });
+            propLayout->addWidget(button);
+        } else if (prop.controlType == "slider") {
+            auto *slider = new QSlider(Qt::Horizontal, propertiesWidget);
+            slider->setMinimum(prop.options.value("min").toInt());
+            slider->setMaximum(prop.options.value("max").toInt());
+            slider->setValue(prop.value.toInt());
+            connect(slider, &QSlider::valueChanged, this, [tool, p = prop](int value) {
+                tool->setProperty(p.id, value);
+            });
+            propLayout->addWidget(slider);
+        } else if (prop.controlType == "dropdown") {
+            auto *comboBox = new QComboBox(propertiesWidget);
+            QStringList items = prop.options.value("items").toStringList();
+            comboBox->addItems(items);
+            comboBox->setCurrentText(prop.value.toString());
+            connect(comboBox, &QComboBox::currentTextChanged, this, [tool, p = prop](const QString& text) {
+                tool->setProperty(p.id, text);
+            });
+            propLayout->addWidget(comboBox);
         }
+        layout->addLayout(propLayout);
     }
+
+    m_stackedWidget->addWidget(propertiesWidget);
+    m_layerWidgetMap[layer] = propertiesWidget;
+    m_stackedWidget->setCurrentWidget(propertiesWidget);
 }
 
-void LayerProperties::onArrowSizeChanged(int index)
+void LayerProperties::showPropertiesStyle()
 {
-    if (!m_currentLayer || m_currentLayer->type() != Layer::Arrow) {
-        return;
-    }
-
-    int penWidth = m_arrowSizeCombo->itemData(index).toInt();
-
-    if (m_currentLayer->item()) {
-        auto *arrowItem = qgraphicsitem_cast<Tools::ArrowTool*>(m_currentLayer->item());
-        if (arrowItem) {
-            QPen currentPen = arrowItem->pen();
-            currentPen.setWidth(penWidth);
-            arrowItem->setPen(currentPen);
-        }
-    }
+    //m_stackedWidget->setAutoFillBackground(true);
+    QPalette p = palette();
+    //p.setColor(QPalette::Window, p.color(QPalette::Base));
+    //m_stackedWidget->setPalette(p);
+    m_stackedWidget->setStyleSheet("QStackedWidget { border: 1px solid " + p.color(QPalette::Mid).name() + "; padding: 5px; }");
 }
 
-void LayerProperties::onArrowHeadTypeChanged()
+void LayerProperties::hidePropertiesStyle()
 {
-    if (!m_currentLayer || m_currentLayer->type() != Layer::Arrow) {
-        return;
-    }
-
-    if (m_currentLayer->item()) {
-        auto *arrowItem = qgraphicsitem_cast<Tools::ArrowTool*>(m_currentLayer->item());
-        if (arrowItem) {
-            Tools::ArrowTool::ArrowHeadType type = m_outlinedArrowHead->isChecked() ? Tools::ArrowTool::Outlined : Tools::ArrowTool::Filled;
-            arrowItem->setArrowHeadType(type);
-        }
-    }
+    //m_stackedWidget->setAutoFillBackground(false);
+    //m_stackedWidget->setPalette(m_originalPalette);
+    m_stackedWidget->setStyleSheet("");
 }
 
 } // namespace ImageEditor

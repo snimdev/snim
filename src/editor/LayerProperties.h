@@ -2,11 +2,10 @@
 #define IMAGEEDITOR_LAYERPROPERTIES_H
 
 #include <QWidget>
-#include <QGroupBox>
-#include <QPushButton>
-#include <QComboBox>
-#include <QButtonGroup>
-#include <QRadioButton>
+#include <QMap>
+#include <QPalette>
+
+class QStackedWidget;
 
 namespace ImageEditor {
 
@@ -19,34 +18,17 @@ class LayerProperties : public QWidget
 public:
     explicit LayerProperties(QWidget *parent = nullptr);
     void setLayer(Layer *layer);
-
-private slots:
-    void onBackgroundColorButtonClicked();
-    void onTextColorButtonClicked();
-    void onArrowColorButtonClicked();
-    void onArrowSizeChanged(int index);
-    void onArrowHeadTypeChanged();
+    void removeLayer(Layer *layer);
 
 private:
-    void setupUI();
-    void updatePropertiesForLayer();
-    QPushButton* createColorButton(const QColor &color);
+    void buildPropertiesUI(Layer *layer);
+    void showPropertiesStyle();
+    void hidePropertiesStyle();
 
-    Layer *m_currentLayer;
-
-    // UI elements
-    QGroupBox *m_backgroundGroup;
-    QPushButton *m_backgroundColorButton;
-
-    QGroupBox *m_textGroup;
-    QPushButton *m_textColorButton;
-
-    QGroupBox *m_arrowGroup;
-    QPushButton *m_arrowColorButton;
-    QComboBox *m_arrowSizeCombo;
-    QButtonGroup *m_arrowHeadTypeGroup;
-    QRadioButton *m_outlinedArrowHead;
-    QRadioButton *m_filledArrowHead;
+    QStackedWidget *m_stackedWidget;
+    QMap<Layer*, QWidget*> m_layerWidgetMap;
+    QWidget* m_emptyWidget;
+    QPalette m_originalPalette;
 };
 
 } // namespace ImageEditor

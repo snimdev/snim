@@ -30,6 +30,8 @@ public:
     QGraphicsItem* item() const { return m_item; }
     void setItem(QGraphicsItem *item);
 
+    QGraphicsItem* getTool() const;
+
 signals:
     void visibilityChanged(bool visible);
     void nameChanged(const QString &name);

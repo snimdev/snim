@@ -1,6 +1,7 @@
 #ifndef IMAGEEDITOR_ARROWTOOL_H
 #define IMAGEEDITOR_ARROWTOOL_H
 
+#include "ITool.h"
 #include <QGraphicsItemGroup>
 #include <QGraphicsLineItem>
 #include <QGraphicsRectItem>
@@ -10,7 +11,7 @@
 
 namespace ImageEditor::Tools {
 
-class ArrowTool : public QGraphicsItemGroup
+class ArrowTool : public QGraphicsItemGroup, public ITool
 {
 public:
     enum ArrowHeadType {
@@ -23,6 +24,9 @@ public:
     void updateArrow(const QPointF &start, const QPointF &end);
     void setPen(const QPen &pen);
     void setArrowHeadType(ArrowHeadType type);
+
+    [[nodiscard]] QList<ToolProperty> getProperties() const override;
+    void setProperty(const QString& propertyId, const QVariant& value) override;
 
     [[nodiscard]] QPointF startPoint() const { return m_startPoint; }
     [[nodiscard]] QPointF endPoint() const { return m_endPoint; }

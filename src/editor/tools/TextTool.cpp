@@ -1,5 +1,6 @@
 #include "TextTool.h"
 #include <QFont>
+#include <QColor>
 
 namespace ImageEditor::Tools {
 
@@ -11,6 +12,26 @@ TextTool::TextTool(const QString &text, QGraphicsItem *parent)
     setFlag(QGraphicsItem::ItemIsFocusable, true);
     setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
     setTextInteractionFlags(Qt::NoTextInteraction);
+}
+
+QList<ToolProperty> TextTool::getProperties() const
+{
+    QList<ToolProperty> properties;
+    ToolProperty colorProp;
+    colorProp.id = "color";
+    colorProp.name = "Color";
+    colorProp.value = defaultTextColor();
+    colorProp.controlType = "color";
+    properties.append(colorProp);
+    return properties;
+}
+
+void TextTool::setProperty(const QString& propertyId, const QVariant& value)
+{
+    if (propertyId == "color" && value.canConvert<QColor>()) {
+        setDefaultTextColor(value.value<QColor>());
+        emit textChanged();
+    }
 }
 
 void TextTool::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
