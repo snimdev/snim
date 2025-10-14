@@ -5,6 +5,7 @@
 #include <QUuid>
 #include <QScreen>
 #include <QWidget>
+#include <QCursor>
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QDBusInterface>
 #include <QtDBus/QDBusPendingCall>
@@ -225,11 +226,24 @@ namespace Capture {
     }
 
     void WaylandCaptureStrategy::showAreaSelector(const QPixmap &screenshot) {
-        // Get the screen where we want to show the selector
+        // Get the screen where we want to show the selector based on cursor position
         QScreen *currentScreen = nullptr;
-        if (QApplication::activeWindow()) {
+        QPoint cursorPos = QCursor::pos();
+
+        // Find which screen contains the cursor
+        for (QScreen *screen : QGuiApplication::screens()) {
+            if (screen->geometry().contains(cursorPos)) {
+                currentScreen = screen;
+                break;
+            }
+        }
+
+        // Fallback to active window's screen
+        if (!currentScreen && QApplication::activeWindow()) {
             currentScreen = QApplication::activeWindow()->screen();
         }
+
+        // Final fallback to primary screen
         if (!currentScreen) {
             currentScreen = QGuiApplication::primaryScreen();
         }
@@ -279,11 +293,24 @@ namespace Capture {
 
 
     QPixmap WaylandCaptureStrategy::cropToCurrentScreen(const QImage &fullImage) {
-        // Get current screen
+        // Get current screen based on mouse cursor position
         QScreen *currentScreen = nullptr;
-        if (QApplication::activeWindow()) {
+        QPoint cursorPos = QCursor::pos();
+
+        // Find which screen contains the cursor
+        for (QScreen *screen : QGuiApplication::screens()) {
+            if (screen->geometry().contains(cursorPos)) {
+                currentScreen = screen;
+                break;
+            }
+        }
+
+        // Fallback to active window's screen
+        if (!currentScreen && QApplication::activeWindow()) {
             currentScreen = QApplication::activeWindow()->screen();
         }
+
+        // Final fallback to primary screen
         if (!currentScreen) {
             currentScreen = QGuiApplication::primaryScreen();
         }
