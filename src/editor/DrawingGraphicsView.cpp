@@ -29,13 +29,17 @@ void DrawingGraphicsView::setCurrentTool(ToolType tool)
 
 void DrawingGraphicsView::updateCursor()
 {
-    // Only show crosshair when actively drawing, not just when Arrow tool is selected
-    if (m_drawing && m_currentTool == Arrow) {
+    // Only show crosshair when actively drawing shapes
+    if (m_drawing && (m_currentTool == Arrow || m_currentTool == Rectangle || m_currentTool == Ellipse)) {
         setCursor(Qt::CrossCursor);
     } else {
         switch (m_currentTool) {
             case Text:
                 setCursor(Qt::IBeamCursor);
+                break;
+            case Rectangle:
+            case Ellipse:
+                setCursor(Qt::CrossCursor);
                 break;
             case Arrow:
             case Pointer:
@@ -70,7 +74,7 @@ void DrawingGraphicsView::mousePressEvent(QMouseEvent *event)
             }
             QGraphicsView::mousePressEvent(event);
             return;
-        } else if (m_currentTool == Arrow) {
+        } else if (m_currentTool == Arrow || m_currentTool == Rectangle || m_currentTool == Ellipse) {
             m_startPoint = scenePos;
             m_drawing = true;
             updateCursor(); // Update to crosshair while drawing
@@ -88,23 +92,27 @@ void DrawingGraphicsView::mousePressEvent(QMouseEvent *event)
 
 void DrawingGraphicsView::mouseMoveEvent(QMouseEvent *event)
 {
-    if (m_drawing && m_currentTool == Arrow) {
+    if (m_drawing && (m_currentTool == Arrow || m_currentTool == Rectangle || m_currentTool == Ellipse)) {
         QPoint scenePos = mapToScene(event->pos()).toPoint();
 
-        // Clamp the end point to image boundaries for arrows
+        // Clamp the end point to image boundaries
         m_endPoint = clampToImageBounds(scenePos);
 
-        // Remove previous temporary arrow
+        // Remove previous temporary item
         if (m_currentArrow) {
             scene()->removeItem(m_currentArrow);
             delete m_currentArrow;
         }
 
-        // Create new temporary arrow using ArrowTool for consistency
-        QPen pen(Qt::red, 3);
-        m_currentArrow = new Tools::ArrowTool(m_startPoint, m_endPoint);
-        m_currentArrow->setPen(pen);
-        scene()->addItem(m_currentArrow);
+        // Create new temporary preview item based on current tool
+        if (m_currentTool == Arrow) {
+            QPen pen(Qt::red, 3);
+            m_currentArrow = new Tools::ArrowTool(m_startPoint, m_endPoint);
+            m_currentArrow->setPen(pen);
+            scene()->addItem(m_currentArrow);
+        }
+        // For Rectangle and Ellipse, we'll handle the preview in the scene directly
+        // This is simpler and avoids creating full shape tools during drag
 
         event->accept();
         return;
@@ -115,17 +123,29 @@ void DrawingGraphicsView::mouseMoveEvent(QMouseEvent *event)
 
 void DrawingGraphicsView::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton && m_drawing && m_currentTool == Arrow) {
+    if (event->button() == Qt::LeftButton && m_drawing) {
         m_drawing = false;
 
-        // Remove the temporary arrow from scene
+        // Remove the temporary preview from scene
         if (m_currentArrow) {
             scene()->removeItem(m_currentArrow);
             delete m_currentArrow;
             m_currentArrow = nullptr;
+        }
 
-            // Emit signal to create a proper arrow layer
+        // Emit appropriate signal based on tool type
+        if (m_currentTool == Arrow) {
             emit arrowDrawn(m_startPoint, m_endPoint);
+        } else if (m_currentTool == Rectangle) {
+            QRect rect = QRect(m_startPoint, m_endPoint).normalized();
+            if (rect.width() > 5 && rect.height() > 5) { // Minimum size
+                emit rectangleDrawn(rect);
+            }
+        } else if (m_currentTool == Ellipse) {
+            QRect rect = QRect(m_startPoint, m_endPoint).normalized();
+            if (rect.width() > 5 && rect.height() > 5) { // Minimum size
+                emit ellipseDrawn(rect);
+            }
         }
 
         // Restore cursor based on current tool

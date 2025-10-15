@@ -14,7 +14,9 @@ public:
     enum LayerType {
         Background,
         Arrow,
-        Text
+        Text,
+        Rectangle,
+        Ellipse
     };
 
     explicit Layer(const QString &name, LayerType type, QObject *parent = nullptr);

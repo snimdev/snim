@@ -45,6 +45,14 @@ add_executable(Niceshort2
         src/editor/tools/ArrowTool.h
         src/editor/tools/ArrowHandleTool.cpp
         src/editor/tools/ArrowHandleTool.h
+        src/editor/tools/ShapeTool.cpp
+        src/editor/tools/ShapeTool.h
+        src/editor/tools/ShapeHandleTool.cpp
+        src/editor/tools/ShapeHandleTool.h
+        src/editor/tools/RectangleTool.cpp
+        src/editor/tools/RectangleTool.h
+        src/editor/tools/EllipseTool.cpp
+        src/editor/tools/EllipseTool.h
     src/editor/Layer.cpp
     src/editor/Layer.h
     src/editor/LayerManager.cpp

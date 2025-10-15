@@ -20,7 +20,9 @@ public:
         None,
         Pointer,
         Arrow,
-        Text
+        Text,
+        Rectangle,
+        Ellipse
     };
 
     explicit DrawingGraphicsView(QWidget *parent = nullptr);
@@ -31,6 +33,8 @@ public:
 signals:
     void arrowDrawn(const QPoint &start, const QPoint &end);
     void textRequested(const QPoint &position);
+    void rectangleDrawn(const QRect &rect);
+    void ellipseDrawn(const QRect &rect);
     void itemClicked(QGraphicsItem *item);
 
 protected:

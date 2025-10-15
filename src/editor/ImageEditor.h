@@ -33,6 +33,8 @@ public slots:
     void selectPointerTool();
     void selectArrowTool();
     void selectTextTool();
+    void selectRectangleTool();
+    void selectEllipseTool();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -51,6 +53,8 @@ private:
     QPixmap renderScene();
     void addTextLayer(const QPoint &position, const QString &text);
     void addArrowLayer(const QPoint &start, const QPoint &end);
+    void addRectangleLayer(const QRect &rect);
+    void addEllipseLayer(const QRect &rect);
     Layer* createBackgroundLayer();
     void selectLayerByItem(QGraphicsItem *item);
     bool isWithinImageBounds(const QPoint &point) const;
@@ -59,7 +63,9 @@ private:
     enum ToolType {
         None,
         Arrow,
-        Text
+        Text,
+        Rectangle,
+        Ellipse
     };
 
     // UI Components
@@ -72,6 +78,8 @@ private:
     QAction *m_pointerAction;
     QAction *m_arrowAction;
     QAction *m_textAction;
+    QAction *m_rectangleAction;
+    QAction *m_ellipseAction;
     QSplitter *m_splitter;
     QSplitter *m_rightSplitter;
     LayerManager *m_layerManager;

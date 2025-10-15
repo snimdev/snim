@@ -5,7 +5,8 @@
 #include "Layer.h"
 #include "tools/TextTool.h"
 #include "tools/ArrowTool.h"
-#include "tools/ArrowTool.h"
+#include "tools/RectangleTool.h"
+#include "tools/EllipseTool.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -35,6 +36,8 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_pointerAction(nullptr)
     , m_arrowAction(nullptr)
     , m_textAction(nullptr)
+    , m_rectangleAction(nullptr)
+    , m_ellipseAction(nullptr)
     , m_splitter(nullptr)
     , m_rightSplitter(nullptr)
     , m_layerManager(nullptr)
@@ -102,6 +105,8 @@ void ImageEditor::setupUI()
 
     // Connect signals from the custom view
     connect(m_view, &DrawingGraphicsView::arrowDrawn, this, &ImageEditor::addArrowLayer);
+    connect(m_view, &DrawingGraphicsView::rectangleDrawn, this, &ImageEditor::addRectangleLayer);
+    connect(m_view, &DrawingGraphicsView::ellipseDrawn, this, &ImageEditor::addEllipseLayer);
     connect(m_view, &DrawingGraphicsView::textRequested, this, [this](const QPoint &position) {
         bool ok;
         QString text = QInputDialog::getText(this, "Add Text", "Enter text:", QLineEdit::Normal, "", &ok);
@@ -187,6 +192,22 @@ void ImageEditor::setupToolbar()
     m_textAction->setCheckable(true);
     connect(m_textAction, &QAction::triggered, this, &ImageEditor::selectTextTool);
     m_toolbar->addAction(m_textAction);
+
+    // Rectangle tool
+    m_rectangleAction = new QAction(this);
+    m_rectangleAction->setText("Rectangle");
+    m_rectangleAction->setIcon(style()->standardIcon(QStyle::SP_DialogNoButton));
+    m_rectangleAction->setCheckable(true);
+    connect(m_rectangleAction, &QAction::triggered, this, &ImageEditor::selectRectangleTool);
+    m_toolbar->addAction(m_rectangleAction);
+
+    // Ellipse tool
+    m_ellipseAction = new QAction(this);
+    m_ellipseAction->setText("Ellipse");
+    m_ellipseAction->setIcon(style()->standardIcon(QStyle::SP_DialogYesButton));
+    m_ellipseAction->setCheckable(true);
+    connect(m_ellipseAction, &QAction::triggered, this, &ImageEditor::selectEllipseTool);
+    m_toolbar->addAction(m_ellipseAction);
 }
 
 void ImageEditor::saveAs()
@@ -231,6 +252,8 @@ void ImageEditor::selectPointerTool()
     m_view->setCurrentTool(DrawingGraphicsView::ToolType::Pointer);
     m_arrowAction->setChecked(false);
     m_textAction->setChecked(false);
+    m_rectangleAction->setChecked(false);
+    m_ellipseAction->setChecked(false);
     m_pointerAction->setChecked(true);
     m_layerProperties->setLayer(nullptr);
 }
@@ -241,6 +264,8 @@ void ImageEditor::selectArrowTool()
     m_view->setCurrentTool(DrawingGraphicsView::ToolType::Arrow);
     m_pointerAction->setChecked(false);
     m_textAction->setChecked(false);
+    m_rectangleAction->setChecked(false);
+    m_ellipseAction->setChecked(false);
     m_arrowAction->setChecked(true);
     m_layerProperties->setLayer(nullptr);
 }
@@ -251,7 +276,33 @@ void ImageEditor::selectTextTool()
     m_view->setCurrentTool(DrawingGraphicsView::ToolType::Text);
     m_pointerAction->setChecked(false);
     m_arrowAction->setChecked(false);
+    m_rectangleAction->setChecked(false);
+    m_ellipseAction->setChecked(false);
     m_textAction->setChecked(true);
+    m_layerProperties->setLayer(nullptr);
+}
+
+void ImageEditor::selectRectangleTool()
+{
+    m_currentTool = Rectangle;
+    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Rectangle);
+    m_pointerAction->setChecked(false);
+    m_arrowAction->setChecked(false);
+    m_textAction->setChecked(false);
+    m_ellipseAction->setChecked(false);
+    m_rectangleAction->setChecked(true);
+    m_layerProperties->setLayer(nullptr);
+}
+
+void ImageEditor::selectEllipseTool()
+{
+    m_currentTool = Ellipse;
+    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Ellipse);
+    m_pointerAction->setChecked(false);
+    m_arrowAction->setChecked(false);
+    m_textAction->setChecked(false);
+    m_rectangleAction->setChecked(false);
+    m_ellipseAction->setChecked(true);
     m_layerProperties->setLayer(nullptr);
 }
 
@@ -308,6 +359,56 @@ void ImageEditor::addArrowLayer(const QPoint &start, const QPoint &end)
     m_layerManager->selectLayer(layer);
 
     // Don't auto-select the arrow - user should use pointer tool to select it
+    m_scene->clearSelection();
+}
+
+void ImageEditor::addRectangleLayer(const QRect &rect)
+{
+    // Create the RectangleTool
+    auto *rectangleItem = new Tools::RectangleTool(rect);
+
+    // Set default appearance
+    QPen pen(Qt::black, 2);
+    rectangleItem->setPen(pen);
+    rectangleItem->setBrush(QBrush(Qt::transparent));
+
+    // Add the rectangle item to the scene
+    m_scene->addItem(rectangleItem);
+
+    // Create layer for rectangle
+    static int rectangleCounter = 1;
+    auto *layer = new Layer(QString("Rectangle %1").arg(rectangleCounter++), Layer::Rectangle, this);
+    layer->setItem(rectangleItem);
+
+    m_layerManager->addLayer(layer);
+    m_layerManager->selectLayer(layer);
+
+    // Don't auto-select the rectangle - user should use pointer tool to select it
+    m_scene->clearSelection();
+}
+
+void ImageEditor::addEllipseLayer(const QRect &rect)
+{
+    // Create the EllipseTool
+    auto *ellipseItem = new Tools::EllipseTool(rect);
+
+    // Set default appearance
+    QPen pen(Qt::black, 2);
+    ellipseItem->setPen(pen);
+    ellipseItem->setBrush(QBrush(Qt::transparent));
+
+    // Add the ellipse item to the scene
+    m_scene->addItem(ellipseItem);
+
+    // Create layer for ellipse
+    static int ellipseCounter = 1;
+    auto *layer = new Layer(QString("Ellipse %1").arg(ellipseCounter++), Layer::Ellipse, this);
+    layer->setItem(ellipseItem);
+
+    m_layerManager->addLayer(layer);
+    m_layerManager->selectLayer(layer);
+
+    // Don't auto-select the ellipse - user should use pointer tool to select it
     m_scene->clearSelection();
 }
 
