@@ -12,6 +12,8 @@
 #include <QLabel>
 #include <QFileDialog>
 #include <QStandardPaths>
+#include <QColorDialog>
+#include <QColor>
 
 namespace Core {
 
@@ -24,6 +26,8 @@ public:
 
 private slots:
     void browseScreenshotFolder();
+    void chooseForegroundColor();
+    void chooseBackgroundColor();
     void applySettings();
     void resetSettings();
 
@@ -34,6 +38,8 @@ private:
     void setupHotkeysTab();
     void loadSettings();
     void saveSettings();
+    void updateForegroundButtonStyle();
+    void updateBackgroundButtonStyle();
 
     // UI Components
     QTabWidget *m_tabWidget;
@@ -43,6 +49,10 @@ private:
     QLineEdit *m_screenshotFolderEdit;
     QPushButton *m_browseButton;
     QComboBox *m_imageFormatCombo;
+    QPushButton *m_foregroundColorButton;
+    QPushButton *m_backgroundColorButton;
+    QColor m_foregroundColor;
+    QColor m_backgroundColor;
 
     // Upload Tab
     QWidget *m_uploadTab;

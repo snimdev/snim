@@ -1,6 +1,10 @@
 #include "DrawingGraphicsView.h"
 #include "tools/ArrowTool.h"
+#include "tools/RectangleTool.h"
+#include "tools/EllipseTool.h"
 #include <QGraphicsScene>
+#include <QGraphicsRectItem>
+#include <QGraphicsEllipseItem>
 #include <QPen>
 #include <QTransform>
 #include <QPainter>
@@ -14,7 +18,7 @@ DrawingGraphicsView::DrawingGraphicsView(QWidget *parent)
     : QGraphicsView(parent)
     , m_currentTool(None)
     , m_drawing(false)
-    , m_currentArrow(nullptr)
+    , m_previewItem(nullptr)
 {
     setDragMode(QGraphicsView::NoDrag);
     setRenderHint(QPainter::Antialiasing);
@@ -98,21 +102,36 @@ void DrawingGraphicsView::mouseMoveEvent(QMouseEvent *event)
         // Clamp the end point to image boundaries
         m_endPoint = clampToImageBounds(scenePos);
 
-        // Remove previous temporary item
-        if (m_currentArrow) {
-            scene()->removeItem(m_currentArrow);
-            delete m_currentArrow;
+        // Remove previous preview item
+        if (m_previewItem) {
+            scene()->removeItem(m_previewItem);
+            delete m_previewItem;
+            m_previewItem = nullptr;
         }
 
-        // Create new temporary preview item based on current tool
+        // Create new preview item based on current tool
+        QRect rect = QRect(m_startPoint, m_endPoint).normalized();
+        QPen previewPen(Qt::red, 2, Qt::DashLine);
+
         if (m_currentTool == Arrow) {
-            QPen pen(Qt::red, 3);
-            m_currentArrow = new Tools::ArrowTool(m_startPoint, m_endPoint);
-            m_currentArrow->setPen(pen);
-            scene()->addItem(m_currentArrow);
+            auto *arrowPreview = new Tools::ArrowTool(m_startPoint, m_endPoint);
+            arrowPreview->setPen(QPen(Qt::red, 3));
+            m_previewItem = arrowPreview;
+        } else if (m_currentTool == Rectangle) {
+            auto *rectPreview = new QGraphicsRectItem(rect);
+            rectPreview->setPen(previewPen);
+            rectPreview->setBrush(Qt::NoBrush);
+            m_previewItem = rectPreview;
+        } else if (m_currentTool == Ellipse) {
+            auto *ellipsePreview = new QGraphicsEllipseItem(rect);
+            ellipsePreview->setPen(previewPen);
+            ellipsePreview->setBrush(Qt::NoBrush);
+            m_previewItem = ellipsePreview;
         }
-        // For Rectangle and Ellipse, we'll handle the preview in the scene directly
-        // This is simpler and avoids creating full shape tools during drag
+
+        if (m_previewItem) {
+            scene()->addItem(m_previewItem);
+        }
 
         event->accept();
         return;
@@ -126,11 +145,11 @@ void DrawingGraphicsView::mouseReleaseEvent(QMouseEvent *event)
     if (event->button() == Qt::LeftButton && m_drawing) {
         m_drawing = false;
 
-        // Remove the temporary preview from scene
-        if (m_currentArrow) {
-            scene()->removeItem(m_currentArrow);
-            delete m_currentArrow;
-            m_currentArrow = nullptr;
+        // Remove the preview item from scene
+        if (m_previewItem) {
+            scene()->removeItem(m_previewItem);
+            delete m_previewItem;
+            m_previewItem = nullptr;
         }
 
         // Emit appropriate signal based on tool type

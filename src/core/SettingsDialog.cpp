@@ -13,6 +13,10 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     , m_screenshotFolderEdit(nullptr)
     , m_browseButton(nullptr)
     , m_imageFormatCombo(nullptr)
+    , m_foregroundColorButton(nullptr)
+    , m_backgroundColorButton(nullptr)
+    , m_foregroundColor(Qt::red)
+    , m_backgroundColor(Qt::transparent)
     , m_uploadTab(nullptr)
     , m_hotkeysTab(nullptr)
     , m_applyButton(nullptr)
@@ -62,6 +66,8 @@ void SettingsDialog::setupUI()
     connect(m_cancelButton, &QPushButton::clicked, this, &QDialog::reject);
     connect(m_resetButton, &QPushButton::clicked, this, &SettingsDialog::resetSettings);
     connect(m_browseButton, &QPushButton::clicked, this, &SettingsDialog::browseScreenshotFolder);
+    connect(m_foregroundColorButton, &QPushButton::clicked, this, &SettingsDialog::chooseForegroundColor);
+    connect(m_backgroundColorButton, &QPushButton::clicked, this, &SettingsDialog::chooseBackgroundColor);
 }
 
 void SettingsDialog::setupGeneralTab()
@@ -93,6 +99,28 @@ void SettingsDialog::setupGeneralTab()
     screenshotLayout->addRow("Image Format:", m_imageFormatCombo);
 
     layout->addWidget(screenshotGroup);
+
+    // Editor Settings Group
+    auto *editorGroup = new QGroupBox("Editor Settings", m_generalTab);
+    auto *editorLayout = new QFormLayout(editorGroup);
+
+    // Foreground color (stroke/text color)
+    m_foregroundColorButton = new QPushButton(editorGroup);
+    m_foregroundColorButton->setMaximumWidth(100);
+    m_foregroundColorButton->setMinimumHeight(30);
+    updateForegroundButtonStyle();
+
+    editorLayout->addRow("Foreground Color:", m_foregroundColorButton);
+
+    // Background color (fill color)
+    m_backgroundColorButton = new QPushButton(editorGroup);
+    m_backgroundColorButton->setMaximumWidth(100);
+    m_backgroundColorButton->setMinimumHeight(30);
+    updateBackgroundButtonStyle();
+
+    editorLayout->addRow("Background Color:", m_backgroundColorButton);
+
+    layout->addWidget(editorGroup);
     layout->addStretch();
 
     m_tabWidget->addTab(m_generalTab, "General");
@@ -149,6 +177,71 @@ void SettingsDialog::browseScreenshotFolder()
     }
 }
 
+void SettingsDialog::chooseForegroundColor()
+{
+    QColor color = QColorDialog::getColor(m_foregroundColor, this, "Choose Foreground Color");
+    if (color.isValid()) {
+        m_foregroundColor = color;
+        updateForegroundButtonStyle();
+    }
+}
+
+void SettingsDialog::chooseBackgroundColor()
+{
+    QColor color = QColorDialog::getColor(
+        m_backgroundColor,
+        this,
+        "Choose Background Color",
+        QColorDialog::ShowAlphaChannel  // Allow transparency
+    );
+    if (color.isValid()) {
+        m_backgroundColor = color;
+        updateBackgroundButtonStyle();
+    }
+}
+
+void SettingsDialog::updateForegroundButtonStyle()
+{
+    QString styleSheet = QString(
+        "QPushButton {"
+        "  background-color: %1;"
+        "  border: 2px solid #555;"
+        "  border-radius: 4px;"
+        "}"
+        "QPushButton:hover {"
+        "  border: 2px solid #777;"
+        "}"
+    ).arg(m_foregroundColor.name());
+
+    m_foregroundColorButton->setStyleSheet(styleSheet);
+}
+
+void SettingsDialog::updateBackgroundButtonStyle()
+{
+    // Create a checkerboard pattern for transparent backgrounds
+    QString bgColor = m_backgroundColor.name(QColor::HexArgb);
+
+    QString styleSheet = QString(
+        "QPushButton {"
+        "  background-color: %1;"
+        "  border: 2px solid #555;"
+        "  border-radius: 4px;"
+        "}"
+        "QPushButton:hover {"
+        "  border: 2px solid #777;"
+        "}"
+    ).arg(bgColor);
+
+    m_backgroundColorButton->setStyleSheet(styleSheet);
+
+    // Update button text to show "Transparent" if fully transparent
+    if (m_backgroundColor.alpha() == 0) {
+        m_backgroundColorButton->setText("Transparent");
+    } else {
+        m_backgroundColorButton->setText("");
+    }
+}
+
 void SettingsDialog::loadSettings()
 {
     QSettings settings;
@@ -165,6 +258,12 @@ void SettingsDialog::loadSettings()
     if (formatIndex != -1) {
         m_imageFormatCombo->setCurrentIndex(formatIndex);
     }
+
+    // Load foreground and background colors
+    m_foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+    m_backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
+    updateForegroundButtonStyle();
+    updateBackgroundButtonStyle();
 }
 
 void SettingsDialog::saveSettings()
@@ -177,6 +276,10 @@ void SettingsDialog::saveSettings()
     // Save image format
     QString selectedFormat = m_imageFormatCombo->currentData().toString();
     settings.setValue("General/ImageFormat", selectedFormat);
+
+    // Save foreground and background colors
+    settings.setValue("Editor/ForegroundColor", m_foregroundColor);
+    settings.setValue("Editor/BackgroundColor", m_backgroundColor);
 
     settings.sync();
 }
@@ -203,6 +306,10 @@ void SettingsDialog::resetSettings()
                            + "/Screenshots";
     m_screenshotFolderEdit->setText(defaultFolder);
     m_imageFormatCombo->setCurrentIndex(0); // PNG
+    m_foregroundColor = Qt::red;
+    m_backgroundColor = Qt::transparent;
+    updateForegroundButtonStyle();
+    updateBackgroundButtonStyle();
 }
 
 } // namespace Core

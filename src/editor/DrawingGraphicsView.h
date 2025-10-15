@@ -53,7 +53,7 @@ private:
     QPoint m_startPoint;
     QPoint m_endPoint;
     QRect m_imageBounds;
-    Tools::ArrowTool *m_currentArrow;
+    QGraphicsItem *m_previewItem;  // Preview item while drawing (arrow, shape, etc.)
 };
 
 } // namespace ImageEditor

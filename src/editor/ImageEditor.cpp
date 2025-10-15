@@ -20,6 +20,7 @@
 #include <QTimer>
 #include <QStandardPaths>
 #include <QLineEdit>
+#include <QSettings>
 #include <QDebug>
 #include <cmath>
 
@@ -310,7 +311,11 @@ void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
 {
     auto *textItem = new Tools::TextTool(text);
     textItem->setPos(position);
-    textItem->setDefaultTextColor(Qt::black);
+
+    // Get foreground color from settings (text uses foreground color)
+    QSettings settings;
+    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+    textItem->setDefaultTextColor(foregroundColor);
 
     // Create layer for text
     auto *layer = new Layer(QString("Text: %1").arg(text), Layer::Text, this);
@@ -342,8 +347,12 @@ void ImageEditor::addArrowLayer(const QPoint &start, const QPoint &end)
     // Create the new ArrowTool with interactive handles
     auto *arrowItem = new Tools::ArrowTool(start, end);
 
+    // Get foreground color from settings (arrows use foreground for stroke)
+    QSettings settings;
+    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+
     // Set default appearance
-    QPen pen(Qt::red, 3);
+    QPen pen(foregroundColor, 3);
     arrowItem->setPen(pen);
     arrowItem->setArrowHeadType(Tools::ArrowTool::Outlined);
 
@@ -367,10 +376,15 @@ void ImageEditor::addRectangleLayer(const QRect &rect)
     // Create the RectangleTool
     auto *rectangleItem = new Tools::RectangleTool(rect);
 
-    // Set default appearance
-    QPen pen(Qt::black, 2);
+    // Get foreground and background colors from settings
+    QSettings settings;
+    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+    QColor backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
+
+    // Set default appearance (foreground = stroke, background = fill)
+    QPen pen(foregroundColor, 2);
     rectangleItem->setPen(pen);
-    rectangleItem->setBrush(QBrush(Qt::transparent));
+    rectangleItem->setBrush(QBrush(backgroundColor));
 
     // Add the rectangle item to the scene
     m_scene->addItem(rectangleItem);
@@ -392,10 +406,15 @@ void ImageEditor::addEllipseLayer(const QRect &rect)
     // Create the EllipseTool
     auto *ellipseItem = new Tools::EllipseTool(rect);
 
-    // Set default appearance
-    QPen pen(Qt::black, 2);
+    // Get foreground and background colors from settings
+    QSettings settings;
+    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+    QColor backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
+
+    // Set default appearance (foreground = stroke, background = fill)
+    QPen pen(foregroundColor, 2);
     ellipseItem->setPen(pen);
-    ellipseItem->setBrush(QBrush(Qt::transparent));
+    ellipseItem->setBrush(QBrush(backgroundColor));
 
     // Add the ellipse item to the scene
     m_scene->addItem(ellipseItem);
