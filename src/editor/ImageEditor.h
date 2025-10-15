@@ -20,6 +20,15 @@ class LayerManager;
 class LayerProperties;
 class Layer;
 
+namespace Strategies {
+    class PointerToolStrategy;
+    class ArrowDrawingStrategy;
+    class TextDrawingStrategy;
+    class RectangleDrawingStrategy;
+    class EllipseDrawingStrategy;
+    class FreehandDrawingStrategy;
+}
+
 class ImageEditor : public QMainWindow
 {
     Q_OBJECT
@@ -52,6 +61,7 @@ private slots:
 private:
     void setupUI();
     void setupToolbar();
+    void setupStrategies();
     QPixmap renderScene();
     void addTextLayer(const QPoint &position, const QString &text);
     void addArrowLayer(const QPoint &start, const QPoint &end);
@@ -108,6 +118,14 @@ private:
     QGraphicsItem *m_currentArrow;
     Layer *m_backgroundLayer;
     Layer *m_lastFreehandLayer; // Track last freehand layer to remember settings
+
+    // Drawing Strategies
+    Strategies::PointerToolStrategy *m_pointerStrategy;
+    Strategies::ArrowDrawingStrategy *m_arrowStrategy;
+    Strategies::TextDrawingStrategy *m_textStrategy;
+    Strategies::RectangleDrawingStrategy *m_rectangleStrategy;
+    Strategies::EllipseDrawingStrategy *m_ellipseStrategy;
+    Strategies::FreehandDrawingStrategy *m_freehandStrategy;
 };
 
 } // namespace ImageEditor

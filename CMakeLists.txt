@@ -55,14 +55,30 @@ add_executable(Niceshort2
         src/editor/tools/EllipseTool.h
         src/editor/tools/FreehandTool.cpp
         src/editor/tools/FreehandTool.h
+        src/editor/tools/TextTool.cpp
+        src/editor/tools/TextTool.h
     src/editor/Layer.cpp
     src/editor/Layer.h
     src/editor/LayerManager.cpp
     src/editor/LayerManager.h
     src/editor/LayerProperties.cpp
     src/editor/LayerProperties.h
-        src/editor/tools/TextTool.cpp
-        src/editor/tools/TextTool.h
+        # Drawing Strategies
+        src/editor/strategies/IDrawingToolStrategy.h
+        src/editor/strategies/BaseDrawingStrategy.cpp
+        src/editor/strategies/BaseDrawingStrategy.h
+        src/editor/strategies/PointerToolStrategy.cpp
+        src/editor/strategies/PointerToolStrategy.h
+        src/editor/strategies/ArrowDrawingStrategy.cpp
+        src/editor/strategies/ArrowDrawingStrategy.h
+        src/editor/strategies/TextDrawingStrategy.cpp
+        src/editor/strategies/TextDrawingStrategy.h
+        src/editor/strategies/RectangleDrawingStrategy.cpp
+        src/editor/strategies/RectangleDrawingStrategy.h
+        src/editor/strategies/EllipseDrawingStrategy.cpp
+        src/editor/strategies/EllipseDrawingStrategy.h
+        src/editor/strategies/FreehandDrawingStrategy.cpp
+        src/editor/strategies/FreehandDrawingStrategy.h
 )
 
 # Set include directories for the organized structure

@@ -7,7 +7,11 @@
 #include <QGraphicsItem>
 #include <QRect>
 
-#include "tools/ArrowTool.h"
+namespace ImageEditor {
+    namespace Strategies {
+        class IDrawingToolStrategy;
+    }
+}
 
 namespace ImageEditor {
 
@@ -16,28 +20,20 @@ class DrawingGraphicsView : public QGraphicsView
     Q_OBJECT
 
 public:
-    enum ToolType {
-        None,
-        Pointer,
-        Arrow,
-        Text,
-        Rectangle,
-        Ellipse,
-        Freehand
-    };
-
     explicit DrawingGraphicsView(QWidget *parent = nullptr);
 
-    void setCurrentTool(ToolType tool);
+    /**
+     * @brief Set the current drawing strategy
+     * @param strategy The strategy to use (ownership is NOT transferred)
+     */
+    void setDrawingStrategy(Strategies::IDrawingToolStrategy *strategy);
+
     void setImageBounds(const QRect &bounds) { m_imageBounds = bounds; }
-    void setFreehandPen(const QPen &pen) { m_freehandPen = pen; }
 
 signals:
-    void arrowDrawn(const QPoint &start, const QPoint &end);
-    void textRequested(const QPoint &position);
-    void rectangleDrawn(const QRect &rect);
-    void ellipseDrawn(const QRect &rect);
-    void freehandDrawn(const QList<QPointF> &points);
+    /**
+     * @brief Emitted when an item is clicked with pointer tool
+     */
     void itemClicked(QGraphicsItem *item);
 
 protected:
@@ -47,17 +43,11 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
 
 private:
-    bool isWithinImageBounds(const QPoint &point) const;
-    QPoint clampToImageBounds(const QPoint &point) const;
+    bool isWithinImageBounds(const QPointF &point) const;
     void updateCursor();
 
-    ToolType m_currentTool;
-    bool m_drawing;
-    QPoint m_startPoint;
-    QPoint m_endPoint;
+    Strategies::IDrawingToolStrategy *m_currentStrategy; // Not owned
     QRect m_imageBounds;
-    QGraphicsItem *m_previewItem;  // Preview item while drawing (arrow, shape, etc.)
-    QPen m_freehandPen;  // Current pen settings for freehand tool
 };
 
 } // namespace ImageEditor

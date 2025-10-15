@@ -8,6 +8,12 @@
 #include "tools/RectangleTool.h"
 #include "tools/EllipseTool.h"
 #include "tools/FreehandTool.h"
+#include "strategies/PointerToolStrategy.h"
+#include "strategies/ArrowDrawingStrategy.h"
+#include "strategies/TextDrawingStrategy.h"
+#include "strategies/RectangleDrawingStrategy.h"
+#include "strategies/EllipseDrawingStrategy.h"
+#include "strategies/FreehandDrawingStrategy.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -51,6 +57,12 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_currentArrow(nullptr)
     , m_backgroundLayer(nullptr)
     , m_lastFreehandLayer(nullptr)
+    , m_pointerStrategy(nullptr)
+    , m_arrowStrategy(nullptr)
+    , m_textStrategy(nullptr)
+    , m_rectangleStrategy(nullptr)
+    , m_ellipseStrategy(nullptr)
+    , m_freehandStrategy(nullptr)
 {
     qDebug() << "ImageEditor constructor called with screenshot size:" << screenshot.size();
     qDebug() << "Setting window title...";
@@ -63,6 +75,10 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     qDebug() << "About to call setupToolbar()...";
     setupToolbar();
     qDebug() << "setupToolbar() completed successfully";
+
+    qDebug() << "About to call setupStrategies()...";
+    setupStrategies();
+    qDebug() << "setupStrategies() completed successfully";
 
     // Create background layer and add to layer manager
     qDebug() << "About to create background layer...";
@@ -107,25 +123,8 @@ void ImageEditor::setupUI()
     // Set image bounds for the view
     m_view->setImageBounds(m_originalScreenshot.rect());
 
-    // Connect signals from the custom view
-    connect(m_view, &DrawingGraphicsView::arrowDrawn, this, &ImageEditor::addArrowLayer);
-    connect(m_view, &DrawingGraphicsView::rectangleDrawn, this, &ImageEditor::addRectangleLayer);
-    connect(m_view, &DrawingGraphicsView::ellipseDrawn, this, &ImageEditor::addEllipseLayer);
-    connect(m_view, &DrawingGraphicsView::freehandDrawn, this, &ImageEditor::addFreehandLayer);
-    connect(m_view, &DrawingGraphicsView::textRequested, this, [this](const QPoint &position) {
-        bool ok;
-        QString text = QInputDialog::getText(this, "Add Text", "Enter text:", QLineEdit::Normal, "", &ok);
-        if (ok && !text.isEmpty()) {
-            addTextLayer(position, text);
-            // Automatically switch back to pointer tool after adding text
-            selectPointerTool();
-        }
-    });
+    // Connect item clicked signal (strategies will be connected later)
     connect(m_view, &DrawingGraphicsView::itemClicked, this, &ImageEditor::onItemClicked);
-
-    // Configure view
-    m_view->setDragMode(QGraphicsView::NoDrag);
-    m_view->setRenderHint(QPainter::Antialiasing);
 
     // Create right side widget with splitter for layer manager and properties
     m_rightSplitter = new QSplitter(Qt::Vertical);
@@ -223,6 +222,53 @@ void ImageEditor::setupToolbar()
     m_toolbar->addAction(m_freehandAction);
 }
 
+void ImageEditor::setupStrategies()
+{
+    // Create all drawing strategies
+    m_pointerStrategy = new Strategies::PointerToolStrategy(this);
+    m_arrowStrategy = new Strategies::ArrowDrawingStrategy(this);
+    m_textStrategy = new Strategies::TextDrawingStrategy(this);
+    m_rectangleStrategy = new Strategies::RectangleDrawingStrategy(this);
+    m_ellipseStrategy = new Strategies::EllipseDrawingStrategy(this);
+    m_freehandStrategy = new Strategies::FreehandDrawingStrategy(this);
+
+    // Set image bounds for all strategies that need it
+    m_arrowStrategy->setImageBounds(m_originalScreenshot.rect());
+    m_rectangleStrategy->setImageBounds(m_originalScreenshot.rect());
+    m_ellipseStrategy->setImageBounds(m_originalScreenshot.rect());
+    m_freehandStrategy->setImageBounds(m_originalScreenshot.rect());
+
+    // Connect strategy signals to ImageEditor slots
+    connect(m_pointerStrategy, &Strategies::PointerToolStrategy::itemClicked,
+            this, &ImageEditor::onItemClicked);
+
+    connect(m_arrowStrategy, &Strategies::ArrowDrawingStrategy::arrowDrawn,
+            this, &ImageEditor::addArrowLayer);
+
+    connect(m_textStrategy, &Strategies::TextDrawingStrategy::textRequested,
+            this, [this](const QPoint &position) {
+                bool ok;
+                QString text = QInputDialog::getText(this, "Add Text", "Enter text:", QLineEdit::Normal, "", &ok);
+                if (ok && !text.isEmpty()) {
+                    addTextLayer(position, text);
+                    // Automatically switch back to pointer tool after adding text
+                    selectPointerTool();
+                }
+            });
+
+    connect(m_rectangleStrategy, &Strategies::RectangleDrawingStrategy::rectangleDrawn,
+            this, &ImageEditor::addRectangleLayer);
+
+    connect(m_ellipseStrategy, &Strategies::EllipseDrawingStrategy::ellipseDrawn,
+            this, &ImageEditor::addEllipseLayer);
+
+    connect(m_freehandStrategy, &Strategies::FreehandDrawingStrategy::freehandDrawn,
+            this, &ImageEditor::addFreehandLayer);
+
+    // Set pointer tool as default
+    m_view->setDrawingStrategy(m_pointerStrategy);
+}
+
 void ImageEditor::saveAs()
 {
     QString fileName = QFileDialog::getSaveFileName(
@@ -261,8 +307,7 @@ QPixmap ImageEditor::renderScene()
 
 void ImageEditor::selectPointerTool()
 {
-    m_currentTool = None;
-    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Pointer);
+    m_view->setDrawingStrategy(m_pointerStrategy);
     m_arrowAction->setChecked(false);
     m_textAction->setChecked(false);
     m_rectangleAction->setChecked(false);
@@ -274,8 +319,7 @@ void ImageEditor::selectPointerTool()
 
 void ImageEditor::selectArrowTool()
 {
-    m_currentTool = Arrow;
-    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Arrow);
+    m_view->setDrawingStrategy(m_arrowStrategy);
     m_pointerAction->setChecked(false);
     m_textAction->setChecked(false);
     m_rectangleAction->setChecked(false);
@@ -287,8 +331,7 @@ void ImageEditor::selectArrowTool()
 
 void ImageEditor::selectTextTool()
 {
-    m_currentTool = Text;
-    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Text);
+    m_view->setDrawingStrategy(m_textStrategy);
     m_pointerAction->setChecked(false);
     m_arrowAction->setChecked(false);
     m_rectangleAction->setChecked(false);
@@ -300,8 +343,7 @@ void ImageEditor::selectTextTool()
 
 void ImageEditor::selectRectangleTool()
 {
-    m_currentTool = Rectangle;
-    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Rectangle);
+    m_view->setDrawingStrategy(m_rectangleStrategy);
     m_pointerAction->setChecked(false);
     m_arrowAction->setChecked(false);
     m_textAction->setChecked(false);
@@ -313,8 +355,7 @@ void ImageEditor::selectRectangleTool()
 
 void ImageEditor::selectEllipseTool()
 {
-    m_currentTool = Ellipse;
-    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Ellipse);
+    m_view->setDrawingStrategy(m_ellipseStrategy);
     m_pointerAction->setChecked(false);
     m_arrowAction->setChecked(false);
     m_textAction->setChecked(false);
@@ -326,12 +367,10 @@ void ImageEditor::selectEllipseTool()
 
 void ImageEditor::selectFreehandTool()
 {
-    m_currentTool = Freehand;
-    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Freehand);
+    // Update freehand pen settings from last layer before setting strategy
+    m_freehandStrategy->setPen(getCurrentFreehandPen());
 
-    // Set the current freehand pen (from last layer or default)
-    m_view->setFreehandPen(getCurrentFreehandPen());
-
+    m_view->setDrawingStrategy(m_freehandStrategy);
     m_pointerAction->setChecked(false);
     m_arrowAction->setChecked(false);
     m_textAction->setChecked(false);
