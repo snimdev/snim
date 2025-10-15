@@ -22,6 +22,16 @@ namespace Capture {
             update();
         }
 
+        // Set virtual desktop geometry for multi-monitor support
+        void setVirtualGeometry(const QRect &virtualRect) {
+            m_virtualGeometry = virtualRect;
+        }
+
+        // Set the screen-specific offset for this widget
+        void setScreenOffset(const QPoint &offset) {
+            m_screenOffset = offset;
+        }
+
         signals:
             void areaSelected(const QRect &area);
 
@@ -39,6 +49,8 @@ namespace Capture {
         bool m_selecting;
         QRubberBand *m_rubberBand;
         QPixmap m_screenshot;
+        QRect m_virtualGeometry;
+        QPoint m_screenOffset;  // Offset of this screen within virtual desktop
     };
 
 } // namespace Capture

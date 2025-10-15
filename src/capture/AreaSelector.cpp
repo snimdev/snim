@@ -1,6 +1,8 @@
 #include "AreaSelector.h"
 #include <QPainter>
 #include <QPainterPath>
+#include <QApplication>
+#include <QScreen>
 
 namespace Capture {
     AreaSelector::AreaSelector(QWidget *parent)
@@ -8,7 +10,7 @@ namespace Capture {
           , m_selecting(false)
           , m_rubberBand(nullptr) {
         setWindowFlags(Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint |
-                       Qt::Tool);
+                       Qt::Tool | Qt::BypassWindowManagerHint);
         setAttribute(Qt::WA_TranslucentBackground);
         setAttribute(Qt::WA_DeleteOnClose);
         setCursor(Qt::CrossCursor);
@@ -24,17 +26,26 @@ namespace Capture {
 
     void AreaSelector::mousePressEvent(QMouseEvent *event) {
         if (event->button() == Qt::LeftButton) {
-            m_startPoint = event->pos();
+            // Convert local position to global virtual desktop coordinates
+            m_startPoint = event->pos() + m_screenOffset;
             m_selecting = true;
-            m_rubberBand->setGeometry(QRect(m_startPoint, QSize()));
+
+            // Convert back to local widget coordinates for rubber band
+            QPoint localStart = m_startPoint - m_screenOffset;
+            m_rubberBand->setGeometry(QRect(localStart, QSize()));
             m_rubberBand->show();
         }
     }
 
     void AreaSelector::mouseMoveEvent(QMouseEvent *event) {
         if (m_selecting) {
-            m_endPoint = event->pos();
-            QRect rect = QRect(m_startPoint, m_endPoint).normalized();
+            // Convert local position to global virtual desktop coordinates
+            m_endPoint = event->pos() + m_screenOffset;
+
+            // Convert back to local widget coordinates for rubber band display
+            QPoint localStart = m_startPoint - m_screenOffset;
+            QPoint localEnd = m_endPoint - m_screenOffset;
+            QRect rect = QRect(localStart, localEnd).normalized();
             m_rubberBand->setGeometry(rect);
             update(); // Trigger repaint to show the selection
         }
@@ -43,7 +54,9 @@ namespace Capture {
     void AreaSelector::mouseReleaseEvent(QMouseEvent *event) {
         if (event->button() == Qt::LeftButton && m_selecting) {
             m_selecting = false;
-            m_endPoint = event->pos();
+            // Convert local position to global virtual desktop coordinates
+            m_endPoint = event->pos() + m_screenOffset;
+            // Selected area is in global virtual desktop coordinates
             m_selectedArea = QRect(m_startPoint, m_endPoint).normalized();
             m_rubberBand->hide();
 
@@ -58,13 +71,29 @@ namespace Capture {
 
         if (!m_screenshot.isNull()) {
             // Draw the screenshot as background
-            QPixmap scaled = m_screenshot.scaled(
-                size() * devicePixelRatio(),
-                Qt::KeepAspectRatio,
-                Qt::SmoothTransformation
-            );
-            scaled.setDevicePixelRatio(devicePixelRatio());
-            painter.drawPixmap(rect(), scaled, scaled.rect());
+            // The screenshot spans the entire virtual desktop
+            qreal dpr = m_screenshot.devicePixelRatio();
+
+            // Calculate which portion of the screenshot to draw for this screen
+            // m_screenOffset is in logical coordinates, relative to virtual desktop
+            // m_virtualGeometry is the full virtual desktop bounds
+            QRect sourceRect;
+            if (!m_virtualGeometry.isNull()) {
+                // Convert screen offset to physical screenshot coordinates
+                int srcX = (m_screenOffset.x() - m_virtualGeometry.x()) * dpr;
+                int srcY = (m_screenOffset.y() - m_virtualGeometry.y()) * dpr;
+                int srcW = width() * dpr;
+                int srcH = height() * dpr;
+                sourceRect = QRect(srcX, srcY, srcW, srcH);
+
+                // Clamp to screenshot bounds
+                sourceRect = sourceRect.intersected(m_screenshot.rect());
+            } else {
+                sourceRect = m_screenshot.rect();
+            }
+
+            // Draw this portion of the screenshot to fill the widget
+            painter.drawPixmap(rect(), m_screenshot, sourceRect);
 
             // Add semi-transparent dark overlay
             painter.fillRect(rect(), QColor(0, 0, 0, 100));
@@ -81,7 +110,16 @@ namespace Capture {
 
                 // Redraw the selected area without overlay
                 QRect selected = m_rubberBand->geometry();
-                painter.drawPixmap(selected, scaled, selected);
+
+                // Calculate source rect for the selected area
+                int selSrcX = (m_screenOffset.x() - m_virtualGeometry.x() + selected.x()) * dpr;
+                int selSrcY = (m_screenOffset.y() - m_virtualGeometry.y() + selected.y()) * dpr;
+                int selSrcW = selected.width() * dpr;
+                int selSrcH = selected.height() * dpr;
+                QRect selectedSourceRect = QRect(selSrcX, selSrcY, selSrcW, selSrcH);
+                selectedSourceRect = selectedSourceRect.intersected(m_screenshot.rect());
+
+                painter.drawPixmap(selected, m_screenshot, selectedSourceRect);
 
                 // Draw selection border
                 painter.setPen(QPen(QColor(0, 120, 215), 2));

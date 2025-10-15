@@ -51,7 +51,7 @@ private:
     void cleanupTempFile();
     void connectToPortalSignals();
 
-    void showAreaSelector(const QPixmap &screenshot);
+    void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry);
 
     static QPixmap cropToCurrentScreen(const QImage &fullImage);
 
