@@ -16,7 +16,8 @@ public:
         Arrow,
         Text,
         Rectangle,
-        Ellipse
+        Ellipse,
+        Freehand
     };
 
     explicit Layer(const QString &name, LayerType type, QObject *parent = nullptr);

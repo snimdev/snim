@@ -22,19 +22,22 @@ public:
         Arrow,
         Text,
         Rectangle,
-        Ellipse
+        Ellipse,
+        Freehand
     };
 
     explicit DrawingGraphicsView(QWidget *parent = nullptr);
 
     void setCurrentTool(ToolType tool);
     void setImageBounds(const QRect &bounds) { m_imageBounds = bounds; }
+    void setFreehandPen(const QPen &pen) { m_freehandPen = pen; }
 
 signals:
     void arrowDrawn(const QPoint &start, const QPoint &end);
     void textRequested(const QPoint &position);
     void rectangleDrawn(const QRect &rect);
     void ellipseDrawn(const QRect &rect);
+    void freehandDrawn(const QList<QPointF> &points);
     void itemClicked(QGraphicsItem *item);
 
 protected:
@@ -54,6 +57,7 @@ private:
     QPoint m_endPoint;
     QRect m_imageBounds;
     QGraphicsItem *m_previewItem;  // Preview item while drawing (arrow, shape, etc.)
+    QPen m_freehandPen;  // Current pen settings for freehand tool
 };
 
 } // namespace ImageEditor

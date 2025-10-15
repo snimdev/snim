@@ -2,6 +2,7 @@
 #include "tools/ArrowTool.h"
 #include "tools/RectangleTool.h"
 #include "tools/EllipseTool.h"
+#include "tools/FreehandTool.h"
 #include <QGraphicsScene>
 #include <QGraphicsRectItem>
 #include <QGraphicsEllipseItem>
@@ -19,6 +20,7 @@ DrawingGraphicsView::DrawingGraphicsView(QWidget *parent)
     , m_currentTool(None)
     , m_drawing(false)
     , m_previewItem(nullptr)
+    , m_freehandPen(Qt::red, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin)
 {
     setDragMode(QGraphicsView::NoDrag);
     setRenderHint(QPainter::Antialiasing);
@@ -34,7 +36,7 @@ void DrawingGraphicsView::setCurrentTool(ToolType tool)
 void DrawingGraphicsView::updateCursor()
 {
     // Only show crosshair when actively drawing shapes
-    if (m_drawing && (m_currentTool == Arrow || m_currentTool == Rectangle || m_currentTool == Ellipse)) {
+    if (m_drawing && (m_currentTool == Arrow || m_currentTool == Rectangle || m_currentTool == Ellipse || m_currentTool == Freehand)) {
         setCursor(Qt::CrossCursor);
     } else {
         switch (m_currentTool) {
@@ -43,6 +45,7 @@ void DrawingGraphicsView::updateCursor()
                 break;
             case Rectangle:
             case Ellipse:
+            case Freehand:
                 setCursor(Qt::CrossCursor);
                 break;
             case Arrow:
@@ -78,10 +81,20 @@ void DrawingGraphicsView::mousePressEvent(QMouseEvent *event)
             }
             QGraphicsView::mousePressEvent(event);
             return;
-        } else if (m_currentTool == Arrow || m_currentTool == Rectangle || m_currentTool == Ellipse) {
+        } else if (m_currentTool == Arrow || m_currentTool == Rectangle || m_currentTool == Ellipse || m_currentTool == Freehand) {
             m_startPoint = scenePos;
             m_drawing = true;
             updateCursor(); // Update to crosshair while drawing
+
+            // For freehand, create the tool immediately and start adding points
+            if (m_currentTool == Freehand) {
+                auto *freehandPreview = new Tools::FreehandTool();
+                freehandPreview->setPen(m_freehandPen);
+                freehandPreview->addPoint(mapToScene(event->pos()));
+                m_previewItem = freehandPreview;
+                scene()->addItem(m_previewItem);
+            }
+
             event->accept();
             return;
         } else if (m_currentTool == Text) {
@@ -96,41 +109,52 @@ void DrawingGraphicsView::mousePressEvent(QMouseEvent *event)
 
 void DrawingGraphicsView::mouseMoveEvent(QMouseEvent *event)
 {
-    if (m_drawing && (m_currentTool == Arrow || m_currentTool == Rectangle || m_currentTool == Ellipse)) {
+    if (m_drawing && (m_currentTool == Arrow || m_currentTool == Rectangle || m_currentTool == Ellipse || m_currentTool == Freehand)) {
         QPoint scenePos = mapToScene(event->pos()).toPoint();
 
         // Clamp the end point to image boundaries
         m_endPoint = clampToImageBounds(scenePos);
 
-        // Remove previous preview item
-        if (m_previewItem) {
-            scene()->removeItem(m_previewItem);
-            delete m_previewItem;
-            m_previewItem = nullptr;
-        }
+        if (m_currentTool == Freehand) {
+            // For freehand, add points continuously
+            if (m_previewItem) {
+                auto *freehand = dynamic_cast<Tools::FreehandTool*>(m_previewItem);
+                if (freehand) {
+                    freehand->addPoint(mapToScene(event->pos()));
+                }
+            }
+        } else {
+            // For other tools, recreate preview
+            // Remove previous preview item
+            if (m_previewItem) {
+                scene()->removeItem(m_previewItem);
+                delete m_previewItem;
+                m_previewItem = nullptr;
+            }
 
-        // Create new preview item based on current tool
-        QRect rect = QRect(m_startPoint, m_endPoint).normalized();
-        QPen previewPen(Qt::red, 2, Qt::DashLine);
+            // Create new preview item based on current tool
+            QRect rect = QRect(m_startPoint, m_endPoint).normalized();
+            QPen previewPen(Qt::red, 2, Qt::DashLine);
 
-        if (m_currentTool == Arrow) {
-            auto *arrowPreview = new Tools::ArrowTool(m_startPoint, m_endPoint);
-            arrowPreview->setPen(QPen(Qt::red, 3));
-            m_previewItem = arrowPreview;
-        } else if (m_currentTool == Rectangle) {
-            auto *rectPreview = new QGraphicsRectItem(rect);
-            rectPreview->setPen(previewPen);
-            rectPreview->setBrush(Qt::NoBrush);
-            m_previewItem = rectPreview;
-        } else if (m_currentTool == Ellipse) {
-            auto *ellipsePreview = new QGraphicsEllipseItem(rect);
-            ellipsePreview->setPen(previewPen);
-            ellipsePreview->setBrush(Qt::NoBrush);
-            m_previewItem = ellipsePreview;
-        }
+            if (m_currentTool == Arrow) {
+                auto *arrowPreview = new Tools::ArrowTool(m_startPoint, m_endPoint);
+                arrowPreview->setPen(QPen(Qt::red, 3));
+                m_previewItem = arrowPreview;
+            } else if (m_currentTool == Rectangle) {
+                auto *rectPreview = new QGraphicsRectItem(rect);
+                rectPreview->setPen(previewPen);
+                rectPreview->setBrush(Qt::NoBrush);
+                m_previewItem = rectPreview;
+            } else if (m_currentTool == Ellipse) {
+                auto *ellipsePreview = new QGraphicsEllipseItem(rect);
+                ellipsePreview->setPen(previewPen);
+                ellipsePreview->setBrush(Qt::NoBrush);
+                m_previewItem = ellipsePreview;
+            }
 
-        if (m_previewItem) {
-            scene()->addItem(m_previewItem);
+            if (m_previewItem) {
+                scene()->addItem(m_previewItem);
+            }
         }
 
         event->accept();
@@ -145,14 +169,7 @@ void DrawingGraphicsView::mouseReleaseEvent(QMouseEvent *event)
     if (event->button() == Qt::LeftButton && m_drawing) {
         m_drawing = false;
 
-        // Remove the preview item from scene
-        if (m_previewItem) {
-            scene()->removeItem(m_previewItem);
-            delete m_previewItem;
-            m_previewItem = nullptr;
-        }
-
-        // Emit appropriate signal based on tool type
+        // Emit appropriate signal based on tool type BEFORE removing preview
         if (m_currentTool == Arrow) {
             emit arrowDrawn(m_startPoint, m_endPoint);
         } else if (m_currentTool == Rectangle) {
@@ -165,6 +182,23 @@ void DrawingGraphicsView::mouseReleaseEvent(QMouseEvent *event)
             if (rect.width() > 5 && rect.height() > 5) { // Minimum size
                 emit ellipseDrawn(rect);
             }
+        } else if (m_currentTool == Freehand) {
+            // Get the points from the preview freehand tool BEFORE deleting it
+            if (m_previewItem) {
+                auto *freehand = dynamic_cast<Tools::FreehandTool*>(m_previewItem);
+                if (freehand && !freehand->isEmpty()) {
+                    // Extract the points from the preview and emit them
+                    QList<QPointF> points = freehand->points();
+                    emit freehandDrawn(points);
+                }
+            }
+        }
+
+        // Remove the preview item from scene AFTER emitting signals
+        if (m_previewItem) {
+            scene()->removeItem(m_previewItem);
+            delete m_previewItem;
+            m_previewItem = nullptr;
         }
 
         // Restore cursor based on current tool

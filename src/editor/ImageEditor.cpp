@@ -7,6 +7,7 @@
 #include "tools/ArrowTool.h"
 #include "tools/RectangleTool.h"
 #include "tools/EllipseTool.h"
+#include "tools/FreehandTool.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -39,6 +40,7 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_textAction(nullptr)
     , m_rectangleAction(nullptr)
     , m_ellipseAction(nullptr)
+    , m_freehandAction(nullptr)
     , m_splitter(nullptr)
     , m_rightSplitter(nullptr)
     , m_layerManager(nullptr)
@@ -48,6 +50,7 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_drawing(false)
     , m_currentArrow(nullptr)
     , m_backgroundLayer(nullptr)
+    , m_lastFreehandLayer(nullptr)
 {
     qDebug() << "ImageEditor constructor called with screenshot size:" << screenshot.size();
     qDebug() << "Setting window title...";
@@ -108,6 +111,7 @@ void ImageEditor::setupUI()
     connect(m_view, &DrawingGraphicsView::arrowDrawn, this, &ImageEditor::addArrowLayer);
     connect(m_view, &DrawingGraphicsView::rectangleDrawn, this, &ImageEditor::addRectangleLayer);
     connect(m_view, &DrawingGraphicsView::ellipseDrawn, this, &ImageEditor::addEllipseLayer);
+    connect(m_view, &DrawingGraphicsView::freehandDrawn, this, &ImageEditor::addFreehandLayer);
     connect(m_view, &DrawingGraphicsView::textRequested, this, [this](const QPoint &position) {
         bool ok;
         QString text = QInputDialog::getText(this, "Add Text", "Enter text:", QLineEdit::Normal, "", &ok);
@@ -209,6 +213,14 @@ void ImageEditor::setupToolbar()
     m_ellipseAction->setCheckable(true);
     connect(m_ellipseAction, &QAction::triggered, this, &ImageEditor::selectEllipseTool);
     m_toolbar->addAction(m_ellipseAction);
+
+    // Freehand tool
+    m_freehandAction = new QAction(this);
+    m_freehandAction->setText("Freehand");
+    m_freehandAction->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+    m_freehandAction->setCheckable(true);
+    connect(m_freehandAction, &QAction::triggered, this, &ImageEditor::selectFreehandTool);
+    m_toolbar->addAction(m_freehandAction);
 }
 
 void ImageEditor::saveAs()
@@ -255,6 +267,7 @@ void ImageEditor::selectPointerTool()
     m_textAction->setChecked(false);
     m_rectangleAction->setChecked(false);
     m_ellipseAction->setChecked(false);
+    m_freehandAction->setChecked(false);
     m_pointerAction->setChecked(true);
     m_layerProperties->setLayer(nullptr);
 }
@@ -267,6 +280,7 @@ void ImageEditor::selectArrowTool()
     m_textAction->setChecked(false);
     m_rectangleAction->setChecked(false);
     m_ellipseAction->setChecked(false);
+    m_freehandAction->setChecked(false);
     m_arrowAction->setChecked(true);
     m_layerProperties->setLayer(nullptr);
 }
@@ -279,6 +293,7 @@ void ImageEditor::selectTextTool()
     m_arrowAction->setChecked(false);
     m_rectangleAction->setChecked(false);
     m_ellipseAction->setChecked(false);
+    m_freehandAction->setChecked(false);
     m_textAction->setChecked(true);
     m_layerProperties->setLayer(nullptr);
 }
@@ -291,6 +306,7 @@ void ImageEditor::selectRectangleTool()
     m_arrowAction->setChecked(false);
     m_textAction->setChecked(false);
     m_ellipseAction->setChecked(false);
+    m_freehandAction->setChecked(false);
     m_rectangleAction->setChecked(true);
     m_layerProperties->setLayer(nullptr);
 }
@@ -303,7 +319,25 @@ void ImageEditor::selectEllipseTool()
     m_arrowAction->setChecked(false);
     m_textAction->setChecked(false);
     m_rectangleAction->setChecked(false);
+    m_freehandAction->setChecked(false);
     m_ellipseAction->setChecked(true);
+    m_layerProperties->setLayer(nullptr);
+}
+
+void ImageEditor::selectFreehandTool()
+{
+    m_currentTool = Freehand;
+    m_view->setCurrentTool(DrawingGraphicsView::ToolType::Freehand);
+
+    // Set the current freehand pen (from last layer or default)
+    m_view->setFreehandPen(getCurrentFreehandPen());
+
+    m_pointerAction->setChecked(false);
+    m_arrowAction->setChecked(false);
+    m_textAction->setChecked(false);
+    m_rectangleAction->setChecked(false);
+    m_ellipseAction->setChecked(false);
+    m_freehandAction->setChecked(true);
     m_layerProperties->setLayer(nullptr);
 }
 
@@ -431,6 +465,56 @@ void ImageEditor::addEllipseLayer(const QRect &rect)
     m_scene->clearSelection();
 }
 
+void ImageEditor::addFreehandLayer(const QList<QPointF> &points)
+{
+    if (points.isEmpty()) {
+        return;
+    }
+
+    // Create the FreehandTool and add all points
+    auto *freehandItem = new Tools::FreehandTool();
+
+    // Determine pen settings: use previous freehand layer's settings if available, otherwise use defaults
+    QPen pen;
+    if (m_lastFreehandLayer && m_lastFreehandLayer->item()) {
+        // Get pen from the previous freehand layer
+        auto *lastFreehand = dynamic_cast<Tools::FreehandTool*>(m_lastFreehandLayer->item());
+        if (lastFreehand) {
+            pen = lastFreehand->pen();
+        }
+    } else {
+        // No previous freehand layer, use default settings
+        QSettings settings;
+        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+        pen = QPen(foregroundColor, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    }
+
+    freehandItem->setPen(pen);
+
+    // Add all points to recreate the path
+    for (const QPointF &point : points) {
+        freehandItem->addPoint(point);
+    }
+    freehandItem->finishPath();
+
+    // Add the freehand item to the scene
+    m_scene->addItem(freehandItem);
+
+    // Create layer for freehand
+    static int freehandCounter = 1;
+    auto *layer = new Layer(QString("Freehand %1").arg(freehandCounter++), Layer::Freehand, this);
+    layer->setItem(freehandItem);
+
+    // Remember this layer for next freehand drawing
+    m_lastFreehandLayer = layer;
+
+    m_layerManager->addLayer(layer);
+    m_layerManager->selectLayer(layer);
+
+    // Don't auto-select the freehand - user should use pointer tool to select it
+    m_scene->clearSelection();
+}
+
 Layer* ImageEditor::createBackgroundLayer()
 {
     auto *layer = new Layer("Background", Layer::Background, this);
@@ -449,6 +533,11 @@ void ImageEditor::onDeleteLayerRequested(Layer *layer)
 {
     if (!layer || layer->type() == Layer::Background) {
         return;
+    }
+
+    // If this is the last freehand layer, clear the reference
+    if (layer == m_lastFreehandLayer) {
+        m_lastFreehandLayer = nullptr;
     }
 
     // Remove the graphics item from the scene
@@ -511,6 +600,22 @@ void ImageEditor::mouseMoveEvent(QMouseEvent *event)
 void ImageEditor::mouseReleaseEvent(QMouseEvent *event)
 {
     QMainWindow::mouseReleaseEvent(event);
+}
+
+QPen ImageEditor::getCurrentFreehandPen() const
+{
+    // If we have a previous freehand layer, use its pen settings
+    if (m_lastFreehandLayer && m_lastFreehandLayer->item()) {
+        auto *lastFreehand = dynamic_cast<Tools::FreehandTool*>(m_lastFreehandLayer->item());
+        if (lastFreehand) {
+            return lastFreehand->pen();
+        }
+    }
+
+    // No previous freehand layer, return default pen
+    QSettings settings;
+    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+    return QPen(foregroundColor, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 }
 
 } // namespace ImageEditor

@@ -53,6 +53,8 @@ add_executable(Niceshort2
         src/editor/tools/RectangleTool.h
         src/editor/tools/EllipseTool.cpp
         src/editor/tools/EllipseTool.h
+        src/editor/tools/FreehandTool.cpp
+        src/editor/tools/FreehandTool.h
     src/editor/Layer.cpp
     src/editor/Layer.h
     src/editor/LayerManager.cpp
