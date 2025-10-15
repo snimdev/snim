@@ -5,6 +5,9 @@
 #include <QCursor>
 #include <QDebug>
 #include <QTimer>
+#include <QWindow>
+#include <QPainter>
+#include <QGuiApplication>
 
 namespace Capture {
 
@@ -25,22 +28,16 @@ void NativeCaptureStrategy::captureFullScreen()
 
 void NativeCaptureStrategy::captureArea()
 {
-    // First capture the full screen
-    m_fullScreenshot = captureScreen();
+    // Capture all screens
+    m_fullScreenshot = captureAllScreens();
     if (m_fullScreenshot.isNull()) {
-        emit screenshotFailed("Failed to capture screen for area selection");
+        emit screenshotFailed("Failed to capture screens for area selection");
         return;
     }
 
     // Wait a moment for UI to settle, then show area selector
     QTimer::singleShot(100, [this]() {
-        auto *selector = new AreaSelector();
-        selector->setAttribute(Qt::WA_DeleteOnClose);
-        selector->setScreenshot(m_fullScreenshot);
-        selector->showFullScreen();
-
-        connect(selector, &AreaSelector::areaSelected,
-                this, &NativeCaptureStrategy::onAreaSelected);
+        showAreaSelector(m_fullScreenshot, m_virtualGeometry);
     });
 }
 
@@ -58,20 +55,45 @@ bool NativeCaptureStrategy::isAvailable() const
 
 void NativeCaptureStrategy::onAreaSelected(const QRect &area)
 {
-    // Close the area selector first
-    if (auto *selector = qobject_cast<AreaSelector*>(sender())) {
-        selector->close();
+    if (area.isEmpty()) {
+        // User cancelled (pressed Escape)
+        qDebug() << "Area selection cancelled";
+        m_fullScreenshot = QPixmap();
+        m_virtualGeometry = QRect();
+        return;
     }
 
-    if (!area.isNull() && !m_fullScreenshot.isNull()) {
-        QPixmap croppedScreenshot = m_fullScreenshot.copy(area);
-        emit screenshotReady(croppedScreenshot);
+    if (!m_fullScreenshot.isNull()) {
+        // The area is in virtual desktop logical coordinates
+        qreal dpr = m_fullScreenshot.devicePixelRatio();
+
+        // Map from virtual desktop logical coordinates to screenshot physical coordinates
+        QRect physicalArea(
+            (area.x() - m_virtualGeometry.x()) * dpr,
+            (area.y() - m_virtualGeometry.y()) * dpr,
+            area.width() * dpr,
+            area.height() * dpr
+        );
+
+        // Ensure the crop rect is within bounds
+        physicalArea = physicalArea.intersected(m_fullScreenshot.rect());
+
+        qDebug() << "Selected area (logical):" << area;
+        qDebug() << "Physical area (screenshot coords):" << physicalArea;
+
+        QPixmap finalScreenshot = m_fullScreenshot.copy(physicalArea);
+        finalScreenshot.setDevicePixelRatio(dpr);
+
+        qDebug() << "Final screenshot size:" << finalScreenshot.size();
+
+        emit screenshotReady(finalScreenshot);
     } else {
         emit screenshotFailed("Invalid area selected or no screenshot available");
     }
 
     // Clear the stored screenshot
     m_fullScreenshot = QPixmap();
+    m_virtualGeometry = QRect();
 }
 
 QPixmap NativeCaptureStrategy::captureScreen()
@@ -107,6 +129,100 @@ QPixmap NativeCaptureStrategy::captureScreen()
     }
 
     return QPixmap();
+}
+
+QPixmap NativeCaptureStrategy::captureAllScreens()
+{
+    QList<QScreen*> screens = QGuiApplication::screens();
+    if (screens.isEmpty()) {
+        qDebug() << "No screens available";
+        return QPixmap();
+    }
+
+    // Calculate virtual desktop geometry (union of all screen geometries)
+    QRect virtualDesktop;
+    for (QScreen *screen : screens) {
+        virtualDesktop = virtualDesktop.united(screen->geometry());
+    }
+
+    m_virtualGeometry = virtualDesktop;
+
+    qDebug() << "Capturing all screens - Virtual desktop:" << virtualDesktop;
+
+    // Determine the device pixel ratio (use the primary screen's DPR)
+    qreal dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
+
+    // Create a pixmap large enough to hold all screens
+    QPixmap fullScreenshot(virtualDesktop.size() * dpr);
+    fullScreenshot.setDevicePixelRatio(dpr);
+    fullScreenshot.fill(Qt::black);
+
+    // Paint each screen onto the full screenshot
+    QPainter painter(&fullScreenshot);
+
+    for (QScreen *screen : screens) {
+        QRect screenGeometry = screen->geometry();
+        QPixmap screenPixmap = screen->grabWindow(0);
+
+        // Calculate position relative to virtual desktop
+        QPoint offset = screenGeometry.topLeft() - virtualDesktop.topLeft();
+
+        qDebug() << "  - Screen:" << screen->name()
+                 << "Geometry:" << screenGeometry
+                 << "Offset:" << offset
+                 << "Screenshot size:" << screenPixmap.size();
+
+        // Draw this screen's screenshot at its offset position
+        painter.drawPixmap(offset, screenPixmap);
+    }
+
+    painter.end();
+
+    qDebug() << "Full screenshot size:" << fullScreenshot.size()
+             << "DPR:" << fullScreenshot.devicePixelRatio();
+
+    return fullScreenshot;
+}
+
+void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry)
+{
+    qDebug() << "Virtual desktop geometry:" << virtualGeometry;
+    qDebug() << "Screenshot size:" << screenshot.size() << "DPR:" << screenshot.devicePixelRatio();
+    qDebug() << "All screens:";
+
+    QList<QScreen*> screens = QGuiApplication::screens();
+    QList<Capture::AreaSelector*> selectors;
+
+    // Create one AreaSelector widget per screen
+    for (QScreen *screen : screens) {
+        QRect screenGeometry = screen->geometry();
+        qDebug() << "  - Creating selector for" << screen->name() << screenGeometry;
+
+        auto *selector = new Capture::AreaSelector();
+        selector->setScreenshot(screenshot);
+        selector->setVirtualGeometry(virtualGeometry);
+        selector->setScreenOffset(screenGeometry.topLeft());
+
+        // Position the selector on this specific screen
+        selector->setGeometry(screenGeometry);
+        selector->setWindowState(Qt::WindowFullScreen);
+        selector->windowHandle()->setScreen(screen);
+        selector->showFullScreen();
+
+        selectors.append(selector);
+
+        // Connect to area selection - all selectors share the same signal
+        connect(selector, &Capture::AreaSelector::areaSelected,
+                this, [this, selectors](const QRect &area) {
+                    // Close all selectors
+                    for (auto *sel : selectors) {
+                        sel->deleteLater();
+                    }
+
+                    // Handle the selected area
+                    onAreaSelected(area);
+                });
+    }
 }
 
 } // namespace Capture

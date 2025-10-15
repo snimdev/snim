@@ -33,9 +33,11 @@ private slots:
 
 private:
     QPixmap captureScreen();
-    QPixmap captureScreenArea();
+    QPixmap captureAllScreens();
+    void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry);
 
     QPixmap m_fullScreenshot; // Store for area selection
+    QRect m_virtualGeometry;  // Store virtual desktop geometry
 };
 
 } // namespace Capture
