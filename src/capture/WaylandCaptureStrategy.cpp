@@ -243,7 +243,7 @@ namespace Capture {
         qDebug() << "All screens:";
 
         QList<QScreen*> screens = QGuiApplication::screens();
-        QList<Capture::AreaSelector*> selectors;
+        QList<Capture::AreaSelector*> *selectors = new QList<Capture::AreaSelector*>();
 
         // Create one AreaSelector widget per screen
         for (QScreen *screen : screens) {
@@ -261,15 +261,24 @@ namespace Capture {
             selector->windowHandle()->setScreen(screen);
             selector->showFullScreen();
 
-            selectors.append(selector);
+            selectors->append(selector);
+        }
 
-            // Connect to area selection - all selectors share the same signal
+        // Connect all selectors to the same handler - use a shared pointer approach
+        for (auto *selector : *selectors) {
             connect(selector, &Capture::AreaSelector::areaSelected,
                     this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
-                        // Close all selectors
-                        for (auto *sel : selectors) {
-                            sel->deleteLater();
+                        // Disconnect and close all selectors immediately to prevent multiple triggers
+                        for (auto *sel : *selectors) {
+                            sel->blockSignals(true);  // Block any further signals
+                            sel->disconnect();         // Disconnect all signals
+                            sel->close();              // Close immediately
+                            sel->deleteLater();        // Schedule for deletion
                         }
+
+                        // Clear the list and delete it
+                        selectors->clear();
+                        delete selectors;
 
                         if (area.isEmpty()) {
                             // User cancelled (pressed Escape)
