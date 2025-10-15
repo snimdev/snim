@@ -21,7 +21,7 @@ ArrowHandleTool::ArrowHandleTool(HandleType type, ArrowTool *arrowTool, QGraphic
     setFlags(QGraphicsItem::ItemSendsGeometryChanges);
 
     setAcceptHoverEvents(true);
-    setCursor(Qt::SizeAllCursor);
+    setCursor(Qt::PointingHandCursor);
 
     // Ensure handles are drawn on top
     setZValue(1000);
@@ -54,7 +54,8 @@ void ArrowHandleTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
 void ArrowHandleTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
     if (m_dragging && m_arrowTool) {
-        QPointF newPos = event->scenePos();
+        // Convert scene position to arrow's local coordinate system
+        QPointF newPos = m_arrowTool->mapFromScene(event->scenePos());
 
         qDebug() << "ArrowHandleTool: Dragging to" << newPos;
 
