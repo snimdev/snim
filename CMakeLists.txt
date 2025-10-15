@@ -43,6 +43,8 @@ add_executable(Niceshort2
     src/editor/DrawingGraphicsView.h
         src/editor/tools/ArrowTool.cpp
         src/editor/tools/ArrowTool.h
+        src/editor/tools/ArrowHandleTool.cpp
+        src/editor/tools/ArrowHandleTool.h
     src/editor/Layer.cpp
     src/editor/Layer.h
     src/editor/LayerManager.cpp

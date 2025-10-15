@@ -2,56 +2,80 @@
 #define IMAGEEDITOR_ARROWTOOL_H
 
 #include "ITool.h"
-#include <QGraphicsItemGroup>
-#include <QGraphicsLineItem>
-#include <QGraphicsRectItem>
-#include <QGraphicsPolygonItem>
+#include <QGraphicsObject>
 #include <QPen>
 #include <QPointF>
 
 namespace ImageEditor::Tools {
 
-class ArrowTool : public QGraphicsItemGroup, public ITool
+class ArrowHandleTool;
+
+class ArrowTool : public QGraphicsObject, public ITool
 {
+    Q_OBJECT
+
 public:
     enum ArrowHeadType {
-        Outlined,  // Only sides filled (current default)
-        Filled     // Completely filled
+        Outlined,  // Only sides (two lines)
+        Filled     // Completely filled triangle
     };
 
     explicit ArrowTool(const QPointF &start, const QPointF &end, QGraphicsItem *parent = nullptr);
+    ~ArrowTool() override = default;
 
-    void updateArrow(const QPointF &start, const QPointF &end);
-    void setPen(const QPen &pen);
-    void setArrowHeadType(ArrowHeadType type);
+    // QGraphicsItem interface
+    QRectF boundingRect() const override;
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
+    QPainterPath shape() const override;
 
+    // ITool interface for dynamic properties
     [[nodiscard]] QList<ToolProperty> getProperties() const override;
     void setProperty(const QString& propertyId, const QVariant& value) override;
 
+    // Arrow manipulation
+    void updateArrow(const QPointF &start, const QPointF &end);
+    void setStartPoint(const QPointF &point);
+    void setEndPoint(const QPointF &point);
+
     [[nodiscard]] QPointF startPoint() const { return m_startPoint; }
     [[nodiscard]] QPointF endPoint() const { return m_endPoint; }
-    [[nodiscard]] ArrowHeadType arrowHeadType() const { return m_arrowHeadType; }
+
+    // Styling
+    void setPen(const QPen &pen);
     [[nodiscard]] QPen pen() const { return m_pen; }
 
+    void setArrowHeadType(ArrowHeadType type);
+    [[nodiscard]] ArrowHeadType arrowHeadType() const { return m_arrowHeadType; }
+
+signals:
+    void arrowChanged();
+
 protected:
-    void createArrowHead();
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
 
 private:
-    void updateSelectionBorder();
+    void updateHandles();
+    void updateGeometry();
+    QPainterPath createArrowPath() const;
+    QPainterPath createArrowHeadPath() const;
+    QPainterPath createStrokePath() const;
 
     QPointF m_startPoint;
     QPointF m_endPoint;
     QPen m_pen;
     ArrowHeadType m_arrowHeadType;
 
-    QGraphicsLineItem *m_mainLine;
-    QGraphicsLineItem *m_arrowHead1;
-    QGraphicsLineItem *m_arrowHead2;
-    QGraphicsPolygonItem *m_filledArrowHead; // For filled arrow head
-    QGraphicsRectItem *m_selectionBorder;
+    // Cached geometry
+    QPainterPath m_arrowPath;
+    QPainterPath m_arrowHeadPath;
+    QPainterPath m_strokePath;
+    QRectF m_boundingRect;
+
+    // Interactive handles
+    ArrowHandleTool *m_startHandle;
+    ArrowHandleTool *m_endHandle;
 };
 
-} // namespace ImageEditor
+} // namespace ImageEditor::Tools
 
 #endif // IMAGEEDITOR_ARROWTOOL_H

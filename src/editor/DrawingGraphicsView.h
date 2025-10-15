@@ -25,7 +25,7 @@ public:
 
     explicit DrawingGraphicsView(QWidget *parent = nullptr);
 
-    void setCurrentTool(ToolType tool) { m_currentTool = tool; }
+    void setCurrentTool(ToolType tool);
     void setImageBounds(const QRect &bounds) { m_imageBounds = bounds; }
 
 signals:
@@ -42,6 +42,7 @@ protected:
 private:
     bool isWithinImageBounds(const QPoint &point) const;
     QPoint clampToImageBounds(const QPoint &point) const;
+    void updateCursor();
 
     ToolType m_currentTool;
     bool m_drawing;

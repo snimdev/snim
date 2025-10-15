@@ -5,6 +5,7 @@
 #include "Layer.h"
 #include "tools/TextTool.h"
 #include "tools/ArrowTool.h"
+#include "tools/ArrowTool.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -287,12 +288,15 @@ void ImageEditor::addArrowLayer(const QPoint &start, const QPoint &end)
 
     if (length < 10) return; // Too short to be meaningful
 
-    // Create the arrow item with proper pen
-    QPen pen(Qt::red, 3);
+    // Create the new ArrowTool with interactive handles
     auto *arrowItem = new Tools::ArrowTool(start, end);
-    arrowItem->setPen(pen);
 
-    // Add the arrow item to the scene (not separate line items)
+    // Set default appearance
+    QPen pen(Qt::red, 3);
+    arrowItem->setPen(pen);
+    arrowItem->setArrowHeadType(Tools::ArrowTool::Outlined);
+
+    // Add the arrow item to the scene
     m_scene->addItem(arrowItem);
 
     // Create layer for arrow
@@ -302,6 +306,9 @@ void ImageEditor::addArrowLayer(const QPoint &start, const QPoint &end)
 
     m_layerManager->addLayer(layer);
     m_layerManager->selectLayer(layer);
+
+    // Don't auto-select the arrow - user should use pointer tool to select it
+    m_scene->clearSelection();
 }
 
 Layer* ImageEditor::createBackgroundLayer()

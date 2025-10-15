@@ -1,158 +1,239 @@
 #include "ArrowTool.h"
+#include "ArrowHandleTool.h"
+#include <QPainter>
+#include <QPainterPath>
+#include <QPainterPathStroker>
+#include <QStyleOptionGraphicsItem>
 #include <cmath>
-#include <QGraphicsPolygonItem>
-#include <QColor>
-#include <QGraphicsRectItem>
 
 namespace ImageEditor::Tools {
 
 ArrowTool::ArrowTool(const QPointF &start, const QPointF &end, QGraphicsItem *parent)
-    : QGraphicsItemGroup(parent)
+    : QGraphicsObject(parent)
     , m_startPoint(start)
     , m_endPoint(end)
-    , m_pen(Qt::red, 3)
+    , m_pen(Qt::red, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin)
     , m_arrowHeadType(Outlined)
-    , m_mainLine(nullptr)
-    , m_arrowHead1(nullptr)
-    , m_arrowHead2(nullptr)
-    , m_filledArrowHead(nullptr)
-    , m_selectionBorder(nullptr)
+    , m_startHandle(nullptr)
+    , m_endHandle(nullptr)
 {
-    setFlag(QGraphicsItem::ItemIsSelectable, true);
-    setFlag(QGraphicsItem::ItemIsMovable, true);
-    setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
+    setFlags(QGraphicsItem::ItemIsSelectable |
+             QGraphicsItem::ItemIsMovable |  // Make the arrow movable
+             QGraphicsItem::ItemSendsGeometryChanges |
+             QGraphicsItem::ItemIsFocusable);
 
-    // Create the main line
-    m_mainLine = new QGraphicsLineItem(0, 0, 0, 0);
-    m_mainLine->setPen(m_pen);
-    addToGroup(m_mainLine);
+    setAcceptHoverEvents(true);
+    setCursor(Qt::SizeAllCursor);  // Show move cursor when hovering
 
-    // Create arrowhead lines (for outlined arrow)
-    m_arrowHead1 = new QGraphicsLineItem(0, 0, 0, 0);
-    m_arrowHead1->setPen(m_pen);
-    addToGroup(m_arrowHead1);
+    // Create handles
+    m_startHandle = new ArrowHandleTool(ArrowHandleTool::StartHandle, this, this);
+    m_endHandle = new ArrowHandleTool(ArrowHandleTool::EndHandle, this, this);
 
-    m_arrowHead2 = new QGraphicsLineItem(0, 0, 0, 0);
-    m_arrowHead2->setPen(m_pen);
-    addToGroup(m_arrowHead2);
+    // Initially hide handles
+    m_startHandle->setVisible(false);
+    m_endHandle->setVisible(false);
 
-    // Create filled arrowhead (initially hidden)
-    m_filledArrowHead = new QGraphicsPolygonItem();
-    m_filledArrowHead->setPen(m_pen);
-    m_filledArrowHead->setBrush(QBrush(m_pen.color()));
-    m_filledArrowHead->setVisible(false);
-    addToGroup(m_filledArrowHead);
+    updateGeometry();
+}
 
-    // Create selection border (initially hidden)
-    m_selectionBorder = new QGraphicsRectItem();
-    QPen borderPen(Qt::blue, 1, Qt::DashLine);
-    m_selectionBorder->setPen(borderPen);
-    m_selectionBorder->setBrush(Qt::NoBrush);
-    m_selectionBorder->setVisible(false);
-    addToGroup(m_selectionBorder);
+void ArrowTool::updateGeometry()
+{
+    prepareGeometryChange();
 
-    // Update the arrow with the provided points
-    updateArrow(start, end);
+    // Create arrow path (the main line)
+    m_arrowPath = createArrowPath();
+
+    // Create arrow head path
+    m_arrowHeadPath = createArrowHeadPath();
+
+    // Create stroke path for interaction
+    m_strokePath = createStrokePath();
+
+    // Calculate bounding rect
+    QRectF bounds = m_strokePath.boundingRect();
+
+    // Add some padding for selection handles
+    qreal padding = 20.0;
+    bounds.adjust(-padding, -padding, padding, padding);
+    m_boundingRect = bounds;
+
+    // Update handle positions
+    updateHandles();
+
+    update();
+}
+
+QPainterPath ArrowTool::createArrowPath() const
+{
+    QPainterPath path;
+    path.moveTo(m_startPoint);
+    path.lineTo(m_endPoint);
+
+    // Ensure we have at least a tiny line
+    if (path.isEmpty() || (m_startPoint - m_endPoint).manhattanLength() < 0.01) {
+        path.moveTo(m_startPoint);
+        path.lineTo(m_startPoint.x() + 0.0001, m_startPoint.y());
+    }
+
+    return path;
+}
+
+QPainterPath ArrowTool::createArrowHeadPath() const
+{
+    QPainterPath headPath;
+
+    QLineF mainLine(m_startPoint, m_endPoint);
+    qreal length = mainLine.length();
+
+    if (length < 10) {
+        return headPath; // Too short for arrowhead
+    }
+
+    const qreal headLength = qMax(8.0, m_pen.widthF() * 3.0);
+    const qreal angle = mainLine.angle() + 180;
+
+    QLineF headLine1 = QLineF::fromPolar(headLength, angle + 30).translated(m_endPoint);
+    QLineF headLine2 = QLineF::fromPolar(headLength, angle - 30).translated(m_endPoint);
+
+    headPath.moveTo(headLine1.p2());
+    headPath.lineTo(m_endPoint);
+    headPath.lineTo(headLine2.p2());
+
+    return headPath;
+}
+
+QPainterPath ArrowTool::createStrokePath() const
+{
+    QPainterPathStroker stroker;
+    stroker.setCapStyle(m_pen.capStyle());
+    stroker.setJoinStyle(m_pen.joinStyle());
+    stroker.setWidth(m_pen.widthF());
+
+    QPainterPath combinedPath = stroker.createStroke(m_arrowPath);
+
+    if (!m_arrowHeadPath.isEmpty()) {
+        combinedPath = combinedPath.united(stroker.createStroke(m_arrowHeadPath));
+    }
+
+    return combinedPath;
+}
+
+void ArrowTool::updateHandles()
+{
+    if (m_startHandle) {
+        m_startHandle->updatePosition(m_startPoint);
+    }
+    if (m_endHandle) {
+        m_endHandle->updatePosition(m_endPoint);
+    }
+}
+
+QRectF ArrowTool::boundingRect() const
+{
+    return m_boundingRect;
+}
+
+QPainterPath ArrowTool::shape() const
+{
+    // Return stroke path for better mouse interaction
+    return m_strokePath;
+}
+
+void ArrowTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
+{
+    Q_UNUSED(widget)
+
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    // Draw the main line
+    painter->setPen(m_pen);
+    painter->drawPath(m_arrowPath);
+
+    // Draw arrow head
+    if (!m_arrowHeadPath.isEmpty()) {
+        if (m_arrowHeadType == Filled) {
+            painter->setBrush(QBrush(m_pen.color()));
+            painter->drawPath(m_arrowHeadPath);
+        } else {
+            painter->setBrush(Qt::NoBrush);
+            painter->drawPath(m_arrowHeadPath);
+        }
+    }
+
+    if (option->state & QStyle::State_Selected) {
+        QPen selectionPen(Qt::blue, 1.0, Qt::DashLine);
+        painter->setPen(selectionPen);
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(m_strokePath.boundingRect());
+    }
 }
 
 void ArrowTool::updateArrow(const QPointF &start, const QPointF &end)
 {
     m_startPoint = start;
     m_endPoint = end;
-
-    // Update main line
-    m_mainLine->setLine(start.x(), start.y(), end.x(), end.y());
-
-    // Calculate and update arrowhead
-    createArrowHead();
-
-    // Update selection border
-    updateSelectionBorder();
+    updateGeometry();
+    emit arrowChanged();
 }
 
-void ArrowTool::createArrowHead()
+void ArrowTool::setStartPoint(const QPointF &point)
 {
-    // Calculate arrow properties
-    double dx = m_endPoint.x() - m_startPoint.x();
-    double dy = m_endPoint.y() - m_startPoint.y();
-    double length = std::sqrt(dx*dx + dy*dy);
-
-    if (length < 10) {
-        // Too short for arrowhead
-        m_arrowHead1->setLine(0, 0, 0, 0);
-        m_arrowHead2->setLine(0, 0, 0, 0);
-        m_filledArrowHead->setPolygon(QPolygonF());
-        return;
+    if (m_startPoint != point) {
+        m_startPoint = point;
+        updateGeometry();
+        emit arrowChanged();
     }
+}
 
-    // Calculate arrowhead
-    double angle = std::atan2(dy, dx);
-    double arrowLength = 15;
-    double arrowAngle = M_PI / 6; // 30 degrees
-
-    QPointF arrowP1 = m_endPoint + QPointF(
-        -arrowLength * std::cos(angle - arrowAngle),
-        -arrowLength * std::sin(angle - arrowAngle)
-    );
-    QPointF arrowP2 = m_endPoint + QPointF(
-        -arrowLength * std::cos(angle + arrowAngle),
-        -arrowLength * std::sin(angle + arrowAngle)
-    );
-
-    if (m_arrowHeadType == Outlined) {
-        // Show outlined arrowhead, hide filled
-        m_arrowHead1->setLine(m_endPoint.x(), m_endPoint.y(), arrowP1.x(), arrowP1.y());
-        m_arrowHead2->setLine(m_endPoint.x(), m_endPoint.y(), arrowP2.x(), arrowP2.y());
-        m_arrowHead1->setVisible(true);
-        m_arrowHead2->setVisible(true);
-        m_filledArrowHead->setVisible(false);
-    } else {
-        // Show filled arrowhead, hide outlined
-        QPolygonF triangle;
-        triangle << m_endPoint << arrowP1 << arrowP2;
-        m_filledArrowHead->setPolygon(triangle);
-        m_filledArrowHead->setVisible(true);
-        m_arrowHead1->setVisible(false);
-        m_arrowHead2->setVisible(false);
+void ArrowTool::setEndPoint(const QPointF &point)
+{
+    if (m_endPoint != point) {
+        m_endPoint = point;
+        updateGeometry();
+        emit arrowChanged();
     }
 }
 
 void ArrowTool::setPen(const QPen &pen)
 {
-    m_pen = pen;
-    if (m_mainLine) m_mainLine->setPen(pen);
-    if (m_arrowHead1) m_arrowHead1->setPen(pen);
-    if (m_arrowHead2) m_arrowHead2->setPen(pen);
-    if (m_filledArrowHead) {
-        m_filledArrowHead->setPen(pen);
-        m_filledArrowHead->setBrush(QBrush(pen.color()));
+    if (m_pen != pen) {
+        m_pen = pen;
+        updateGeometry();
     }
 }
 
 void ArrowTool::setArrowHeadType(ArrowHeadType type)
 {
-    m_arrowHeadType = type;
-    createArrowHead();
+    if (m_arrowHeadType != type) {
+        m_arrowHeadType = type;
+        update();
+    }
 }
 
 QVariant ArrowTool::itemChange(GraphicsItemChange change, const QVariant &value)
 {
     if (change == ItemSelectedChange) {
-        m_selectionBorder->setVisible(value.toBool());
+        bool selected = value.toBool();
+        qDebug() << "ArrowTool: Selection changed to" << selected;
+        // Show/hide handles based on selection
+        if (m_startHandle) {
+            m_startHandle->setVisible(selected);
+            qDebug() << "Start handle visibility:" << selected;
+        }
+        if (m_endHandle) {
+            m_endHandle->setVisible(selected);
+            qDebug() << "End handle visibility:" << selected;
+        }
+    } else if (change == ItemPositionChange) {
+        // When the arrow is moved, we don't need to update geometry
+        // The start/end points stay the same relative to the arrow's position
+        qDebug() << "ArrowTool: Position changing to" << value.toPointF();
     } else if (change == ItemPositionHasChanged) {
-        updateSelectionBorder();
+        qDebug() << "ArrowTool: Position changed to" << pos();
+        emit arrowChanged();
     }
-    return QGraphicsItemGroup::itemChange(change, value);
-}
 
-void ArrowTool::updateSelectionBorder()
-{
-    if (!m_selectionBorder) return;
-
-    QRectF arrowBounds = childrenBoundingRect();
-    qreal padding = 5.0;
-    arrowBounds.adjust(-padding, -padding, padding, padding);
-    m_selectionBorder->setRect(arrowBounds);
+    return QGraphicsObject::itemChange(change, value);
 }
 
 QList<ToolProperty> ArrowTool::getProperties() const
@@ -171,8 +252,8 @@ QList<ToolProperty> ArrowTool::getProperties() const
     widthProp.name = "Width";
     widthProp.value = m_pen.widthF();
     widthProp.controlType = "slider";
-    widthProp.options[ "min" ] = 1;
-    widthProp.options[ "max" ] = 20;
+    widthProp.options["min"] = 1;
+    widthProp.options["max"] = 20;
     properties.append(widthProp);
 
     ToolProperty headTypeProp;
@@ -180,7 +261,7 @@ QList<ToolProperty> ArrowTool::getProperties() const
     headTypeProp.name = "Arrow Head";
     headTypeProp.value = m_arrowHeadType == Filled ? "Filled" : "Outlined";
     headTypeProp.controlType = "dropdown";
-    headTypeProp.options[ "items" ] = QStringList{ "Outlined", "Filled" };
+    headTypeProp.options["items"] = QStringList{"Outlined", "Filled"};
     properties.append(headTypeProp);
 
     return properties;
@@ -206,4 +287,4 @@ void ArrowTool::setProperty(const QString& propertyId, const QVariant& value)
     }
 }
 
-} // namespace ImageEditor
+} // namespace ImageEditor::Tools

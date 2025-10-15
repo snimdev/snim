@@ -18,6 +18,33 @@ DrawingGraphicsView::DrawingGraphicsView(QWidget *parent)
 {
     setDragMode(QGraphicsView::NoDrag);
     setRenderHint(QPainter::Antialiasing);
+    setMouseTracking(true); // Enable mouse tracking for cursor changes
+}
+
+void DrawingGraphicsView::setCurrentTool(ToolType tool)
+{
+    m_currentTool = tool;
+    updateCursor();
+}
+
+void DrawingGraphicsView::updateCursor()
+{
+    // Only show crosshair when actively drawing, not just when Arrow tool is selected
+    if (m_drawing && m_currentTool == Arrow) {
+        setCursor(Qt::CrossCursor);
+    } else {
+        switch (m_currentTool) {
+            case Text:
+                setCursor(Qt::IBeamCursor);
+                break;
+            case Arrow:
+            case Pointer:
+            case None:
+            default:
+                setCursor(Qt::ArrowCursor);
+                break;
+        }
+    }
 }
 
 void DrawingGraphicsView::mousePressEvent(QMouseEvent *event)
@@ -46,6 +73,7 @@ void DrawingGraphicsView::mousePressEvent(QMouseEvent *event)
         } else if (m_currentTool == Arrow) {
             m_startPoint = scenePos;
             m_drawing = true;
+            updateCursor(); // Update to crosshair while drawing
             event->accept();
             return;
         } else if (m_currentTool == Text) {
@@ -99,6 +127,10 @@ void DrawingGraphicsView::mouseReleaseEvent(QMouseEvent *event)
             // Emit signal to create a proper arrow layer
             emit arrowDrawn(m_startPoint, m_endPoint);
         }
+
+        // Restore cursor based on current tool
+        updateCursor();
+
         event->accept();
         return;
     }
