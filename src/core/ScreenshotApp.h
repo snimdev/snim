@@ -38,7 +38,7 @@ private slots:
 
 private:
     void setupSystemTray();
-
+    static QIcon createThemedTrayIcon(const QString &iconPath);
 
     QSystemTrayIcon *m_trayIcon;
     QMenu *m_trayMenu;

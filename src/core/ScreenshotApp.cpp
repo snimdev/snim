@@ -8,6 +8,8 @@
 #include <QMessageBox>
 #include <QDir>
 #include <QStyle>
+#include <QPalette>
+#include <QFile>
 
 #include "editor/ImageEditor.h"
 
@@ -44,6 +46,38 @@ namespace Core {
         }
     }
 
+    QIcon ScreenshotApp::createThemedTrayIcon(const QString &iconPath) {
+        // Detect if we're in dark mode by checking the palette
+        QPalette palette = QApplication::palette();
+        QColor windowColor = palette.color(QPalette::Window);
+        bool isDarkMode = windowColor.lightness() < 128;
+
+        // Load the SVG file and replace currentColor with appropriate color
+        QFile file(iconPath);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            qWarning() << "Failed to open tray icon file:" << iconPath;
+            return QIcon();
+        }
+
+        QString svgContent = QString::fromUtf8(file.readAll());
+        file.close();
+
+        // For system tray, use colors that work well on both light and dark backgrounds
+        // On macOS/Windows, system tray colors are inverted automatically, so we use darker colors
+        // On Linux, we need to detect the theme
+        QString iconColor = isDarkMode ? "#e0e0e0" : "#1a1a1a";
+        svgContent.replace("currentColor", iconColor);
+
+        // Save modified SVG to temporary buffer and create QPixmap
+        QByteArray svgData = svgContent.toUtf8();
+
+        // Use QPixmap to load the SVG data directly
+        QPixmap pixmap;
+        pixmap.loadFromData(svgData, "SVG");
+
+        return QIcon(pixmap);
+    }
+
     void ScreenshotApp::setupSystemTray() {
         // Create actions
         m_captureAreaAction = new QAction("Capture Area", this);
@@ -76,8 +110,8 @@ namespace Core {
         // Create tray icon
         m_trayIcon = new QSystemTrayIcon(this);
         m_trayIcon->setContextMenu(m_trayMenu);
-        m_trayIcon->setIcon(style()->standardIcon(QStyle::SP_ComputerIcon));
-        m_trayIcon->setToolTip("Screenshot App");
+        m_trayIcon->setIcon(createThemedTrayIcon(":/icons/icons/tray-icon.svg"));
+        m_trayIcon->setToolTip("Niceshot - Screenshot App");
         m_trayIcon->show();
 
         // Connect tray icon activation

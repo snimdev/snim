@@ -1,6 +1,10 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
     <qresource prefix="/icons">
+        <!-- System tray icon -->
+        <file>icons/tray-icon.svg</file>
+
+        <!-- Toolbar icons -->
         <file>icons/save.svg</file>
         <file>icons/copy.svg</file>
         <file>icons/pointer.svg</file>
