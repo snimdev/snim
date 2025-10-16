@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.31)
-project(Niceshort2)
+project(Niceshot)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_AUTOMOC ON)
@@ -13,34 +13,34 @@ find_package(Qt6 COMPONENTS
         DBus
         REQUIRED)
 
-add_executable(Niceshort2
-    main.cpp
+add_executable(Niceshot
+        main.cpp
 
-    # Core application files
-    src/core/ScreenshotApp.cpp
-    src/core/ScreenshotApp.h
-    src/core/ScreenshotDialog.cpp
-    src/core/ScreenshotDialog.h
-    src/core/SettingsDialog.cpp
-    src/core/SettingsDialog.h
+        # Core application files
+        src/core/ScreenshotApp.cpp
+        src/core/ScreenshotApp.h
+        src/core/ScreenshotDialog.cpp
+        src/core/ScreenshotDialog.h
+        src/core/SettingsDialog.cpp
+        src/core/SettingsDialog.h
 
-    # Capture functionality
-    src/capture/AreaSelector.cpp
-    src/capture/AreaSelector.h
-    src/capture/CaptureFactory.cpp
-    src/capture/CaptureFactory.h
-    src/capture/strategies/CaptureStrategy.cpp
-    src/capture/strategies/CaptureStrategy.h
-    src/capture/strategies/NativeCaptureStrategy.cpp
-    src/capture/strategies/NativeCaptureStrategy.h
-    src/capture/strategies/WaylandCaptureStrategy.cpp
-    src/capture/strategies/WaylandCaptureStrategy.h
+        # Capture functionality
+        src/capture/AreaSelector.cpp
+        src/capture/AreaSelector.h
+        src/capture/CaptureFactory.cpp
+        src/capture/CaptureFactory.h
+        src/capture/strategies/CaptureStrategy.cpp
+        src/capture/strategies/CaptureStrategy.h
+        src/capture/strategies/NativeCaptureStrategy.cpp
+        src/capture/strategies/NativeCaptureStrategy.h
+        src/capture/strategies/WaylandCaptureStrategy.cpp
+        src/capture/strategies/WaylandCaptureStrategy.h
 
-    # Image editor functionality
-    src/editor/ImageEditor.cpp
-    src/editor/ImageEditor.h
-    src/editor/DrawingGraphicsView.cpp
-    src/editor/DrawingGraphicsView.h
+        # Image editor functionality
+        src/editor/ImageEditor.cpp
+        src/editor/ImageEditor.h
+        src/editor/DrawingGraphicsView.cpp
+        src/editor/DrawingGraphicsView.h
         src/editor/tools/ArrowTool.cpp
         src/editor/tools/ArrowTool.h
         src/editor/tools/ArrowHandleTool.cpp
@@ -61,12 +61,12 @@ add_executable(Niceshort2
         src/editor/tools/BlurTool.h
         src/editor/tools/TextTool.cpp
         src/editor/tools/TextTool.h
-    src/editor/Layer.cpp
-    src/editor/Layer.h
-    src/editor/LayerManager.cpp
-    src/editor/LayerManager.h
-    src/editor/LayerProperties.cpp
-    src/editor/LayerProperties.h
+        src/editor/Layer.cpp
+        src/editor/Layer.h
+        src/editor/LayerManager.cpp
+        src/editor/LayerManager.h
+        src/editor/LayerProperties.cpp
+        src/editor/LayerProperties.h
         # Drawing Interactions
         src/editor/interactions/IDrawingInteraction.h
         src/editor/interactions/BaseDrawingInteraction.cpp
@@ -88,17 +88,17 @@ add_executable(Niceshort2
         src/editor/interactions/BlurDrawingInteraction.cpp
         src/editor/interactions/BlurDrawingInteraction.h
 
-    # Resources
-    resources/resources.qrc
+        # Resources
+        resources/resources.qrc
 )
 
 # Set include directories for the organized structure
-target_include_directories(Niceshort2 PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+target_include_directories(Niceshot PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(Niceshort2
+target_link_libraries(Niceshot
         Qt::Core
         Qt::Gui
         Qt::Widgets

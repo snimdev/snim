@@ -8,7 +8,7 @@ int main(int argc, char *argv[]) {
 
     QLoggingCategory::setFilterRules(
         "qt.*.debug=false\n"
-        "Niceshort2.debug=true\n"
+        "Niceshot.debug=true\n"
         "default.debug=true"  // For qDebug() without category
     );
     Core::ScreenshotApp app(argc, argv);
