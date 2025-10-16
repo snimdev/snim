@@ -16,12 +16,10 @@ BlurTool::BlurTool(QGraphicsItem *parent)
     , m_needsUpdate(true)
 {
     setFlags(QGraphicsItem::ItemIsSelectable |
-             QGraphicsItem::ItemIsMovable |
              QGraphicsItem::ItemSendsGeometryChanges |
              QGraphicsItem::ItemIsFocusable);
 
     setAcceptHoverEvents(true);
-    setCursor(Qt::SizeAllCursor);
 }
 
 void BlurTool::addPoint(const QPointF &point)
