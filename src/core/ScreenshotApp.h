@@ -11,6 +11,7 @@ namespace Core {
 
 class ScreenshotDialog;
 class SettingsDialog;
+class TextSnipCapture;
 
 } // namespace Core
 
@@ -31,7 +32,9 @@ public:
 private slots:
     void captureArea() const;
     void captureWindow() const;
+    void captureTextSnip();
     void onScreenshotReady(const QPixmap &screenshot);
+    void onTextExtracted(const QString &text, bool success);
     static void showSettings();
     static void showAbout();
     static void quit();
@@ -44,11 +47,13 @@ private:
     QMenu *m_trayMenu;
     QAction *m_captureAreaAction{};
     QAction *m_captureWindowAction{};
+    QAction *m_textSnipAction{};
     QAction *m_settingsAction{};
     QAction *m_aboutAction{};
     QAction *m_quitAction{};
 
     std::unique_ptr<Capture::CaptureStrategy> m_captureStrategy;
+    std::unique_ptr<TextSnipCapture> m_textSnipCapture;
 };
 
 } // namespace Core

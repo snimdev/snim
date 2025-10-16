@@ -1,0 +1,187 @@
+#include "OCRService.h"
+#include <QClipboard>
+#include <QGuiApplication>
+#include <QBuffer>
+#include <QDebug>
+
+#ifdef HAVE_TESSERACT
+#include <tesseract/baseapi.h>
+#include <leptonica/allheaders.h>
+#endif
+
+namespace OCR {
+
+#ifdef HAVE_TESSERACT
+/**
+ * @brief Private implementation class for Tesseract integration
+ */
+class OCRService::Impl {
+public:
+    Impl() : m_api(new tesseract::TessBaseAPI()) {
+        // Initialize Tesseract with English language by default
+        if (m_api->Init(nullptr, "eng") != 0) {
+            qWarning() << "Failed to initialize Tesseract API";
+            delete m_api;
+            m_api = nullptr;
+        }
+    }
+
+    ~Impl() {
+        if (m_api) {
+            m_api->End();
+            delete m_api;
+        }
+    }
+
+    tesseract::TessBaseAPI* api() { return m_api; }
+
+private:
+    tesseract::TessBaseAPI* m_api;
+};
+#endif
+
+OCRService::OCRService(QObject* parent)
+    : QObject(parent)
+#ifdef HAVE_TESSERACT
+    , m_impl(new Impl())
+#endif
+{
+}
+
+OCRService::~OCRService() {
+#ifdef HAVE_TESSERACT
+    delete m_impl;
+#endif
+}
+
+bool OCRService::isAvailable() {
+#ifdef HAVE_TESSERACT
+    return true;
+#else
+    return false;
+#endif
+}
+
+QStringList OCRService::getAvailableLanguages() {
+#ifdef HAVE_TESSERACT
+    // Common languages, actual availability depends on installed language packs
+    return {"eng", "deu", "fra", "spa", "ita", "por", "rus", "jpn", "chi_sim", "chi_tra"};
+#else
+    return {};
+#endif
+}
+
+OCRResult OCRService::performOCR(const QPixmap& pixmap, const QString& language) {
+    return performOCR(pixmap.toImage(), language);
+}
+
+OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
+    OCRResult result;
+
+#ifdef HAVE_TESSERACT
+    if (!m_impl || !m_impl->api()) {
+        result.setSuccess(false);
+        result.setErrorMessage("Tesseract API not initialized");
+        return result;
+    }
+
+    // Preprocess the image
+    QImage processedImage = preprocessImage(image);
+    processedImage = convertToRGB888(processedImage);
+
+    // Set language if different from current
+    m_impl->api()->SetVariable("tesseract_char_whitelist", "");
+    m_impl->api()->Init(nullptr, language.toStdString().c_str());
+
+    // Convert QImage to Tesseract format
+    const int width = processedImage.width();
+    const int height = processedImage.height();
+    const int bytesPerLine = processedImage.bytesPerLine();
+    const uchar* imageData = processedImage.constBits();
+
+    // Set image for Tesseract
+    m_impl->api()->SetImage(imageData, width, height, 3, bytesPerLine);
+
+    // Perform OCR
+    char* outText = m_impl->api()->GetUTF8Text();
+    if (outText) {
+        QString text = QString::fromUtf8(outText);
+        result.setText(text);
+        result.setSuccess(true);
+
+        // Get confidence
+        int confidence = m_impl->api()->MeanTextConf();
+        result.setOverallConfidence(confidence / 100.0f);
+
+        delete[] outText;
+
+        // Optionally get word-level results for bounding boxes
+        tesseract::ResultIterator* ri = m_impl->api()->GetIterator();
+        QList<TextRegion> regions;
+
+        if (ri) {
+            tesseract::PageIteratorLevel level = tesseract::RIL_WORD;
+            do {
+                const char* word = ri->GetUTF8Text(level);
+                if (word) {
+                    float wordConfidence = ri->Confidence(level);
+                    int x1, y1, x2, y2;
+                    ri->BoundingBox(level, &x1, &y1, &x2, &y2);
+
+                    TextRegion region;
+                    region.text = QString::fromUtf8(word);
+                    region.boundingBox = QRect(x1, y1, x2 - x1, y2 - y1);
+                    region.confidence = wordConfidence / 100.0f;
+                    regions.append(region);
+
+                    delete[] word;
+                }
+            } while (ri->Next(level));
+
+            delete ri;
+        }
+
+        result.setTextRegions(regions);
+    } else {
+        result.setSuccess(false);
+        result.setErrorMessage("Failed to extract text from image");
+    }
+
+#else
+    result.setSuccess(false);
+    result.setErrorMessage("Tesseract OCR is not available. Please install tesseract-ocr and rebuild the application.");
+#endif
+
+    emit ocrCompleted(result);
+    return result;
+}
+
+QImage OCRService::preprocessImage(const QImage& image) const {
+    QImage processed = image;
+
+    // Tesseract works best when text x-height is at least 20 pixels
+    // For typical text, we can estimate this as roughly 1/3 of the line height
+    // If the image is too small, scale it up
+    const int minHeight = 100; // Minimum height for decent OCR
+
+    if (processed.height() < minHeight) {
+        float scaleFactor = static_cast<float>(minHeight) / processed.height();
+        processed = processed.scaled(
+            processed.width() * scaleFactor,
+            processed.height() * scaleFactor,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation
+        );
+    }
+
+    return processed;
+}
+
+QImage OCRService::convertToRGB888(const QImage& image) const {
+    if (image.format() == QImage::Format_RGB888) {
+        return image;
+    }
+    return image.convertToFormat(QImage::Format_RGB888);
+}
+
+} // namespace OCR

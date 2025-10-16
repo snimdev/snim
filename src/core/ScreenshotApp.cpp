@@ -1,5 +1,6 @@
 #include "ScreenshotApp.h"
 #include "SettingsDialog.h"
+#include "TextSnipCapture.h"
 #include "../capture/CaptureFactory.h"
 #include "../capture/strategies/CaptureStrategy.h"
 #include <QPainter>
@@ -36,6 +37,11 @@ namespace Core {
         connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotFailed, this, [](const QString &error) {
             QMessageBox::warning(nullptr, "Screenshot Failed", error);
         });
+
+        // Initialize text snip capture
+        m_textSnipCapture = std::make_unique<TextSnipCapture>(this);
+        connect(m_textSnipCapture.get(), &TextSnipCapture::textExtracted,
+                this, &ScreenshotApp::onTextExtracted);
 
         setupSystemTray();
     }
@@ -88,6 +94,17 @@ namespace Core {
         m_captureWindowAction->setShortcut(QKeySequence("Ctrl+Shift+W"));
         connect(m_captureWindowAction, &QAction::triggered, this, &ScreenshotApp::captureWindow);
 
+        m_textSnipAction = new QAction("Extract Text (OCR)", this);
+        m_textSnipAction->setShortcut(QKeySequence("Ctrl+Shift+T"));
+        connect(m_textSnipAction, &QAction::triggered, this, &ScreenshotApp::captureTextSnip);
+
+        // Disable text snip if OCR is not available
+        if (!TextSnipCapture::isOCRAvailable()) {
+            m_textSnipAction->setEnabled(false);
+            m_textSnipAction->setText("Extract Text (OCR not available)");
+            m_textSnipAction->setToolTip("Install tesseract-ocr to enable this feature");
+        }
+
         m_aboutAction = new QAction("About", this);
         m_settingsAction = new QAction("Settings", this);
         connect(m_settingsAction, &QAction::triggered, this, &ScreenshotApp::showSettings);
@@ -101,6 +118,7 @@ namespace Core {
         m_trayMenu = new QMenu();
         m_trayMenu->addAction(m_captureAreaAction);
         m_trayMenu->addAction(m_captureWindowAction);
+        m_trayMenu->addAction(m_textSnipAction);
         m_trayMenu->addSeparator();
         m_trayMenu->addAction(m_settingsAction);
         m_trayMenu->addAction(m_aboutAction);
@@ -148,12 +166,17 @@ namespace Core {
     }
 
     void ScreenshotApp::showAbout() {
-        QMessageBox::about(nullptr, "About Screenshot App",
-                           "Screenshot App v1.0\n\n"
+        QString aboutText = "Screenshot App v1.0\n\n"
                            "A simple screenshot tool with editing capabilities.\n\n"
                            "Shortcuts:\n"
                            "• Ctrl+Shift+A: Capture Area\n"
-                           "• Ctrl+Shift+W: Capture Window");
+                           "• Ctrl+Shift+W: Capture Window";
+
+        if (TextSnipCapture::isOCRAvailable()) {
+            aboutText += "\n• Ctrl+Shift+T: Extract Text (OCR)";
+        }
+
+        QMessageBox::about(nullptr, "About Screenshot App", aboutText);
     }
 
     void ScreenshotApp::showSettings() {
@@ -172,6 +195,23 @@ namespace Core {
         editor->show();
         editor->raise();
         editor->activateWindow();
+    }
+
+    void ScreenshotApp::captureTextSnip() {
+        qDebug() << "Starting text snip with OCR";
+
+        if (!m_textSnipCapture) {
+            QMessageBox::warning(nullptr, "Text Snip",
+                               "Text snip feature is not initialized.");
+            return;
+        }
+
+        m_textSnipCapture->startTextSnip();
+    }
+
+    void ScreenshotApp::onTextExtracted(const QString &text, bool success) {
+        qDebug() << "Text extraction" << (success ? "succeeded" : "failed");
+        qDebug() << "Extracted text:" << text;
     }
 
     void ScreenshotApp::quit() {
