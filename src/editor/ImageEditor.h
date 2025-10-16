@@ -109,7 +109,7 @@ private:
     // - Toolbar
     QToolBar *m_toolbar;
 
-    // - Toolbar :: ACtions
+    // - Toolbar :: Actions
     QAction *m_saveAsAction;
     QAction *m_copyAction;
 
