@@ -87,6 +87,9 @@ add_executable(Niceshort2
         src/editor/interactions/HighlightDrawingInteraction.h
         src/editor/interactions/BlurDrawingInteraction.cpp
         src/editor/interactions/BlurDrawingInteraction.h
+
+    # Resources
+    resources/resources.qrc
 )
 
 # Set include directories for the organized structure

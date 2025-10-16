@@ -88,6 +88,7 @@ private:
     qreal getCurrentHighlightWidth() const;
     qreal getCurrentBlurRadius() const;
     qreal getCurrentBlurBrushWidth() const;
+    QIcon createThemedIcon(const QString &iconPath);
 
     enum ToolType {
         None,

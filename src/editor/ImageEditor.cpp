@@ -33,6 +33,8 @@
 #include <QLineEdit>
 #include <QSettings>
 #include <QDebug>
+#include <QPalette>
+#include <QFile>
 #include <cmath>
 
 namespace ImageEditor {
@@ -168,6 +170,37 @@ void ImageEditor::setupUI()
     m_splitter->setStretchFactor(1, 1);
 }
 
+QIcon ImageEditor::createThemedIcon(const QString &iconPath)
+{
+    // Detect if we're in dark mode by checking the palette
+    QPalette palette = QApplication::palette();
+    QColor windowColor = palette.color(QPalette::Window);
+    bool isDarkMode = windowColor.lightness() < 128;
+
+    // Load the SVG file and replace currentColor with appropriate color
+    QFile file(iconPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "Failed to open icon file:" << iconPath;
+        return QIcon();
+    }
+
+    QString svgContent = QString::fromUtf8(file.readAll());
+    file.close();
+
+    // Replace "currentColor" with appropriate color based on theme
+    QString iconColor = isDarkMode ? "#d0d0d0" : "#333333";  // Light gray for dark mode, dark gray for light mode
+    svgContent.replace("currentColor", iconColor);
+
+    // Save modified SVG to temporary buffer and create QPixmap
+    QByteArray svgData = svgContent.toUtf8();
+
+    // Use QPixmap to load the SVG data directly
+    QPixmap pixmap;
+    pixmap.loadFromData(svgData, "SVG");
+
+    return QIcon(pixmap);
+}
+
 void ImageEditor::setupToolbar()
 {
     m_toolbar = addToolBar("Tools");
@@ -176,7 +209,7 @@ void ImageEditor::setupToolbar()
     // Save As action
     m_saveAsAction = new QAction(this);
     m_saveAsAction->setText("Save As");
-    m_saveAsAction->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    m_saveAsAction->setIcon(createThemedIcon(":/icons/icons/save.svg"));
     m_saveAsAction->setShortcut(QKeySequence::Save); // Ctrl+S
     connect(m_saveAsAction, &QAction::triggered, this, &ImageEditor::saveAs);
     m_toolbar->addAction(m_saveAsAction);
@@ -184,7 +217,7 @@ void ImageEditor::setupToolbar()
     // Copy to Clipboard action
     m_copyAction = new QAction(this);
     m_copyAction->setText("Copy");
-    m_copyAction->setIcon(style()->standardIcon(QStyle::SP_DialogApplyButton));
+    m_copyAction->setIcon(createThemedIcon(":/icons/icons/copy.svg"));
     m_copyAction->setShortcut(QKeySequence::Copy); // Ctrl+C
     connect(m_copyAction, &QAction::triggered, this, &ImageEditor::copyToClipboard);
     m_toolbar->addAction(m_copyAction);
@@ -194,7 +227,7 @@ void ImageEditor::setupToolbar()
     // Pointer tool
     m_pointerAction = new QAction(this);
     m_pointerAction->setText("Pointer");
-    m_pointerAction->setIcon(style()->standardIcon(QStyle::SP_ArrowUp));
+    m_pointerAction->setIcon(createThemedIcon(":/icons/icons/pointer.svg"));
     m_pointerAction->setCheckable(true);
     m_pointerAction->setChecked(true);
     connect(m_pointerAction, &QAction::triggered, this, &ImageEditor::selectPointerTool);
@@ -203,7 +236,7 @@ void ImageEditor::setupToolbar()
     // Arrow tool
     m_arrowAction = new QAction(this);
     m_arrowAction->setText("Arrow");
-    m_arrowAction->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
+    m_arrowAction->setIcon(createThemedIcon(":/icons/icons/arrow.svg"));
     m_arrowAction->setCheckable(true);
     connect(m_arrowAction, &QAction::triggered, this, &ImageEditor::selectArrowTool);
     m_toolbar->addAction(m_arrowAction);
@@ -211,7 +244,7 @@ void ImageEditor::setupToolbar()
     // Text tool
     m_textAction = new QAction(this);
     m_textAction->setText("Text");
-    m_textAction->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    m_textAction->setIcon(createThemedIcon(":/icons/icons/text.svg"));
     m_textAction->setCheckable(true);
     connect(m_textAction, &QAction::triggered, this, &ImageEditor::selectTextTool);
     m_toolbar->addAction(m_textAction);
@@ -219,7 +252,7 @@ void ImageEditor::setupToolbar()
     // Rectangle tool
     m_rectangleAction = new QAction(this);
     m_rectangleAction->setText("Rectangle");
-    m_rectangleAction->setIcon(style()->standardIcon(QStyle::SP_DialogNoButton));
+    m_rectangleAction->setIcon(createThemedIcon(":/icons/icons/rectangle.svg"));
     m_rectangleAction->setCheckable(true);
     connect(m_rectangleAction, &QAction::triggered, this, &ImageEditor::selectRectangleTool);
     m_toolbar->addAction(m_rectangleAction);
@@ -227,7 +260,7 @@ void ImageEditor::setupToolbar()
     // Ellipse tool
     m_ellipseAction = new QAction(this);
     m_ellipseAction->setText("Ellipse");
-    m_ellipseAction->setIcon(style()->standardIcon(QStyle::SP_DialogYesButton));
+    m_ellipseAction->setIcon(createThemedIcon(":/icons/icons/ellipse.svg"));
     m_ellipseAction->setCheckable(true);
     connect(m_ellipseAction, &QAction::triggered, this, &ImageEditor::selectEllipseTool);
     m_toolbar->addAction(m_ellipseAction);
@@ -235,7 +268,7 @@ void ImageEditor::setupToolbar()
     // Freehand tool
     m_freehandAction = new QAction(this);
     m_freehandAction->setText("Freehand");
-    m_freehandAction->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+    m_freehandAction->setIcon(createThemedIcon(":/icons/icons/freehand.svg"));
     m_freehandAction->setCheckable(true);
     connect(m_freehandAction, &QAction::triggered, this, &ImageEditor::selectFreehandTool);
     m_toolbar->addAction(m_freehandAction);
@@ -243,7 +276,7 @@ void ImageEditor::setupToolbar()
     // Highlight tool
     m_highlightAction = new QAction(this);
     m_highlightAction->setText("Highlight");
-    m_highlightAction->setIcon(style()->standardIcon(QStyle::SP_DriveFDIcon));
+    m_highlightAction->setIcon(createThemedIcon(":/icons/icons/highlight.svg"));
     m_highlightAction->setCheckable(true);
     connect(m_highlightAction, &QAction::triggered, this, &ImageEditor::selectHighlightTool);
     m_toolbar->addAction(m_highlightAction);
@@ -251,7 +284,7 @@ void ImageEditor::setupToolbar()
     // Blur tool
     m_blurAction = new QAction(this);
     m_blurAction->setText("Blur");
-    m_blurAction->setIcon(style()->standardIcon(QStyle::SP_DialogResetButton));
+    m_blurAction->setIcon(createThemedIcon(":/icons/icons/blur.svg"));
     m_blurAction->setCheckable(true);
     connect(m_blurAction, &QAction::triggered, this, &ImageEditor::selectBlurTool);
     m_toolbar->addAction(m_blurAction);

@@ -1,0 +1,15 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/icons">
+        <file>icons/save.svg</file>
+        <file>icons/copy.svg</file>
+        <file>icons/pointer.svg</file>
+        <file>icons/arrow.svg</file>
+        <file>icons/text.svg</file>
+        <file>icons/rectangle.svg</file>
+        <file>icons/ellipse.svg</file>
+        <file>icons/freehand.svg</file>
+        <file>icons/highlight.svg</file>
+        <file>icons/blur.svg</file>
+    </qresource>
+</RCC>
