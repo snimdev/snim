@@ -57,6 +57,8 @@ add_executable(Niceshort2
         src/editor/tools/FreehandTool.h
         src/editor/tools/HighlightTool.cpp
         src/editor/tools/HighlightTool.h
+        src/editor/tools/BlurTool.cpp
+        src/editor/tools/BlurTool.h
         src/editor/tools/TextTool.cpp
         src/editor/tools/TextTool.h
     src/editor/Layer.cpp
@@ -83,6 +85,8 @@ add_executable(Niceshort2
         src/editor/interactions/FreehandDrawingInteraction.h
         src/editor/interactions/HighlightDrawingInteraction.cpp
         src/editor/interactions/HighlightDrawingInteraction.h
+        src/editor/interactions/BlurDrawingInteraction.cpp
+        src/editor/interactions/BlurDrawingInteraction.h
 )
 
 # Set include directories for the organized structure

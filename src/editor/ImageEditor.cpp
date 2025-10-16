@@ -9,6 +9,7 @@
 #include "tools/EllipseTool.h"
 #include "tools/FreehandTool.h"
 #include "tools/HighlightTool.h"
+#include "tools/BlurTool.h"
 #include "interactions/PointerToolInteraction.h"
 #include "interactions/ArrowDrawingInteraction.h"
 #include "interactions/TextDrawingInteraction.h"
@@ -16,6 +17,7 @@
 #include "interactions/EllipseDrawingInteraction.h"
 #include "interactions/FreehandDrawingInteraction.h"
 #include "interactions/HighlightDrawingInteraction.h"
+#include "interactions/BlurDrawingInteraction.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -60,6 +62,7 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_backgroundLayer(nullptr)
     , m_lastFreehandLayer(nullptr)
     , m_lastHighlightLayer(nullptr)
+    , m_lastBlurLayer(nullptr)
     , m_pointerStrategy(nullptr)
     , m_arrowStrategy(nullptr)
     , m_textStrategy(nullptr)
@@ -67,12 +70,14 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_ellipseStrategy(nullptr)
     , m_freehandStrategy(nullptr)
     , m_highlightStrategy(nullptr)
+    , m_blurStrategy(nullptr)
     , m_textTemplate(nullptr)
     , m_arrowTemplate(nullptr)
     , m_rectangleTemplate(nullptr)
     , m_ellipseTemplate(nullptr)
     , m_freehandTemplate(nullptr)
     , m_highlightTemplate(nullptr)
+    , m_blurTemplate(nullptr)
 {
     qDebug() << "ImageEditor constructor called with screenshot size:" << screenshot.size();
     qDebug() << "Setting window title...";
@@ -242,6 +247,14 @@ void ImageEditor::setupToolbar()
     m_highlightAction->setCheckable(true);
     connect(m_highlightAction, &QAction::triggered, this, &ImageEditor::selectHighlightTool);
     m_toolbar->addAction(m_highlightAction);
+
+    // Blur tool
+    m_blurAction = new QAction(this);
+    m_blurAction->setText("Blur");
+    m_blurAction->setIcon(style()->standardIcon(QStyle::SP_DialogResetButton));
+    m_blurAction->setCheckable(true);
+    connect(m_blurAction, &QAction::triggered, this, &ImageEditor::selectBlurTool);
+    m_toolbar->addAction(m_blurAction);
 }
 
 void ImageEditor::setupStrategies()
@@ -254,6 +267,7 @@ void ImageEditor::setupStrategies()
     m_ellipseStrategy = new Interactions::EllipseDrawingInteraction(this);
     m_freehandStrategy = new Interactions::FreehandDrawingInteraction(this);
     m_highlightStrategy = new Interactions::HighlightDrawingInteraction(this);
+    m_blurStrategy = new Interactions::BlurDrawingInteraction(this);
 
     // Set image bounds for all strategies that need it
     m_arrowStrategy->setImageBounds(m_originalScreenshot.rect());
@@ -261,6 +275,8 @@ void ImageEditor::setupStrategies()
     m_ellipseStrategy->setImageBounds(m_originalScreenshot.rect());
     m_freehandStrategy->setImageBounds(m_originalScreenshot.rect());
     m_highlightStrategy->setImageBounds(m_originalScreenshot.rect());
+    m_blurStrategy->setImageBounds(m_originalScreenshot.rect());
+    m_blurStrategy->setSourcePixmap(m_originalScreenshot);
 
     // Connect interaction signals to ImageEditor slots
     connect(m_pointerStrategy, &Interactions::PointerToolInteraction::itemClicked,
@@ -291,6 +307,9 @@ void ImageEditor::setupStrategies()
 
     connect(m_highlightStrategy, &Interactions::HighlightDrawingInteraction::highlightDrawn,
             this, &ImageEditor::addHighlightLayer);
+
+    connect(m_blurStrategy, &Interactions::BlurDrawingInteraction::blurDrawn,
+            this, &ImageEditor::addBlurLayer);
 
     // Set pointer tool as default
     m_view->setDrawingStrategy(m_pointerStrategy);
@@ -351,6 +370,14 @@ void ImageEditor::setupToolTemplates()
         highlightTool->setColor(getCurrentHighlightColor());
         highlightTool->setWidth(getCurrentHighlightWidth());
     }
+
+    // Blur template
+    m_blurTemplate = new Tools::BlurTool(nullptr);
+    auto *blurTool = dynamic_cast<Tools::BlurTool*>(m_blurTemplate);
+    if (blurTool) {
+        blurTool->setBlurRadius(getCurrentBlurRadius());
+        blurTool->setBrushWidth(getCurrentBlurBrushWidth());
+    }
 }
 
 void ImageEditor::saveAs()
@@ -398,6 +425,7 @@ void ImageEditor::selectPointerTool()
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(false);
     m_highlightAction->setChecked(false);
+    m_blurAction->setChecked(false);
     m_pointerAction->setChecked(true);
 
     // Deselect any layer and hide properties
@@ -414,6 +442,7 @@ void ImageEditor::selectArrowTool()
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(false);
     m_highlightAction->setChecked(false);
+    m_blurAction->setChecked(false);
     m_arrowAction->setChecked(true);
 
     // Deselect any layer and show arrow tool properties
@@ -430,6 +459,7 @@ void ImageEditor::selectTextTool()
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(false);
     m_highlightAction->setChecked(false);
+    m_blurAction->setChecked(false);
     m_textAction->setChecked(true);
 
     // Deselect any layer and show text tool properties
@@ -446,6 +476,7 @@ void ImageEditor::selectRectangleTool()
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(false);
     m_highlightAction->setChecked(false);
+    m_blurAction->setChecked(false);
     m_rectangleAction->setChecked(true);
 
     // Deselect any layer and show rectangle tool properties
@@ -462,6 +493,7 @@ void ImageEditor::selectEllipseTool()
     m_rectangleAction->setChecked(false);
     m_freehandAction->setChecked(false);
     m_highlightAction->setChecked(false);
+    m_blurAction->setChecked(false);
     m_ellipseAction->setChecked(true);
 
     // Deselect any layer and show ellipse tool properties
@@ -487,6 +519,7 @@ void ImageEditor::selectFreehandTool()
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(true);
     m_highlightAction->setChecked(false);
+    m_blurAction->setChecked(false);
 
     // Deselect any layer and show freehand tool properties
     m_layerManager->selectLayer(nullptr);
@@ -515,10 +548,40 @@ void ImageEditor::selectHighlightTool()
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(false);
     m_highlightAction->setChecked(true);
+    m_blurAction->setChecked(false);
 
     // Deselect any layer and show highlight tool properties
     m_layerManager->selectLayer(nullptr);
     m_layerProperties->setTool(m_highlightTemplate, "Highlight Tool");
+}
+
+void ImageEditor::selectBlurTool()
+{
+    // Update blur settings from last layer before setting strategy and template
+    qreal currentBlurRadius = getCurrentBlurRadius();
+    qreal currentBrushWidth = getCurrentBlurBrushWidth();
+    m_blurStrategy->setBlurRadius(currentBlurRadius);
+    m_blurStrategy->setBrushWidth(currentBrushWidth);
+
+    auto *blurTool = dynamic_cast<Tools::BlurTool*>(m_blurTemplate);
+    if (blurTool) {
+        blurTool->setBlurRadius(currentBlurRadius);
+        blurTool->setBrushWidth(currentBrushWidth);
+    }
+
+    m_view->setDrawingStrategy(m_blurStrategy);
+    m_pointerAction->setChecked(false);
+    m_arrowAction->setChecked(false);
+    m_textAction->setChecked(false);
+    m_rectangleAction->setChecked(false);
+    m_ellipseAction->setChecked(false);
+    m_freehandAction->setChecked(false);
+    m_highlightAction->setChecked(false);
+    m_blurAction->setChecked(true);
+
+    // Deselect any layer and show blur tool properties
+    m_layerManager->selectLayer(nullptr);
+    m_layerProperties->setTool(m_blurTemplate, "Blur Tool");
 }
 
 void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
@@ -910,6 +973,90 @@ void ImageEditor::addHighlightLayer(const QList<QPointF> &points, const QColor &
     m_layerManager->selectLayer(layer);
 
     // Don't auto-select the highlight - user should use pointer tool to select it
+    m_scene->clearSelection();
+}
+
+qreal ImageEditor::getCurrentBlurRadius() const
+{
+    // If we have a previous blur layer, use its blur radius
+    if (m_lastBlurLayer && m_lastBlurLayer->item()) {
+        auto *lastBlur = dynamic_cast<Tools::BlurTool*>(m_lastBlurLayer->item());
+        if (lastBlur) {
+            return lastBlur->blurRadius();
+        }
+    }
+
+    // No previous blur layer, return default blur radius
+    return 10.0;
+}
+
+qreal ImageEditor::getCurrentBlurBrushWidth() const
+{
+    // If we have a previous blur layer, use its brush width
+    if (m_lastBlurLayer && m_lastBlurLayer->item()) {
+        auto *lastBlur = dynamic_cast<Tools::BlurTool*>(m_lastBlurLayer->item());
+        if (lastBlur) {
+            return lastBlur->brushWidth();
+        }
+    }
+
+    // No previous blur layer, return default brush width
+    return 30.0;
+}
+
+void ImageEditor::addBlurLayer(const QList<QPointF> &points)
+{
+    if (points.isEmpty()) {
+        return;
+    }
+
+    // Create the BlurTool and add all points
+    auto *blurItem = new Tools::BlurTool();
+    blurItem->setSourcePixmap(m_originalScreenshot);
+
+    // Copy properties from template tool
+    auto *blurTemplate = dynamic_cast<Tools::BlurTool*>(m_blurTemplate);
+    if (blurTemplate) {
+        // Get all properties from template
+        QList<Tools::ToolProperty> props = blurTemplate->getProperties();
+        for (const auto& prop : props) {
+            blurItem->setProperty(prop.id, prop.value);
+        }
+    } else {
+        // Fallback to previous layer or defaults if template doesn't exist
+        if (m_lastBlurLayer && m_lastBlurLayer->item()) {
+            auto *lastBlur = dynamic_cast<Tools::BlurTool*>(m_lastBlurLayer->item());
+            if (lastBlur) {
+                blurItem->setBlurRadius(lastBlur->blurRadius());
+                blurItem->setBrushWidth(lastBlur->brushWidth());
+            }
+        } else {
+            blurItem->setBlurRadius(10.0);
+            blurItem->setBrushWidth(30.0);
+        }
+    }
+
+    // Add all points to recreate the path
+    for (const QPointF &point : points) {
+        blurItem->addPoint(point);
+    }
+    blurItem->finishPath();
+
+    // Add the blur item to the scene
+    m_scene->addItem(blurItem);
+
+    // Create layer for blur
+    static int blurCounter = 1;
+    auto *layer = new Layer(QString("Blur %1").arg(blurCounter++), Layer::Blur, this);
+    layer->setItem(blurItem);
+
+    // Remember this layer for next blur drawing
+    m_lastBlurLayer = layer;
+
+    m_layerManager->addLayer(layer);
+    m_layerManager->selectLayer(layer);
+
+    // Don't auto-select the blur - user should use pointer tool to select it
     m_scene->clearSelection();
 }
 

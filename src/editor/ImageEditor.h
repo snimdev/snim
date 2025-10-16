@@ -32,6 +32,7 @@ namespace Interactions {
     class EllipseDrawingInteraction;
     class FreehandDrawingInteraction;
     class HighlightDrawingInteraction;
+    class BlurDrawingInteraction;
 }
 
 class ImageEditor : public QMainWindow
@@ -52,6 +53,7 @@ public slots:
     void selectEllipseTool();
     void selectFreehandTool();
     void selectHighlightTool();
+    void selectBlurTool();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -76,6 +78,7 @@ private:
     void addEllipseLayer(const QRect &rect);
     void addFreehandLayer(const QList<QPointF> &points);
     void addHighlightLayer(const QList<QPointF> &points, const QColor &color, qreal width);
+    void addBlurLayer(const QList<QPointF> &points);
     Layer* createBackgroundLayer();
     void selectLayerByItem(QGraphicsItem *item);
     bool isWithinImageBounds(const QPoint &point) const;
@@ -83,6 +86,8 @@ private:
     QPen getCurrentFreehandPen() const;
     QColor getCurrentHighlightColor() const;
     qreal getCurrentHighlightWidth() const;
+    qreal getCurrentBlurRadius() const;
+    qreal getCurrentBlurBrushWidth() const;
 
     enum ToolType {
         None,
@@ -91,7 +96,8 @@ private:
         Rectangle,
         Ellipse,
         Freehand,
-        Highlight
+        Highlight,
+        Blur
     };
 
     // UI Components
@@ -114,6 +120,7 @@ private:
     QAction *m_ellipseAction;
     QAction *m_freehandAction;
     QAction *m_highlightAction;
+    QAction *m_blurAction;
 
     // Sidebar
     QSplitter *m_splitter;
@@ -131,6 +138,7 @@ private:
     Layer *m_backgroundLayer;
     Layer *m_lastFreehandLayer; // Track last freehand layer to remember settings
     Layer *m_lastHighlightLayer; // Track last highlight layer to remember color
+    Layer *m_lastBlurLayer; // Track last blur layer to remember settings
 
     // Drawing Interactions
     Interactions::PointerToolInteraction *m_pointerStrategy;
@@ -140,6 +148,7 @@ private:
     Interactions::EllipseDrawingInteraction *m_ellipseStrategy;
     Interactions::FreehandDrawingInteraction *m_freehandStrategy;
     Interactions::HighlightDrawingInteraction *m_highlightStrategy;
+    Interactions::BlurDrawingInteraction *m_blurStrategy;
 
     // Template tool instances for property preview (not added to scene)
     Tools::ITool *m_textTemplate;
@@ -148,6 +157,7 @@ private:
     Tools::ITool *m_ellipseTemplate;
     Tools::ITool *m_freehandTemplate;
     Tools::ITool *m_highlightTemplate;
+    Tools::ITool *m_blurTemplate;
 };
 
 } // namespace ImageEditor
