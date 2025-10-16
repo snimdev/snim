@@ -596,6 +596,17 @@ void ImageEditor::onDeleteLayerRequested(Layer *layer)
 void ImageEditor::onLayerSelected(Layer *layer)
 {
     m_layerProperties->setLayer(layer);
+
+    // Also select the item on the drawing board
+    if (layer && layer->item()) {
+        // Clear current selection
+        m_scene->clearSelection();
+
+        // Select the layer's item (but don't select background)
+        if (layer->type() != Layer::Background) {
+            layer->item()->setSelected(true);
+        }
+    }
 }
 
 void ImageEditor::onItemClicked(QGraphicsItem *item)
