@@ -8,12 +8,12 @@
 #include "tools/RectangleTool.h"
 #include "tools/EllipseTool.h"
 #include "tools/FreehandTool.h"
-#include "strategies/PointerToolStrategy.h"
-#include "strategies/ArrowDrawingStrategy.h"
-#include "strategies/TextDrawingStrategy.h"
-#include "strategies/RectangleDrawingStrategy.h"
-#include "strategies/EllipseDrawingStrategy.h"
-#include "strategies/FreehandDrawingStrategy.h"
+#include "interactions/PointerToolInteraction.h"
+#include "interactions/ArrowDrawingInteraction.h"
+#include "interactions/TextDrawingInteraction.h"
+#include "interactions/RectangleDrawingInteraction.h"
+#include "interactions/EllipseDrawingInteraction.h"
+#include "interactions/FreehandDrawingInteraction.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -224,13 +224,13 @@ void ImageEditor::setupToolbar()
 
 void ImageEditor::setupStrategies()
 {
-    // Create all drawing strategies
-    m_pointerStrategy = new Strategies::PointerToolStrategy(this);
-    m_arrowStrategy = new Strategies::ArrowDrawingStrategy(this);
-    m_textStrategy = new Strategies::TextDrawingStrategy(this);
-    m_rectangleStrategy = new Strategies::RectangleDrawingStrategy(this);
-    m_ellipseStrategy = new Strategies::EllipseDrawingStrategy(this);
-    m_freehandStrategy = new Strategies::FreehandDrawingStrategy(this);
+    // Create all drawing interactions
+    m_pointerStrategy = new Interactions::PointerToolInteraction(this);
+    m_arrowStrategy = new Interactions::ArrowDrawingInteraction(this);
+    m_textStrategy = new Interactions::TextDrawingInteraction(this);
+    m_rectangleStrategy = new Interactions::RectangleDrawingInteraction(this);
+    m_ellipseStrategy = new Interactions::EllipseDrawingInteraction(this);
+    m_freehandStrategy = new Interactions::FreehandDrawingInteraction(this);
 
     // Set image bounds for all strategies that need it
     m_arrowStrategy->setImageBounds(m_originalScreenshot.rect());
@@ -238,14 +238,14 @@ void ImageEditor::setupStrategies()
     m_ellipseStrategy->setImageBounds(m_originalScreenshot.rect());
     m_freehandStrategy->setImageBounds(m_originalScreenshot.rect());
 
-    // Connect strategy signals to ImageEditor slots
-    connect(m_pointerStrategy, &Strategies::PointerToolStrategy::itemClicked,
+    // Connect interaction signals to ImageEditor slots
+    connect(m_pointerStrategy, &Interactions::PointerToolInteraction::itemClicked,
             this, &ImageEditor::onItemClicked);
 
-    connect(m_arrowStrategy, &Strategies::ArrowDrawingStrategy::arrowDrawn,
+    connect(m_arrowStrategy, &Interactions::ArrowDrawingInteraction::arrowDrawn,
             this, &ImageEditor::addArrowLayer);
 
-    connect(m_textStrategy, &Strategies::TextDrawingStrategy::textRequested,
+    connect(m_textStrategy, &Interactions::TextDrawingInteraction::textRequested,
             this, [this](const QPoint &position) {
                 bool ok;
                 QString text = QInputDialog::getText(this, "Add Text", "Enter text:", QLineEdit::Normal, "", &ok);
@@ -256,13 +256,13 @@ void ImageEditor::setupStrategies()
                 }
             });
 
-    connect(m_rectangleStrategy, &Strategies::RectangleDrawingStrategy::rectangleDrawn,
+    connect(m_rectangleStrategy, &Interactions::RectangleDrawingInteraction::rectangleDrawn,
             this, &ImageEditor::addRectangleLayer);
 
-    connect(m_ellipseStrategy, &Strategies::EllipseDrawingStrategy::ellipseDrawn,
+    connect(m_ellipseStrategy, &Interactions::EllipseDrawingInteraction::ellipseDrawn,
             this, &ImageEditor::addEllipseLayer);
 
-    connect(m_freehandStrategy, &Strategies::FreehandDrawingStrategy::freehandDrawn,
+    connect(m_freehandStrategy, &Interactions::FreehandDrawingInteraction::freehandDrawn,
             this, &ImageEditor::addFreehandLayer);
 
     // Set pointer tool as default

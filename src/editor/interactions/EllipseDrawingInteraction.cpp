@@ -1,15 +1,15 @@
-#include "EllipseDrawingStrategy.h"
+#include "EllipseDrawingInteraction.h"
 #include <QGraphicsScene>
 #include <QPen>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
-EllipseDrawingStrategy::EllipseDrawingStrategy(QObject *parent)
-    : BaseDrawingStrategy(parent)
+EllipseDrawingInteraction::EllipseDrawingInteraction(QObject *parent)
+    : BaseDrawingInteraction(parent)
 {
 }
 
-QGraphicsItem* EllipseDrawingStrategy::createPreview(const QPointF &startPos)
+QGraphicsItem* EllipseDrawingInteraction::createPreview(const QPointF &startPos)
 {
     QRectF rect(startPos, startPos);
     auto *ellipsePreview = new QGraphicsEllipseItem(rect);
@@ -18,7 +18,7 @@ QGraphicsItem* EllipseDrawingStrategy::createPreview(const QPointF &startPos)
     return ellipsePreview;
 }
 
-void EllipseDrawingStrategy::updatePreview(const QPointF &currentPos)
+void EllipseDrawingInteraction::updatePreview(const QPointF &currentPos)
 {
     if (!m_previewItem) return;
 
@@ -29,7 +29,7 @@ void EllipseDrawingStrategy::updatePreview(const QPointF &currentPos)
     }
 }
 
-bool EllipseDrawingStrategy::finalizeDrawing()
+bool EllipseDrawingInteraction::finalizeDrawing()
 {
     QRect rect = QRect(m_startPoint.toPoint(), m_endPoint.toPoint()).normalized();
 
@@ -42,4 +42,4 @@ bool EllipseDrawingStrategy::finalizeDrawing()
     return true;
 }
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions

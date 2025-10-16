@@ -27,14 +27,14 @@ add_executable(Niceshort2
     # Capture functionality
     src/capture/AreaSelector.cpp
     src/capture/AreaSelector.h
-    src/capture/CaptureStrategy.cpp
-    src/capture/CaptureStrategy.h
     src/capture/CaptureFactory.cpp
     src/capture/CaptureFactory.h
-    src/capture/NativeCaptureStrategy.cpp
-    src/capture/NativeCaptureStrategy.h
-    src/capture/WaylandCaptureStrategy.cpp
-    src/capture/WaylandCaptureStrategy.h
+    src/capture/strategies/CaptureStrategy.cpp
+    src/capture/strategies/CaptureStrategy.h
+    src/capture/strategies/NativeCaptureStrategy.cpp
+    src/capture/strategies/NativeCaptureStrategy.h
+    src/capture/strategies/WaylandCaptureStrategy.cpp
+    src/capture/strategies/WaylandCaptureStrategy.h
 
     # Image editor functionality
     src/editor/ImageEditor.cpp
@@ -63,22 +63,22 @@ add_executable(Niceshort2
     src/editor/LayerManager.h
     src/editor/LayerProperties.cpp
     src/editor/LayerProperties.h
-        # Drawing Strategies
-        src/editor/strategies/IDrawingToolStrategy.h
-        src/editor/strategies/BaseDrawingStrategy.cpp
-        src/editor/strategies/BaseDrawingStrategy.h
-        src/editor/strategies/PointerToolStrategy.cpp
-        src/editor/strategies/PointerToolStrategy.h
-        src/editor/strategies/ArrowDrawingStrategy.cpp
-        src/editor/strategies/ArrowDrawingStrategy.h
-        src/editor/strategies/TextDrawingStrategy.cpp
-        src/editor/strategies/TextDrawingStrategy.h
-        src/editor/strategies/RectangleDrawingStrategy.cpp
-        src/editor/strategies/RectangleDrawingStrategy.h
-        src/editor/strategies/EllipseDrawingStrategy.cpp
-        src/editor/strategies/EllipseDrawingStrategy.h
-        src/editor/strategies/FreehandDrawingStrategy.cpp
-        src/editor/strategies/FreehandDrawingStrategy.h
+        # Drawing Interactions
+        src/editor/interactions/IDrawingInteraction.h
+        src/editor/interactions/BaseDrawingInteraction.cpp
+        src/editor/interactions/BaseDrawingInteraction.h
+        src/editor/interactions/PointerToolInteraction.cpp
+        src/editor/interactions/PointerToolInteraction.h
+        src/editor/interactions/ArrowDrawingInteraction.cpp
+        src/editor/interactions/ArrowDrawingInteraction.h
+        src/editor/interactions/TextDrawingInteraction.cpp
+        src/editor/interactions/TextDrawingInteraction.h
+        src/editor/interactions/RectangleDrawingInteraction.cpp
+        src/editor/interactions/RectangleDrawingInteraction.h
+        src/editor/interactions/EllipseDrawingInteraction.cpp
+        src/editor/interactions/EllipseDrawingInteraction.h
+        src/editor/interactions/FreehandDrawingInteraction.cpp
+        src/editor/interactions/FreehandDrawingInteraction.h
 )
 
 # Set include directories for the organized structure

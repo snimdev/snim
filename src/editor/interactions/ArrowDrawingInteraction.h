@@ -1,7 +1,7 @@
-#ifndef IMAGEEDITOR_ARROWDRAWINGSTRATEGY_H
-#define IMAGEEDITOR_ARROWDRAWINGSTRATEGY_H
+#ifndef IMAGEEDITOR_ARROWDRAWINGINTERACTION_H
+#define IMAGEEDITOR_ARROWDRAWINGINTERACTION_H
 
-#include "BaseDrawingStrategy.h"
+#include "BaseDrawingInteraction.h"
 #include <QPen>
 
 namespace ImageEditor {
@@ -10,22 +10,22 @@ namespace ImageEditor {
     }
 }
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
 /**
- * @brief Strategy for arrow drawing tool
+ * @brief Interaction for arrow drawing tool
  *
  * Handles arrow creation from start point to end point.
  * The preview is recreated on each mouse move to show the updated arrow.
  */
-class ArrowDrawingStrategy : public BaseDrawingStrategy
+class ArrowDrawingInteraction : public BaseDrawingInteraction
 {
     Q_OBJECT
 
 public:
-    explicit ArrowDrawingStrategy(QObject *parent = nullptr);
+    explicit ArrowDrawingInteraction(QObject *parent = nullptr);
 
-    // IDrawingToolStrategy interface
+    // IDrawingInteraction interface
     Qt::CursorShape getCursor() const override { return Qt::ArrowCursor; }
     Qt::CursorShape getDrawingCursor() const override { return Qt::CrossCursor; }
 
@@ -38,7 +38,7 @@ signals:
     void arrowDrawn(const QPoint &start, const QPoint &end);
 
 protected:
-    // BaseDrawingStrategy interface
+    // BaseDrawingInteraction interface
     QGraphicsItem* createPreview(const QPointF &startPos) override;
     void updatePreview(const QPointF &currentPos) override;
     bool finalizeDrawing() override;
@@ -47,6 +47,6 @@ private:
     static constexpr qreal MIN_ARROW_LENGTH = 10.0;
 };
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions
 
-#endif // IMAGEEDITOR_ARROWDRAWINGSTRATEGY_H
+#endif // IMAGEEDITOR_ARROWDRAWINGINTERACTION_H

@@ -1,15 +1,15 @@
-#include "PointerToolStrategy.h"
+#include "PointerToolInteraction.h"
 #include <QGraphicsScene>
 #include <QTransform>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
-PointerToolStrategy::PointerToolStrategy(QObject *parent)
+PointerToolInteraction::PointerToolInteraction(QObject *parent)
     : QObject(parent)
 {
 }
 
-bool PointerToolStrategy::onMousePress(const QPointF &scenePos, QGraphicsScene *scene)
+bool PointerToolInteraction::onMousePress(const QPointF &scenePos, QGraphicsScene *scene)
 {
     if (!scene) return false;
 
@@ -26,7 +26,7 @@ bool PointerToolStrategy::onMousePress(const QPointF &scenePos, QGraphicsScene *
     return false;
 }
 
-bool PointerToolStrategy::onMouseMove(const QPointF &scenePos, QGraphicsScene *scene)
+bool PointerToolInteraction::onMouseMove(const QPointF &scenePos, QGraphicsScene *scene)
 {
     Q_UNUSED(scenePos)
     Q_UNUSED(scene)
@@ -34,7 +34,7 @@ bool PointerToolStrategy::onMouseMove(const QPointF &scenePos, QGraphicsScene *s
     return false;
 }
 
-bool PointerToolStrategy::onMouseRelease(const QPointF &scenePos, QGraphicsScene *scene)
+bool PointerToolInteraction::onMouseRelease(const QPointF &scenePos, QGraphicsScene *scene)
 {
     Q_UNUSED(scenePos)
     Q_UNUSED(scene)
@@ -42,13 +42,13 @@ bool PointerToolStrategy::onMouseRelease(const QPointF &scenePos, QGraphicsScene
     return false;
 }
 
-void PointerToolStrategy::cleanup(QGraphicsScene *scene)
+void PointerToolInteraction::cleanup(QGraphicsScene *scene)
 {
     Q_UNUSED(scene)
     // Pointer tool has nothing to clean up
 }
 
-QGraphicsItem* PointerToolStrategy::getTopLevelItem(QGraphicsItem *item) const
+QGraphicsItem* PointerToolInteraction::getTopLevelItem(QGraphicsItem *item) const
 {
     if (!item) return nullptr;
 
@@ -60,4 +60,4 @@ QGraphicsItem* PointerToolStrategy::getTopLevelItem(QGraphicsItem *item) const
     return item;
 }
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions

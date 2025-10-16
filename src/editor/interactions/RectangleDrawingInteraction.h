@@ -1,25 +1,25 @@
-#ifndef IMAGEEDITOR_RECTANGLEDRAWINGSTRATEGY_H
-#define IMAGEEDITOR_RECTANGLEDRAWINGSTRATEGY_H
+#ifndef IMAGEEDITOR_RECTANGLEDRAWINGINTERACTION_H
+#define IMAGEEDITOR_RECTANGLEDRAWINGINTERACTION_H
 
-#include "BaseDrawingStrategy.h"
+#include "BaseDrawingInteraction.h"
 #include <QGraphicsRectItem>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
 /**
- * @brief Strategy for rectangle drawing tool
+ * @brief Interaction for rectangle drawing tool
  *
  * Handles rectangle creation from start point to end point.
  * Shows a dashed preview while drawing.
  */
-class RectangleDrawingStrategy : public BaseDrawingStrategy
+class RectangleDrawingInteraction : public BaseDrawingInteraction
 {
     Q_OBJECT
 
 public:
-    explicit RectangleDrawingStrategy(QObject *parent = nullptr);
+    explicit RectangleDrawingInteraction(QObject *parent = nullptr);
 
-    // IDrawingToolStrategy interface
+    // IDrawingInteraction interface
     Qt::CursorShape getCursor() const override { return Qt::CrossCursor; }
 
 signals:
@@ -30,7 +30,7 @@ signals:
     void rectangleDrawn(const QRect &rect);
 
 protected:
-    // BaseDrawingStrategy interface
+    // BaseDrawingInteraction interface
     QGraphicsItem* createPreview(const QPointF &startPos) override;
     void updatePreview(const QPointF &currentPos) override;
     bool finalizeDrawing() override;
@@ -39,6 +39,6 @@ private:
     static constexpr int MIN_SIZE = 5; // Minimum width/height
 };
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions
 
-#endif // IMAGEEDITOR_RECTANGLEDRAWINGSTRATEGY_H
+#endif // IMAGEEDITOR_RECTANGLEDRAWINGINTERACTION_H

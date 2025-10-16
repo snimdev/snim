@@ -20,13 +20,13 @@ class LayerManager;
 class LayerProperties;
 class Layer;
 
-namespace Strategies {
-    class PointerToolStrategy;
-    class ArrowDrawingStrategy;
-    class TextDrawingStrategy;
-    class RectangleDrawingStrategy;
-    class EllipseDrawingStrategy;
-    class FreehandDrawingStrategy;
+namespace Interactions {
+    class PointerToolInteraction;
+    class ArrowDrawingInteraction;
+    class TextDrawingInteraction;
+    class RectangleDrawingInteraction;
+    class EllipseDrawingInteraction;
+    class FreehandDrawingInteraction;
 }
 
 class ImageEditor : public QMainWindow
@@ -119,13 +119,13 @@ private:
     Layer *m_backgroundLayer;
     Layer *m_lastFreehandLayer; // Track last freehand layer to remember settings
 
-    // Drawing Strategies
-    Strategies::PointerToolStrategy *m_pointerStrategy;
-    Strategies::ArrowDrawingStrategy *m_arrowStrategy;
-    Strategies::TextDrawingStrategy *m_textStrategy;
-    Strategies::RectangleDrawingStrategy *m_rectangleStrategy;
-    Strategies::EllipseDrawingStrategy *m_ellipseStrategy;
-    Strategies::FreehandDrawingStrategy *m_freehandStrategy;
+    // Drawing Interactions
+    Interactions::PointerToolInteraction *m_pointerStrategy;
+    Interactions::ArrowDrawingInteraction *m_arrowStrategy;
+    Interactions::TextDrawingInteraction *m_textStrategy;
+    Interactions::RectangleDrawingInteraction *m_rectangleStrategy;
+    Interactions::EllipseDrawingInteraction *m_ellipseStrategy;
+    Interactions::FreehandDrawingInteraction *m_freehandStrategy;
 };
 
 } // namespace ImageEditor

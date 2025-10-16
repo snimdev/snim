@@ -8,8 +8,8 @@
 #include <QRect>
 
 namespace ImageEditor {
-    namespace Strategies {
-        class IDrawingToolStrategy;
+    namespace Interactions {
+        class IDrawingInteraction;
     }
 }
 
@@ -23,10 +23,10 @@ public:
     explicit DrawingGraphicsView(QWidget *parent = nullptr);
 
     /**
-     * @brief Set the current drawing strategy
-     * @param strategy The strategy to use (ownership is NOT transferred)
+     * @brief Set the current drawing interaction
+     * @param interaction The interaction to use (ownership is NOT transferred)
      */
-    void setDrawingStrategy(Strategies::IDrawingToolStrategy *strategy);
+    void setDrawingStrategy(Interactions::IDrawingInteraction *interaction);
 
     void setImageBounds(const QRect &bounds) { m_imageBounds = bounds; }
 
@@ -46,7 +46,7 @@ private:
     bool isWithinImageBounds(const QPointF &point) const;
     void updateCursor();
 
-    Strategies::IDrawingToolStrategy *m_currentStrategy; // Not owned
+    Interactions::IDrawingInteraction *m_currentStrategy; // Not owned
     QRect m_imageBounds;
 };
 

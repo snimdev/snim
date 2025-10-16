@@ -1,7 +1,7 @@
-#ifndef IMAGEEDITOR_FREEHANDDRAWINGSTRATEGY_H
-#define IMAGEEDITOR_FREEHANDDRAWINGSTRATEGY_H
+#ifndef IMAGEEDITOR_FREEHANDDRAWINGINTERACTION_H
+#define IMAGEEDITOR_FREEHANDDRAWINGINTERACTION_H
 
-#include "BaseDrawingStrategy.h"
+#include "BaseDrawingInteraction.h"
 #include <QPen>
 #include <QList>
 #include <QPointF>
@@ -12,23 +12,23 @@ namespace ImageEditor {
     }
 }
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
 /**
- * @brief Strategy for freehand drawing tool
+ * @brief Interaction for freehand drawing tool
  *
  * Handles continuous path drawing by adding points as the mouse moves.
  * Unlike other tools, freehand doesn't recreate the preview on each move,
  * but incrementally adds points to the same path.
  */
-class FreehandDrawingStrategy : public BaseDrawingStrategy
+class FreehandDrawingInteraction : public BaseDrawingInteraction
 {
     Q_OBJECT
 
 public:
-    explicit FreehandDrawingStrategy(QObject *parent = nullptr);
+    explicit FreehandDrawingInteraction(QObject *parent = nullptr);
 
-    // IDrawingToolStrategy interface
+    // IDrawingInteraction interface
     Qt::CursorShape getCursor() const override { return Qt::CrossCursor; }
 
     // Configure the pen for drawing
@@ -43,7 +43,7 @@ signals:
     void freehandDrawn(const QList<QPointF> &points);
 
 protected:
-    // BaseDrawingStrategy interface
+    // BaseDrawingInteraction interface
     QGraphicsItem* createPreview(const QPointF &startPos) override;
     void updatePreview(const QPointF &currentPos) override;
     bool finalizeDrawing() override;
@@ -52,6 +52,6 @@ private:
     QPen m_pen;
 };
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions
 
-#endif // IMAGEEDITOR_FREEHANDDRAWINGSTRATEGY_H
+#endif // IMAGEEDITOR_FREEHANDDRAWINGINTERACTION_H

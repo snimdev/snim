@@ -1,5 +1,5 @@
 #include "NativeCaptureStrategy.h"
-#include "AreaSelector.h"
+#include "../AreaSelector.h"
 #include <QScreen>
 #include <QApplication>
 #include <QCursor>

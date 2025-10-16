@@ -1,25 +1,25 @@
-#ifndef IMAGEEDITOR_POINTERTOOLSTRATEGY_H
-#define IMAGEEDITOR_POINTERTOOLSTRATEGY_H
+#ifndef IMAGEEDITOR_POINTERTOOLINTERACTION_H
+#define IMAGEEDITOR_POINTERTOOLINTERACTION_H
 
-#include "IDrawingToolStrategy.h"
+#include "IDrawingInteraction.h"
 #include <QObject>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
 /**
- * @brief Strategy for pointer/selection tool
+ * @brief Interaction for pointer/selection tool
  *
  * The pointer tool is used for selecting and interacting with existing items.
- * It doesn't create new items, so it implements IDrawingToolStrategy directly.
+ * It doesn't create new items, so it implements IDrawingInteraction directly.
  */
-class PointerToolStrategy : public QObject, public IDrawingToolStrategy
+class PointerToolInteraction : public QObject, public IDrawingInteraction
 {
     Q_OBJECT
 
 public:
-    explicit PointerToolStrategy(QObject *parent = nullptr);
+    explicit PointerToolInteraction(QObject *parent = nullptr);
 
-    // IDrawingToolStrategy interface
+    // IDrawingInteraction interface
     bool onMousePress(const QPointF &scenePos, QGraphicsScene *scene) override;
     bool onMouseMove(const QPointF &scenePos, QGraphicsScene *scene) override;
     bool onMouseRelease(const QPointF &scenePos, QGraphicsScene *scene) override;
@@ -42,6 +42,6 @@ private:
     QGraphicsItem* getTopLevelItem(QGraphicsItem *item) const;
 };
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions
 
-#endif // IMAGEEDITOR_POINTERTOOLSTRATEGY_H
+#endif // IMAGEEDITOR_POINTERTOOLINTERACTION_H

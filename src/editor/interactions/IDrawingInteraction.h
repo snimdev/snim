@@ -1,5 +1,5 @@
-#ifndef IMAGEEDITOR_IDRAWINGTOOLSTRATEGY_H
-#define IMAGEEDITOR_IDRAWINGTOOLSTRATEGY_H
+#ifndef IMAGEEDITOR_IDRAWINGINTERACTION_H
+#define IMAGEEDITOR_IDRAWINGINTERACTION_H
 
 #include <QMouseEvent>
 #include <QGraphicsScene>
@@ -8,24 +8,24 @@
 #include <QRect>
 #include <QPen>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
 /**
- * @brief Interface for drawing tool strategies
+ * @brief Interface for drawing tool interactions
  *
  * This interface defines the contract for tool-specific drawing behavior.
  * Each tool (Arrow, Rectangle, Freehand, etc.) implements this interface
  * to encapsulate its own interaction logic.
  *
  * Benefits:
- * - Single Responsibility: Each strategy handles one tool's behavior
+ * - Single Responsibility: Each interaction handles one tool's behavior
  * - Open/Closed: Add new tools without modifying existing code
  * - Reduced coupling: DrawingGraphicsView doesn't need to know tool details
  */
-class IDrawingToolStrategy
+class IDrawingInteraction
 {
 public:
-    virtual ~IDrawingToolStrategy() = default;
+    virtual ~IDrawingInteraction() = default;
 
     /**
      * @brief Handle mouse press event
@@ -73,6 +73,6 @@ public:
     virtual bool isDrawing() const = 0;
 };
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions
 
-#endif // IMAGEEDITOR_IDRAWINGTOOLSTRATEGY_H
+#endif // IMAGEEDITOR_IDRAWINGINTERACTION_H

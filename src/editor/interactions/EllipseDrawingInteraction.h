@@ -1,25 +1,25 @@
-#ifndef IMAGEEDITOR_ELLIPSEDRAWINGSTRATEGY_H
-#define IMAGEEDITOR_ELLIPSEDRAWINGSTRATEGY_H
+#ifndef IMAGEEDITOR_ELLIPSEDRAWINGINTERACTION_H
+#define IMAGEEDITOR_ELLIPSEDRAWINGINTERACTION_H
 
-#include "BaseDrawingStrategy.h"
+#include "BaseDrawingInteraction.h"
 #include <QGraphicsEllipseItem>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
 /**
- * @brief Strategy for ellipse drawing tool
+ * @brief Interaction for ellipse drawing tool
  *
  * Handles ellipse creation from start point to end point.
  * Shows a dashed preview while drawing.
  */
-class EllipseDrawingStrategy : public BaseDrawingStrategy
+class EllipseDrawingInteraction : public BaseDrawingInteraction
 {
     Q_OBJECT
 
 public:
-    explicit EllipseDrawingStrategy(QObject *parent = nullptr);
+    explicit EllipseDrawingInteraction(QObject *parent = nullptr);
 
-    // IDrawingToolStrategy interface
+    // IDrawingInteraction interface
     Qt::CursorShape getCursor() const override { return Qt::CrossCursor; }
 
 signals:
@@ -30,7 +30,7 @@ signals:
     void ellipseDrawn(const QRect &rect);
 
 protected:
-    // BaseDrawingStrategy interface
+    // BaseDrawingInteraction interface
     QGraphicsItem* createPreview(const QPointF &startPos) override;
     void updatePreview(const QPointF &currentPos) override;
     bool finalizeDrawing() override;
@@ -39,6 +39,6 @@ private:
     static constexpr int MIN_SIZE = 5; // Minimum width/height
 };
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions
 
-#endif // IMAGEEDITOR_ELLIPSEDRAWINGSTRATEGY_H
+#endif // IMAGEEDITOR_ELLIPSEDRAWINGINTERACTION_H

@@ -1,7 +1,7 @@
 #ifndef CAPTURE_CAPTUREFACTORY_H
 #define CAPTURE_CAPTUREFACTORY_H
 
-#include "CaptureStrategy.h"
+#include "strategies/CaptureStrategy.h"
 #include <memory>
 
 namespace Capture {

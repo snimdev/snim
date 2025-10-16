@@ -1,5 +1,5 @@
 #include "DrawingGraphicsView.h"
-#include "strategies/IDrawingToolStrategy.h"
+#include "interactions/IDrawingInteraction.h"
 #include <QGraphicsScene>
 #include <QTransform>
 #include <QPainter>
@@ -17,7 +17,7 @@ DrawingGraphicsView::DrawingGraphicsView(QWidget *parent)
     setMouseTracking(true); // Enable mouse tracking for cursor changes
 }
 
-void DrawingGraphicsView::setDrawingStrategy(Strategies::IDrawingToolStrategy *strategy)
+void DrawingGraphicsView::setDrawingStrategy(Interactions::IDrawingInteraction *strategy)
 {
     // Clean up previous strategy if it was drawing
     if (m_currentStrategy) {

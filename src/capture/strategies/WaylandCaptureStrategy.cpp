@@ -23,8 +23,8 @@
 #include <QFile>
 #include <QMessageBox>
 
-#include "AreaSelector.h"
-#include "core/ScreenshotDialog.h"
+#include "../AreaSelector.h"
+#include "../../core/ScreenshotDialog.h"
 
 namespace Capture {
     WaylandCaptureStrategy::WaylandCaptureStrategy(QObject *parent)

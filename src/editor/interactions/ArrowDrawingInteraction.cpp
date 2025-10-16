@@ -1,23 +1,23 @@
-#include "ArrowDrawingStrategy.h"
+#include "ArrowDrawingInteraction.h"
 #include "../tools/ArrowTool.h"
 #include <QGraphicsScene>
 #include <cmath>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
-ArrowDrawingStrategy::ArrowDrawingStrategy(QObject *parent)
-    : BaseDrawingStrategy(parent)
+ArrowDrawingInteraction::ArrowDrawingInteraction(QObject *parent)
+    : BaseDrawingInteraction(parent)
 {
 }
 
-QGraphicsItem* ArrowDrawingStrategy::createPreview(const QPointF &startPos)
+QGraphicsItem* ArrowDrawingInteraction::createPreview(const QPointF &startPos)
 {
     auto *arrowPreview = new Tools::ArrowTool(startPos.toPoint(), startPos.toPoint());
     arrowPreview->setPen(QPen(Qt::red, 3));
     return arrowPreview;
 }
 
-void ArrowDrawingStrategy::updatePreview(const QPointF &currentPos)
+void ArrowDrawingInteraction::updatePreview(const QPointF &currentPos)
 {
     if (!m_previewItem) return;
 
@@ -35,7 +35,7 @@ void ArrowDrawingStrategy::updatePreview(const QPointF &currentPos)
     }
 }
 
-bool ArrowDrawingStrategy::finalizeDrawing()
+bool ArrowDrawingInteraction::finalizeDrawing()
 {
     // Calculate arrow length
     qreal dx = m_endPoint.x() - m_startPoint.x();
@@ -50,4 +50,4 @@ bool ArrowDrawingStrategy::finalizeDrawing()
     return true;
 }
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions

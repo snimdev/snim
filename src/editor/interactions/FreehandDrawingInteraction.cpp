@@ -1,15 +1,15 @@
-#include "FreehandDrawingStrategy.h"
+#include "FreehandDrawingInteraction.h"
 #include "../tools/FreehandTool.h"
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
-FreehandDrawingStrategy::FreehandDrawingStrategy(QObject *parent)
-    : BaseDrawingStrategy(parent)
+FreehandDrawingInteraction::FreehandDrawingInteraction(QObject *parent)
+    : BaseDrawingInteraction(parent)
     , m_pen(Qt::red, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin)
 {
 }
 
-QGraphicsItem* FreehandDrawingStrategy::createPreview(const QPointF &startPos)
+QGraphicsItem* FreehandDrawingInteraction::createPreview(const QPointF &startPos)
 {
     auto *freehandPreview = new Tools::FreehandTool();
     freehandPreview->setPen(m_pen);
@@ -17,7 +17,7 @@ QGraphicsItem* FreehandDrawingStrategy::createPreview(const QPointF &startPos)
     return freehandPreview;
 }
 
-void FreehandDrawingStrategy::updatePreview(const QPointF &currentPos)
+void FreehandDrawingInteraction::updatePreview(const QPointF &currentPos)
 {
     if (m_previewItem) {
         auto *freehand = dynamic_cast<Tools::FreehandTool*>(m_previewItem);
@@ -27,7 +27,7 @@ void FreehandDrawingStrategy::updatePreview(const QPointF &currentPos)
     }
 }
 
-bool FreehandDrawingStrategy::finalizeDrawing()
+bool FreehandDrawingInteraction::finalizeDrawing()
 {
     if (!m_previewItem) return false;
 
@@ -42,4 +42,4 @@ bool FreehandDrawingStrategy::finalizeDrawing()
     return false;
 }
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions

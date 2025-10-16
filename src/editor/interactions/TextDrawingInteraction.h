@@ -1,25 +1,25 @@
-#ifndef IMAGEEDITOR_TEXTDRAWINGSTRATEGY_H
-#define IMAGEEDITOR_TEXTDRAWINGSTRATEGY_H
+#ifndef IMAGEEDITOR_TEXTDRAWINGINTERACTION_H
+#define IMAGEEDITOR_TEXTDRAWINGINTERACTION_H
 
-#include "IDrawingToolStrategy.h"
+#include "IDrawingInteraction.h"
 #include <QObject>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
 /**
- * @brief Strategy for text tool
+ * @brief Interaction for text tool
  *
  * Text tool doesn't follow the typical drawing pattern - it places text on click.
- * Therefore, it implements IDrawingToolStrategy directly rather than extending BaseDrawingStrategy.
+ * Therefore, it implements IDrawingInteraction directly rather than extending BaseDrawingInteraction.
  */
-class TextDrawingStrategy : public QObject, public IDrawingToolStrategy
+class TextDrawingInteraction : public QObject, public IDrawingInteraction
 {
     Q_OBJECT
 
 public:
-    explicit TextDrawingStrategy(QObject *parent = nullptr);
+    explicit TextDrawingInteraction(QObject *parent = nullptr);
 
-    // IDrawingToolStrategy interface
+    // IDrawingInteraction interface
     bool onMousePress(const QPointF &scenePos, QGraphicsScene *scene) override;
     bool onMouseMove(const QPointF &scenePos, QGraphicsScene *scene) override;
     bool onMouseRelease(const QPointF &scenePos, QGraphicsScene *scene) override;
@@ -35,6 +35,6 @@ signals:
     void textRequested(const QPoint &position);
 };
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions
 
-#endif // IMAGEEDITOR_TEXTDRAWINGSTRATEGY_H
+#endif // IMAGEEDITOR_TEXTDRAWINGINTERACTION_H

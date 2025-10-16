@@ -1,6 +1,6 @@
 #include "CaptureFactory.h"
-#include "WaylandCaptureStrategy.h"
-#include "NativeCaptureStrategy.h"
+#include "strategies/WaylandCaptureStrategy.h"
+#include "strategies/NativeCaptureStrategy.h"
 #include <QDebug>
 
 namespace Capture {

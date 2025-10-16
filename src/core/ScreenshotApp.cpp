@@ -1,7 +1,7 @@
 #include "ScreenshotApp.h"
 #include "SettingsDialog.h"
 #include "../capture/CaptureFactory.h"
-#include "../capture/CaptureStrategy.h"
+#include "../capture/strategies/CaptureStrategy.h"
 #include <QPainter>
 #include <QTimer>
 #include <QKeyEvent>

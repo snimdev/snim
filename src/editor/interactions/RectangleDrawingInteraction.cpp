@@ -1,15 +1,15 @@
-#include "RectangleDrawingStrategy.h"
+#include "RectangleDrawingInteraction.h"
 #include <QGraphicsScene>
 #include <QPen>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
-RectangleDrawingStrategy::RectangleDrawingStrategy(QObject *parent)
-    : BaseDrawingStrategy(parent)
+RectangleDrawingInteraction::RectangleDrawingInteraction(QObject *parent)
+    : BaseDrawingInteraction(parent)
 {
 }
 
-QGraphicsItem* RectangleDrawingStrategy::createPreview(const QPointF &startPos)
+QGraphicsItem* RectangleDrawingInteraction::createPreview(const QPointF &startPos)
 {
     QRectF rect(startPos, startPos);
     auto *rectPreview = new QGraphicsRectItem(rect);
@@ -18,7 +18,7 @@ QGraphicsItem* RectangleDrawingStrategy::createPreview(const QPointF &startPos)
     return rectPreview;
 }
 
-void RectangleDrawingStrategy::updatePreview(const QPointF &currentPos)
+void RectangleDrawingInteraction::updatePreview(const QPointF &currentPos)
 {
     if (!m_previewItem) return;
 
@@ -29,7 +29,7 @@ void RectangleDrawingStrategy::updatePreview(const QPointF &currentPos)
     }
 }
 
-bool RectangleDrawingStrategy::finalizeDrawing()
+bool RectangleDrawingInteraction::finalizeDrawing()
 {
     QRect rect = QRect(m_startPoint.toPoint(), m_endPoint.toPoint()).normalized();
 
@@ -42,4 +42,4 @@ bool RectangleDrawingStrategy::finalizeDrawing()
     return true;
 }
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions

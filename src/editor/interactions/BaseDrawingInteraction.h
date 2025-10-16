@@ -1,14 +1,14 @@
-#ifndef IMAGEEDITOR_BASEDRAWINGSTRATEGY_H
-#define IMAGEEDITOR_BASEDRAWINGSTRATEGY_H
+#ifndef IMAGEEDITOR_BASEDRAWINGINTERACTION_H
+#define IMAGEEDITOR_BASEDRAWINGINTERACTION_H
 
-#include "IDrawingToolStrategy.h"
+#include "IDrawingInteraction.h"
 #include <QObject>
 #include <QPointF>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
 /**
- * @brief Base class for drawing strategies providing common functionality
+ * @brief Base class for drawing interactions providing common functionality
  *
  * This abstract class implements common behavior shared by most drawing tools:
  * - Start/end point tracking
@@ -16,15 +16,15 @@ namespace ImageEditor::Strategies {
  * - Preview item lifecycle
  * - Boundary clamping
  */
-class BaseDrawingStrategy : public QObject, public IDrawingToolStrategy
+class BaseDrawingInteraction : public QObject, public IDrawingInteraction
 {
     Q_OBJECT
 
 public:
-    explicit BaseDrawingStrategy(QObject *parent = nullptr);
-    ~BaseDrawingStrategy() override;
+    explicit BaseDrawingInteraction(QObject *parent = nullptr);
+    ~BaseDrawingInteraction() override;
 
-    // IDrawingToolStrategy interface
+    // IDrawingInteraction interface
     bool onMousePress(const QPointF &scenePos, QGraphicsScene *scene) override;
     bool onMouseMove(const QPointF &scenePos, QGraphicsScene *scene) override;
     bool onMouseRelease(const QPointF &scenePos, QGraphicsScene *scene) override;
@@ -74,6 +74,6 @@ protected:
     QRect m_imageBounds;
 };
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions
 
-#endif // IMAGEEDITOR_BASEDRAWINGSTRATEGY_H
+#endif // IMAGEEDITOR_BASEDRAWINGINTERACTION_H

@@ -1,23 +1,23 @@
-#include "BaseDrawingStrategy.h"
+#include "BaseDrawingInteraction.h"
 #include <QGraphicsScene>
 #include <QtMath>
 
-namespace ImageEditor::Strategies {
+namespace ImageEditor::Interactions {
 
-BaseDrawingStrategy::BaseDrawingStrategy(QObject *parent)
+BaseDrawingInteraction::BaseDrawingInteraction(QObject *parent)
     : QObject(parent)
     , m_isDrawing(false)
     , m_previewItem(nullptr)
 {
 }
 
-BaseDrawingStrategy::~BaseDrawingStrategy()
+BaseDrawingInteraction::~BaseDrawingInteraction()
 {
     // Preview item should be owned by scene and cleaned up there
     m_previewItem = nullptr;
 }
 
-bool BaseDrawingStrategy::onMousePress(const QPointF &scenePos, QGraphicsScene *scene)
+bool BaseDrawingInteraction::onMousePress(const QPointF &scenePos, QGraphicsScene *scene)
 {
     if (!scene) return false;
 
@@ -34,7 +34,7 @@ bool BaseDrawingStrategy::onMousePress(const QPointF &scenePos, QGraphicsScene *
     return true;
 }
 
-bool BaseDrawingStrategy::onMouseMove(const QPointF &scenePos, QGraphicsScene *scene)
+bool BaseDrawingInteraction::onMouseMove(const QPointF &scenePos, QGraphicsScene *scene)
 {
     if (!m_isDrawing || !scene) return false;
 
@@ -47,7 +47,7 @@ bool BaseDrawingStrategy::onMouseMove(const QPointF &scenePos, QGraphicsScene *s
     return true;
 }
 
-bool BaseDrawingStrategy::onMouseRelease(const QPointF &scenePos, QGraphicsScene *scene)
+bool BaseDrawingInteraction::onMouseRelease(const QPointF &scenePos, QGraphicsScene *scene)
 {
     if (!m_isDrawing || !scene) return false;
 
@@ -63,7 +63,7 @@ bool BaseDrawingStrategy::onMouseRelease(const QPointF &scenePos, QGraphicsScene
     return success;
 }
 
-void BaseDrawingStrategy::cleanup(QGraphicsScene *scene)
+void BaseDrawingInteraction::cleanup(QGraphicsScene *scene)
 {
     if (m_previewItem && scene) {
         scene->removeItem(m_previewItem);
@@ -73,7 +73,7 @@ void BaseDrawingStrategy::cleanup(QGraphicsScene *scene)
     m_isDrawing = false;
 }
 
-QPointF BaseDrawingStrategy::clampToImageBounds(const QPointF &point) const
+QPointF BaseDrawingInteraction::clampToImageBounds(const QPointF &point) const
 {
     if (m_imageBounds.isNull()) {
         return point;
@@ -87,4 +87,4 @@ QPointF BaseDrawingStrategy::clampToImageBounds(const QPointF &point) const
     return QPointF(clampedX, clampedY);
 }
 
-} // namespace ImageEditor::Strategies
+} // namespace ImageEditor::Interactions
