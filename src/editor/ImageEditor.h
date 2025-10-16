@@ -20,6 +20,10 @@ class LayerManager;
 class LayerProperties;
 class Layer;
 
+namespace Tools {
+    class ITool;
+}
+
 namespace Interactions {
     class PointerToolInteraction;
     class ArrowDrawingInteraction;
@@ -27,6 +31,7 @@ namespace Interactions {
     class RectangleDrawingInteraction;
     class EllipseDrawingInteraction;
     class FreehandDrawingInteraction;
+    class HighlightDrawingInteraction;
 }
 
 class ImageEditor : public QMainWindow
@@ -46,6 +51,7 @@ public slots:
     void selectRectangleTool();
     void selectEllipseTool();
     void selectFreehandTool();
+    void selectHighlightTool();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -62,17 +68,21 @@ private:
     void setupUI();
     void setupToolbar();
     void setupStrategies();
+    void setupToolTemplates();
     QPixmap renderScene();
     void addTextLayer(const QPoint &position, const QString &text);
     void addArrowLayer(const QPoint &start, const QPoint &end);
     void addRectangleLayer(const QRect &rect);
     void addEllipseLayer(const QRect &rect);
     void addFreehandLayer(const QList<QPointF> &points);
+    void addHighlightLayer(const QList<QPointF> &points, const QColor &color, qreal width);
     Layer* createBackgroundLayer();
     void selectLayerByItem(QGraphicsItem *item);
     bool isWithinImageBounds(const QPoint &point) const;
     QPoint clampToImageBounds(const QPoint &point) const;
     QPen getCurrentFreehandPen() const;
+    QColor getCurrentHighlightColor() const;
+    qreal getCurrentHighlightWidth() const;
 
     enum ToolType {
         None,
@@ -80,7 +90,8 @@ private:
         Text,
         Rectangle,
         Ellipse,
-        Freehand
+        Freehand,
+        Highlight
     };
 
     // UI Components
@@ -102,6 +113,7 @@ private:
     QAction *m_rectangleAction;
     QAction *m_ellipseAction;
     QAction *m_freehandAction;
+    QAction *m_highlightAction;
 
     // Sidebar
     QSplitter *m_splitter;
@@ -118,6 +130,7 @@ private:
     QGraphicsItem *m_currentArrow;
     Layer *m_backgroundLayer;
     Layer *m_lastFreehandLayer; // Track last freehand layer to remember settings
+    Layer *m_lastHighlightLayer; // Track last highlight layer to remember color
 
     // Drawing Interactions
     Interactions::PointerToolInteraction *m_pointerStrategy;
@@ -126,6 +139,15 @@ private:
     Interactions::RectangleDrawingInteraction *m_rectangleStrategy;
     Interactions::EllipseDrawingInteraction *m_ellipseStrategy;
     Interactions::FreehandDrawingInteraction *m_freehandStrategy;
+    Interactions::HighlightDrawingInteraction *m_highlightStrategy;
+
+    // Template tool instances for property preview (not added to scene)
+    Tools::ITool *m_textTemplate;
+    Tools::ITool *m_arrowTemplate;
+    Tools::ITool *m_rectangleTemplate;
+    Tools::ITool *m_ellipseTemplate;
+    Tools::ITool *m_freehandTemplate;
+    Tools::ITool *m_highlightTemplate;
 };
 
 } // namespace ImageEditor

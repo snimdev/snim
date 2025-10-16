@@ -67,7 +67,11 @@ namespace ImageEditor {
     }
 
     void LayerManager::selectLayer(Layer *layer) {
-        if (!layer) return;
+        if (!layer) {
+            // Deselect all layers
+            m_layerList->setCurrentRow(-1);
+            return;
+        }
 
         int layerIndex = m_layers.indexOf(layer);
         if (layerIndex >= 0) {

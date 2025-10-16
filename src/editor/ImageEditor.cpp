@@ -8,12 +8,14 @@
 #include "tools/RectangleTool.h"
 #include "tools/EllipseTool.h"
 #include "tools/FreehandTool.h"
+#include "tools/HighlightTool.h"
 #include "interactions/PointerToolInteraction.h"
 #include "interactions/ArrowDrawingInteraction.h"
 #include "interactions/TextDrawingInteraction.h"
 #include "interactions/RectangleDrawingInteraction.h"
 #include "interactions/EllipseDrawingInteraction.h"
 #include "interactions/FreehandDrawingInteraction.h"
+#include "interactions/HighlightDrawingInteraction.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -57,12 +59,20 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_currentArrow(nullptr)
     , m_backgroundLayer(nullptr)
     , m_lastFreehandLayer(nullptr)
+    , m_lastHighlightLayer(nullptr)
     , m_pointerStrategy(nullptr)
     , m_arrowStrategy(nullptr)
     , m_textStrategy(nullptr)
     , m_rectangleStrategy(nullptr)
     , m_ellipseStrategy(nullptr)
     , m_freehandStrategy(nullptr)
+    , m_highlightStrategy(nullptr)
+    , m_textTemplate(nullptr)
+    , m_arrowTemplate(nullptr)
+    , m_rectangleTemplate(nullptr)
+    , m_ellipseTemplate(nullptr)
+    , m_freehandTemplate(nullptr)
+    , m_highlightTemplate(nullptr)
 {
     qDebug() << "ImageEditor constructor called with screenshot size:" << screenshot.size();
     qDebug() << "Setting window title...";
@@ -79,6 +89,10 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     qDebug() << "About to call setupStrategies()...";
     setupStrategies();
     qDebug() << "setupStrategies() completed successfully";
+
+    qDebug() << "About to call setupToolTemplates()...";
+    setupToolTemplates();
+    qDebug() << "setupToolTemplates() completed successfully";
 
     // Create background layer and add to layer manager
     qDebug() << "About to create background layer...";
@@ -220,6 +234,14 @@ void ImageEditor::setupToolbar()
     m_freehandAction->setCheckable(true);
     connect(m_freehandAction, &QAction::triggered, this, &ImageEditor::selectFreehandTool);
     m_toolbar->addAction(m_freehandAction);
+
+    // Highlight tool
+    m_highlightAction = new QAction(this);
+    m_highlightAction->setText("Highlight");
+    m_highlightAction->setIcon(style()->standardIcon(QStyle::SP_DriveFDIcon));
+    m_highlightAction->setCheckable(true);
+    connect(m_highlightAction, &QAction::triggered, this, &ImageEditor::selectHighlightTool);
+    m_toolbar->addAction(m_highlightAction);
 }
 
 void ImageEditor::setupStrategies()
@@ -231,12 +253,14 @@ void ImageEditor::setupStrategies()
     m_rectangleStrategy = new Interactions::RectangleDrawingInteraction(this);
     m_ellipseStrategy = new Interactions::EllipseDrawingInteraction(this);
     m_freehandStrategy = new Interactions::FreehandDrawingInteraction(this);
+    m_highlightStrategy = new Interactions::HighlightDrawingInteraction(this);
 
     // Set image bounds for all strategies that need it
     m_arrowStrategy->setImageBounds(m_originalScreenshot.rect());
     m_rectangleStrategy->setImageBounds(m_originalScreenshot.rect());
     m_ellipseStrategy->setImageBounds(m_originalScreenshot.rect());
     m_freehandStrategy->setImageBounds(m_originalScreenshot.rect());
+    m_highlightStrategy->setImageBounds(m_originalScreenshot.rect());
 
     // Connect interaction signals to ImageEditor slots
     connect(m_pointerStrategy, &Interactions::PointerToolInteraction::itemClicked,
@@ -265,8 +289,68 @@ void ImageEditor::setupStrategies()
     connect(m_freehandStrategy, &Interactions::FreehandDrawingInteraction::freehandDrawn,
             this, &ImageEditor::addFreehandLayer);
 
+    connect(m_highlightStrategy, &Interactions::HighlightDrawingInteraction::highlightDrawn,
+            this, &ImageEditor::addHighlightLayer);
+
     // Set pointer tool as default
     m_view->setDrawingStrategy(m_pointerStrategy);
+}
+
+void ImageEditor::setupToolTemplates()
+{
+    // Create template tool instances for property preview
+    // These are NOT added to the scene, only used for showing properties
+
+    // Text template
+    m_textTemplate = new Tools::TextTool("Sample Text", nullptr);
+    auto *textTool = dynamic_cast<Tools::TextTool*>(m_textTemplate);
+    if (textTool) {
+        QSettings settings;
+        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+        textTool->setDefaultTextColor(foregroundColor);
+    }
+
+    // Arrow template
+    m_arrowTemplate = new Tools::ArrowTool(QPointF(0, 0), QPointF(100, 100), nullptr);
+    auto *arrowTool = dynamic_cast<Tools::ArrowTool*>(m_arrowTemplate);
+    if (arrowTool) {
+        QSettings settings;
+        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+        arrowTool->setPen(QPen(foregroundColor, 3));
+    }
+
+    // Rectangle template
+    m_rectangleTemplate = new Tools::RectangleTool(QRect(0, 0, 100, 100), nullptr);
+    auto *rectangleTool = dynamic_cast<Tools::RectangleTool*>(m_rectangleTemplate);
+    if (rectangleTool) {
+        QSettings settings;
+        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+        rectangleTool->setPen(QPen(foregroundColor, 2));
+    }
+
+    // Ellipse template
+    m_ellipseTemplate = new Tools::EllipseTool(QRect(0, 0, 100, 100), nullptr);
+    auto *ellipseTool = dynamic_cast<Tools::EllipseTool*>(m_ellipseTemplate);
+    if (ellipseTool) {
+        QSettings settings;
+        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+        ellipseTool->setPen(QPen(foregroundColor, 2));
+    }
+
+    // Freehand template
+    m_freehandTemplate = new Tools::FreehandTool(nullptr);
+    auto *freehandTool = dynamic_cast<Tools::FreehandTool*>(m_freehandTemplate);
+    if (freehandTool) {
+        freehandTool->setPen(getCurrentFreehandPen());
+    }
+
+    // Highlight template
+    m_highlightTemplate = new Tools::HighlightTool(nullptr);
+    auto *highlightTool = dynamic_cast<Tools::HighlightTool*>(m_highlightTemplate);
+    if (highlightTool) {
+        highlightTool->setColor(getCurrentHighlightColor());
+        highlightTool->setWidth(getCurrentHighlightWidth());
+    }
 }
 
 void ImageEditor::saveAs()
@@ -313,7 +397,11 @@ void ImageEditor::selectPointerTool()
     m_rectangleAction->setChecked(false);
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(false);
+    m_highlightAction->setChecked(false);
     m_pointerAction->setChecked(true);
+
+    // Deselect any layer and hide properties
+    m_layerManager->selectLayer(nullptr);
     m_layerProperties->setLayer(nullptr);
 }
 
@@ -325,8 +413,12 @@ void ImageEditor::selectArrowTool()
     m_rectangleAction->setChecked(false);
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(false);
+    m_highlightAction->setChecked(false);
     m_arrowAction->setChecked(true);
-    m_layerProperties->setLayer(nullptr);
+
+    // Deselect any layer and show arrow tool properties
+    m_layerManager->selectLayer(nullptr);
+    m_layerProperties->setTool(m_arrowTemplate, "Arrow Tool");
 }
 
 void ImageEditor::selectTextTool()
@@ -337,8 +429,12 @@ void ImageEditor::selectTextTool()
     m_rectangleAction->setChecked(false);
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(false);
+    m_highlightAction->setChecked(false);
     m_textAction->setChecked(true);
-    m_layerProperties->setLayer(nullptr);
+
+    // Deselect any layer and show text tool properties
+    m_layerManager->selectLayer(nullptr);
+    m_layerProperties->setTool(m_textTemplate, "Text Tool");
 }
 
 void ImageEditor::selectRectangleTool()
@@ -349,8 +445,12 @@ void ImageEditor::selectRectangleTool()
     m_textAction->setChecked(false);
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(false);
+    m_highlightAction->setChecked(false);
     m_rectangleAction->setChecked(true);
-    m_layerProperties->setLayer(nullptr);
+
+    // Deselect any layer and show rectangle tool properties
+    m_layerManager->selectLayer(nullptr);
+    m_layerProperties->setTool(m_rectangleTemplate, "Rectangle Tool");
 }
 
 void ImageEditor::selectEllipseTool()
@@ -361,14 +461,23 @@ void ImageEditor::selectEllipseTool()
     m_textAction->setChecked(false);
     m_rectangleAction->setChecked(false);
     m_freehandAction->setChecked(false);
+    m_highlightAction->setChecked(false);
     m_ellipseAction->setChecked(true);
-    m_layerProperties->setLayer(nullptr);
+
+    // Deselect any layer and show ellipse tool properties
+    m_layerManager->selectLayer(nullptr);
+    m_layerProperties->setTool(m_ellipseTemplate, "Ellipse Tool");
 }
 
 void ImageEditor::selectFreehandTool()
 {
-    // Update freehand pen settings from last layer before setting strategy
-    m_freehandStrategy->setPen(getCurrentFreehandPen());
+    // Update freehand pen settings from last layer before setting strategy and template
+    QPen currentPen = getCurrentFreehandPen();
+    m_freehandStrategy->setPen(currentPen);
+    auto *freehandTool = dynamic_cast<Tools::FreehandTool*>(m_freehandTemplate);
+    if (freehandTool) {
+        freehandTool->setPen(currentPen);
+    }
 
     m_view->setDrawingStrategy(m_freehandStrategy);
     m_pointerAction->setChecked(false);
@@ -377,7 +486,39 @@ void ImageEditor::selectFreehandTool()
     m_rectangleAction->setChecked(false);
     m_ellipseAction->setChecked(false);
     m_freehandAction->setChecked(true);
-    m_layerProperties->setLayer(nullptr);
+    m_highlightAction->setChecked(false);
+
+    // Deselect any layer and show freehand tool properties
+    m_layerManager->selectLayer(nullptr);
+    m_layerProperties->setTool(m_freehandTemplate, "Freehand Tool");
+}
+
+void ImageEditor::selectHighlightTool()
+{
+    // Update highlight color and width settings from last layer before setting strategy and template
+    QColor currentColor = getCurrentHighlightColor();
+    qreal currentWidth = getCurrentHighlightWidth();
+    m_highlightStrategy->setColor(currentColor);
+    m_highlightStrategy->setWidth(currentWidth);
+
+    auto *highlightTool = dynamic_cast<Tools::HighlightTool*>(m_highlightTemplate);
+    if (highlightTool) {
+        highlightTool->setColor(currentColor);
+        highlightTool->setWidth(currentWidth);
+    }
+
+    m_view->setDrawingStrategy(m_highlightStrategy);
+    m_pointerAction->setChecked(false);
+    m_arrowAction->setChecked(false);
+    m_textAction->setChecked(false);
+    m_rectangleAction->setChecked(false);
+    m_ellipseAction->setChecked(false);
+    m_freehandAction->setChecked(false);
+    m_highlightAction->setChecked(true);
+
+    // Deselect any layer and show highlight tool properties
+    m_layerManager->selectLayer(nullptr);
+    m_layerProperties->setTool(m_highlightTemplate, "Highlight Tool");
 }
 
 void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
@@ -385,10 +526,20 @@ void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
     auto *textItem = new Tools::TextTool(text);
     textItem->setPos(position);
 
-    // Get foreground color from settings (text uses foreground color)
-    QSettings settings;
-    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-    textItem->setDefaultTextColor(foregroundColor);
+    // Copy properties from template tool
+    auto *textTemplate = dynamic_cast<Tools::TextTool*>(m_textTemplate);
+    if (textTemplate) {
+        // Get all properties from template
+        QList<Tools::ToolProperty> props = textTemplate->getProperties();
+        for (const auto& prop : props) {
+            textItem->setProperty(prop.id, prop.value);
+        }
+    } else {
+        // Fallback to settings if template doesn't exist
+        QSettings settings;
+        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+        textItem->setDefaultTextColor(foregroundColor);
+    }
 
     // Create layer for text
     auto *layer = new Layer(QString("Text: %1").arg(text), Layer::Text, this);
@@ -420,14 +571,22 @@ void ImageEditor::addArrowLayer(const QPoint &start, const QPoint &end)
     // Create the new ArrowTool with interactive handles
     auto *arrowItem = new Tools::ArrowTool(start, end);
 
-    // Get foreground color from settings (arrows use foreground for stroke)
-    QSettings settings;
-    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-
-    // Set default appearance
-    QPen pen(foregroundColor, 3);
-    arrowItem->setPen(pen);
-    arrowItem->setArrowHeadType(Tools::ArrowTool::Outlined);
+    // Copy properties from template tool
+    auto *arrowTemplate = dynamic_cast<Tools::ArrowTool*>(m_arrowTemplate);
+    if (arrowTemplate) {
+        // Get all properties from template
+        QList<Tools::ToolProperty> props = arrowTemplate->getProperties();
+        for (const auto& prop : props) {
+            arrowItem->setProperty(prop.id, prop.value);
+        }
+    } else {
+        // Fallback to settings if template doesn't exist
+        QSettings settings;
+        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+        QPen pen(foregroundColor, 3);
+        arrowItem->setPen(pen);
+        arrowItem->setArrowHeadType(Tools::ArrowTool::Outlined);
+    }
 
     // Add the arrow item to the scene
     m_scene->addItem(arrowItem);
@@ -449,15 +608,23 @@ void ImageEditor::addRectangleLayer(const QRect &rect)
     // Create the RectangleTool
     auto *rectangleItem = new Tools::RectangleTool(rect);
 
-    // Get foreground and background colors from settings
-    QSettings settings;
-    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-    QColor backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
-
-    // Set default appearance (foreground = stroke, background = fill)
-    QPen pen(foregroundColor, 2);
-    rectangleItem->setPen(pen);
-    rectangleItem->setBrush(QBrush(backgroundColor));
+    // Copy properties from template tool
+    auto *rectangleTemplate = dynamic_cast<Tools::RectangleTool*>(m_rectangleTemplate);
+    if (rectangleTemplate) {
+        // Get all properties from template
+        QList<Tools::ToolProperty> props = rectangleTemplate->getProperties();
+        for (const auto& prop : props) {
+            rectangleItem->setProperty(prop.id, prop.value);
+        }
+    } else {
+        // Fallback to settings if template doesn't exist
+        QSettings settings;
+        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+        QColor backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
+        QPen pen(foregroundColor, 2);
+        rectangleItem->setPen(pen);
+        rectangleItem->setBrush(QBrush(backgroundColor));
+    }
 
     // Add the rectangle item to the scene
     m_scene->addItem(rectangleItem);
@@ -479,15 +646,23 @@ void ImageEditor::addEllipseLayer(const QRect &rect)
     // Create the EllipseTool
     auto *ellipseItem = new Tools::EllipseTool(rect);
 
-    // Get foreground and background colors from settings
-    QSettings settings;
-    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-    QColor backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
-
-    // Set default appearance (foreground = stroke, background = fill)
-    QPen pen(foregroundColor, 2);
-    ellipseItem->setPen(pen);
-    ellipseItem->setBrush(QBrush(backgroundColor));
+    // Copy properties from template tool
+    auto *ellipseTemplate = dynamic_cast<Tools::EllipseTool*>(m_ellipseTemplate);
+    if (ellipseTemplate) {
+        // Get all properties from template
+        QList<Tools::ToolProperty> props = ellipseTemplate->getProperties();
+        for (const auto& prop : props) {
+            ellipseItem->setProperty(prop.id, prop.value);
+        }
+    } else {
+        // Fallback to settings if template doesn't exist
+        QSettings settings;
+        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+        QColor backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
+        QPen pen(foregroundColor, 2);
+        ellipseItem->setPen(pen);
+        ellipseItem->setBrush(QBrush(backgroundColor));
+    }
 
     // Add the ellipse item to the scene
     m_scene->addItem(ellipseItem);
@@ -513,22 +688,29 @@ void ImageEditor::addFreehandLayer(const QList<QPointF> &points)
     // Create the FreehandTool and add all points
     auto *freehandItem = new Tools::FreehandTool();
 
-    // Determine pen settings: use previous freehand layer's settings if available, otherwise use defaults
-    QPen pen;
-    if (m_lastFreehandLayer && m_lastFreehandLayer->item()) {
-        // Get pen from the previous freehand layer
-        auto *lastFreehand = dynamic_cast<Tools::FreehandTool*>(m_lastFreehandLayer->item());
-        if (lastFreehand) {
-            pen = lastFreehand->pen();
+    // Copy properties from template tool
+    auto *freehandTemplate = dynamic_cast<Tools::FreehandTool*>(m_freehandTemplate);
+    if (freehandTemplate) {
+        // Get all properties from template
+        QList<Tools::ToolProperty> props = freehandTemplate->getProperties();
+        for (const auto& prop : props) {
+            freehandItem->setProperty(prop.id, prop.value);
         }
     } else {
-        // No previous freehand layer, use default settings
-        QSettings settings;
-        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-        pen = QPen(foregroundColor, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        // Fallback to previous layer or settings if template doesn't exist
+        QPen pen;
+        if (m_lastFreehandLayer && m_lastFreehandLayer->item()) {
+            auto *lastFreehand = dynamic_cast<Tools::FreehandTool*>(m_lastFreehandLayer->item());
+            if (lastFreehand) {
+                pen = lastFreehand->pen();
+            }
+        } else {
+            QSettings settings;
+            QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
+            pen = QPen(foregroundColor, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        }
+        freehandItem->setPen(pen);
     }
-
-    freehandItem->setPen(pen);
 
     // Add all points to recreate the path
     for (const QPointF &point : points) {
@@ -666,6 +848,69 @@ QPen ImageEditor::getCurrentFreehandPen() const
     QSettings settings;
     QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
     return QPen(foregroundColor, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+}
+
+QColor ImageEditor::getCurrentHighlightColor() const
+{
+    // If we have a previous highlight layer, use its color
+    if (m_lastHighlightLayer && m_lastHighlightLayer->item()) {
+        auto *lastHighlight = dynamic_cast<Tools::HighlightTool*>(m_lastHighlightLayer->item());
+        if (lastHighlight) {
+            return lastHighlight->color();
+        }
+    }
+
+    // No previous highlight layer, return default color
+    return QColor("#b3ff61");
+}
+
+qreal ImageEditor::getCurrentHighlightWidth() const
+{
+    // If we have a previous highlight layer, use its width
+    if (m_lastHighlightLayer && m_lastHighlightLayer->item()) {
+        auto *lastHighlight = dynamic_cast<Tools::HighlightTool*>(m_lastHighlightLayer->item());
+        if (lastHighlight) {
+            return lastHighlight->width();
+        }
+    }
+
+    // No previous highlight layer, return default medium width
+    return Tools::HighlightTool::HIGHLIGHT_WIDTH_MEDIUM;
+}
+
+void ImageEditor::addHighlightLayer(const QList<QPointF> &points, const QColor &color, qreal width)
+{
+    if (points.isEmpty()) {
+        return;
+    }
+
+    // Create the HighlightTool and add all points
+    auto *highlightItem = new Tools::HighlightTool();
+    highlightItem->setColor(color);
+    highlightItem->setWidth(width);
+
+    // Add all points to recreate the path
+    for (const QPointF &point : points) {
+        highlightItem->addPoint(point);
+    }
+    highlightItem->finishPath();
+
+    // Add the highlight item to the scene
+    m_scene->addItem(highlightItem);
+
+    // Create layer for highlight
+    static int highlightCounter = 1;
+    auto *layer = new Layer(QString("Highlight %1").arg(highlightCounter++), Layer::Highlight, this);
+    layer->setItem(highlightItem);
+
+    // Remember this layer for next highlight drawing
+    m_lastHighlightLayer = layer;
+
+    m_layerManager->addLayer(layer);
+    m_layerManager->selectLayer(layer);
+
+    // Don't auto-select the highlight - user should use pointer tool to select it
+    m_scene->clearSelection();
 }
 
 } // namespace ImageEditor

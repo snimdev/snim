@@ -17,7 +17,8 @@ public:
         Text,
         Rectangle,
         Ellipse,
-        Freehand
+        Freehand,
+        Highlight
     };
 
     explicit Layer(const QString &name, LayerType type, QObject *parent = nullptr);
