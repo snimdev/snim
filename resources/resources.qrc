@@ -16,4 +16,7 @@
         <file>icons/highlight.svg</file>
         <file>icons/blur.svg</file>
     </qresource>
+    <qresource prefix="/styles">
+        <file>styles/editor.qss</file>
+    </qresource>
 </RCC>

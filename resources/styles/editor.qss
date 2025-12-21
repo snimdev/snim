@@ -1,0 +1,198 @@
+/* === Niceshot Image Editor — Clean Modern Style === */
+
+/* Toolbar */
+QToolBar {
+    border: none;
+    border-bottom: 1px solid palette(mid);
+    padding: 4px 8px;
+    spacing: 2px;
+    background: palette(window);
+}
+
+QToolBar QToolButton {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 6px;
+    margin: 1px;
+}
+
+QToolBar QToolButton:checked {
+    background: palette(highlight);
+    border-color: palette(highlight);
+}
+
+QToolBar QToolButton:hover:!checked {
+    background: palette(midlight);
+    border-color: palette(mid);
+}
+
+QToolBar::separator {
+    width: 1px;
+    margin: 4px 6px;
+    background: palette(mid);
+}
+
+/* Splitter handles */
+QSplitter::handle {
+    background: palette(mid);
+}
+
+QSplitter::handle:horizontal {
+    width: 1px;
+}
+
+QSplitter::handle:vertical {
+    height: 1px;
+}
+
+/* Layer list */
+QListWidget {
+    border: 1px solid palette(mid);
+    border-radius: 6px;
+    background: palette(base);
+    outline: none;
+    padding: 2px;
+}
+
+QListWidget::item {
+    padding: 4px 6px;
+    border-radius: 4px;
+    margin: 1px 2px;
+}
+
+QListWidget::item:selected {
+    background: palette(highlight);
+    color: palette(highlighted-text);
+}
+
+QListWidget::item:hover:!selected {
+    background: palette(midlight);
+}
+
+/* Scrollbars — thin overlay */
+QScrollBar:vertical {
+    width: 8px;
+    background: transparent;
+    margin: 2px 0;
+}
+
+QScrollBar::handle:vertical {
+    background: palette(mid);
+    border-radius: 4px;
+    min-height: 24px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: palette(dark);
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: transparent;
+}
+
+QScrollBar:horizontal {
+    height: 8px;
+    background: transparent;
+    margin: 0 2px;
+}
+
+QScrollBar::handle:horizontal {
+    background: palette(mid);
+    border-radius: 4px;
+    min-width: 24px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: palette(dark);
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0;
+}
+
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal {
+    background: transparent;
+}
+
+/* Buttons */
+QPushButton {
+    border: 1px solid palette(mid);
+    border-radius: 6px;
+    padding: 5px 12px;
+    background: palette(button);
+}
+
+QPushButton:hover {
+    background: palette(midlight);
+    border-color: palette(dark);
+}
+
+QPushButton:pressed {
+    background: palette(mid);
+}
+
+/* ComboBox */
+QComboBox {
+    border: 1px solid palette(mid);
+    border-radius: 6px;
+    padding: 4px 8px;
+    background: palette(base);
+}
+
+QComboBox:hover {
+    border-color: palette(dark);
+}
+
+QComboBox::drop-down {
+    border: none;
+    padding-right: 6px;
+}
+
+/* Sliders */
+QSlider::groove:horizontal {
+    height: 4px;
+    background: palette(mid);
+    border-radius: 2px;
+}
+
+QSlider::handle:horizontal {
+    width: 16px;
+    height: 16px;
+    margin: -6px 0;
+    border-radius: 8px;
+    background: palette(highlight);
+    border: 2px solid palette(window);
+}
+
+QSlider::handle:horizontal:hover {
+    background: palette(link);
+}
+
+/* Section headers in sidebar */
+QLabel#sectionHeader {
+    font-weight: bold;
+    font-size: 11px;
+    color: palette(text);
+    padding: 4px 0 2px 0;
+}
+
+/* Scroll area */
+QScrollArea {
+    border: none;
+    background: transparent;
+}
+
+/* Properties panel border */
+QStackedWidget#propertiesStack {
+    border: 1px solid palette(mid);
+    border-radius: 6px;
+    padding: 4px;
+}

@@ -14,7 +14,12 @@ DrawingGraphicsView::DrawingGraphicsView(QWidget *parent)
 {
     setDragMode(QGraphicsView::NoDrag);
     setRenderHint(QPainter::Antialiasing);
-    setMouseTracking(true); // Enable mouse tracking for cursor changes
+    setMouseTracking(true);
+
+    // Neutral gray viewport background (visible around the canvas)
+    setBackgroundRole(QPalette::Dark);
+    setAutoFillBackground(true);
+    setFrameStyle(QFrame::NoFrame);
 }
 
 void DrawingGraphicsView::setDrawingStrategy(Interactions::IDrawingInteraction *strategy)

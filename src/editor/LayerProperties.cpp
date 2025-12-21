@@ -17,15 +17,23 @@ LayerProperties::LayerProperties(QWidget *parent)
     , m_toolWidget(nullptr)
 {
     auto* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(5, 5, 5, 5);  // Minimal margins instead of default
+    mainLayout->setContentsMargins(8, 8, 8, 8);
+    mainLayout->setSpacing(6);
+
+    // Section header
+    auto *header = new QLabel("Properties");
+    header->setObjectName("sectionHeader");
+    mainLayout->addWidget(header);
+
     m_stackedWidget = new QStackedWidget(this);
+    m_stackedWidget->setObjectName("propertiesStack");
     m_originalPalette = m_stackedWidget->palette();
     mainLayout->addWidget(m_stackedWidget);
 
     m_emptyWidget = new QWidget();
     m_stackedWidget->addWidget(m_emptyWidget);
 
-    setFixedWidth(200);
+    setMinimumWidth(180);
     setWindowTitle("Properties");
 }
 
@@ -79,34 +87,62 @@ void LayerProperties::buildPropertiesUI(Layer *layer)
 
     auto* propertiesWidget = new QWidget();
     auto* layout = new QVBoxLayout(propertiesWidget);
-    layout->setSpacing(10);
+    layout->setSpacing(12);
+    layout->setContentsMargins(8, 8, 8, 8);
     layout->setAlignment(Qt::AlignTop);
 
     QList<Tools::ToolProperty> properties = tool->getProperties();
 
     for (const auto& prop : properties) {
         auto *propLayout = new QVBoxLayout();
-        propLayout->addWidget(new QLabel(prop.name + ":"));
+        propLayout->setSpacing(4);
+
+        auto *label = new QLabel(prop.name);
+        QFont labelFont = label->font();
+        labelFont.setPointSize(labelFont.pointSize() - 1);
+        label->setFont(labelFont);
+        propLayout->addWidget(label);
 
         if (prop.controlType == "color") {
-            auto *button = new QPushButton("Select Color", propertiesWidget);
-            connect(button, &QPushButton::clicked, this, [this, tool, p = prop]() {
-                auto initialColor = p.value.value<QColor>();
-                QColor color = QColorDialog::getColor(initialColor, this, "Select Color");
+            auto *swatch = new QPushButton(propertiesWidget);
+            swatch->setFixedSize(32, 32);
+            swatch->setToolTip("Click to change color");
+            QColor initialColor = prop.value.value<QColor>();
+            swatch->setStyleSheet(
+                QString("QPushButton { background: %1; border: 1px solid palette(mid); border-radius: 6px; }"
+                        "QPushButton:hover { border-color: palette(dark); }")
+                .arg(initialColor.name()));
+            connect(swatch, &QPushButton::clicked, this, [this, tool, swatch, p = prop]() {
+                auto currentColor = p.value.value<QColor>();
+                QColor color = QColorDialog::getColor(currentColor, this, "Select Color");
                 if (color.isValid()) {
                     tool->setProperty(p.id, color);
+                    swatch->setStyleSheet(
+                        QString("QPushButton { background: %1; border: 1px solid palette(mid); border-radius: 6px; }"
+                                "QPushButton:hover { border-color: palette(dark); }")
+                        .arg(color.name()));
                 }
             });
-            propLayout->addWidget(button);
+            propLayout->addWidget(swatch);
         } else if (prop.controlType == "slider") {
+            auto *sliderRow = new QHBoxLayout();
             auto *slider = new QSlider(Qt::Horizontal, propertiesWidget);
             slider->setMinimum(prop.options.value("min").toInt());
             slider->setMaximum(prop.options.value("max").toInt());
             slider->setValue(prop.value.toInt());
-            connect(slider, &QSlider::valueChanged, this, [tool, p = prop](int value) {
+            auto *valueLabel = new QLabel(QString::number(prop.value.toInt()), propertiesWidget);
+            valueLabel->setFixedWidth(28);
+            valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            QFont valFont = valueLabel->font();
+            valFont.setPointSize(valFont.pointSize() - 1);
+            valueLabel->setFont(valFont);
+            connect(slider, &QSlider::valueChanged, this, [tool, valueLabel, p = prop](int value) {
                 tool->setProperty(p.id, value);
+                valueLabel->setText(QString::number(value));
             });
-            propLayout->addWidget(slider);
+            sliderRow->addWidget(slider, 1);
+            sliderRow->addWidget(valueLabel);
+            propLayout->addLayout(sliderRow);
         } else if (prop.controlType == "dropdown") {
             auto *comboBox = new QComboBox(propertiesWidget);
             QStringList items = prop.options.value("items").toStringList();
@@ -120,6 +156,7 @@ void LayerProperties::buildPropertiesUI(Layer *layer)
         layout->addLayout(propLayout);
     }
 
+    layout->addStretch();
     m_stackedWidget->addWidget(propertiesWidget);
     m_layerWidgetMap[layer] = propertiesWidget;
     m_stackedWidget->setCurrentWidget(propertiesWidget);
@@ -127,7 +164,6 @@ void LayerProperties::buildPropertiesUI(Layer *layer)
 
 void LayerProperties::buildPropertiesUIForTool(Tools::ITool *tool, const QString &title)
 {
-    // Remove old tool widget if it exists
     if (m_toolWidget) {
         m_stackedWidget->removeWidget(m_toolWidget);
         m_toolWidget->deleteLater();
@@ -136,39 +172,67 @@ void LayerProperties::buildPropertiesUIForTool(Tools::ITool *tool, const QString
 
     auto* propertiesWidget = new QWidget();
     auto* layout = new QVBoxLayout(propertiesWidget);
-    layout->setSpacing(10);
+    layout->setSpacing(12);
+    layout->setContentsMargins(8, 8, 8, 8);
     layout->setAlignment(Qt::AlignTop);
 
-    // Add title label
-    auto* titleLabel = new QLabel("<b>" + title + "</b>");
-    titleLabel->setAlignment(Qt::AlignCenter);
+    auto* titleLabel = new QLabel(title);
+    titleLabel->setObjectName("sectionHeader");
+    titleLabel->setAlignment(Qt::AlignLeft);
     layout->addWidget(titleLabel);
 
     QList<Tools::ToolProperty> properties = tool->getProperties();
 
     for (const auto& prop : properties) {
         auto *propLayout = new QVBoxLayout();
-        propLayout->addWidget(new QLabel(prop.name + ":"));
+        propLayout->setSpacing(4);
+
+        auto *label = new QLabel(prop.name);
+        QFont labelFont = label->font();
+        labelFont.setPointSize(labelFont.pointSize() - 1);
+        label->setFont(labelFont);
+        propLayout->addWidget(label);
 
         if (prop.controlType == "color") {
-            auto *button = new QPushButton("Select Color", propertiesWidget);
-            connect(button, &QPushButton::clicked, this, [this, tool, p = prop]() {
-                auto initialColor = p.value.value<QColor>();
-                QColor color = QColorDialog::getColor(initialColor, this, "Select Color");
+            auto *swatch = new QPushButton(propertiesWidget);
+            swatch->setFixedSize(32, 32);
+            swatch->setToolTip("Click to change color");
+            QColor initialColor = prop.value.value<QColor>();
+            swatch->setStyleSheet(
+                QString("QPushButton { background: %1; border: 1px solid palette(mid); border-radius: 6px; }"
+                        "QPushButton:hover { border-color: palette(dark); }")
+                .arg(initialColor.name()));
+            connect(swatch, &QPushButton::clicked, this, [this, tool, swatch, p = prop]() {
+                auto currentColor = p.value.value<QColor>();
+                QColor color = QColorDialog::getColor(currentColor, this, "Select Color");
                 if (color.isValid()) {
                     tool->setProperty(p.id, color);
+                    swatch->setStyleSheet(
+                        QString("QPushButton { background: %1; border: 1px solid palette(mid); border-radius: 6px; }"
+                                "QPushButton:hover { border-color: palette(dark); }")
+                        .arg(color.name()));
                 }
             });
-            propLayout->addWidget(button);
+            propLayout->addWidget(swatch);
         } else if (prop.controlType == "slider") {
+            auto *sliderRow = new QHBoxLayout();
             auto *slider = new QSlider(Qt::Horizontal, propertiesWidget);
             slider->setMinimum(prop.options.value("min").toInt());
             slider->setMaximum(prop.options.value("max").toInt());
             slider->setValue(prop.value.toInt());
-            connect(slider, &QSlider::valueChanged, this, [tool, p = prop](int value) {
+            auto *valueLabel = new QLabel(QString::number(prop.value.toInt()), propertiesWidget);
+            valueLabel->setFixedWidth(28);
+            valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            QFont valFont = valueLabel->font();
+            valFont.setPointSize(valFont.pointSize() - 1);
+            valueLabel->setFont(valFont);
+            connect(slider, &QSlider::valueChanged, this, [tool, valueLabel, p = prop](int value) {
                 tool->setProperty(p.id, value);
+                valueLabel->setText(QString::number(value));
             });
-            propLayout->addWidget(slider);
+            sliderRow->addWidget(slider, 1);
+            sliderRow->addWidget(valueLabel);
+            propLayout->addLayout(sliderRow);
         } else if (prop.controlType == "dropdown") {
             auto *comboBox = new QComboBox(propertiesWidget);
             QStringList items = prop.options.value("items").toStringList();
@@ -182,6 +246,7 @@ void LayerProperties::buildPropertiesUIForTool(Tools::ITool *tool, const QString
         layout->addLayout(propLayout);
     }
 
+    layout->addStretch();
     m_toolWidget = propertiesWidget;
     m_stackedWidget->addWidget(propertiesWidget);
     m_stackedWidget->setCurrentWidget(propertiesWidget);
@@ -189,18 +254,12 @@ void LayerProperties::buildPropertiesUIForTool(Tools::ITool *tool, const QString
 
 void LayerProperties::showPropertiesStyle()
 {
-    //m_stackedWidget->setAutoFillBackground(true);
-    QPalette p = palette();
-    //p.setColor(QPalette::Window, p.color(QPalette::Base));
-    //m_stackedWidget->setPalette(p);
-    m_stackedWidget->setStyleSheet("QStackedWidget { border: 1px solid " + p.color(QPalette::Mid).name() + "; padding: 5px; }");
+    // Styling handled by editor.qss via #propertiesStack object name
 }
 
 void LayerProperties::hidePropertiesStyle()
 {
-    //m_stackedWidget->setAutoFillBackground(false);
-    //m_stackedWidget->setPalette(m_originalPalette);
-    m_stackedWidget->setStyleSheet("");
+    // Styling handled by editor.qss via #propertiesStack object name
 }
 
 } // namespace ImageEditor

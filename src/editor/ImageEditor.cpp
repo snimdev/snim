@@ -122,7 +122,14 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     connect(m_layerManager, &LayerManager::layerSelected,
             this, &ImageEditor::onLayerSelected);
 
-    resize(1200, 700);
+    // Load stylesheet
+    QFile styleFile(":/styles/styles/editor.qss");
+    if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        setStyleSheet(QString::fromUtf8(styleFile.readAll()));
+        styleFile.close();
+    }
+
+    resize(1400, 800);
     qDebug() << "ImageEditor constructor completed successfully";
 }
 
@@ -136,6 +143,15 @@ void ImageEditor::setupUI()
     m_view = new DrawingGraphicsView();
     m_scene = new QGraphicsScene(this);
     m_view->setScene(m_scene);
+
+    // Set checkerboard background (standard image editor pattern)
+    QPixmap checkerboard(16, 16);
+    QPainter cbPainter(&checkerboard);
+    cbPainter.fillRect(0, 0, 16, 16, QColor(240, 240, 240));
+    cbPainter.fillRect(0, 0, 8, 8, QColor(220, 220, 220));
+    cbPainter.fillRect(8, 8, 8, 8, QColor(220, 220, 220));
+    cbPainter.end();
+    m_scene->setBackgroundBrush(QBrush(checkerboard));
 
     // Add the screenshot to the scene
     m_pixmapItem = m_scene->addPixmap(m_originalScreenshot);
@@ -204,86 +220,84 @@ QIcon ImageEditor::createThemedIcon(const QString &iconPath)
 void ImageEditor::setupToolbar()
 {
     m_toolbar = addToolBar("Tools");
-    m_toolbar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    m_toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    m_toolbar->setIconSize(QSize(20, 20));
+    m_toolbar->setMovable(false);
+    m_toolbar->setFloatable(false);
 
-    // Save As action
+    // --- File actions ---
     m_saveAsAction = new QAction(this);
-    m_saveAsAction->setText("Save As");
+    m_saveAsAction->setToolTip("Save As (Ctrl+S)");
     m_saveAsAction->setIcon(createThemedIcon(":/icons/icons/save.svg"));
-    m_saveAsAction->setShortcut(QKeySequence::Save); // Ctrl+S
+    m_saveAsAction->setShortcut(QKeySequence::Save);
     connect(m_saveAsAction, &QAction::triggered, this, &ImageEditor::saveAs);
     m_toolbar->addAction(m_saveAsAction);
 
-    // Copy to Clipboard action
     m_copyAction = new QAction(this);
-    m_copyAction->setText("Copy");
+    m_copyAction->setToolTip("Copy to Clipboard (Ctrl+C)");
     m_copyAction->setIcon(createThemedIcon(":/icons/icons/copy.svg"));
-    m_copyAction->setShortcut(QKeySequence::Copy); // Ctrl+C
+    m_copyAction->setShortcut(QKeySequence::Copy);
     connect(m_copyAction, &QAction::triggered, this, &ImageEditor::copyToClipboard);
     m_toolbar->addAction(m_copyAction);
 
     m_toolbar->addSeparator();
 
-    // Pointer tool
+    // --- Selection ---
     m_pointerAction = new QAction(this);
-    m_pointerAction->setText("Pointer");
+    m_pointerAction->setToolTip("Pointer (V)");
     m_pointerAction->setIcon(createThemedIcon(":/icons/icons/pointer.svg"));
     m_pointerAction->setCheckable(true);
     m_pointerAction->setChecked(true);
     connect(m_pointerAction, &QAction::triggered, this, &ImageEditor::selectPointerTool);
     m_toolbar->addAction(m_pointerAction);
 
-    // Arrow tool
+    m_toolbar->addSeparator();
+
+    // --- Drawing tools ---
     m_arrowAction = new QAction(this);
-    m_arrowAction->setText("Arrow");
+    m_arrowAction->setToolTip("Arrow");
     m_arrowAction->setIcon(createThemedIcon(":/icons/icons/arrow.svg"));
     m_arrowAction->setCheckable(true);
     connect(m_arrowAction, &QAction::triggered, this, &ImageEditor::selectArrowTool);
     m_toolbar->addAction(m_arrowAction);
 
-    // Text tool
     m_textAction = new QAction(this);
-    m_textAction->setText("Text");
+    m_textAction->setToolTip("Text");
     m_textAction->setIcon(createThemedIcon(":/icons/icons/text.svg"));
     m_textAction->setCheckable(true);
     connect(m_textAction, &QAction::triggered, this, &ImageEditor::selectTextTool);
     m_toolbar->addAction(m_textAction);
 
-    // Rectangle tool
     m_rectangleAction = new QAction(this);
-    m_rectangleAction->setText("Rectangle");
+    m_rectangleAction->setToolTip("Rectangle");
     m_rectangleAction->setIcon(createThemedIcon(":/icons/icons/rectangle.svg"));
     m_rectangleAction->setCheckable(true);
     connect(m_rectangleAction, &QAction::triggered, this, &ImageEditor::selectRectangleTool);
     m_toolbar->addAction(m_rectangleAction);
 
-    // Ellipse tool
     m_ellipseAction = new QAction(this);
-    m_ellipseAction->setText("Ellipse");
+    m_ellipseAction->setToolTip("Ellipse");
     m_ellipseAction->setIcon(createThemedIcon(":/icons/icons/ellipse.svg"));
     m_ellipseAction->setCheckable(true);
     connect(m_ellipseAction, &QAction::triggered, this, &ImageEditor::selectEllipseTool);
     m_toolbar->addAction(m_ellipseAction);
 
-    // Freehand tool
     m_freehandAction = new QAction(this);
-    m_freehandAction->setText("Freehand");
+    m_freehandAction->setToolTip("Freehand");
     m_freehandAction->setIcon(createThemedIcon(":/icons/icons/freehand.svg"));
     m_freehandAction->setCheckable(true);
     connect(m_freehandAction, &QAction::triggered, this, &ImageEditor::selectFreehandTool);
     m_toolbar->addAction(m_freehandAction);
 
-    // Highlight tool
     m_highlightAction = new QAction(this);
-    m_highlightAction->setText("Highlight");
+    m_highlightAction->setToolTip("Highlight");
     m_highlightAction->setIcon(createThemedIcon(":/icons/icons/highlight.svg"));
     m_highlightAction->setCheckable(true);
     connect(m_highlightAction, &QAction::triggered, this, &ImageEditor::selectHighlightTool);
     m_toolbar->addAction(m_highlightAction);
 
-    // Blur tool
     m_blurAction = new QAction(this);
-    m_blurAction->setText("Blur");
+    m_blurAction->setToolTip("Blur");
     m_blurAction->setIcon(createThemedIcon(":/icons/icons/blur.svg"));
     m_blurAction->setCheckable(true);
     connect(m_blurAction, &QAction::triggered, this, &ImageEditor::selectBlurTool);
