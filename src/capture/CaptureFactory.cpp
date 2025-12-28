@@ -1,4 +1,5 @@
 #include "CaptureFactory.h"
+#include "strategies/KWinCaptureStrategy.h"
 #include "strategies/WaylandCaptureStrategy.h"
 #include "strategies/NativeCaptureStrategy.h"
 #include <QDebug>
@@ -12,6 +13,16 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
     }
 
     switch (type) {
+        case StrategyType::KWin: {
+            auto strategy = std::make_unique<KWinCaptureStrategy>(parent);
+            if (strategy->isAvailable()) {
+                qDebug() << "Created KWin capture strategy";
+                return strategy;
+            }
+            qWarning() << "KWin strategy requested but not available, falling back to Wayland";
+        }
+        [[fallthrough]];
+
         case StrategyType::Wayland: {
             auto strategy = std::make_unique<WaylandCaptureStrategy>(parent);
             if (strategy->isAvailable()) {
@@ -19,7 +30,6 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
                 return strategy;
             }
             qWarning() << "Wayland strategy requested but not available, falling back to native";
-            // Fall through to native
         }
         [[fallthrough]];
 
@@ -37,7 +47,12 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
 
 CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()
 {
-    // Prefer Wayland if we're in a Wayland session and it's available
+    // Prefer KWin on KDE Plasma (direct compositor access, no portal dialogs)
+    if (KWinCaptureStrategy::isKWinAvailable()) {
+        return StrategyType::KWin;
+    }
+
+    // Fall back to Wayland portal if we're in a Wayland session
     if (WaylandCaptureStrategy::isWaylandSession()) {
         auto waylandStrategy = std::make_unique<WaylandCaptureStrategy>();
         if (waylandStrategy->isAvailable()) {
@@ -52,6 +67,9 @@ CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()
 bool CaptureFactory::isStrategyAvailable(StrategyType type)
 {
     switch (type) {
+        case StrategyType::KWin: {
+            return KWinCaptureStrategy::isKWinAvailable();
+        }
         case StrategyType::Wayland: {
             auto strategy = std::make_unique<WaylandCaptureStrategy>();
             return strategy->isAvailable();

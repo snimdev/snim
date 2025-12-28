@@ -1,2 +1,238 @@
-cmake-build-debug/
+# ============================================
+# Niceshot .gitignore
+# ============================================
+
+# ============================================
+# Build artifacts
+# ============================================
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+
+# ============================================
+# Qt/MOC generated files
+# ============================================
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qm
+*.pro.user
+*.pro.user.*
+*.autosave
+
+# ============================================
+# IDE/Editor files
+# ============================================
+# CLion
 .idea/
+cmake-build-*/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Qt Creator
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+*.moc
+*.obj
+*.orig
+*.rej
+*.so
+*.so.*
+*_plugin_import.cpp
+.qmake.cache
+.qmake.stash
+*.pro.user*
+
+# Vim
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Emacs
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# Deployment/Distribution artifacts
+# ============================================
+deploy/niceshot-portable/
+deploy/*.tar.gz
+deploy/*.AppImage
+deploy/*.deb
+deploy/*.rpm
+deploy/*.flatpak
+deploy/AppDir/
+deploy/build-dir/
+deploy/repo/
+
+# AppImage tools
+deploy/linuxdeploy*.AppImage
+deploy/appimagecraft*
+
+# ============================================
+# Temporary/Cache files
+# ============================================
+*.o
+*.a
+*.la
+*.lo
+*.slo
+*.obj
+*.gch
+*.pch
+*.so
+*.dylib
+*.dll
+*.lai
+*.class
+
+# Core dumps
+core
+core.*
+
+# Backup files
+*.bak
+*.backup
+*~
+*.old
+
+# ============================================
+# OS-specific files
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.Trash-*
+
+# ============================================
+# Package managers
+# ============================================
+# Conan
+conanfile.txt.user
+conanbuildinfo.*
+conaninfo.txt
+graph_info.json
+
+# vcpkg
+vcpkg_installed/
+
+# ============================================
+# Documentation build artifacts
+# (Keep source .md files, ignore generated docs)
+# ============================================
+docs/_build/
+docs/html/
+docs/latex/
+*.pdf
+# BUT: Don't ignore documentation markdown files!
+# (These are all in root, not in build dirs)
+
+# ============================================
+# Testing artifacts
+# ============================================
+Testing/
+CTestTestfile.cmake
+DartConfiguration.tcl
+
+# ============================================
+# Logs and databases
+# ============================================
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# ============================================
+# User-specific files
+# (Don't commit personal configs)
+# ============================================
+.user
+*.user
+local_config.txt
+secrets.txt
+.env
+.env.local
+
+# ============================================
+# Misc unnecessary files
+# ============================================
+*.stackdump
+*.lnk
+
+# Compressed files (unless specifically needed)
+*.zip
+*.7z
+*.gz
+*.bz2
+*.xz
+# BUT: Allow distribution archives in releases/
+!releases/*.tar.gz
+!releases/*.zip
+
+# ============================================
+# Personal notes/drafts (your temporary files)
+# ============================================
+TODO.txt
+NOTES.txt
+SCRATCH.md
+DRAFT*.md
+WIP*.md
+DRAWINGGRAPHICSVIEW_REFACTORING.md
+
+# ============================================
+# EXCEPTIONS - Files to KEEP
+# ============================================
+
+# Keep important documentation
+!README.md
+!LICENSE
+!CLAUDE.md
+!docs/
+
+# Keep deployment scripts and configs
+!deploy/*.sh
+!deploy/*.yml
+!deploy/*.md
+!deploy/licenses/
+
+# Keep project metadata
+!.gitignore
+!.clang-format
+!CMakeLists.txt
+
+# Keep source code
+!src/
+!main.cpp
+!resources/
+
+# ============================================
+# End of .gitignore
+# ============================================

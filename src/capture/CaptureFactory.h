@@ -14,6 +14,7 @@ class CaptureFactory
 public:
     enum class StrategyType {
         Auto,           // Automatically select best available strategy
+        KWin,           // KWin ScreenShot2 D-Bus (preferred on KDE Plasma)
         Wayland,        // Force Wayland strategy
         Native          // Force native Qt strategy
     };

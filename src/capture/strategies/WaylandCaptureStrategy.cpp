@@ -79,10 +79,8 @@ namespace Capture {
     void WaylandCaptureStrategy::captureArea() {
         m_captureArea = true;
 
-        // For area capture, try fallback tools first, then portal
-        //if (useFallbackCapture()) {
-        //    return; // Success with fallback tool
-        //}
+        // For area capture, go straight to portal (fallback tools like
+        // spectacle open their own editor instead of returning the image).
 
         // Use portal for area selection if fallback failed
         if (isPortalAvailable()) {
@@ -152,13 +150,8 @@ namespace Capture {
             return false;
         }
 
-        // Setup event loop for synchronous operation
-        QEventLoop loop;
-        QPixmap result;
-        bool success = false;
-
         // Connect Response signal BEFORE making the call
-        QDBusConnection::sessionBus().connect(
+        bool connected = QDBusConnection::sessionBus().connect(
             "org.freedesktop.portal.Desktop",
             requestPath,
             "org.freedesktop.portal.Request",
@@ -167,10 +160,15 @@ namespace Capture {
             SLOT(handlePortalResponse(uint, QVariantMap))
         );
 
+        if (!connected) {
+            qWarning() << "Failed to connect to portal Response signal on path:" << requestPath;
+            return false;
+        }
+
         // Prepare options
         QVariantMap options;
         options["handle_token"] = token;
-        options["interactive"] = false; // Minimize dialogs
+        options["interactive"] = true; // Required by newer portal backends (Fedora 42+)
         options["modal"] = false;
 
         // Call Screenshot with empty parent window
@@ -180,7 +178,7 @@ namespace Capture {
             QVariant::fromValue(options)
         );
 
-        if (reply.isValid()) {
+        if (!reply.isValid()) {
             qDebug() << "Screenshot call failed:" << reply.error().message();
             return false;
         }
@@ -195,8 +193,8 @@ namespace Capture {
         uint status,
         QVariantMap results) {
         if (status != 0) {
-            qDebug() << "Portal request cancelled or failed";
-            emit screenshotFailed("Portal request cancelled or failed");
+            qDebug() << "Portal request cancelled or failed, status:" << status;
+            emit screenshotFailed(QString("Portal request failed (status: %1)").arg(status));
             return;
         }
 

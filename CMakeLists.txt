@@ -11,6 +11,7 @@ find_package(Qt6 COMPONENTS
         Gui
         Widgets
         DBus
+        Concurrent
         REQUIRED)
 
 # Optional Tesseract OCR support for text sniping feature
@@ -78,6 +79,8 @@ add_executable(Niceshot
         src/capture/strategies/NativeCaptureStrategy.h
         src/capture/strategies/WaylandCaptureStrategy.cpp
         src/capture/strategies/WaylandCaptureStrategy.h
+        src/capture/strategies/KWinCaptureStrategy.cpp
+        src/capture/strategies/KWinCaptureStrategy.h
 
         # Image editor functionality
         src/editor/ImageEditor.cpp
@@ -151,6 +154,7 @@ target_link_libraries(Niceshot
         Qt::Gui
         Qt::Widgets
         Qt::DBus
+        Qt::Concurrent
 )
 
 # Link Tesseract if available
