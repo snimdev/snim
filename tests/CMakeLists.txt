@@ -21,6 +21,7 @@ set(NICESHOT_TESTS
         tst_recordingcontroller
         tst_pcmmixbuffer
         tst_trimstate
+        tst_gifparams
 )
 
 foreach(test_name ${NICESHOT_TESTS})

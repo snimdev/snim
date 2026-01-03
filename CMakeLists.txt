@@ -177,6 +177,7 @@ add_library(niceshot_lib STATIC
         src/editor/video/VideoEditor.cpp
         src/editor/video/VideoEditor.h
         src/editor/video/VideoExporter.h
+        src/editor/video/GifParams.h
         src/editor/video/StubVideoExporter.cpp
         src/editor/video/StubVideoExporter.h
 
@@ -240,7 +241,8 @@ if(APPLE)
             "-framework ScreenCaptureKit"
             "-framework AVFoundation"
             "-framework CoreMedia"
-            "-framework CoreVideo")
+            "-framework CoreVideo"
+            "-framework ImageIO")   # animated-GIF encode in the trim editor
     # Qt ships the macOS permission backends as STATIC plugins (libqdarwin*permission.a),
     # so they must be imported into the executable — otherwise the QPermission API has no
     # backend at runtime and QCamera reports "Could not find permission plugin for

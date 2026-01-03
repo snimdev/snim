@@ -1,6 +1,7 @@
 #include "editor/video/VideoEditor.h"
 #include "editor/video/TrimTimeline.h"
 #include "editor/video/VideoExporter.h"
+#include "editor/video/GifParams.h"
 #include "core/IconUtil.h"
 #include "core/Settings.h"
 
@@ -95,6 +96,10 @@ void VideoEditor::setupUi()
     m_copyAction->setShortcut(QKeySequence::Copy);
     m_copyAction->setToolTip(tr("Save into the recordings folder and copy the file to the clipboard"));
     connect(m_copyAction, &QAction::triggered, this, &VideoEditor::onCopy);
+
+    m_gifAction = m_toolbar->addAction(themedIcon(":/icons/icons/export-gif.svg"), tr("Export as GIF…"));
+    m_gifAction->setToolTip(tr("Export the trimmed range as an animated GIF"));
+    connect(m_gifAction, &QAction::triggered, this, &VideoEditor::onExportGif);
 
     auto *spacer = new QWidget(m_toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -257,6 +262,11 @@ QString VideoEditor::suggestedFileName() const
     return name;
 }
 
+QString VideoEditor::suggestedGifFileName() const
+{
+    return gifFileNameFor(suggestedFileName());   // swap the extension for .gif
+}
+
 QString VideoEditor::recordingsDir() const
 {
     const QString dir = Core::Settings::recordingFolder();
@@ -286,6 +296,8 @@ VideoExporter *VideoEditor::exporter()
                 this, &VideoEditor::onExporterFinished);
         connect(m_exporter.get(), &VideoExporter::failed,
                 this, &VideoEditor::onExporterFailed);
+        connect(m_exporter.get(), &VideoExporter::progress,
+                this, &VideoEditor::onExportProgress);
     }
     return m_exporter.get();
 }
@@ -294,6 +306,7 @@ void VideoEditor::setBusy(bool busy)
 {
     m_saveAction->setEnabled(!busy);
     m_copyAction->setEnabled(!busy);
+    m_gifAction->setEnabled(!busy && m_previewOk);   // GIF needs a decodable source
     m_discardAction->setEnabled(!busy);
     m_playPauseAction->setEnabled(!busy && m_previewOk);
     m_timeline->setInteractive(!busy && m_previewOk);
@@ -363,6 +376,38 @@ void VideoEditor::onCopy()
     exporter()->trim(m_tempPath, dest, state.inMs(), state.outMs());   // straight to dest
 }
 
+void VideoEditor::onExportGif()
+{
+    if (!m_previewOk)
+        return;
+    const QString dest = QFileDialog::getSaveFileName(
+        this, tr("Export GIF"), recordingsDir() + "/" + suggestedGifFileName(),
+        tr("GIF (*.gif)"));
+    if (dest.isEmpty())
+        return;                                   // cancelled: keep editing
+
+    if (!exporter()->isAvailable()) {
+        QMessageBox::warning(this, tr("GIF Unavailable"),
+                             tr("Exporting to GIF is not supported on this platform."));
+        return;
+    }
+
+    // GIF always re-encodes (no fast-path move): export the full clip when untrimmed.
+    const TrimState &state = m_timeline->state();
+    const qint64 in = state.isTrimmed() ? state.inMs() : 0;
+    const qint64 out = state.isTrimmed() ? state.outMs() : state.durationMs();
+
+    m_pending = Pending::ExportGif;
+    m_pendingDest = dest;
+    m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+                       + QStringLiteral("/Niceshot_gif_")
+                       + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
+                       + QStringLiteral(".gif");
+    setBusy(true);
+    m_player->pause();
+    exporter()->toGif(m_tempPath, m_exportTempPath, in, out, GifParams{});
+}
+
 void VideoEditor::putOnClipboard(const QString &path)
 {
     auto *mime = new QMimeData();   // clipboard takes ownership
@@ -391,6 +436,20 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
         putOnClipboard(exportedPath);             // already at its final destination
         QFile::remove(m_tempPath);
         finishSaved(exportedPath);
+    } else if (pending == Pending::ExportGif) {
+        // Mirror SaveMove exactly: move the GIF temp to the destination, drop the
+        // source MP4 temp, clear m_exportTempPath on BOTH the success and failure
+        // branches so a later close()/discard never re-removes a stale path.
+        if (moveFileTo(exportedPath, m_pendingDest)) {
+            QFile::remove(m_tempPath);
+            m_exportTempPath.clear();
+            finishSaved(m_pendingDest);
+        } else {
+            QFile::remove(exportedPath);
+            m_exportTempPath.clear();
+            QMessageBox::warning(this, tr("Export Failed"),
+                                 tr("Could not save the GIF to %1").arg(m_pendingDest));
+        }
     }
 }
 
@@ -403,7 +462,13 @@ void VideoEditor::onExporterFailed(const QString &error)
         m_exportTempPath.clear();
     }
     // Keep the original temp so the user can retry, save untrimmed, or discard.
-    QMessageBox::warning(this, tr("Trim Failed"), error);
+    QMessageBox::warning(this, tr("Export Failed"), error);
+}
+
+void VideoEditor::onExportProgress(int done, int total)
+{
+    if (m_pending == Pending::ExportGif && total > 0)
+        m_statusLabel->setText(tr("Encoding GIF… %1/%2").arg(done).arg(total));
 }
 
 void VideoEditor::closeEvent(QCloseEvent *event)

@@ -44,15 +44,17 @@ protected:
 private slots:
     void onSave();
     void onCopy();
+    void onExportGif();
     void togglePlayPause();
     void onDurationChanged(qint64 durationMs);
     void onPositionChanged(qint64 positionMs);
     void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
     void onExporterFinished(const QString &exportedPath);
     void onExporterFailed(const QString &error);
+    void onExportProgress(int done, int total);
 
 private:
-    enum class Pending { None, SaveMove, Copy };
+    enum class Pending { None, SaveMove, Copy, ExportGif };
 
     void setupUi();
     void previewFailed();
@@ -61,6 +63,7 @@ private:
     void updatePlayPauseIcon();
     [[nodiscard]] QIcon themedIcon(const QString &svgPath) const;
     [[nodiscard]] QString suggestedFileName() const;
+    [[nodiscard]] QString suggestedGifFileName() const;
     [[nodiscard]] QString recordingsDir() const;     // ensured to exist
     bool moveFileTo(const QString &source, const QString &dest);
     void finishSaved(const QString &finalPath);      // mark saved, notify, close
@@ -84,6 +87,7 @@ private:
     QAction *m_playPauseAction = nullptr;
     QAction *m_saveAction = nullptr;
     QAction *m_copyAction = nullptr;
+    QAction *m_gifAction = nullptr;
     QAction *m_discardAction = nullptr;
     std::unique_ptr<VideoExporter> m_exporter;
 };

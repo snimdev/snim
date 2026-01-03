@@ -18,6 +18,15 @@ void StubVideoExporter::trim(const QString &input, const QString &output,
     }, Qt::QueuedConnection);
 }
 
+void StubVideoExporter::toGif(const QString &input, const QString &output,
+                              qint64 inMs, qint64 outMs, const GifParams &params)
+{
+    Q_UNUSED(input); Q_UNUSED(output); Q_UNUSED(inMs); Q_UNUSED(outMs); Q_UNUSED(params);
+    QMetaObject::invokeMethod(this, [this] {
+        emit failed(tr("Exporting to GIF is not supported on this platform."));
+    }, Qt::QueuedConnection);
+}
+
 std::unique_ptr<VideoExporter> VideoExporter::create(QObject *parent)
 {
 #ifdef Q_OS_MACOS

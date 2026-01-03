@@ -23,12 +23,15 @@ public:
 
     void trim(const QString &input, const QString &output,
               qint64 inMs, qint64 outMs) override;
+    void toGif(const QString &input, const QString &output,
+               qint64 inMs, qint64 outMs, const GifParams &params) override;
     void cancel() override;
     [[nodiscard]] bool isAvailable() const override { return true; }
 
-    // Backend hook: called on the Qt thread once the AVFoundation export ends
-    // (success, cancel, or failure). Not for general use.
+    // Backend hooks: called on the Qt thread. completeExport ends an export
+    // (success/cancel/failure); reportProgress feeds the GIF status. Not for general use.
     void completeExport(bool ok, const QString &path, const QString &error);
+    void reportProgress(int done, int total);
 
     struct Impl;   // defined in the .mm (holds the AVAssetExportSession)
 
