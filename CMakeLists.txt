@@ -56,12 +56,16 @@ else()
     message(STATUS "  Install with: sudo dnf install tesseract-devel")
 endif()
 
-add_executable(Niceshot
-        main.cpp
-
+# All cross-platform sources live in a static library so both the executable and
+# the test suite can link them. main.cpp + the .app bundle stay on the executable.
+add_library(niceshot_lib STATIC
         # Core application files
         src/core/ScreenshotApp.cpp
         src/core/ScreenshotApp.h
+        src/core/Settings.cpp
+        src/core/Settings.h
+        src/core/IconUtil.cpp
+        src/core/IconUtil.h
         src/core/ScreenshotDialog.cpp
         src/core/ScreenshotDialog.h
         src/core/SettingsDialog.cpp
@@ -83,6 +87,10 @@ add_executable(Niceshot
         # Image editor functionality
         src/editor/ImageEditor.cpp
         src/editor/ImageEditor.h
+        src/editor/ToolRegistry.cpp
+        src/editor/ToolRegistry.h
+        src/editor/commands/EditorCommands.cpp
+        src/editor/commands/EditorCommands.h
         src/editor/DrawingGraphicsView.cpp
         src/editor/DrawingGraphicsView.h
         src/editor/tools/ArrowTool.cpp
@@ -105,6 +113,7 @@ add_executable(Niceshot
         src/editor/tools/BlurTool.h
         src/editor/tools/BackdropItem.cpp
         src/editor/tools/BackdropItem.h
+        src/editor/tools/BackdropMemento.h
         src/editor/tools/TextTool.cpp
         src/editor/tools/TextTool.h
         src/editor/Layer.cpp
@@ -141,25 +150,29 @@ add_executable(Niceshot
         src/ocr/OCRService.h
         src/ocr/OCRResult.h
 
-        # Resources
-        resources/resources.qrc
 )
+
+# The executable: entry point + resources only. The qrc is kept on the exe (and
+# on the few tests that need it), NOT in the static lib, so AUTORCC's resource
+# initializer isn't stripped out of the archive.
+add_executable(Niceshot main.cpp resources/resources.qrc)
+target_link_libraries(Niceshot PRIVATE niceshot_lib)
 
 # Platform-specific window enumeration for the interactive window picker.
 # macOS uses CGWindowList (Objective-C++); other platforms get a stub that
 # returns no windows, so window-pick falls back to the screen under the cursor.
 if(APPLE)
     enable_language(OBJCXX)
-    target_sources(Niceshot PRIVATE
+    target_sources(niceshot_lib PRIVATE
             src/capture/WindowEnumerator_mac.mm
             src/capture/MacOverlay.h
             src/capture/MacOverlay.mm)
-    target_link_libraries(Niceshot
+    target_link_libraries(niceshot_lib PUBLIC
             "-framework CoreGraphics"
             "-framework CoreFoundation"
             "-framework AppKit")
 else()
-    target_sources(Niceshot PRIVATE src/capture/WindowEnumerator_stub.cpp)
+    target_sources(niceshot_lib PRIVATE src/capture/WindowEnumerator_stub.cpp)
 endif()
 
 # Linux-only capture strategies. These rely on Linux desktop APIs that don't
@@ -168,7 +181,7 @@ endif()
 # interface. On other platforms (e.g. macOS) the cross-platform Qt-based
 # NativeCaptureStrategy is used instead.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_sources(Niceshot PRIVATE
+    target_sources(niceshot_lib PRIVATE
             src/capture/strategies/WaylandCaptureStrategy.cpp
             src/capture/strategies/WaylandCaptureStrategy.h
             src/capture/strategies/KWinCaptureStrategy.cpp
@@ -176,13 +189,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 endif()
 
-# Set include directories for the organized structure
-target_include_directories(Niceshot PRIVATE
+# Set include directories for the organized structure. PUBLIC so the executable
+# and the tests inherit the `src/`-rooted include path every #include relies on.
+target_include_directories(niceshot_lib PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(Niceshot
+target_link_libraries(niceshot_lib PUBLIC
         Qt::Core
         Qt::Gui
         Qt::Widgets
@@ -193,15 +207,16 @@ target_link_libraries(Niceshot
         Qt::Svg
 )
 
-# Link Tesseract if available
+# Link Tesseract if available (PUBLIC link: OCRService.o references its symbols and
+# HAVE_TESSERACT is a global define, so consumers — exe and tests — must link it).
 if(TESSERACT_AVAILABLE)
-    target_include_directories(Niceshot PRIVATE ${TESSERACT_INCLUDE_DIRS})
+    target_include_directories(niceshot_lib PRIVATE ${TESSERACT_INCLUDE_DIRS})
     # pkg-config reports library names (-ltesseract ...) without their location;
     # add the reported library dirs so the linker can find them (needed on
     # macOS/Homebrew where they live under a non-default prefix). Empty for the
     # manual-detection fallback, which already uses absolute library paths.
-    target_link_directories(Niceshot PRIVATE ${TESSERACT_LIBRARY_DIRS})
-    target_link_libraries(Niceshot ${TESSERACT_LIBRARIES})
+    target_link_directories(niceshot_lib PUBLIC ${TESSERACT_LIBRARY_DIRS})
+    target_link_libraries(niceshot_lib PUBLIC ${TESSERACT_LIBRARIES})
 endif()
 
 # ---------------------------------------------------------------------------
@@ -266,4 +281,14 @@ if(APPLE)
     else()
         message(WARNING "macdeployqt not found - the `deploy` target will be unavailable")
     endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# Tests (Qt Test + CTest). Configure with -DNICESHOT_BUILD_TESTS=OFF to skip.
+# Run with: ctest --test-dir <build> --output-on-failure
+# ---------------------------------------------------------------------------
+option(NICESHOT_BUILD_TESTS "Build the Qt Test suite" ON)
+if(NICESHOT_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
 endif()

@@ -26,6 +26,9 @@ public:
 
 signals:
     void savePresetRequested();   // emitted by the backdrop panel's "Save as preset…" button
+    // A control changed a tool property. ImageEditor turns this into an undoable
+    // command (kept undo-agnostic here so the widget stays reusable).
+    void propertyChangeRequested(Tools::ITool *tool, const QString &propertyId, const QVariant &value);
 
 private:
     void buildPropertiesUI(Layer *layer);

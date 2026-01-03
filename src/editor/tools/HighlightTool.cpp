@@ -140,6 +140,24 @@ void HighlightTool::setWidth(qreal width)
     }
 }
 
+QGraphicsItem* HighlightTool::clone() const
+{
+    auto* copy = new HighlightTool();
+    copy->applyStyleFrom(this);
+    for (const QPointF &p : m_points)
+        copy->addPoint(p);
+    copy->finishPath();
+    return copy;
+}
+
+void HighlightTool::applyStyleFrom(const ITool* other)
+{
+    if (const auto* o = dynamic_cast<const HighlightTool*>(other)) {
+        setColor(o->color());
+        setWidth(o->width());
+    }
+}
+
 QVariant HighlightTool::itemChange(GraphicsItemChange change, const QVariant &value)
 {
     if (change == ItemSelectedChange) {

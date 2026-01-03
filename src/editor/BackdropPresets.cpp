@@ -1,6 +1,6 @@
 #include "BackdropPresets.h"
+#include "core/Settings.h"
 
-#include <QSettings>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -9,9 +9,6 @@
 namespace ImageEditor {
 
 namespace {
-    const char *kPresetsKey = "editor/backdropPresets";
-    const char *kDefaultKey = "editor/backdropDefault";
-
     QVector<BackdropPreset> builtins()
     {
         QVector<BackdropPreset> v;
@@ -30,8 +27,7 @@ namespace {
     QVector<BackdropPreset> userPresets()
     {
         QVector<BackdropPreset> v;
-        QSettings s;
-        const QByteArray json = s.value(kPresetsKey).toString().toUtf8();
+        const QByteArray json = Core::Settings::backdropPresetsJson().toUtf8();
         const QJsonArray arr = QJsonDocument::fromJson(json).array();
         for (const QJsonValue &e : arr) {
             const QJsonObject o = e.toObject();
@@ -49,8 +45,8 @@ namespace {
             o["config"] = QJsonObject::fromVariantMap(p.config);
             arr.append(o);
         }
-        QSettings s;
-        s.setValue(kPresetsKey, QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)));
+        Core::Settings::setBackdropPresetsJson(
+            QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)));
     }
 }
 
@@ -101,14 +97,12 @@ QVariantMap BackdropPresets::configFor(const QString &name)
 
 void BackdropPresets::setDefault(const QString &name)
 {
-    QSettings s;
-    s.setValue(kDefaultKey, name);
+    Core::Settings::setBackdropDefaultName(name);
 }
 
 QString BackdropPresets::defaultName()
 {
-    QSettings s;
-    return s.value(kDefaultKey).toString();
+    return Core::Settings::backdropDefaultName();
 }
 
 QVariantMap BackdropPresets::defaultConfig()

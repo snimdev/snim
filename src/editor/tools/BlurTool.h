@@ -7,6 +7,7 @@
 #include <QList>
 #include <QPointF>
 #include <QPixmap>
+#include <QTimer>
 
 namespace ImageEditor::Tools {
 
@@ -32,6 +33,8 @@ public:
     // ITool interface for dynamic properties
     [[nodiscard]] QList<ToolProperty> getProperties() const override;
     void setProperty(const QString& propertyId, const QVariant& value) override;
+    [[nodiscard]] QGraphicsItem* clone() const override;
+    void applyStyleFrom(const ITool* other) override;   // copies blur radius + brush width
 
     // Path manipulation
     void addPoint(const QPointF &point);
@@ -58,6 +61,7 @@ protected:
 private:
     void updateGeometry();
     void generateBlurredPixmap();
+    void scheduleRegeneration();   // coalesced re-blur after the item is moved
     QPainterPath createStrokePath() const;
     QImage applyBoxBlur(const QImage& source, int radius);
 
@@ -70,8 +74,11 @@ private:
     qreal m_brushWidth;     // Width of the blur brush
 
     QPixmap m_sourcePixmap;      // Original image
-    QPixmap m_blurredPixmap;     // Blurred result to display
+    QPixmap m_blurredPixmap;     // Blurred result to display (a patch, DPR-tagged)
+    QPointF m_blurPatchOffset;   // item-local top-left where the patch is blitted
     bool m_needsUpdate;
+
+    QTimer *m_regenTimer = nullptr;  // coalesces re-blurring while the item is dragged
 };
 
 } // namespace ImageEditor::Tools

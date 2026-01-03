@@ -86,11 +86,31 @@ void TextTool::setProperty(const QString& propertyId, const QVariant& value)
     emit textChanged();
 }
 
-void TextTool::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
+QGraphicsItem* TextTool::clone() const
+{
+    auto* copy = new TextTool(toPlainText());
+    copy->applyStyleFrom(this);
+    return copy;
+}
+
+void TextTool::applyStyleFrom(const ITool* other)
+{
+    if (const auto* o = dynamic_cast<const TextTool*>(other)) {
+        setDefaultTextColor(o->defaultTextColor());
+        setFont(o->font());
+    }
+}
+
+void TextTool::startEditing()
 {
     setTextInteractionFlags(Qt::TextEditorInteraction);
     setFlag(QGraphicsItem::ItemIsMovable, false);
     setFocus();
+}
+
+void TextTool::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
+{
+    startEditing();
     QGraphicsTextItem::mouseDoubleClickEvent(event);
 }
 
@@ -100,33 +120,16 @@ void TextTool::focusOutEvent(QFocusEvent *event)
     setFlag(QGraphicsItem::ItemIsMovable, true);
     setSelected(false); // Deselect the text item when editing is finished
     emit textChanged();
+    emit editingFinished();
     QGraphicsTextItem::focusOutEvent(event);
 }
 
 void TextTool::wheelEvent(QGraphicsSceneWheelEvent *event)
 {
-    if (event->modifiers() & Qt::ControlModifier && isSelected()) {
-        QFont currentFont = font();
-        qreal currentSize = currentFont.pointSizeF();
-
-        if (currentSize <= 0) {
-            currentSize = currentFont.pixelSize();
-            if (currentSize <= 0) {
-                currentSize = 12;
-            }
-        }
-
-        qreal sizeChange = event->delta() / 120.0;
-        qreal newSize = currentSize + sizeChange;
-        newSize = qMax(6.0, qMin(72.0, newSize));
-
-        currentFont.setPointSizeF(newSize);
-        setFont(currentFont);
-        emit textChanged();
-        event->accept();
-    } else {
-        QGraphicsTextItem::wheelEvent(event);
-    }
+    // ⌘/Ctrl+wheel font resize is owned by DrawingGraphicsView (it consumes the
+    // event and routes the change through an undoable PropertyChangeCommand on
+    // "fontSize"), so the item only sees ordinary wheel events here.
+    QGraphicsTextItem::wheelEvent(event);
 }
 
 } // namespace ImageEditor

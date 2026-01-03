@@ -142,7 +142,7 @@ void LayerProperties::setLayer(Layer *layer)
 void LayerProperties::rebuildLayer(Layer *layer)
 {
     // Force a fresh build (setLayer caches per-layer widgets, so a tool whose
-    // property set changes dynamically — e.g. the backdrop fill — must clear first).
+    // property set changes dynamically, e.g. the backdrop fill, must clear first).
     if (!layer)
         return;
     removeLayer(layer);
@@ -200,7 +200,7 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
         connect(swatch, &QPushButton::clicked, this, [this, tool, swatch, style, p = prop]() {
             const QColor color = QColorDialog::getColor(p.value.value<QColor>(), this, "Select Color");
             if (color.isValid()) {
-                tool->setProperty(p.id, color);
+                emit propertyChangeRequested(tool, p.id, color);
                 swatch->setStyleSheet(style.arg(color.name()));
             }
         });
@@ -218,8 +218,8 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
         QFont valFont = valueLabel->font();
         valFont.setPointSize(valFont.pointSize() - 1);
         valueLabel->setFont(valFont);
-        connect(slider, &QSlider::valueChanged, this, [tool, valueLabel, p = prop](int value) {
-            tool->setProperty(p.id, value);
+        connect(slider, &QSlider::valueChanged, this, [this, tool, valueLabel, p = prop](int value) {
+            emit propertyChangeRequested(tool, p.id, value);
             valueLabel->setText(QString::number(value));
         });
         sliderRow->addWidget(slider, 1);
@@ -230,8 +230,8 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
         auto *comboBox = new QComboBox(parent);
         comboBox->addItems(prop.options.value("items").toStringList());
         comboBox->setCurrentText(prop.value.toString());
-        connect(comboBox, &QComboBox::currentTextChanged, this, [tool, p = prop](const QString& text) {
-            tool->setProperty(p.id, text);
+        connect(comboBox, &QComboBox::currentTextChanged, this, [this, tool, p = prop](const QString& text) {
+            emit propertyChangeRequested(tool, p.id, text);
         });
         propLayout->addWidget(comboBox);
 
@@ -249,7 +249,7 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
             connect(sw, &QPushButton::clicked, this, [this, tool, sw, swatchStyle, subId, initial]() {
                 const QColor c = QColorDialog::getColor(initial, this, "Select Color");
                 if (c.isValid()) {
-                    tool->setProperty(subId, c);
+                    emit propertyChangeRequested(tool, subId, c);
                     sw->setStyleSheet(swatchStyle.arg(c.name()));
                 }
             });
@@ -306,8 +306,8 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
             btn->setChecked(items[i] == current);
             group->addButton(btn);
             const QString name = items[i];
-            connect(btn, &QToolButton::clicked, this, [tool, p = prop, name]() {
-                tool->setProperty(p.id, name);
+            connect(btn, &QToolButton::clicked, this, [this, tool, p = prop, name]() {
+                emit propertyChangeRequested(tool, p.id, name);
             });
             flow->addWidget(btn);
         }

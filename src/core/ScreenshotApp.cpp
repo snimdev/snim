@@ -1,9 +1,9 @@
 #include "ScreenshotApp.h"
 #include "SettingsDialog.h"
 #include "TextSnipCapture.h"
+#include "core/IconUtil.h"
 #include "../capture/CaptureFactory.h"
 #include "../capture/strategies/CaptureStrategy.h"
-#include <QPainter>
 #include <QTimer>
 #include <QKeyEvent>
 #include <QMessageBox>
@@ -53,35 +53,23 @@ namespace Core {
     }
 
     QIcon ScreenshotApp::createThemedTrayIcon(const QString &iconPath) {
-        // Detect if we're in dark mode by checking the palette
-        QPalette palette = QApplication::palette();
-        QColor windowColor = palette.color(QPalette::Window);
-        bool isDarkMode = windowColor.lightness() < 128;
-
-        // Load the SVG file and replace currentColor with appropriate color
-        QFile file(iconPath);
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            qWarning() << "Failed to open tray icon file:" << iconPath;
-            return QIcon();
-        }
-
-        QString svgContent = QString::fromUtf8(file.readAll());
-        file.close();
-
-        // For system tray, use colors that work well on both light and dark backgrounds
-        // On macOS/Windows, system tray colors are inverted automatically, so we use darker colors
-        // On Linux, we need to detect the theme
-        QString iconColor = isDarkMode ? "#e0e0e0" : "#1a1a1a";
-        svgContent.replace("currentColor", iconColor);
-
-        // Save modified SVG to temporary buffer and create QPixmap
-        QByteArray svgData = svgContent.toUtf8();
-
-        // Use QPixmap to load the SVG data directly
-        QPixmap pixmap;
-        pixmap.loadFromData(svgData, "SVG");
-
-        return QIcon(pixmap);
+#ifdef Q_OS_MACOS
+        // The macOS menu bar is translucent and its shade varies by display, wallpaper,
+        // and appearance, so a fixed icon colour can't track it (hence "black on the
+        // built-in screen, white on an external one"). Render the glyph opaque and mark
+        // the QIcon as a template/mask: macOS then tints it to match the menu bar and
+        // highlights it when the menu is open, like a native status item. Only the alpha
+        // matters for a mask, so the colour is moot.
+        QIcon icon = themedSvgIcon(iconPath, QColor(Qt::black), 22);
+        icon.setIsMask(true);
+        return icon;
+#else
+        // Other platforms have no template-image concept: pick a tone from the palette.
+        const QColor windowColor = QApplication::palette().color(QPalette::Window);
+        const bool isDarkMode = windowColor.lightness() < 128;
+        const QColor iconColor(isDarkMode ? "#e0e0e0" : "#1a1a1a");
+        return themedSvgIcon(iconPath, iconColor, 22);
+#endif
     }
 
     void ScreenshotApp::setupSystemTray() {

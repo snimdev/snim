@@ -267,6 +267,21 @@ QList<ToolProperty> ArrowTool::getProperties() const
     return properties;
 }
 
+QGraphicsItem* ArrowTool::clone() const
+{
+    auto* copy = new ArrowTool(m_startPoint, m_endPoint);
+    copy->applyStyleFrom(this);
+    return copy;
+}
+
+void ArrowTool::applyStyleFrom(const ITool* other)
+{
+    if (const auto* o = dynamic_cast<const ArrowTool*>(other)) {
+        setPen(o->pen());
+        setArrowHeadType(o->arrowHeadType());
+    }
+}
+
 void ArrowTool::setProperty(const QString& propertyId, const QVariant& value)
 {
     if (propertyId == "color" && value.canConvert<QColor>()) {

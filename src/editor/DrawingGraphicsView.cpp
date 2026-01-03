@@ -1,5 +1,6 @@
 #include "DrawingGraphicsView.h"
 #include "interactions/IDrawingInteraction.h"
+#include "tools/TextTool.h"
 #include <QGraphicsScene>
 #include <QTransform>
 #include <QPainter>
@@ -31,7 +32,7 @@ void DrawingGraphicsView::fitContent()
         return;
 
     fitInView(r, Qt::KeepAspectRatio);
-    // Never upscale past 100% — small captures should stay crisp and centered.
+    // Never upscale past 100%; small captures should stay crisp and centered.
     if (transform().m11() > 1.0) {
         resetTransform();
         centerOn(r.center());
@@ -130,11 +131,19 @@ void DrawingGraphicsView::wheelEvent(QWheelEvent *event)
 {
     // Only handle zoom when Ctrl key is pressed
     if (event->modifiers() & Qt::ControlModifier) {
-        // Check if there's a text item under the mouse cursor that should handle font size changes
-        QGraphicsItem *itemUnderMouse = scene()->itemAt(mapToScene(event->position().toPoint()), QTransform());
-        if (itemUnderMouse && itemUnderMouse->type() == QGraphicsTextItem::Type && itemUnderMouse->isSelected()) {
-            // Let the text item handle the font size change
-            QGraphicsView::wheelEvent(event);
+        // ⌘/Ctrl+wheel resizes a text item: the one under the cursor, else the
+        // currently-selected text item. Emit a request that ImageEditor turns into an
+        // undoable PropertyChangeCommand("fontSize"); the view never mutates the model.
+        auto *target = dynamic_cast<Tools::TextTool*>(
+            scene()->itemAt(mapToScene(event->position().toPoint()), QTransform()));
+        if (!target) {
+            const auto selected = scene()->selectedItems();
+            for (QGraphicsItem *it : selected)
+                if (auto *t = dynamic_cast<Tools::TextTool*>(it)) { target = t; break; }
+        }
+        if (target) {
+            emit adjustTextSizeRequested(target, event->angleDelta().y() / 120);
+            event->accept();
             return;
         }
 

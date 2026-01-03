@@ -235,7 +235,7 @@ void AreaSelector::paintToolbar(QPainter &p)
         }
     }
 
-    // Hover tooltip for the focused button (painted ourselves — a real QToolTip
+    // Hover tooltip for the focused button (painted ourselves; a real QToolTip
     // would appear behind this shielding-level overlay window).
     if (m_hoveredButton >= 0 && m_hoveredButton < BtnCount) {
         QString label;
@@ -379,7 +379,7 @@ void AreaSelector::mouseMoveEvent(QMouseEvent *event)
         // so a plain click-inside stays a "confirm" gesture (handled on release).
         if (m_activeHandle == Handle::Interior && !m_interiorMoved &&
             (local - m_interiorPressLocal).manhattanLength() < kClickThreshold) {
-            // pending click — don't move yet
+            // pending click, don't move yet
         } else {
             if (m_activeHandle == Handle::Interior)
                 m_interiorMoved = true;
@@ -496,7 +496,7 @@ void AreaSelector::applyPeerState(const QRect &selectionVirt, int phase, int mod
                                   const QPoint &cursorVirt)
 {
     // Mirror a peer overlay (another monitor) so this one renders its portion of a
-    // spanning selection. Interaction members (m_activeHandle, etc.) are untouched —
+    // spanning selection. Interaction members (m_activeHandle, etc.) are untouched;
     // only the active overlay drives input.
     m_selectionVirt = selectionVirt;
     m_phase = static_cast<Phase>(phase);

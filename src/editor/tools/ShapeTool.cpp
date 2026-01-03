@@ -255,6 +255,15 @@ QList<ToolProperty> ShapeTool::getProperties() const
     return properties;
 }
 
+void ShapeTool::applyStyleFrom(const ITool* other)
+{
+    if (const auto* o = dynamic_cast<const ShapeTool*>(other)) {
+        setPen(o->pen());
+        setBrush(o->brush());
+        setOpacity(o->getOpacity());
+    }
+}
+
 void ShapeTool::setProperty(const QString& propertyId, const QVariant& value)
 {
     if (propertyId == "strokeColor" && value.canConvert<QColor>()) {

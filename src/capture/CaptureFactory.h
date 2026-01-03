@@ -7,7 +7,7 @@
 namespace Capture {
 
 /**
- * Factory for creating the appropriate capture strategy based on the current system
+ * Creates the appropriate capture strategy for the current system
  */
 class CaptureFactory
 {

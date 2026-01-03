@@ -7,6 +7,8 @@
         <!-- Toolbar icons -->
         <file>icons/save.svg</file>
         <file>icons/copy.svg</file>
+        <file>icons/undo.svg</file>
+        <file>icons/redo.svg</file>
         <file>icons/pointer.svg</file>
         <file>icons/arrow.svg</file>
         <file>icons/text.svg</file>

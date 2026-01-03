@@ -11,16 +11,10 @@
 namespace ImageEditor::Interactions {
 
 /**
- * @brief Interface for drawing tool interactions
+ * @brief Interface for tool-specific drawing behavior.
  *
- * This interface defines the contract for tool-specific drawing behavior.
- * Each tool (Arrow, Rectangle, Freehand, etc.) implements this interface
- * to encapsulate its own interaction logic.
- *
- * Benefits:
- * - Single Responsibility: Each interaction handles one tool's behavior
- * - Open/Closed: Add new tools without modifying existing code
- * - Reduced coupling: DrawingGraphicsView doesn't need to know tool details
+ * Each tool (Arrow, Rectangle, Freehand, ...) implements this, so
+ * DrawingGraphicsView can drive drawing without knowing tool details.
  */
 class IDrawingInteraction
 {
@@ -68,7 +62,7 @@ public:
     virtual void cleanup(QGraphicsScene *scene) = 0;
 
     /**
-     * @brief Check if this strategy is currently drawing
+     * @brief Check if this interaction is currently drawing
      */
     virtual bool isDrawing() const = 0;
 };

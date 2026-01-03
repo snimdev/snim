@@ -13,6 +13,8 @@ public:
     explicit RectangleTool(const QRectF &rect, QGraphicsItem *parent = nullptr);
     ~RectangleTool() override = default;
 
+    [[nodiscard]] QGraphicsItem* clone() const override;
+
 protected:
     void paintShape(QPainter *painter) override;
     QPainterPath createShapePath() const override;

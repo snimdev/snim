@@ -3,6 +3,9 @@
 #include "LayerManager.h"
 #include "LayerProperties.h"
 #include "Layer.h"
+#include "ToolRegistry.h"
+#include "commands/EditorCommands.h"
+#include "core/IconUtil.h"
 #include "tools/TextTool.h"
 #include "tools/ArrowTool.h"
 #include "tools/RectangleTool.h"
@@ -53,6 +56,9 @@
 #include <QFrame>
 #include <QMenu>
 #include <QIcon>
+#include <QActionGroup>
+#include <QUndoStack>
+#include <QKeyEvent>
 #include <cmath>
 
 namespace ImageEditor {
@@ -69,45 +75,21 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_actualSizeAction(nullptr)
     , m_panelsAction(nullptr)
     , m_backgroundAction(nullptr)
-    , m_pointerAction(nullptr)
-    , m_arrowAction(nullptr)
-    , m_textAction(nullptr)
-    , m_rectangleAction(nullptr)
-    , m_ellipseAction(nullptr)
-    , m_freehandAction(nullptr)
     , m_splitter(nullptr)
     , m_rightSplitter(nullptr)
     , m_layerManager(nullptr)
     , m_layerProperties(nullptr)
     , m_originalScreenshot(screenshot)
-    , m_currentTool(None)
-    , m_drawing(false)
-    , m_currentArrow(nullptr)
     , m_backgroundLayer(nullptr)
     , m_backdropItem(nullptr)
     , m_backdropLayer(nullptr)
-    , m_lastFreehandLayer(nullptr)
-    , m_lastHighlightLayer(nullptr)
-    , m_lastBlurLayer(nullptr)
-    , m_pointerStrategy(nullptr)
-    , m_arrowStrategy(nullptr)
-    , m_textStrategy(nullptr)
-    , m_rectangleStrategy(nullptr)
-    , m_ellipseStrategy(nullptr)
-    , m_freehandStrategy(nullptr)
-    , m_highlightStrategy(nullptr)
-    , m_blurStrategy(nullptr)
-    , m_textTemplate(nullptr)
-    , m_arrowTemplate(nullptr)
-    , m_rectangleTemplate(nullptr)
-    , m_ellipseTemplate(nullptr)
-    , m_freehandTemplate(nullptr)
-    , m_highlightTemplate(nullptr)
-    , m_blurTemplate(nullptr)
 {
     qDebug() << "ImageEditor constructor called with screenshot size:" << screenshot.size();
     qDebug() << "Setting window title...";
     setWindowTitle("Image Editor");
+
+    // Undo/redo stack, created before the toolbar so its Undo/Redo actions exist.
+    m_undoStack = new QUndoStack(this);
 
     qDebug() << "About to call setupUI()...";
     setupUI();
@@ -149,6 +131,36 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     // The initial Background layer was already added above, so it isn't counted.
     connect(m_layerManager, &LayerManager::layerAdded,
             this, [this](Layer *) { m_dirty = true; });
+    // Eye-button toggles become undoable commands.
+    connect(m_layerManager, &LayerManager::visibilityToggleRequested, this,
+            [this](Layer *layer, bool visible) {
+                m_undoStack->push(new Commands::VisibilityChangeCommand(
+                    layer, visible, QStringLiteral("Toggle %1").arg(layer->name())));
+            });
+    // Group / ungroup, undoably.
+    connect(m_layerManager, &LayerManager::groupRequested, this,
+            [this](const QList<Layer*> &members) {
+                if (members.size() < 2)
+                    return;
+                auto *group = new Layer(QStringLiteral("Group %1").arg(++m_counters["group"]),
+                                        Layer::Group, this);
+                m_undoStack->push(new Commands::GroupLayersCommand(
+                    m_layerManager, group, members, QStringLiteral("Group layers")));
+            });
+    connect(m_layerManager, &LayerManager::ungroupRequested, this,
+            [this](Layer *group) {
+                if (!group || !group->isGroup())
+                    return;
+                m_undoStack->push(new Commands::UngroupLayersCommand(
+                    m_layerManager, group, QStringLiteral("Ungroup")));
+            });
+    // Keep the layer list (eye icons / names) in sync after any undo/redo. Deferred
+    // so we never rebuild list-item widgets from inside an eye-button's own signal.
+    connect(m_undoStack, &QUndoStack::indexChanged, this, [this](int) {
+        QTimer::singleShot(0, this, [this] {
+            if (m_layerManager) m_layerManager->updateLayerList();
+        });
+    });
 
     // Load stylesheet
     QFile styleFile(":/styles/styles/editor.qss");
@@ -157,10 +169,10 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
         styleFile.close();
     }
 
-    // Open at a consistent 70% of the current screen (the one under the cursor,
-    // where the capture happened) — independent of the capture's size, so a small
-    // grab doesn't open a cramped window you have to resize. The capture is shown
-    // at 100% in a scrollable view; centered on the same screen in showEvent().
+    // Open at a consistent 70% of the current screen (the one under the cursor, where
+    // the capture happened), independent of the capture's size, so a small grab doesn't
+    // open a cramped window you have to resize. The capture is shown at 100% in a
+    // scrollable view, centered on the same screen in showEvent().
     QScreen *scr = QGuiApplication::screenAt(QCursor::pos());
     if (!scr)
         scr = QGuiApplication::primaryScreen();
@@ -180,11 +192,26 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
         if (m_backgroundAction)
             m_backgroundAction->setChecked(true);
     }
-    // A freshly-opened capture — even with the auto default backdrop — counts as
+    // A freshly-opened capture (even with the auto default backdrop) counts as
     // clean, so closing it without edits doesn't prompt to save.
     m_dirty = false;
 
     qDebug() << "ImageEditor constructor completed successfully";
+}
+
+ImageEditor::~ImageEditor()
+{
+    // Clear the undo stack first, while the scene and layers are still alive, so
+    // each command's destructor frees any off-scene items it owns cleanly (avoids
+    // racing the QObject child-destruction order). See EditorCommands ownership notes.
+    if (m_undoStack)
+        m_undoStack->clear();
+
+    // The tool templates are heap ITool* with no QObject parent (they're never
+    // added to the scene); free them explicitly.
+    for (Tools::ITool *tmpl : m_templates)
+        delete tmpl;
+    m_templates.clear();
 }
 
 void ImageEditor::showEvent(QShowEvent *event)
@@ -212,7 +239,10 @@ void ImageEditor::showEvent(QShowEvent *event)
 
 void ImageEditor::closeEvent(QCloseEvent *event)
 {
-    if (!m_dirty) {
+    // Unsaved if anything was exported-since dirtied, or the undo stack diverged
+    // from its last-saved (clean) state.
+    const bool hasUnsaved = m_dirty || (m_undoStack && !m_undoStack->isClean());
+    if (!hasUnsaved) {
         event->accept();
         return;
     }
@@ -248,22 +278,45 @@ void ImageEditor::setupUI()
     m_view->setScene(m_scene);
     m_view->setAlignment(Qt::AlignCenter);   // keep small content centered in the view
 
-    // Clean, flat canvas — a screenshot is opaque and fills its bounds, so the
-    // usual "transparency" checkerboard is just noise. A neutral backdrop also
-    // makes the (later) beautify background read clearly.
+    // Clean, flat canvas: a screenshot is opaque and fills its bounds, so the usual
+    // "transparency" checkerboard is just noise. A neutral backdrop also makes the
+    // (later) beautify background read clearly.
     const bool dark = QApplication::palette().color(QPalette::Window).lightness() < 128;
     m_scene->setBackgroundBrush(QColor(dark ? QStringLiteral("#202124")
                                             : QStringLiteral("#ececec")));
 
-    // Add the screenshot to the scene
+    // Add the screenshot to the scene. The capture carries a devicePixelRatio
+    // (2x/3x on Retina), so the pixmap item is laid out at its device-independent
+    // size; use that for the scene rect and bounds. (Using m_originalScreenshot.rect(),
+    // which is in device pixels, makes the scene 2x too big so the image lands in its
+    // top-left quadrant instead of centered. The backdrop-off path already uses this.)
     m_pixmapItem = m_scene->addPixmap(m_originalScreenshot);
-    m_scene->setSceneRect(m_originalScreenshot.rect());
+    const QRectF imageRect = m_pixmapItem->boundingRect();
+    m_scene->setSceneRect(imageRect);
 
-    // Set image bounds for the view
-    m_view->setImageBounds(m_originalScreenshot.rect());
+    // Set image bounds for the view (scene/logical coordinates)
+    m_view->setImageBounds(imageRect.toRect());
 
     // Connect item clicked signal (strategies will be connected later)
     connect(m_view, &DrawingGraphicsView::itemClicked, this, &ImageEditor::onItemClicked);
+
+    // ⌘/Ctrl+wheel over text → undoable font-size change (reuses PropertyChangeCommand,
+    // whose mergeWith collapses a whole wheel spin into one undo step).
+    connect(m_view, &DrawingGraphicsView::adjustTextSizeRequested, this,
+            [this](Tools::ITool *tool, int steps) {
+                if (!tool || steps == 0)
+                    return;
+                int oldSize = 0;
+                for (const Tools::ToolProperty &p : tool->getProperties())
+                    if (p.id == "fontSize") { oldSize = p.value.toInt(); break; }
+                if (oldSize <= 0)
+                    return;
+                const int newSize = qBound(6, oldSize + steps, 200);
+                if (newSize == oldSize)
+                    return;
+                m_undoStack->push(new Commands::PropertyChangeCommand(
+                    tool, "fontSize", oldSize, newSize, QStringLiteral("Resize text")));
+            });
 
     // Create right side widget with splitter for layer manager and properties
     m_rightSplitter = new QSplitter(Qt::Vertical);
@@ -278,6 +331,27 @@ void ImageEditor::setupUI()
     // the shared save flow (also used by the popover "+").
     connect(m_layerProperties, &LayerProperties::savePresetRequested,
             this, &ImageEditor::saveCurrentBackdropAsPreset);
+
+    // Panel property edits become undoable commands. The backdrop uses a dedicated
+    // BackdropChangeCommand because its edits have geometry/shadow side-effects that a
+    // generic property command can't replay; restoring the saved snapshot re-applies
+    // them via onBackdropChanged.
+    connect(m_layerProperties, &LayerProperties::propertyChangeRequested, this,
+            [this](Tools::ITool *tool, const QString &propId, const QVariant &value) {
+                if (!tool)
+                    return;
+                if (auto *bd = dynamic_cast<Tools::BackdropItem*>(tool)) {
+                    m_undoStack->push(new Commands::BackdropChangeCommand(
+                        bd, propId, value, bd->createMemento(),
+                        QStringLiteral("Backdrop %1").arg(propId)));
+                    return;
+                }
+                QVariant oldValue;
+                for (const Tools::ToolProperty &p : tool->getProperties())
+                    if (p.id == propId) { oldValue = p.value; break; }
+                m_undoStack->push(new Commands::PropertyChangeCommand(
+                    tool, propId, oldValue, value, QStringLiteral("Change %1").arg(propId)));
+            });
 
     // Add widgets to right splitter
     m_rightSplitter->addWidget(m_layerManager);
@@ -301,39 +375,20 @@ void ImageEditor::setupUI()
     m_splitter->setStretchFactor(1, 1);
 
     // Clean default layout: hide the Layers/Properties panel; the "Panels" toolbar
-    // toggle reveals it. (Auto-revealed when a tool needs its options — see below.)
+    // toggle reveals it. (Auto-revealed when a tool needs its options; see below.)
     m_rightSplitter->setVisible(false);
 }
 
 QIcon ImageEditor::createThemedIcon(const QString &iconPath)
 {
-    // Detect if we're in dark mode by checking the palette
-    QPalette palette = QApplication::palette();
-    QColor windowColor = palette.color(QPalette::Window);
-    bool isDarkMode = windowColor.lightness() < 128;
-
-    // Load the SVG file and replace currentColor with appropriate color
-    QFile file(iconPath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Failed to open icon file:" << iconPath;
-        return QIcon();
-    }
-
-    QString svgContent = QString::fromUtf8(file.readAll());
-    file.close();
-
-    // Replace "currentColor" with appropriate color based on theme
-    QString iconColor = isDarkMode ? "#d0d0d0" : "#333333";  // Light gray for dark mode, dark gray for light mode
-    svgContent.replace("currentColor", iconColor);
-
-    // Save modified SVG to temporary buffer and create QPixmap
-    QByteArray svgData = svgContent.toUtf8();
-
-    // Use QPixmap to load the SVG data directly
-    QPixmap pixmap;
-    pixmap.loadFromData(svgData, "SVG");
-
-    return QIcon(pixmap);
+    // Toolbar icon: pick a tone for the current theme, then hand off to the shared
+    // HiDPI-correct loader so it's crisp on Retina (rendered at the toolbar's icon
+    // size rather than a 1x bitmap the OS upscales).
+    const QColor windowColor = QApplication::palette().color(QPalette::Window);
+    const bool isDarkMode = windowColor.lightness() < 128;
+    const QColor iconColor(isDarkMode ? "#d0d0d0" : "#333333");
+    const int size = m_toolbar ? m_toolbar->iconSize().width() : 20;
+    return Core::themedSvgIcon(iconPath, iconColor, size);
 }
 
 void ImageEditor::setupToolbar()
@@ -361,66 +416,43 @@ void ImageEditor::setupToolbar()
 
     m_toolbar->addSeparator();
 
-    // --- Selection ---
-    m_pointerAction = new QAction(this);
-    m_pointerAction->setToolTip("Pointer (V)");
-    m_pointerAction->setIcon(createThemedIcon(":/icons/icons/pointer.svg"));
-    m_pointerAction->setCheckable(true);
-    m_pointerAction->setChecked(true);
-    connect(m_pointerAction, &QAction::triggered, this, &ImageEditor::selectPointerTool);
-    m_toolbar->addAction(m_pointerAction);
+    // --- Undo / Redo (Command pattern). These QActions are vended by the stack:
+    //     they auto enable/disable and update their text ("Undo Add Arrow"). ---
+    QAction *undoAction = m_undoStack->createUndoAction(this, "Undo");
+    undoAction->setShortcut(QKeySequence::Undo);
+    undoAction->setIcon(createThemedIcon(":/icons/icons/undo.svg"));
+    m_toolbar->addAction(undoAction);
+
+    QAction *redoAction = m_undoStack->createRedoAction(this, "Redo");
+    redoAction->setShortcut(QKeySequence::Redo);
+    redoAction->setIcon(createThemedIcon(":/icons/icons/redo.svg"));
+    m_toolbar->addAction(redoAction);
 
     m_toolbar->addSeparator();
 
-    // --- Drawing tools ---
-    m_arrowAction = new QAction(this);
-    m_arrowAction->setToolTip("Arrow");
-    m_arrowAction->setIcon(createThemedIcon(":/icons/icons/arrow.svg"));
-    m_arrowAction->setCheckable(true);
-    connect(m_arrowAction, &QAction::triggered, this, &ImageEditor::selectArrowTool);
-    m_toolbar->addAction(m_arrowAction);
+    // --- Tools (registry-driven) ---
+    // One exclusive action group enforces "exactly one tool selected".
+    m_toolGroup = new QActionGroup(this);
+    m_toolGroup->setExclusive(true);
 
-    m_textAction = new QAction(this);
-    m_textAction->setToolTip("Text");
-    m_textAction->setIcon(createThemedIcon(":/icons/icons/text.svg"));
-    m_textAction->setCheckable(true);
-    connect(m_textAction, &QAction::triggered, this, &ImageEditor::selectTextTool);
-    m_toolbar->addAction(m_textAction);
+    for (const ToolSpec &spec : ToolRegistry::tools()) {
+        auto *act = new QAction(this);
+        act->setToolTip(spec.tooltip.isEmpty() ? spec.displayName : spec.tooltip);
+        act->setIcon(createThemedIcon(spec.iconPath));
+        act->setCheckable(true);
+        m_toolGroup->addAction(act);
+        m_toolbar->addAction(act);
+        const QString id = spec.id;
+        connect(act, &QAction::triggered, this, [this, id] { activateTool(id); });
+        m_actions.insert(spec.id, act);
 
-    m_rectangleAction = new QAction(this);
-    m_rectangleAction->setToolTip("Rectangle");
-    m_rectangleAction->setIcon(createThemedIcon(":/icons/icons/rectangle.svg"));
-    m_rectangleAction->setCheckable(true);
-    connect(m_rectangleAction, &QAction::triggered, this, &ImageEditor::selectRectangleTool);
-    m_toolbar->addAction(m_rectangleAction);
-
-    m_ellipseAction = new QAction(this);
-    m_ellipseAction->setToolTip("Ellipse");
-    m_ellipseAction->setIcon(createThemedIcon(":/icons/icons/ellipse.svg"));
-    m_ellipseAction->setCheckable(true);
-    connect(m_ellipseAction, &QAction::triggered, this, &ImageEditor::selectEllipseTool);
-    m_toolbar->addAction(m_ellipseAction);
-
-    m_freehandAction = new QAction(this);
-    m_freehandAction->setToolTip("Freehand");
-    m_freehandAction->setIcon(createThemedIcon(":/icons/icons/freehand.svg"));
-    m_freehandAction->setCheckable(true);
-    connect(m_freehandAction, &QAction::triggered, this, &ImageEditor::selectFreehandTool);
-    m_toolbar->addAction(m_freehandAction);
-
-    m_highlightAction = new QAction(this);
-    m_highlightAction->setToolTip("Highlight");
-    m_highlightAction->setIcon(createThemedIcon(":/icons/icons/highlight.svg"));
-    m_highlightAction->setCheckable(true);
-    connect(m_highlightAction, &QAction::triggered, this, &ImageEditor::selectHighlightTool);
-    m_toolbar->addAction(m_highlightAction);
-
-    m_blurAction = new QAction(this);
-    m_blurAction->setToolTip("Blur");
-    m_blurAction->setIcon(createThemedIcon(":/icons/icons/blur.svg"));
-    m_blurAction->setCheckable(true);
-    connect(m_blurAction, &QAction::triggered, this, &ImageEditor::selectBlurTool);
-    m_toolbar->addAction(m_blurAction);
+        // Pointer is the only non-drawing tool and comes first; set off the drawing
+        // group with a separator after it.
+        if (!spec.isDrawingTool)
+            m_toolbar->addSeparator();
+    }
+    if (QAction *p = m_actions.value("pointer"))
+        p->setChecked(true);
 
     // --- Background / backdrop (left group). Clicking opens a settings popover. ---
     m_toolbar->addSeparator();
@@ -431,7 +463,7 @@ void ImageEditor::setupToolbar()
     connect(m_backgroundAction, &QAction::triggered, this, &ImageEditor::onBackgroundButtonClicked);
     m_toolbar->addAction(m_backgroundAction);
 
-    // --- Right-aligned: panels toggle (no Fit/100% — the view auto-centers). ---
+    // --- Right-aligned: panels toggle (no Fit/100%; the view auto-centers). ---
     auto *spacer = new QWidget(this);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_toolbar->addWidget(spacer);
@@ -443,136 +475,113 @@ void ImageEditor::setupToolbar()
     connect(m_panelsAction, &QAction::toggled, this,
             [this](bool on) { if (m_rightSplitter) m_rightSplitter->setVisible(on); });
     m_toolbar->addAction(m_panelsAction);
-
-    // Auto-reveal the side panel when a drawing tool is picked so its options are
-    // visible (hidden by default; the user can close it with the Panels toggle).
-    for (QAction *a : {m_arrowAction, m_textAction, m_rectangleAction, m_ellipseAction,
-                       m_freehandAction, m_highlightAction, m_blurAction}) {
-        connect(a, &QAction::triggered, this,
-                [this] { if (m_panelsAction) m_panelsAction->setChecked(true); });
-    }
+    // (Drawing tools auto-reveal this panel via activateTool's autoRevealPanel flag.)
 }
 
 void ImageEditor::setupStrategies()
 {
-    // Create all drawing interactions
-    m_pointerStrategy = new Interactions::PointerToolInteraction(this);
-    m_arrowStrategy = new Interactions::ArrowDrawingInteraction(this);
-    m_textStrategy = new Interactions::TextDrawingInteraction(this);
-    m_rectangleStrategy = new Interactions::RectangleDrawingInteraction(this);
-    m_ellipseStrategy = new Interactions::EllipseDrawingInteraction(this);
-    m_freehandStrategy = new Interactions::FreehandDrawingInteraction(this);
-    m_highlightStrategy = new Interactions::HighlightDrawingInteraction(this);
-    m_blurStrategy = new Interactions::BlurDrawingInteraction(this);
+    using namespace Interactions;
 
-    // Set image bounds for all strategies that need it
-    m_arrowStrategy->setImageBounds(m_originalScreenshot.rect());
-    m_rectangleStrategy->setImageBounds(m_originalScreenshot.rect());
-    m_ellipseStrategy->setImageBounds(m_originalScreenshot.rect());
-    m_freehandStrategy->setImageBounds(m_originalScreenshot.rect());
-    m_highlightStrategy->setImageBounds(m_originalScreenshot.rect());
-    m_blurStrategy->setImageBounds(m_originalScreenshot.rect());
-    m_blurStrategy->setSourcePixmap(m_originalScreenshot);
+    // Build every interaction from the registry. Bounds are
+    // needed by all gesture tools (all derive BaseDrawingInteraction); set them
+    // generically. Blur additionally needs the source image to compute its effect.
+    for (const ToolSpec &spec : ToolRegistry::tools()) {
+        IDrawingInteraction *s = spec.makeInteraction(this);
+        if (auto *b = dynamic_cast<BaseDrawingInteraction*>(s))
+            b->setImageBounds(m_pixmapItem->boundingRect().toRect());   // device-independent
+        m_strategies.insert(spec.id, s);
+    }
+    if (auto *blur = dynamic_cast<BlurDrawingInteraction*>(m_strategies.value("blur")))
+        blur->setSourcePixmap(m_originalScreenshot);
 
-    // Connect interaction signals to ImageEditor slots
-    connect(m_pointerStrategy, &Interactions::PointerToolInteraction::itemClicked,
-            this, &ImageEditor::onItemClicked);
+    // Each interaction's (type-specific) completion signal funnels into the single
+    // commitDrawnItem() choke point. The freshly-drawn item is styled from the
+    // active tool template before it becomes a layer.
+    if (auto *p = dynamic_cast<PointerToolInteraction*>(m_strategies.value("pointer")))
+        connect(p, &PointerToolInteraction::itemClicked, this, &ImageEditor::onItemClicked);
 
-    connect(m_arrowStrategy, &Interactions::ArrowDrawingInteraction::arrowDrawn,
-            this, &ImageEditor::addArrowLayer);
+    if (auto *a = dynamic_cast<ArrowDrawingInteraction*>(m_strategies.value("arrow")))
+        connect(a, &ArrowDrawingInteraction::arrowDrawn, this, [this](const QPoint &s, const QPoint &e) {
+            const double dx = e.x() - s.x(), dy = e.y() - s.y();
+            if (std::sqrt(dx * dx + dy * dy) < 10.0) return;   // too short to be meaningful
+            auto *it = new Tools::ArrowTool(s, e);
+            it->applyStyleFrom(m_templates.value("arrow"));
+            commitDrawnItem(it, "arrow");
+        });
 
-    connect(m_textStrategy, &Interactions::TextDrawingInteraction::textRequested,
-            this, [this](const QPoint &position) {
-                bool ok;
-                QString text = QInputDialog::getText(this, "Add Text", "Enter text:", QLineEdit::Normal, "", &ok);
-                if (ok && !text.isEmpty()) {
-                    addTextLayer(position, text);
-                    // Automatically switch back to pointer tool after adding text
-                    selectPointerTool();
-                }
+    if (auto *t = dynamic_cast<TextDrawingInteraction*>(m_strategies.value("text")))
+        connect(t, &TextDrawingInteraction::textRequested, this, [this](const QPoint &position) {
+            // Inline creation: drop an empty text box and edit it live (no popup).
+            auto *item = new Tools::TextTool("");
+            item->setPos(position);
+            item->applyStyleFrom(m_templates.value("text"));
+            m_scene->addItem(item);          // must be in the scene to take edit focus
+            m_pendingTextItem = item;
+            connect(item, &Tools::TextTool::editingFinished, this, [this, item]() {
+                // editingFinished fires inside focusOutEvent, so defer commit/discard a tick.
+                QTimer::singleShot(0, this, [this, item] { finalizePendingText(item); });
             });
+            activateTool("pointer");         // so the click that ends editing doesn't place another box
+            item->startEditing();            // caret appears at the click point; type directly
+        });
 
-    connect(m_rectangleStrategy, &Interactions::RectangleDrawingInteraction::rectangleDrawn,
-            this, &ImageEditor::addRectangleLayer);
+    if (auto *r = dynamic_cast<RectangleDrawingInteraction*>(m_strategies.value("rectangle")))
+        connect(r, &RectangleDrawingInteraction::rectangleDrawn, this, [this](const QRect &rect) {
+            auto *it = new Tools::RectangleTool(rect);
+            it->applyStyleFrom(m_templates.value("rectangle"));
+            commitDrawnItem(it, "rectangle");
+        });
 
-    connect(m_ellipseStrategy, &Interactions::EllipseDrawingInteraction::ellipseDrawn,
-            this, &ImageEditor::addEllipseLayer);
+    if (auto *e = dynamic_cast<EllipseDrawingInteraction*>(m_strategies.value("ellipse")))
+        connect(e, &EllipseDrawingInteraction::ellipseDrawn, this, [this](const QRect &rect) {
+            auto *it = new Tools::EllipseTool(rect);
+            it->applyStyleFrom(m_templates.value("ellipse"));
+            commitDrawnItem(it, "ellipse");
+        });
 
-    connect(m_freehandStrategy, &Interactions::FreehandDrawingInteraction::freehandDrawn,
-            this, &ImageEditor::addFreehandLayer);
+    if (auto *f = dynamic_cast<FreehandDrawingInteraction*>(m_strategies.value("freehand")))
+        connect(f, &FreehandDrawingInteraction::freehandDrawn, this, [this](const QList<QPointF> &pts) {
+            if (pts.isEmpty()) return;
+            auto *it = new Tools::FreehandTool();
+            it->applyStyleFrom(m_templates.value("freehand"));
+            for (const QPointF &p : pts) it->addPoint(p);
+            it->finishPath();
+            commitDrawnItem(it, "freehand");
+        });
 
-    connect(m_highlightStrategy, &Interactions::HighlightDrawingInteraction::highlightDrawn,
-            this, &ImageEditor::addHighlightLayer);
+    if (auto *h = dynamic_cast<HighlightDrawingInteraction*>(m_strategies.value("highlight")))
+        connect(h, &HighlightDrawingInteraction::highlightDrawn, this,
+                [this](const QList<QPointF> &pts, const QColor &, qreal) {
+            if (pts.isEmpty()) return;
+            auto *it = new Tools::HighlightTool();
+            it->applyStyleFrom(m_templates.value("highlight"));   // color/width carried by the template
+            for (const QPointF &p : pts) it->addPoint(p);
+            it->finishPath();
+            commitDrawnItem(it, "highlight");
+        });
 
-    connect(m_blurStrategy, &Interactions::BlurDrawingInteraction::blurDrawn,
-            this, &ImageEditor::addBlurLayer);
+    if (auto *b = dynamic_cast<BlurDrawingInteraction*>(m_strategies.value("blur")))
+        connect(b, &BlurDrawingInteraction::blurDrawn, this, [this](const QList<QPointF> &pts) {
+            if (pts.isEmpty()) return;
+            auto *it = new Tools::BlurTool();
+            it->setSourcePixmap(m_originalScreenshot);
+            it->applyStyleFrom(m_templates.value("blur"));
+            for (const QPointF &p : pts) it->addPoint(p);
+            it->finishPath();
+            commitDrawnItem(it, "blur");
+        });
 
-    // Set pointer tool as default
-    m_view->setDrawingStrategy(m_pointerStrategy);
+    activateTool("pointer");   // default tool
 }
 
 void ImageEditor::setupToolTemplates()
 {
-    // Create template tool instances for property preview
-    // These are NOT added to the scene, only used for showing properties
-
-    // Text template
-    m_textTemplate = new Tools::TextTool("Sample Text", nullptr);
-    auto *textTool = dynamic_cast<Tools::TextTool*>(m_textTemplate);
-    if (textTool) {
-        QSettings settings;
-        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-        textTool->setDefaultTextColor(foregroundColor);
-    }
-
-    // Arrow template
-    m_arrowTemplate = new Tools::ArrowTool(QPointF(0, 0), QPointF(100, 100), nullptr);
-    auto *arrowTool = dynamic_cast<Tools::ArrowTool*>(m_arrowTemplate);
-    if (arrowTool) {
-        QSettings settings;
-        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-        arrowTool->setPen(QPen(foregroundColor, 3));
-    }
-
-    // Rectangle template
-    m_rectangleTemplate = new Tools::RectangleTool(QRect(0, 0, 100, 100), nullptr);
-    auto *rectangleTool = dynamic_cast<Tools::RectangleTool*>(m_rectangleTemplate);
-    if (rectangleTool) {
-        QSettings settings;
-        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-        rectangleTool->setPen(QPen(foregroundColor, 2));
-    }
-
-    // Ellipse template
-    m_ellipseTemplate = new Tools::EllipseTool(QRect(0, 0, 100, 100), nullptr);
-    auto *ellipseTool = dynamic_cast<Tools::EllipseTool*>(m_ellipseTemplate);
-    if (ellipseTool) {
-        QSettings settings;
-        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-        ellipseTool->setPen(QPen(foregroundColor, 2));
-    }
-
-    // Freehand template
-    m_freehandTemplate = new Tools::FreehandTool(nullptr);
-    auto *freehandTool = dynamic_cast<Tools::FreehandTool*>(m_freehandTemplate);
-    if (freehandTool) {
-        freehandTool->setPen(getCurrentFreehandPen());
-    }
-
-    // Highlight template
-    m_highlightTemplate = new Tools::HighlightTool(nullptr);
-    auto *highlightTool = dynamic_cast<Tools::HighlightTool*>(m_highlightTemplate);
-    if (highlightTool) {
-        highlightTool->setColor(getCurrentHighlightColor());
-        highlightTool->setWidth(getCurrentHighlightWidth());
-    }
-
-    // Blur template
-    m_blurTemplate = new Tools::BlurTool(nullptr);
-    auto *blurTool = dynamic_cast<Tools::BlurTool*>(m_blurTemplate);
-    if (blurTool) {
-        blurTool->setBlurRadius(getCurrentBlurRadius());
-        blurTool->setBrushWidth(getCurrentBlurBrushWidth());
+    // One template per drawing tool, used both to drive the Properties panel and to
+    // style freshly-drawn items. Not added to the scene.
+    // Each tool's default styling lives in its ToolSpec::makeTemplate closure.
+    for (const ToolSpec &spec : ToolRegistry::tools()) {
+        if (spec.makeTemplate)
+            m_templates.insert(spec.id, spec.makeTemplate());
     }
 }
 
@@ -589,6 +598,7 @@ void ImageEditor::saveAs()
         QPixmap result = renderScene();
         if (result.save(fileName)) {
             m_dirty = false;
+            if (m_undoStack) m_undoStack->setClean();   // mark this the saved point
             QMessageBox::information(this, "Success", "Screenshot saved successfully!");
         } else {
             QMessageBox::warning(this, "Error", "Failed to save screenshot.");
@@ -602,399 +612,217 @@ void ImageEditor::copyToClipboard()
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setPixmap(result);
     m_dirty = false;   // the result has been exported; closing won't lose work
+    if (m_undoStack) m_undoStack->setClean();
     QMessageBox::information(this, "Success", "Screenshot copied to clipboard!");
 }
 
 QPixmap ImageEditor::renderScene()
 {
-    QPixmap pixmap(m_scene->sceneRect().size().toSize());
+    // The scene works in device-independent coordinates, so export at the capture's
+    // native resolution by scaling the output up by the screenshot's devicePixelRatio
+    // (otherwise a Retina capture would save at half resolution).
+    const QRectF sceneRect = m_scene->sceneRect();
+    const qreal dpr = m_originalScreenshot.devicePixelRatio();
+    QPixmap pixmap((sceneRect.size() * dpr).toSize());
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
-    m_scene->render(&painter);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    // source = the whole scene (logical); target = the full device-pixel pixmap.
+    m_scene->render(&painter, QRectF(QPointF(0, 0), pixmap.size()), sceneRect);
     return pixmap;
 }
 
-void ImageEditor::selectPointerTool()
+void ImageEditor::activateTool(const QString &toolId)
 {
-    m_view->setDrawingStrategy(m_pointerStrategy);
-    m_arrowAction->setChecked(false);
-    m_textAction->setChecked(false);
-    m_rectangleAction->setChecked(false);
-    m_ellipseAction->setChecked(false);
-    m_freehandAction->setChecked(false);
-    m_highlightAction->setChecked(false);
-    m_blurAction->setChecked(false);
-    m_pointerAction->setChecked(true);
+    const ToolSpec *spec = ToolRegistry::find(toolId);
+    if (!spec)
+        return;
 
-    // Deselect any layer and hide properties
+    Interactions::IDrawingInteraction *strategy = m_strategies.value(toolId);
+    Tools::ITool *tmpl = m_templates.value(toolId);
+
+    // Sync the interaction's live-preview style from the template (freehand /
+    // highlight / blur) so what's drawn matches what will be committed.
+    if (spec->syncStrategy && strategy && tmpl)
+        spec->syncStrategy(strategy, tmpl);
+
+    if (m_view)
+        m_view->setDrawingStrategy(strategy);
+
     m_layerManager->selectLayer(nullptr);
-    m_layerProperties->setLayer(nullptr);
+    if (spec->isDrawingTool && tmpl)
+        m_layerProperties->setTool(tmpl, spec->displayName);   // show this tool's options
+    else
+        m_layerProperties->setLayer(nullptr);                  // pointer: nothing to edit
+
+    // The exclusive QActionGroup unchecks the other tools for us.
+    if (QAction *act = m_actions.value(toolId))
+        act->setChecked(true);
+
+    if (spec->autoRevealPanel && m_panelsAction)
+        m_panelsAction->setChecked(true);
 }
 
-void ImageEditor::selectArrowTool()
+void ImageEditor::commitDrawnItem(QGraphicsItem *item, const QString &toolId)
 {
-    m_view->setDrawingStrategy(m_arrowStrategy);
-    m_pointerAction->setChecked(false);
-    m_textAction->setChecked(false);
-    m_rectangleAction->setChecked(false);
-    m_ellipseAction->setChecked(false);
-    m_freehandAction->setChecked(false);
-    m_highlightAction->setChecked(false);
-    m_blurAction->setChecked(false);
-    m_arrowAction->setChecked(true);
-
-    // Deselect any layer and show arrow tool properties
-    m_layerManager->selectLayer(nullptr);
-    m_layerProperties->setTool(m_arrowTemplate, "Arrow Tool");
-}
-
-void ImageEditor::selectTextTool()
-{
-    m_view->setDrawingStrategy(m_textStrategy);
-    m_pointerAction->setChecked(false);
-    m_arrowAction->setChecked(false);
-    m_rectangleAction->setChecked(false);
-    m_ellipseAction->setChecked(false);
-    m_freehandAction->setChecked(false);
-    m_highlightAction->setChecked(false);
-    m_blurAction->setChecked(false);
-    m_textAction->setChecked(true);
-
-    // Deselect any layer and show text tool properties
-    m_layerManager->selectLayer(nullptr);
-    m_layerProperties->setTool(m_textTemplate, "Text Tool");
-}
-
-void ImageEditor::selectRectangleTool()
-{
-    m_view->setDrawingStrategy(m_rectangleStrategy);
-    m_pointerAction->setChecked(false);
-    m_arrowAction->setChecked(false);
-    m_textAction->setChecked(false);
-    m_ellipseAction->setChecked(false);
-    m_freehandAction->setChecked(false);
-    m_highlightAction->setChecked(false);
-    m_blurAction->setChecked(false);
-    m_rectangleAction->setChecked(true);
-
-    // Deselect any layer and show rectangle tool properties
-    m_layerManager->selectLayer(nullptr);
-    m_layerProperties->setTool(m_rectangleTemplate, "Rectangle Tool");
-}
-
-void ImageEditor::selectEllipseTool()
-{
-    m_view->setDrawingStrategy(m_ellipseStrategy);
-    m_pointerAction->setChecked(false);
-    m_arrowAction->setChecked(false);
-    m_textAction->setChecked(false);
-    m_rectangleAction->setChecked(false);
-    m_freehandAction->setChecked(false);
-    m_highlightAction->setChecked(false);
-    m_blurAction->setChecked(false);
-    m_ellipseAction->setChecked(true);
-
-    // Deselect any layer and show ellipse tool properties
-    m_layerManager->selectLayer(nullptr);
-    m_layerProperties->setTool(m_ellipseTemplate, "Ellipse Tool");
-}
-
-void ImageEditor::selectFreehandTool()
-{
-    // Update freehand pen settings from last layer before setting strategy and template
-    QPen currentPen = getCurrentFreehandPen();
-    m_freehandStrategy->setPen(currentPen);
-    auto *freehandTool = dynamic_cast<Tools::FreehandTool*>(m_freehandTemplate);
-    if (freehandTool) {
-        freehandTool->setPen(currentPen);
-    }
-
-    m_view->setDrawingStrategy(m_freehandStrategy);
-    m_pointerAction->setChecked(false);
-    m_arrowAction->setChecked(false);
-    m_textAction->setChecked(false);
-    m_rectangleAction->setChecked(false);
-    m_ellipseAction->setChecked(false);
-    m_freehandAction->setChecked(true);
-    m_highlightAction->setChecked(false);
-    m_blurAction->setChecked(false);
-
-    // Deselect any layer and show freehand tool properties
-    m_layerManager->selectLayer(nullptr);
-    m_layerProperties->setTool(m_freehandTemplate, "Freehand Tool");
-}
-
-void ImageEditor::selectHighlightTool()
-{
-    // Update highlight color and width settings from last layer before setting strategy and template
-    QColor currentColor = getCurrentHighlightColor();
-    qreal currentWidth = getCurrentHighlightWidth();
-    m_highlightStrategy->setColor(currentColor);
-    m_highlightStrategy->setWidth(currentWidth);
-
-    auto *highlightTool = dynamic_cast<Tools::HighlightTool*>(m_highlightTemplate);
-    if (highlightTool) {
-        highlightTool->setColor(currentColor);
-        highlightTool->setWidth(currentWidth);
-    }
-
-    m_view->setDrawingStrategy(m_highlightStrategy);
-    m_pointerAction->setChecked(false);
-    m_arrowAction->setChecked(false);
-    m_textAction->setChecked(false);
-    m_rectangleAction->setChecked(false);
-    m_ellipseAction->setChecked(false);
-    m_freehandAction->setChecked(false);
-    m_highlightAction->setChecked(true);
-    m_blurAction->setChecked(false);
-
-    // Deselect any layer and show highlight tool properties
-    m_layerManager->selectLayer(nullptr);
-    m_layerProperties->setTool(m_highlightTemplate, "Highlight Tool");
-}
-
-void ImageEditor::selectBlurTool()
-{
-    // Update blur settings from last layer before setting strategy and template
-    qreal currentBlurRadius = getCurrentBlurRadius();
-    qreal currentBrushWidth = getCurrentBlurBrushWidth();
-    m_blurStrategy->setBlurRadius(currentBlurRadius);
-    m_blurStrategy->setBrushWidth(currentBrushWidth);
-
-    auto *blurTool = dynamic_cast<Tools::BlurTool*>(m_blurTemplate);
-    if (blurTool) {
-        blurTool->setBlurRadius(currentBlurRadius);
-        blurTool->setBrushWidth(currentBrushWidth);
-    }
-
-    m_view->setDrawingStrategy(m_blurStrategy);
-    m_pointerAction->setChecked(false);
-    m_arrowAction->setChecked(false);
-    m_textAction->setChecked(false);
-    m_rectangleAction->setChecked(false);
-    m_ellipseAction->setChecked(false);
-    m_freehandAction->setChecked(false);
-    m_highlightAction->setChecked(false);
-    m_blurAction->setChecked(true);
-
-    // Deselect any layer and show blur tool properties
-    m_layerManager->selectLayer(nullptr);
-    m_layerProperties->setTool(m_blurTemplate, "Blur Tool");
-}
-
-void ImageEditor::addTextLayer(const QPoint &position, const QString &text)
-{
-    auto *textItem = new Tools::TextTool(text);
-    textItem->setPos(position);
-
-    // Copy properties from template tool
-    auto *textTemplate = dynamic_cast<Tools::TextTool*>(m_textTemplate);
-    if (textTemplate) {
-        // Get all properties from template
-        QList<Tools::ToolProperty> props = textTemplate->getProperties();
-        for (const auto& prop : props) {
-            textItem->setProperty(prop.id, prop.value);
-        }
-    } else {
-        // Fallback to settings if template doesn't exist
-        QSettings settings;
-        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-        textItem->setDefaultTextColor(foregroundColor);
-    }
-
-    // Create layer for text
-    auto *layer = new Layer(QString("Text: %1").arg(text), Layer::Text, this);
-    layer->setItem(textItem);
-
-    connect(textItem, &Tools::TextTool::textChanged, [this, layer, textItem]() {
-        QString newText = textItem->toPlainText();
-        if (newText.length() > 20) {
-            newText = newText.left(20) + "...";
-        }
-        layer->setName(QString("Text: %1").arg(newText));
-        m_layerManager->updateLayerList();
-    });
-
-    m_scene->addItem(textItem);
-    m_layerManager->addLayer(layer);
-    m_layerManager->selectLayer(layer);
-}
-
-void ImageEditor::addArrowLayer(const QPoint &start, const QPoint &end)
-{
-    // Calculate arrow properties
-    double dx = end.x() - start.x();
-    double dy = end.y() - start.y();
-    double length = std::sqrt(dx*dx + dy*dy);
-
-    if (length < 10) return; // Too short to be meaningful
-
-    // Create the new ArrowTool with interactive handles
-    auto *arrowItem = new Tools::ArrowTool(start, end);
-
-    // Copy properties from template tool
-    auto *arrowTemplate = dynamic_cast<Tools::ArrowTool*>(m_arrowTemplate);
-    if (arrowTemplate) {
-        // Get all properties from template
-        QList<Tools::ToolProperty> props = arrowTemplate->getProperties();
-        for (const auto& prop : props) {
-            arrowItem->setProperty(prop.id, prop.value);
-        }
-    } else {
-        // Fallback to settings if template doesn't exist
-        QSettings settings;
-        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-        QPen pen(foregroundColor, 3);
-        arrowItem->setPen(pen);
-        arrowItem->setArrowHeadType(Tools::ArrowTool::Outlined);
-    }
-
-    // Add the arrow item to the scene
-    m_scene->addItem(arrowItem);
-
-    // Create layer for arrow
-    static int arrowCounter = 1;
-    auto *layer = new Layer(QString("Arrow %1").arg(arrowCounter++), Layer::Arrow, this);
-    layer->setItem(arrowItem);
-
-    m_layerManager->addLayer(layer);
-    m_layerManager->selectLayer(layer);
-
-    // Don't auto-select the arrow - user should use pointer tool to select it
-    m_scene->clearSelection();
-}
-
-void ImageEditor::addRectangleLayer(const QRect &rect)
-{
-    // Create the RectangleTool
-    auto *rectangleItem = new Tools::RectangleTool(rect);
-
-    // Copy properties from template tool
-    auto *rectangleTemplate = dynamic_cast<Tools::RectangleTool*>(m_rectangleTemplate);
-    if (rectangleTemplate) {
-        // Get all properties from template
-        QList<Tools::ToolProperty> props = rectangleTemplate->getProperties();
-        for (const auto& prop : props) {
-            rectangleItem->setProperty(prop.id, prop.value);
-        }
-    } else {
-        // Fallback to settings if template doesn't exist
-        QSettings settings;
-        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-        QColor backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
-        QPen pen(foregroundColor, 2);
-        rectangleItem->setPen(pen);
-        rectangleItem->setBrush(QBrush(backgroundColor));
-    }
-
-    // Add the rectangle item to the scene
-    m_scene->addItem(rectangleItem);
-
-    // Create layer for rectangle
-    static int rectangleCounter = 1;
-    auto *layer = new Layer(QString("Rectangle %1").arg(rectangleCounter++), Layer::Rectangle, this);
-    layer->setItem(rectangleItem);
-
-    m_layerManager->addLayer(layer);
-    m_layerManager->selectLayer(layer);
-
-    // Don't auto-select the rectangle - user should use pointer tool to select it
-    m_scene->clearSelection();
-}
-
-void ImageEditor::addEllipseLayer(const QRect &rect)
-{
-    // Create the EllipseTool
-    auto *ellipseItem = new Tools::EllipseTool(rect);
-
-    // Copy properties from template tool
-    auto *ellipseTemplate = dynamic_cast<Tools::EllipseTool*>(m_ellipseTemplate);
-    if (ellipseTemplate) {
-        // Get all properties from template
-        QList<Tools::ToolProperty> props = ellipseTemplate->getProperties();
-        for (const auto& prop : props) {
-            ellipseItem->setProperty(prop.id, prop.value);
-        }
-    } else {
-        // Fallback to settings if template doesn't exist
-        QSettings settings;
-        QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-        QColor backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
-        QPen pen(foregroundColor, 2);
-        ellipseItem->setPen(pen);
-        ellipseItem->setBrush(QBrush(backgroundColor));
-    }
-
-    // Add the ellipse item to the scene
-    m_scene->addItem(ellipseItem);
-
-    // Create layer for ellipse
-    static int ellipseCounter = 1;
-    auto *layer = new Layer(QString("Ellipse %1").arg(ellipseCounter++), Layer::Ellipse, this);
-    layer->setItem(ellipseItem);
-
-    m_layerManager->addLayer(layer);
-    m_layerManager->selectLayer(layer);
-
-    // Don't auto-select the ellipse - user should use pointer tool to select it
-    m_scene->clearSelection();
-}
-
-void ImageEditor::addFreehandLayer(const QList<QPointF> &points)
-{
-    if (points.isEmpty()) {
+    const ToolSpec *spec = ToolRegistry::find(toolId);
+    if (!spec || !item) {
+        delete item;
         return;
     }
 
-    // Create the FreehandTool and add all points
-    auto *freehandItem = new Tools::FreehandTool();
+    // Layer name: text uses its content; everything else uses "Prefix N".
+    auto *textItem = dynamic_cast<Tools::TextTool*>(item);
+    const QString name = textItem
+        ? QString("Text: %1").arg(textItem->toPlainText())
+        : QString("%1 %2").arg(spec->namePrefix).arg(++m_counters[toolId]);
 
-    // Copy properties from template tool
-    auto *freehandTemplate = dynamic_cast<Tools::FreehandTool*>(m_freehandTemplate);
-    if (freehandTemplate) {
-        // Get all properties from template
-        QList<Tools::ToolProperty> props = freehandTemplate->getProperties();
-        for (const auto& prop : props) {
-            freehandItem->setProperty(prop.id, prop.value);
-        }
-    } else {
-        // Fallback to previous layer or settings if template doesn't exist
-        QPen pen;
-        if (m_lastFreehandLayer && m_lastFreehandLayer->item()) {
-            auto *lastFreehand = dynamic_cast<Tools::FreehandTool*>(m_lastFreehandLayer->item());
-            if (lastFreehand) {
-                pen = lastFreehand->pen();
-            }
+    auto *layer = new Layer(name, spec->layerType, this);
+    layer->setItem(item);
+
+    // "Remember last settings": copy this item's style back into the tool template
+    // so the next stroke/shape starts from the same look.
+    if (Tools::ITool *tmpl = m_templates.value(toolId))
+        if (auto *asTool = dynamic_cast<Tools::ITool*>(item))
+            tmpl->applyStyleFrom(asTool);
+
+    // Text layers keep their name in sync with their (editable) content.
+    if (textItem) {
+        connect(textItem, &Tools::TextTool::textChanged, this, [this, layer, textItem]() {
+            QString t = textItem->toPlainText();
+            if (t.length() > 20)
+                t = t.left(20) + "...";
+            layer->setName(QString("Text: %1").arg(t));
+            m_layerManager->updateLayerList();
+        });
+    }
+
+    // Push as an undoable command; its redo() adds the item to the scene + manager.
+    const QString label = spec->namePrefix.isEmpty() ? QStringLiteral("Add Layer")
+                                                      : QStringLiteral("Add %1").arg(spec->namePrefix);
+    m_undoStack->push(new Commands::AddLayerCommand(m_scene, m_layerManager, layer, label));
+
+    if (spec->switchToPointerAfter) {
+        // Switch to the pointer and select the new item so it can be moved/resized
+        // immediately; otherwise clicking it with the drawing tool creates another.
+        activateTool("pointer");
+        m_layerManager->selectLayer(layer);
+    }
+}
+
+void ImageEditor::finalizePendingText(Tools::TextTool *item)
+{
+    // Runs once per pending text box (guard against a double-scheduled deferral).
+    if (!item || item != m_pendingTextItem)
+        return;
+    m_pendingTextItem = nullptr;
+    disconnect(item, &Tools::TextTool::editingFinished, this, nullptr);
+
+    // It's currently a bare scene item; take it off so commitDrawnItem's AddLayerCommand
+    // can add it back through the normal (undoable) path.
+    m_scene->removeItem(item);
+
+    if (item->toPlainText().trimmed().isEmpty()) {
+        delete item;                 // empty -> create nothing (no layer, no undo entry)
+        return;
+    }
+    commitDrawnItem(item, "text");   // undoable "Add Text" layer, named from its content
+}
+
+bool ImageEditor::isEditingText() const
+{
+    if (!m_scene)
+        return false;
+    auto *t = dynamic_cast<Tools::TextTool*>(m_scene->focusItem());
+    return t && t->textInteractionFlags() != Qt::NoTextInteraction;
+}
+
+void ImageEditor::keyPressEvent(QKeyEvent *event)
+{
+    // Handling shortcuts here (rather than QAction::setShortcut) means a text item in
+    // inline-edit mode consumes the keys first, so these never fire mid-typing.
+    if (event->key() == Qt::Key_Escape) {
+        if (isEditingText()) {
+            m_scene->focusItem()->clearFocus();   // commit/discard the text box
         } else {
-            QSettings settings;
-            QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-            pen = QPen(foregroundColor, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+            m_layerManager->selectLayer(nullptr);
+            activateTool("pointer");
         }
-        freehandItem->setPen(pen);
+        event->accept();
+        return;
     }
 
-    // Add all points to recreate the path
-    for (const QPointF &point : points) {
-        freehandItem->addPoint(point);
+    if (isEditingText()) {                 // let the inline editor keep every other key
+        QMainWindow::keyPressEvent(event);
+        return;
     }
-    freehandItem->finishPath();
 
-    // Add the freehand item to the scene
-    m_scene->addItem(freehandItem);
+    if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
+        m_layerManager->deleteCurrentLayer();   // delete + select neighbour (RemoveLayerCommand)
+        event->accept();
+        return;
+    }
 
-    // Create layer for freehand
-    static int freehandCounter = 1;
-    auto *layer = new Layer(QString("Freehand %1").arg(freehandCounter++), Layer::Freehand, this);
-    layer->setItem(freehandItem);
+    if ((event->modifiers() & Qt::ControlModifier) && event->key() == Qt::Key_D) {
+        duplicateSelectedLayer();
+        event->accept();
+        return;
+    }
 
-    // Remember this layer for next freehand drawing
-    m_lastFreehandLayer = layer;
+    switch (event->key()) {
+    case Qt::Key_Left: case Qt::Key_Right: case Qt::Key_Up: case Qt::Key_Down: {
+        const qreal step = (event->modifiers() & Qt::ShiftModifier) ? 10.0 : 1.0;
+        const qreal dx = event->key() == Qt::Key_Left ? -step
+                       : event->key() == Qt::Key_Right ? step : 0.0;
+        const qreal dy = event->key() == Qt::Key_Up ? -step
+                       : event->key() == Qt::Key_Down ? step : 0.0;
+        nudgeSelectedLayer(dx, dy);
+        event->accept();
+        return;
+    }
+    default:
+        break;
+    }
 
-    m_layerManager->addLayer(layer);
-    m_layerManager->selectLayer(layer);
+    QMainWindow::keyPressEvent(event);
+}
 
-    // Don't auto-select the freehand - user should use pointer tool to select it
-    m_scene->clearSelection();
+void ImageEditor::duplicateSelectedLayer()
+{
+    Layer *sel = m_layerManager->selectedLayer();
+    if (!sel || sel->isGroup()
+        || sel->type() == Layer::Background || sel->type() == Layer::Backdrop)
+        return;
+    auto *tool = dynamic_cast<Tools::ITool*>(sel->item());
+    if (!tool)
+        return;
+    QGraphicsItem *copy = tool->clone();   // full duplicate (geometry + style)
+    if (!copy)
+        return;
+    if (sel->item())
+        copy->setPos(sel->item()->pos() + QPointF(12, 12));   // offset so it's visible
+
+    // Resolve the tool id from the layer type so commitDrawnItem names/commits it.
+    QString toolId;
+    for (const ToolSpec &spec : ToolRegistry::tools())
+        if (spec.isDrawingTool && spec.layerType == sel->type()) { toolId = spec.id; break; }
+    if (toolId.isEmpty()) {
+        delete copy;
+        return;
+    }
+    commitDrawnItem(copy, toolId);   // undoable AddLayerCommand, named + selected
+}
+
+void ImageEditor::nudgeSelectedLayer(qreal dx, qreal dy)
+{
+    Layer *sel = m_layerManager->selectedLayer();
+    if (!sel || sel->isGroup()
+        || sel->type() == Layer::Background || sel->type() == Layer::Backdrop)
+        return;
+    if (QGraphicsItem *it = sel->item())
+        m_undoStack->push(new Commands::MoveLayerCommand(it, QPointF(dx, dy),
+                                                         QStringLiteral("Nudge")));
 }
 
 Layer* ImageEditor::createBackgroundLayer()
@@ -1085,7 +913,7 @@ void ImageEditor::onBackgroundButtonClicked()
 
 bool ImageEditor::eventFilter(QObject *obj, QEvent *event)
 {
-    // Close the backdrop popover on a click outside it — but tolerate clicks in a
+    // Close the backdrop popover on a click outside it, but tolerate clicks in a
     // child combo dropdown / the color dialog, and on the Background button itself.
     if (event->type() == QEvent::MouseButtonPress && m_backdropPopover && m_backdropPopover->isVisible()) {
         if (!QApplication::activePopupWidget() && !QApplication::activeModalWidget()) {
@@ -1224,7 +1052,7 @@ void ImageEditor::rebuildPresetGrid()
 {
     if (!m_presetGrid)
         return;
-    auto *grid = qobject_cast<QGridLayout *>(m_presetGrid->layout());
+    auto *grid = dynamic_cast<QGridLayout *>(m_presetGrid->layout());
     if (!grid)
         return;
 
@@ -1350,7 +1178,7 @@ void ImageEditor::applyShadow()
 {
     if (!m_backdropItem)
         return;
-    auto *shadow = qobject_cast<QGraphicsDropShadowEffect *>(m_pixmapItem->graphicsEffect());
+    auto *shadow = dynamic_cast<QGraphicsDropShadowEffect *>(m_pixmapItem->graphicsEffect());
     if (!shadow) {
         shadow = new QGraphicsDropShadowEffect(this);
         m_pixmapItem->setGraphicsEffect(shadow);
@@ -1365,7 +1193,7 @@ void ImageEditor::onBackdropChanged(const QString &propertyId)
 {
     m_dirty = true;   // any backdrop tweak is an unsaved change
 
-    // A whole config was applied (preset / default) — re-apply everything.
+    // A whole config was applied (preset / default), so re-apply everything.
     if (propertyId == "config") {
         applyRoundedScreenshot();
         applyShadow();
@@ -1404,7 +1232,7 @@ void ImageEditor::onBackdropChanged(const QString &propertyId)
     } else if (propertyId == "shadow") {
         applyShadow();
     } else if (m_backdropItem) {
-        m_backdropItem->update();   // color / gradient / wallpaper preset — just repaint
+        m_backdropItem->update();   // color / gradient / wallpaper preset: just repaint
     }
 }
 
@@ -1418,27 +1246,15 @@ void ImageEditor::onLayerVisibilityChanged(Layer *layer, bool visible)
 
 void ImageEditor::onDeleteLayerRequested(Layer *layer)
 {
-    if (!layer || layer->type() == Layer::Background) {
-        return;
+    if (!layer || layer->type() == Layer::Background || layer->type() == Layer::Backdrop) {
+        return;   // backdrop has its own teardown (setBackdropEnabled(false))
     }
 
-    // If this is the last freehand layer, clear the reference
-    if (layer == m_lastFreehandLayer) {
-        m_lastFreehandLayer = nullptr;
-    }
-
-    // Remove the graphics item from the scene
-    if (layer->item()) {
-        m_scene->removeItem(layer->item());
-        delete layer->item();
-    }
-
-    // Remove from layer manager and properties panel
-    m_layerManager->removeLayer(layer);
-    m_layerProperties->removeLayer(layer);
-
-    // Delete the layer
-    layer->deleteLater();
+    // Undoable removal: the command pulls the item from the scene/manager and,
+    // while it sits off-scene, owns it (freeing it only if the command is dropped).
+    const QString label = QStringLiteral("Delete %1").arg(layer->name());
+    m_undoStack->push(new Commands::RemoveLayerCommand(
+        m_scene, m_layerManager, m_layerProperties, layer, label));
     m_dirty = true;
 }
 
@@ -1478,12 +1294,12 @@ void ImageEditor::selectLayerByItem(QGraphicsItem *item)
 
 bool ImageEditor::isWithinImageBounds(const QPoint &point) const
 {
-    return m_originalScreenshot.rect().contains(point);
+    return QRect(QPoint(0, 0), m_originalScreenshot.deviceIndependentSize().toSize()).contains(point);
 }
 
 QPoint ImageEditor::clampToImageBounds(const QPoint &point) const
 {
-    QRect bounds = m_originalScreenshot.rect();
+    QRect bounds(QPoint(0, 0), m_originalScreenshot.deviceIndependentSize().toSize());
     int clampedX = qMax(bounds.left(), qMin(bounds.right(), point.x()));
     int clampedY = qMax(bounds.top(), qMin(bounds.bottom(), point.y()));
     return QPoint(clampedX, clampedY);
@@ -1502,169 +1318,6 @@ void ImageEditor::mouseMoveEvent(QMouseEvent *event)
 void ImageEditor::mouseReleaseEvent(QMouseEvent *event)
 {
     QMainWindow::mouseReleaseEvent(event);
-}
-
-QPen ImageEditor::getCurrentFreehandPen() const
-{
-    // If we have a previous freehand layer, use its pen settings
-    if (m_lastFreehandLayer && m_lastFreehandLayer->item()) {
-        auto *lastFreehand = dynamic_cast<Tools::FreehandTool*>(m_lastFreehandLayer->item());
-        if (lastFreehand) {
-            return lastFreehand->pen();
-        }
-    }
-
-    // No previous freehand layer, return default pen
-    QSettings settings;
-    QColor foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-    return QPen(foregroundColor, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-}
-
-QColor ImageEditor::getCurrentHighlightColor() const
-{
-    // If we have a previous highlight layer, use its color
-    if (m_lastHighlightLayer && m_lastHighlightLayer->item()) {
-        auto *lastHighlight = dynamic_cast<Tools::HighlightTool*>(m_lastHighlightLayer->item());
-        if (lastHighlight) {
-            return lastHighlight->color();
-        }
-    }
-
-    // No previous highlight layer, return default color
-    return QColor("#b3ff61");
-}
-
-qreal ImageEditor::getCurrentHighlightWidth() const
-{
-    // If we have a previous highlight layer, use its width
-    if (m_lastHighlightLayer && m_lastHighlightLayer->item()) {
-        auto *lastHighlight = dynamic_cast<Tools::HighlightTool*>(m_lastHighlightLayer->item());
-        if (lastHighlight) {
-            return lastHighlight->width();
-        }
-    }
-
-    // No previous highlight layer, return default medium width
-    return Tools::HighlightTool::HIGHLIGHT_WIDTH_MEDIUM;
-}
-
-void ImageEditor::addHighlightLayer(const QList<QPointF> &points, const QColor &color, qreal width)
-{
-    if (points.isEmpty()) {
-        return;
-    }
-
-    // Create the HighlightTool and add all points
-    auto *highlightItem = new Tools::HighlightTool();
-    highlightItem->setColor(color);
-    highlightItem->setWidth(width);
-
-    // Add all points to recreate the path
-    for (const QPointF &point : points) {
-        highlightItem->addPoint(point);
-    }
-    highlightItem->finishPath();
-
-    // Add the highlight item to the scene
-    m_scene->addItem(highlightItem);
-
-    // Create layer for highlight
-    static int highlightCounter = 1;
-    auto *layer = new Layer(QString("Highlight %1").arg(highlightCounter++), Layer::Highlight, this);
-    layer->setItem(highlightItem);
-
-    // Remember this layer for next highlight drawing
-    m_lastHighlightLayer = layer;
-
-    m_layerManager->addLayer(layer);
-    m_layerManager->selectLayer(layer);
-
-    // Don't auto-select the highlight - user should use pointer tool to select it
-    m_scene->clearSelection();
-}
-
-qreal ImageEditor::getCurrentBlurRadius() const
-{
-    // If we have a previous blur layer, use its blur radius
-    if (m_lastBlurLayer && m_lastBlurLayer->item()) {
-        auto *lastBlur = dynamic_cast<Tools::BlurTool*>(m_lastBlurLayer->item());
-        if (lastBlur) {
-            return lastBlur->blurRadius();
-        }
-    }
-
-    // No previous blur layer, return default blur radius
-    return 10.0;
-}
-
-qreal ImageEditor::getCurrentBlurBrushWidth() const
-{
-    // If we have a previous blur layer, use its brush width
-    if (m_lastBlurLayer && m_lastBlurLayer->item()) {
-        auto *lastBlur = dynamic_cast<Tools::BlurTool*>(m_lastBlurLayer->item());
-        if (lastBlur) {
-            return lastBlur->brushWidth();
-        }
-    }
-
-    // No previous blur layer, return default brush width
-    return 30.0;
-}
-
-void ImageEditor::addBlurLayer(const QList<QPointF> &points)
-{
-    if (points.isEmpty()) {
-        return;
-    }
-
-    // Create the BlurTool and add all points
-    auto *blurItem = new Tools::BlurTool();
-    blurItem->setSourcePixmap(m_originalScreenshot);
-
-    // Copy properties from template tool
-    auto *blurTemplate = dynamic_cast<Tools::BlurTool*>(m_blurTemplate);
-    if (blurTemplate) {
-        // Get all properties from template
-        QList<Tools::ToolProperty> props = blurTemplate->getProperties();
-        for (const auto& prop : props) {
-            blurItem->setProperty(prop.id, prop.value);
-        }
-    } else {
-        // Fallback to previous layer or defaults if template doesn't exist
-        if (m_lastBlurLayer && m_lastBlurLayer->item()) {
-            auto *lastBlur = dynamic_cast<Tools::BlurTool*>(m_lastBlurLayer->item());
-            if (lastBlur) {
-                blurItem->setBlurRadius(lastBlur->blurRadius());
-                blurItem->setBrushWidth(lastBlur->brushWidth());
-            }
-        } else {
-            blurItem->setBlurRadius(10.0);
-            blurItem->setBrushWidth(30.0);
-        }
-    }
-
-    // Add all points to recreate the path
-    for (const QPointF &point : points) {
-        blurItem->addPoint(point);
-    }
-    blurItem->finishPath();
-
-    // Add the blur item to the scene
-    m_scene->addItem(blurItem);
-
-    // Create layer for blur
-    static int blurCounter = 1;
-    auto *layer = new Layer(QString("Blur %1").arg(blurCounter++), Layer::Blur, this);
-    layer->setItem(blurItem);
-
-    // Remember this layer for next blur drawing
-    m_lastBlurLayer = layer;
-
-    m_layerManager->addLayer(layer);
-    m_layerManager->selectLayer(layer);
-
-    // Don't auto-select the blur - user should use pointer tool to select it
-    m_scene->clearSelection();
 }
 
 } // namespace ImageEditor

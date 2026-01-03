@@ -7,6 +7,7 @@
 #include <QRectF>
 #include <functional>
 #include "ITool.h"
+#include "BackdropMemento.h"
 
 namespace ImageEditor::Tools {
 
@@ -55,6 +56,12 @@ public:
     [[nodiscard]] QVariantMap toConfig() const;
     void applyConfig(const QVariantMap &config);
     static QPixmap configPreview(const QVariantMap &config, QSize size);
+
+    // createMemento() snapshots the COMPLETE state (look + active preset); restore()
+    // puts it back. Distinct from toConfig()/applyConfig() (the serialisable look, for
+    // presets), which drive undoable backdrop edits via Commands::BackdropChangeCommand.
+    [[nodiscard]] BackdropMemento createMemento() const;
+    void restore(const BackdropMemento &memento);
 
     // Name of the preset currently in effect ("" once the user diverges via a
     // manual edit). Single source of truth shared by the popover grid and the

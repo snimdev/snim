@@ -37,6 +37,7 @@ public:
     // ITool interface for dynamic properties
     [[nodiscard]] QList<ToolProperty> getProperties() const override;
     void setProperty(const QString& propertyId, const QVariant& value) override;
+    void applyStyleFrom(const ITool* other) override;   // copies pen/brush/opacity
 
     // Shape manipulation
     void setShapeRect(const QRectF &rect);

@@ -21,7 +21,7 @@ TextSnipCapture::TextSnipCapture(QObject *parent)
         this
     );
 
-    // OCR only needs the selected region — no Edit/Copy/Save action toolbar.
+    // OCR only needs the selected region, so no Edit/Copy/Save action toolbar.
     m_captureStrategy->setQuickActionsEnabled(false);
 
     connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotReady,

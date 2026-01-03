@@ -12,6 +12,11 @@
 #include <QGraphicsLineItem>
 #include <QMouseEvent>
 #include <QPen>
+#include <QHash>
+#include <QString>
+
+class QActionGroup;
+class QUndoStack;
 
 namespace ImageEditor {
 
@@ -23,17 +28,11 @@ class Layer;
 namespace Tools {
     class ITool;
     class BackdropItem;
+    class TextTool;
 }
 
 namespace Interactions {
-    class PointerToolInteraction;
-    class ArrowDrawingInteraction;
-    class TextDrawingInteraction;
-    class RectangleDrawingInteraction;
-    class EllipseDrawingInteraction;
-    class FreehandDrawingInteraction;
-    class HighlightDrawingInteraction;
-    class BlurDrawingInteraction;
+    class IDrawingInteraction;
 }
 
 class ImageEditor : public QMainWindow
@@ -42,19 +41,11 @@ class ImageEditor : public QMainWindow
 
 public:
     explicit ImageEditor(const QPixmap &screenshot, QWidget *parent = nullptr);
-    virtual ~ImageEditor() = default;
+    ~ImageEditor() override;
 
 public slots:
     void saveAs();
     void copyToClipboard();
-    void selectPointerTool();
-    void selectArrowTool();
-    void selectTextTool();
-    void selectRectangleTool();
-    void selectEllipseTool();
-    void selectFreehandTool();
-    void selectHighlightTool();
-    void selectBlurTool();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -62,6 +53,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;   // editor keyboard shortcuts
     bool eventFilter(QObject *obj, QEvent *event) override;
 
 private slots:
@@ -76,13 +68,17 @@ private:
     void setupStrategies();
     void setupToolTemplates();
     QPixmap renderScene();
-    void addTextLayer(const QPoint &position, const QString &text);
-    void addArrowLayer(const QPoint &start, const QPoint &end);
-    void addRectangleLayer(const QRect &rect);
-    void addEllipseLayer(const QRect &rect);
-    void addFreehandLayer(const QList<QPointF> &points);
-    void addHighlightLayer(const QList<QPointF> &points, const QColor &color, qreal width);
-    void addBlurLayer(const QList<QPointF> &points);
+    // Tool registry driven: select a tool by id, and turn a freshly-drawn item
+    // into a layer (the single commit point all drawing tools funnel through).
+    void activateTool(const QString &toolId);
+    void commitDrawnItem(QGraphicsItem *item, const QString &toolId);
+    // Inline text: a freshly-placed text box is edited live; on focus-out it is
+    // either committed (non-empty) or discarded (empty). See setupStrategies.
+    void finalizePendingText(Tools::TextTool *item);
+    // Keyboard-shortcut helpers (all document mutations go through QUndoCommands).
+    void duplicateSelectedLayer();                 // ⌘/Ctrl+D: clone() + AddLayerCommand
+    void nudgeSelectedLayer(qreal dx, qreal dy);   // arrows: MoveLayerCommand
+    [[nodiscard]] bool isEditingText() const;      // a text item currently in inline-edit mode?
     Layer* createBackgroundLayer();
     void setBackdropEnabled(bool on);
     void onBackgroundButtonClicked();
@@ -96,23 +92,7 @@ private:
     void selectLayerByItem(QGraphicsItem *item);
     bool isWithinImageBounds(const QPoint &point) const;
     QPoint clampToImageBounds(const QPoint &point) const;
-    QPen getCurrentFreehandPen() const;
-    QColor getCurrentHighlightColor() const;
-    qreal getCurrentHighlightWidth() const;
-    qreal getCurrentBlurRadius() const;
-    qreal getCurrentBlurBrushWidth() const;
     QIcon createThemedIcon(const QString &iconPath);
-
-    enum ToolType {
-        None,
-        Arrow,
-        Text,
-        Rectangle,
-        Ellipse,
-        Freehand,
-        Highlight,
-        Blur
-    };
 
     // UI Components
     DrawingGraphicsView *m_view;
@@ -132,15 +112,17 @@ private:
     QAction *m_panelsAction;       // toggle the Layers/Properties side panel
     QAction *m_backgroundAction;   // toggle the CleanShot-style beautify backdrop
 
-    // - Toolbar :: Tools
-    QAction *m_pointerAction;
-    QAction *m_arrowAction;
-    QAction *m_textAction;
-    QAction *m_rectangleAction;
-    QAction *m_ellipseAction;
-    QAction *m_freehandAction;
-    QAction *m_highlightAction;
-    QAction *m_blurAction;
+    // - Toolbar :: Tools. Registry-driven: one exclusive action group plus the
+    //   id-keyed maps below (actions, strategies, templates), all keyed by tool id.
+    QActionGroup *m_toolGroup = nullptr;
+    QHash<QString, QAction*> m_actions;
+    QHash<QString, Interactions::IDrawingInteraction*> m_strategies;
+    QHash<QString, Tools::ITool*> m_templates;
+    QHash<QString, int> m_counters;   // per-tool layer-name counter
+
+    // Undo/redo. Add/delete/property/visibility edits are pushed as
+    // QUndoCommands; the stack owns them and drives the toolbar Undo/Redo actions.
+    QUndoStack *m_undoStack = nullptr;
 
     // Sidebar
     QSplitter *m_splitter;
@@ -152,39 +134,15 @@ private:
 
     // State
     QPixmap m_originalScreenshot;
-    ToolType m_currentTool;
-    bool m_drawing;
     bool m_firstShown = false;   // fit/center the view only on the first show
     bool m_dirty = false;        // unsaved changes (layers added/edited, backdrop, ...)
-    QGraphicsItem *m_currentArrow;
     Layer *m_backgroundLayer;
     Tools::BackdropItem *m_backdropItem;  // beautify backdrop (null when off)
     Layer *m_backdropLayer;
     QWidget *m_backdropPopover = nullptr;   // floating quick-actions popover
     QWidget *m_presetGrid = nullptr;        // preset-tiles container inside the popover
     Layer *m_selectedLayer = nullptr;       // current side-panel selection
-    Layer *m_lastFreehandLayer; // Track last freehand layer to remember settings
-    Layer *m_lastHighlightLayer; // Track last highlight layer to remember color
-    Layer *m_lastBlurLayer; // Track last blur layer to remember settings
-
-    // Drawing Interactions
-    Interactions::PointerToolInteraction *m_pointerStrategy;
-    Interactions::ArrowDrawingInteraction *m_arrowStrategy;
-    Interactions::TextDrawingInteraction *m_textStrategy;
-    Interactions::RectangleDrawingInteraction *m_rectangleStrategy;
-    Interactions::EllipseDrawingInteraction *m_ellipseStrategy;
-    Interactions::FreehandDrawingInteraction *m_freehandStrategy;
-    Interactions::HighlightDrawingInteraction *m_highlightStrategy;
-    Interactions::BlurDrawingInteraction *m_blurStrategy;
-
-    // Template tool instances for property preview (not added to scene)
-    Tools::ITool *m_textTemplate;
-    Tools::ITool *m_arrowTemplate;
-    Tools::ITool *m_rectangleTemplate;
-    Tools::ITool *m_ellipseTemplate;
-    Tools::ITool *m_freehandTemplate;
-    Tools::ITool *m_highlightTemplate;
-    Tools::ITool *m_blurTemplate;
+    Tools::TextTool *m_pendingTextItem = nullptr;  // text box being created/edited inline (uncommitted)
 };
 
 } // namespace ImageEditor

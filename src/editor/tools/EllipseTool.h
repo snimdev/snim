@@ -19,6 +19,8 @@ public:
     explicit EllipseTool(const QRectF &rect, QGraphicsItem *parent = nullptr);
     ~EllipseTool() override = default;
 
+    [[nodiscard]] QGraphicsItem* clone() const override;
+
 protected:
     void paintShape(QPainter *painter) override;
     QPainterPath createShapePath() const override;

@@ -1,5 +1,5 @@
 #include "SettingsDialog.h"
-#include <QSettings>
+#include "core/Settings.h"
 #include <QGroupBox>
 #include <QStandardPaths>
 #include <QDir>
@@ -244,44 +244,25 @@ void SettingsDialog::updateBackgroundButtonStyle()
 
 void SettingsDialog::loadSettings()
 {
-    QSettings settings;
+    m_screenshotFolderEdit->setText(Settings::screenshotFolder());
 
-    // Load screenshot folder
-    QString defaultFolder = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
-                           + "/Screenshots";
-    QString screenshotFolder = settings.value("General/ScreenshotFolder", defaultFolder).toString();
-    m_screenshotFolderEdit->setText(screenshotFolder);
-
-    // Load image format
-    QString imageFormat = settings.value("General/ImageFormat", "png").toString();
-    int formatIndex = m_imageFormatCombo->findData(imageFormat);
+    int formatIndex = m_imageFormatCombo->findData(Settings::imageFormat());
     if (formatIndex != -1) {
         m_imageFormatCombo->setCurrentIndex(formatIndex);
     }
 
-    // Load foreground and background colors
-    m_foregroundColor = settings.value("Editor/ForegroundColor", QColor(Qt::red)).value<QColor>();
-    m_backgroundColor = settings.value("Editor/BackgroundColor", QColor(Qt::transparent)).value<QColor>();
+    m_foregroundColor = Settings::editorForeground();
+    m_backgroundColor = Settings::editorBackground();
     updateForegroundButtonStyle();
     updateBackgroundButtonStyle();
 }
 
 void SettingsDialog::saveSettings()
 {
-    QSettings settings;
-
-    // Save screenshot folder
-    settings.setValue("General/ScreenshotFolder", m_screenshotFolderEdit->text());
-
-    // Save image format
-    QString selectedFormat = m_imageFormatCombo->currentData().toString();
-    settings.setValue("General/ImageFormat", selectedFormat);
-
-    // Save foreground and background colors
-    settings.setValue("Editor/ForegroundColor", m_foregroundColor);
-    settings.setValue("Editor/BackgroundColor", m_backgroundColor);
-
-    settings.sync();
+    Settings::setScreenshotFolder(m_screenshotFolderEdit->text());
+    Settings::setImageFormat(m_imageFormatCombo->currentData().toString());
+    Settings::setEditorForeground(m_foregroundColor);
+    Settings::setEditorBackground(m_backgroundColor);
 }
 
 void SettingsDialog::applySettings()

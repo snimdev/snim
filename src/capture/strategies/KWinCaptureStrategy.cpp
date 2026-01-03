@@ -252,7 +252,7 @@ void KWinCaptureStrategy::handleReply(QDBusPendingCallWatcher *watcher, int read
             const QString errorName = reply.error().name();
             qDebug() << "KWin" << method << "error:" << errorName << reply.error().message();
 
-            // Permission denied — fall back to CaptureInteractive
+            // Permission denied: fall back to CaptureInteractive
             if (errorName.contains("NoAuthorized") || errorName.contains("AccessDenied")) {
                 qDebug() << "Permission denied, falling back to CaptureInteractive";
                 int kind = (method == "CaptureActiveWindow") ? 0 : 1;

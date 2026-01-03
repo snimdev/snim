@@ -112,6 +112,22 @@ void FreehandTool::setPen(const QPen &pen)
     }
 }
 
+QGraphicsItem* FreehandTool::clone() const
+{
+    auto* copy = new FreehandTool();
+    copy->applyStyleFrom(this);
+    for (const QPointF &p : m_points)
+        copy->addPoint(p);
+    copy->finishPath();
+    return copy;
+}
+
+void FreehandTool::applyStyleFrom(const ITool* other)
+{
+    if (const auto* o = dynamic_cast<const FreehandTool*>(other))
+        setPen(o->pen());
+}
+
 QVariant FreehandTool::itemChange(GraphicsItemChange change, const QVariant &value)
 {
     if (change == ItemSelectedChange) {

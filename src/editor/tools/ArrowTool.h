@@ -31,6 +31,8 @@ public:
     // ITool interface for dynamic properties
     [[nodiscard]] QList<ToolProperty> getProperties() const override;
     void setProperty(const QString& propertyId, const QVariant& value) override;
+    [[nodiscard]] QGraphicsItem* clone() const override;
+    void applyStyleFrom(const ITool* other) override;   // copies pen + head type
 
     // Arrow manipulation
     void updateArrow(const QPointF &start, const QPointF &end);

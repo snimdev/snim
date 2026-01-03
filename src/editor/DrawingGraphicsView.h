@@ -11,6 +11,9 @@ namespace ImageEditor {
     namespace Interactions {
         class IDrawingInteraction;
     }
+    namespace Tools {
+        class ITool;
+    }
 }
 
 namespace ImageEditor {
@@ -41,6 +44,13 @@ signals:
      * @brief Emitted when an item is clicked with pointer tool
      */
     void itemClicked(QGraphicsItem *item);
+
+    /**
+     * @brief ⌘/Ctrl+wheel over (or with a selected) text item requests a font-size
+     * change of `steps` notches. ImageEditor turns this into an undoable command;
+     * the view never mutates the model itself.
+     */
+    void adjustTextSizeRequested(Tools::ITool *tool, int steps);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;

@@ -10,6 +10,13 @@ RectangleTool::RectangleTool(const QRectF &rect, QGraphicsItem *parent)
 {
 }
 
+QGraphicsItem* RectangleTool::clone() const
+{
+    auto* copy = new RectangleTool(shapeRect());
+    copy->applyStyleFrom(this);
+    return copy;
+}
+
 void RectangleTool::paintShape(QPainter *painter)
 {
     // Draw the rectangle
@@ -18,24 +25,18 @@ void RectangleTool::paintShape(QPainter *painter)
 
 QPainterPath RectangleTool::createShapePath() const
 {
+    // Always include the filled interior so the whole shape is grabbable, not just
+    // its outline (an unfilled rectangle would otherwise only respond on its border).
     QPainterPath path;
     path.addRect(m_shapeRect);
 
-    // Create a stroke path for better mouse interaction
     if (m_pen.widthF() > 0) {
+        // Widen the outline a little (min 5px) so the edge is easy to click too.
         QPainterPathStroker stroker;
         stroker.setCapStyle(m_pen.capStyle());
         stroker.setJoinStyle(m_pen.joinStyle());
-        stroker.setWidth(qMax(m_pen.widthF(), 5.0)); // Minimum 5px for easier clicking
-
-        QPainterPath strokePath = stroker.createStroke(path);
-
-        // If we have a fill, include the entire rectangle
-        if (m_brush.style() != Qt::NoBrush) {
-            return strokePath.united(path);
-        }
-
-        return strokePath;
+        stroker.setWidth(qMax(m_pen.widthF(), 5.0));
+        return stroker.createStroke(path).united(path);
     }
 
     return path;

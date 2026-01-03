@@ -214,6 +214,21 @@ void BackdropItem::applyConfig(const QVariantMap &c)
         m_onChanged("config");
 }
 
+BackdropMemento BackdropItem::createMemento() const
+{
+    // Only BackdropItem may build a memento. Captures the look (toConfig) plus the
+    // active-preset name = the complete restorable state.
+    return BackdropMemento(toConfig(), m_activePreset);
+}
+
+void BackdropItem::restore(const BackdropMemento &memento)
+{
+    // applyConfig() fires m_onChanged("config"), so the geometry/shadow re-apply and
+    // panel/popover refresh happen for free on undo/redo.
+    applyConfig(memento.m_config);
+    m_activePreset = memento.m_activePreset;
+}
+
 QPixmap BackdropItem::configPreview(const QVariantMap &c, QSize size)
 {
     QPixmap pm(size);
