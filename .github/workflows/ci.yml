@@ -8,9 +8,10 @@ jobs:
   build-and-test:
     name: Build & test (macOS)
     runs-on: macos-14   # Apple Silicon, matches the /opt/homebrew dev environment
+    timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install dependencies
         # qt6 + tesseract (OCR) + ninja/cmake. cmake is pinned via brew so it
@@ -31,4 +32,5 @@ jobs:
         run: |
           export QT_QPA_PLATFORM=offscreen
           export TESSDATA_PREFIX="$(brew --prefix)/share/tessdata"
-          ctest --output-on-failure
+          # --timeout kills a hung test's process tree instead of leaving it orphaned
+          ctest --output-on-failure --timeout 120
