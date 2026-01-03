@@ -103,8 +103,8 @@ deploy/appimagecraft*
 *.lai
 *.class
 
-# Core dumps
-core
+# Core dumps (anchored to repo root so it doesn't ignore the src/core/ source dir)
+/core
 core.*
 
 # Backup files
