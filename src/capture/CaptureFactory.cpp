@@ -1,8 +1,12 @@
 #include "CaptureFactory.h"
+#include "strategies/NativeCaptureStrategy.h"
+#ifdef Q_OS_LINUX
 #include "strategies/KWinCaptureStrategy.h"
 #include "strategies/WaylandCaptureStrategy.h"
-#include "strategies/NativeCaptureStrategy.h"
+#endif
+#include <QtGlobal>
 #include <QDebug>
+#include <memory>
 
 namespace Capture {
 
@@ -14,22 +18,26 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
 
     switch (type) {
         case StrategyType::KWin: {
+#ifdef Q_OS_LINUX
             auto strategy = std::make_unique<KWinCaptureStrategy>(parent);
             if (strategy->isAvailable()) {
                 qDebug() << "Created KWin capture strategy";
                 return strategy;
             }
             qWarning() << "KWin strategy requested but not available, falling back to Wayland";
+#endif
         }
         [[fallthrough]];
 
         case StrategyType::Wayland: {
+#ifdef Q_OS_LINUX
             auto strategy = std::make_unique<WaylandCaptureStrategy>(parent);
             if (strategy->isAvailable()) {
                 qDebug() << "Created Wayland capture strategy";
                 return strategy;
             }
             qWarning() << "Wayland strategy requested but not available, falling back to native";
+#endif
         }
         [[fallthrough]];
 
@@ -47,6 +55,7 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
 
 CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()
 {
+#ifdef Q_OS_LINUX
     // Prefer KWin on KDE Plasma (direct compositor access, no portal dialogs)
     if (KWinCaptureStrategy::isKWinAvailable()) {
         return StrategyType::KWin;
@@ -59,8 +68,9 @@ CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()
             return StrategyType::Wayland;
         }
     }
+#endif
 
-    // Fall back to native Qt capture
+    // Fall back to native Qt capture (the only strategy on non-Linux platforms)
     return StrategyType::Native;
 }
 
@@ -68,11 +78,19 @@ bool CaptureFactory::isStrategyAvailable(StrategyType type)
 {
     switch (type) {
         case StrategyType::KWin: {
+#ifdef Q_OS_LINUX
             return KWinCaptureStrategy::isKWinAvailable();
+#else
+            return false;
+#endif
         }
         case StrategyType::Wayland: {
+#ifdef Q_OS_LINUX
             auto strategy = std::make_unique<WaylandCaptureStrategy>();
             return strategy->isAvailable();
+#else
+            return false;
+#endif
         }
         case StrategyType::Native: {
             auto strategy = std::make_unique<NativeCaptureStrategy>();
