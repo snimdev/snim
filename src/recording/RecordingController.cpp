@@ -1,0 +1,462 @@
+#include "recording/RecordingController.h"
+
+#include "recording/RecordingFactory.h"
+#include "recording/RecordingStrategy.h"
+#include "recording/CameraBubble.h"
+#include "recording/RecordingFrameOverlay.h"
+#include "recording/RecordingOptionsBar.h"
+#include "capture/AreaSelector.h"
+#include "capture/WindowEnumerator.h"
+#include "core/Settings.h"
+#ifdef Q_OS_MACOS
+#include "capture/MacOverlay.h"
+#endif
+
+#include <QDir>
+#include <QDateTime>
+#include <QStandardPaths>
+#include <QScreen>
+#include <QGuiApplication>
+#include <QPainter>
+#include <QPermissions>
+#include <QPixmap>
+#include <QWindow>
+#include <QList>
+#include <algorithm>
+
+namespace Recording {
+
+namespace {
+// Freeze every screen into one virtual-desktop pixmap so the selection overlay has
+// a frozen frame to draw (mirrors the screenshot path's compositing). Phase iv will
+// factor this and the per-screen overlay setup into a shared selection helper.
+QPixmap grabAllScreens(QRect &virtualGeometryOut)
+{
+    const QList<QScreen*> screens = QGuiApplication::screens();
+    if (screens.isEmpty())
+        return {};
+
+    QRect virtualDesktop;
+    for (QScreen *s : screens)
+        virtualDesktop = virtualDesktop.united(s->geometry());
+    virtualGeometryOut = virtualDesktop;
+
+    qreal dpr = 1.0;
+    for (QScreen *s : screens)
+        dpr = std::max(dpr, s->devicePixelRatio());
+
+    QPixmap full(virtualDesktop.size() * dpr);
+    full.setDevicePixelRatio(dpr);
+    full.fill(Qt::black);
+    QPainter painter(&full);
+    for (QScreen *s : screens) {
+        const QRect geo = s->geometry();
+        const QPixmap shot = s->grabWindow(0);
+        const QRect destLogical(geo.topLeft() - virtualDesktop.topLeft(), geo.size());
+        painter.drawPixmap(destLogical, shot, shot.rect());
+    }
+    painter.end();
+    return full;
+}
+} // namespace
+
+RecordingController::RecordingController(QObject *parent)
+    : RecordingController(RecordingFactory::createStrategy(RecordingFactory::StrategyType::Auto),
+                          parent)
+{
+}
+
+RecordingController::RecordingController(std::unique_ptr<RecordingStrategy> strategy, QObject *parent)
+    : QObject(parent), m_strategy(std::move(strategy))
+{
+    wireStrategy();
+}
+
+RecordingController::~RecordingController()
+{
+    delete m_cameraBubble;   // top-level windows, not parented to the controller
+    delete m_frameOverlay;
+}
+
+void RecordingController::ensureCameraBubble()
+{
+    if (!Core::Settings::cameraEnabled()) {
+        destroyCameraBubble();
+        return;
+    }
+    if (!m_cameraBubble)
+        m_cameraBubble = new CameraBubble();
+    m_cameraBubble->setCameraDevice(Core::Settings::cameraDeviceId());
+    m_cameraBubble->show();
+    m_cameraBubble->raise();
+    m_cameraBubble->startCamera();
+}
+
+void RecordingController::destroyCameraBubble()
+{
+    if (m_cameraBubble) {
+        m_cameraBubble->stopCamera();
+        m_cameraBubble->hide();
+        m_cameraBubble->deleteLater();
+        m_cameraBubble = nullptr;
+    }
+}
+
+// Recording frame: dim + border marking the recorded region for the whole recording.
+// One of our own windows, so the capture filter excludes it — never in the video.
+void RecordingController::showFrameOverlay()
+{
+    if (m_activeRegion.isEmpty() || !Core::Settings::recordingFrameEnabled())
+        return;
+    if (!m_frameOverlay)
+        m_frameOverlay = new RecordingFrameOverlay();
+    m_frameOverlay->showForRegion(m_activeRegion);
+    if (m_cameraBubble)
+        m_cameraBubble->raise();   // same window level: keep the bubble above the dim
+}
+
+void RecordingController::destroyFrameOverlay()
+{
+    if (m_frameOverlay) {
+        m_frameOverlay->hide();
+        m_frameOverlay->deleteLater();
+        m_frameOverlay = nullptr;
+    }
+}
+
+quint64 RecordingController::cameraBubbleWindowId() const
+{
+#ifdef Q_OS_MACOS
+    if (m_cameraBubble)
+        return Capture::nativeWindowId(m_cameraBubble);
+#endif
+    return 0;
+}
+
+bool RecordingController::isAvailable() const
+{
+    return m_strategy && m_strategy->isAvailable();
+}
+
+void RecordingController::startRecording(const RecordTarget &target)
+{
+    if (m_state != State::Idle)
+        return;                       // already recording or starting
+    if (!target.isValid())
+        return;
+    if (!isAvailable()) {
+        emit recordingFailed(tr("Screen recording is unavailable on this system."));
+        return;
+    }
+    m_state = State::Starting;        // becomes Recording once the backend signals started()
+    m_strategy->start(target, makeOutputPath());
+}
+
+void RecordingController::stop()
+{
+    if (m_state == State::Idle)
+        return;
+    m_strategy->stop();
+}
+
+void RecordingController::togglePause()
+{
+    if (m_state != State::Recording || !m_strategy)
+        return;
+    if (m_strategy->isPaused())
+        m_strategy->resume();
+    else
+        m_strategy->pause();
+}
+
+void RecordingController::recordArea()
+{
+    if (m_state != State::Idle)
+        return;
+    if (!isAvailable()) {
+        emit recordingFailed(tr("Screen recording is unavailable on this system."));
+        return;
+    }
+    presentSelection(/*windowPick=*/false);
+}
+
+void RecordingController::recordWindow()
+{
+    if (m_state != State::Idle)
+        return;
+    if (!isAvailable()) {
+        emit recordingFailed(tr("Screen recording is unavailable on this system."));
+        return;
+    }
+    presentSelection(/*windowPick=*/true);
+}
+
+bool RecordingController::resolveInputPermissions(const std::function<void()> &done)
+{
+    // The selection overlays sit at the macOS shielding window level — ABOVE system
+    // dialogs — so a TCC permission prompt fired while they are up opens underneath
+    // them where it can never be answered. This gate therefore runs only at the two
+    // overlay-free moments: before the overlays appear, and after teardown at commit
+    // (inputs may have been switched on via the options bar mid-selection). The
+    // m_asked* flags cap each request at one per gate run, so a backend that answers
+    // without changing the status (e.g. a missing usage description) cannot loop us.
+    if (Core::Settings::cameraEnabled() && !m_askedCameraPermission) {
+        QCameraPermission cameraPermission;
+        switch (qApp->checkPermission(cameraPermission)) {
+        case Qt::PermissionStatus::Undetermined:
+            m_askedCameraPermission = true;
+            qApp->requestPermission(cameraPermission, this,
+                                    [done](const QPermission &) { done(); });
+            return true;
+        case Qt::PermissionStatus::Denied:
+            // Record anyway — the bubble shows its own "no access" state.
+            emit recordingWarning(tr("Camera access is denied — enable Niceshot in "
+                                     "System Settings > Privacy & Security > Camera."));
+            break;
+        case Qt::PermissionStatus::Granted:
+            break;
+        }
+    }
+    if (Core::Settings::micEnabled() && !m_askedMicPermission) {
+        QMicrophonePermission micPermission;
+        switch (qApp->checkPermission(micPermission)) {
+        case Qt::PermissionStatus::Undetermined:
+            // Asking now also keeps the system prompt out of the recording itself
+            // (ScreenCaptureKit would otherwise trigger it right as capture starts).
+            m_askedMicPermission = true;
+            qApp->requestPermission(micPermission, this,
+                                    [done](const QPermission &) { done(); });
+            return true;
+        case Qt::PermissionStatus::Denied:
+            emit recordingWarning(tr("Microphone access is denied — your narration won't "
+                                     "be recorded. Enable Niceshot in System Settings > "
+                                     "Privacy & Security > Microphone."));
+            break;
+        case Qt::PermissionStatus::Granted:
+            break;
+        }
+    }
+    return false;
+}
+
+void RecordingController::presentSelection(bool windowPick)
+{
+    m_state = State::Selecting;   // swallow re-triggers while a prompt/overlay is up
+    if (resolveInputPermissions([this, windowPick] {
+            m_state = State::Idle;
+            presentSelection(windowPick);
+        }))
+        return;
+    // Past the gate: this attempt is done asking. Let the commit gate ask afresh
+    // for anything the user enables on the options bar during selection.
+    m_askedCameraPermission = false;
+    m_askedMicPermission = false;
+
+    QRect virtualGeometry;
+    const QPixmap frozen = grabAllScreens(virtualGeometry);
+    if (frozen.isNull()) {
+        m_state = State::Idle;
+        emit recordingFailed(tr("Could not capture the screen for selection."));
+        return;
+    }
+
+    // Show the webcam bubble now (if enabled) so the user sees it while selecting;
+    // it is re-ensured at commit (the options bar can toggle it mid-selection).
+    ensureCameraBubble();
+
+    const QList<QScreen*> screens = QGuiApplication::screens();
+    // Window-pick needs each candidate window's rect + id for true window capture.
+    const QVector<Capture::WindowInfo> windowInfos =
+        windowPick ? Capture::enumerateWindowInfos() : QVector<Capture::WindowInfo>{};
+    auto *selectors = new QList<Capture::AreaSelector*>();
+
+    // One overlay per screen, frozen-frame backdrop (mirrors the screenshot path).
+    for (QScreen *screen : screens) {
+        const QRect screenGeometry = screen->geometry();
+        auto *selector = new Capture::AreaSelector();
+        selector->setScreenshot(frozen);
+        selector->setVirtualGeometry(virtualGeometry);
+        selector->setScreenOffset(screenGeometry.topLeft());
+        if (windowPick) {
+            selector->setMode(Capture::AreaSelector::Mode::WindowPick);
+            selector->setWindowInfos(windowInfos);
+        }
+        selector->setActionsEnabled(false);   // recording has no Edit/Copy/Save toolbar
+        selector->setGeometry(screenGeometry);
+        selector->winId();
+        if (QWindow *wh = selector->windowHandle())
+            wh->setScreen(screen);
+        selector->show();
+        selector->raise();
+        selector->activateWindow();
+#ifdef Q_OS_MACOS
+        Capture::configureOverlayWindow(selector);
+#endif
+        selectors->append(selector);
+    }
+
+    // The inline options bar, floating above the overlays: camera/mic/audio/fps/
+    // scale write Settings directly (the commit handler re-reads them); record and
+    // cancel drive the selectors. Shown AFTER the overlays so it stacks on top.
+    auto *optionsBar = new RecordingOptionsBar();
+    optionsBar->setRecordVisible(!windowPick);   // in window-pick the click commits
+    connect(optionsBar, &RecordingOptionsBar::cameraToggled, this, [this](bool on) {
+        // Never fire a TCC prompt while the shielding overlays are up (it would
+        // open underneath them): only touch the bubble live when access is already
+        // granted; otherwise the commit-time permission gate handles it.
+        if (on) {
+            QCameraPermission cameraPermission;
+            if (qApp->checkPermission(cameraPermission) != Qt::PermissionStatus::Granted)
+                return;
+        }
+        ensureCameraBubble();   // honors the just-written setting: creates or destroys
+    });
+    connect(optionsBar, &RecordingOptionsBar::recordRequested, this, [selectors] {
+        // All overlays share the synced selection; the first one in Adjusting
+        // commits (which tears everything down — iterate over a copy).
+        const QList<Capture::AreaSelector *> sels = *selectors;
+        for (auto *sel : sels)
+            if (sel->commitCurrentSelection())
+                break;
+    });
+    connect(optionsBar, &RecordingOptionsBar::cancelRequested, this, [selectors] {
+        if (!selectors->isEmpty())
+            selectors->first()->cancelSelection();   // mirrors Esc
+    });
+    optionsBar->show();
+    optionsBar->raise();
+#ifdef Q_OS_MACOS
+    // AFTER show() returns: Qt re-applies its own window level while making the
+    // window visible, which would bury the bar beneath the shielding-level overlay
+    // if we only configured from showEvent (same reason configureOverlayWindow is
+    // applied to the selectors post-show above).
+    Capture::configureSelectionHud(optionsBar);
+#endif
+
+    auto teardown = [selectors, optionsBar]() {
+        optionsBar->hide();
+        optionsBar->deleteLater();
+        for (auto *sel : *selectors) {
+            sel->blockSignals(true);   // prevent re-entry from the other overlays
+            sel->disconnect();
+            sel->close();
+            sel->deleteLater();
+        }
+        selectors->clear();
+        delete selectors;
+    };
+
+    for (auto *selector : *selectors) {
+        connect(selector, &Capture::AreaSelector::areaSelected, this,
+                [this, teardown, windowPick](const QRect &area) {
+                    teardown();
+                    m_state = State::Idle;
+                    if (area.isEmpty()) {           // cancelled (Esc / ✕ / empty)
+                        destroyCameraBubble();
+                        return;
+                    }
+                    if (windowPick)                 // window success handled in windowPicked
+                        return;
+                    beginRecordingForSelection(area, /*windowId=*/0, /*isWindow=*/false);
+                });
+        if (windowPick) {
+            connect(selector, &Capture::AreaSelector::windowPicked, this,
+                    [this, teardown](const QRect &area, quint64 windowId) {
+                        teardown();
+                        m_state = State::Idle;
+                        if (area.isEmpty() && windowId == 0) {   // nothing under the cursor
+                            destroyCameraBubble();
+                            return;
+                        }
+                        beginRecordingForSelection(area, windowId, /*isWindow=*/true);
+                    });
+        }
+        // Multi-monitor: mirror the live selection onto the other overlays. Also
+        // park the webcam bubble in the selection's corner as it is adjusted (2 ==
+        // Phase::Adjusting), so it previews exactly where it will be recorded.
+        connect(selector, &Capture::AreaSelector::liveStateChanged, this,
+                [this, selectors, selector](const QRect &sel, int phase, int mode, const QPoint &cursor) {
+                    for (auto *other : *selectors)
+                        if (other != selector)
+                            other->applyPeerState(sel, phase, mode, cursor);
+                    if (m_cameraBubble && phase == 2 && !sel.isEmpty())
+                        m_cameraBubble->moveToRegionCorner(sel);
+                });
+    }
+}
+
+void RecordingController::beginRecordingForSelection(const QRect &area, quint64 windowId,
+                                                     bool isWindow)
+{
+    // Overlays are gone: safe to resolve permissions for inputs the user enabled on
+    // the options bar mid-selection (the prompt is visible now). Re-enters here.
+    if (resolveInputPermissions([this, area, windowId, isWindow] {
+            beginRecordingForSelection(area, windowId, isWindow);
+        }))
+        return;
+    m_askedCameraPermission = false;
+    m_askedMicPermission = false;
+
+    // Re-evaluate the camera setting (bar toggles), get a fresh window id for the
+    // capture filter, and park the bubble where the recording will actually be.
+    ensureCameraBubble();
+    if (m_cameraBubble)
+        m_cameraBubble->moveToRegionCorner(area);
+
+    RecordTarget target;
+    target.kind = isWindow ? RecordTarget::Kind::Window : RecordTarget::Kind::Region;
+    target.windowId = windowId;
+    target.regionVirtual = area;       // window: fallback rect for older macOS
+    target.fps = Core::Settings::recordingFps();
+    target.captureCursor = Core::Settings::recordingCaptureCursor();
+    target.retinaCapture = Core::Settings::recordingRetina();
+    target.cameraWindowId = cameraBubbleWindowId();
+    target.captureSystemAudio = Core::Settings::systemAudioEnabled();
+    target.captureMic = Core::Settings::micEnabled();
+    target.micDeviceId = Core::Settings::micDeviceId();
+    // The frame overlay marks the region once capture starts (windows move, so no
+    // frame for window recordings).
+    m_activeRegion = isWindow ? QRect() : area;
+    startRecording(target);
+}
+
+void RecordingController::wireStrategy()
+{
+    if (!m_strategy)
+        return;
+
+    connect(m_strategy.get(), &RecordingStrategy::started, this, [this] {
+        m_state = State::Recording;
+        showFrameOverlay();   // capture is live: mark the recorded region on screen
+        emit recordingStateChanged(true);
+    });
+    connect(m_strategy.get(), &RecordingStrategy::finished, this, [this](const QString &path) {
+        m_state = State::Idle;
+        destroyCameraBubble();
+        destroyFrameOverlay();
+        emit recordingStateChanged(false);
+        emit recordingFinished(path);
+    });
+    connect(m_strategy.get(), &RecordingStrategy::failed, this, [this](const QString &error) {
+        m_state = State::Idle;
+        destroyCameraBubble();
+        destroyFrameOverlay();
+        emit recordingStateChanged(false);
+        emit recordingFailed(error);
+    });
+    connect(m_strategy.get(), &RecordingStrategy::durationChanged,
+            this, &RecordingController::recordingDuration);
+    connect(m_strategy.get(), &RecordingStrategy::pausedChanged,
+            this, &RecordingController::recordingPausedChanged);
+}
+
+QString RecordingController::makeOutputPath() const
+{
+    // Record into a temp file; the app prompts for the final destination on stop and
+    // moves it there. recordingFolder() is then just the save dialog's default dir.
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    const QString stamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
+    return dir + "/Niceshot_recording_" + stamp + "." + Core::Settings::recordingFormat();
+}
+
+} // namespace Recording

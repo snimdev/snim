@@ -7,9 +7,9 @@
 
 namespace Capture {
 
-QVector<QRect> enumerateWindows()
+QVector<WindowInfo> enumerateWindowInfos()
 {
-    QVector<QRect> result;
+    QVector<WindowInfo> result;
 
     // On-screen windows, front-to-back, excluding desktop/wallpaper elements.
     CFArrayRef windows = CGWindowListCopyWindowInfo(
@@ -54,7 +54,15 @@ QVector<QRect> enumerateWindows()
         if (r.width() < 8 || r.height() < 8)
             continue; // ignore tiny/utility windows
 
-        result.append(r);
+        // The CGWindowID lets a recorder target this exact window.
+        quint64 windowId = 0;
+        if (auto idRef = static_cast<CFNumberRef>(CFDictionaryGetValue(info, kCGWindowNumber))) {
+            long long n = 0;
+            CFNumberGetValue(idRef, kCFNumberLongLongType, &n);
+            windowId = static_cast<quint64>(n);
+        }
+
+        result.append(WindowInfo{ r, windowId });
     }
 
     CFRelease(windows);

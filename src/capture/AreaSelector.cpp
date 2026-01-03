@@ -92,18 +92,31 @@ AreaSelector::Handle AreaSelector::hitTest(const QPoint &local) const
     return Handle::None;
 }
 
-QRect AreaSelector::windowAt(const QPoint &virt) const
+void AreaSelector::setWindowInfos(const QVector<WindowInfo> &infos)
 {
-    for (const QRect &w : m_windows) {   // front-to-back: first hit is topmost
-        if (w.contains(virt))
-            return w;
+    m_windows.clear();
+    m_windowIds.clear();
+    m_windows.reserve(infos.size());
+    m_windowIds.reserve(infos.size());
+    for (const WindowInfo &info : infos) {
+        m_windows.append(info.rect);
+        m_windowIds.append(info.id);
     }
-    return QRect();
 }
 
 void AreaSelector::updateHoverWindow()
 {
-    QRect w = windowAt(m_cursorVirt);
+    // Topmost window under the cursor (front-to-back: first hit wins), tracking its
+    // id so a pick can carry it for true window capture. Falls back to this screen.
+    m_hoverWindowId = 0;
+    QRect w;
+    for (int i = 0; i < m_windows.size(); ++i) {
+        if (m_windows[i].contains(m_cursorVirt)) {
+            w = m_windows[i];
+            m_hoverWindowId = m_windowIds.value(i, 0);
+            break;
+        }
+    }
     if (w.isEmpty())
         w = QRect(m_screenOffset, size()); // fallback: highlight this screen
     m_selectionVirt = w;                   // reuse selection rect for rendering/HUD
@@ -476,6 +489,12 @@ void AreaSelector::keyPressEvent(QKeyEvent *event)
 void AreaSelector::commitSelection()
 {
     m_phase = Phase::Idle;
+    // Emit the window id FIRST (before areaSelected) so a recording consumer can act
+    // on windowPicked and tear the overlay down; the later areaSelected is then
+    // suppressed by that teardown. The screenshot path ignores windowPicked and
+    // still receives areaSelected normally.
+    if (m_mode == Mode::WindowPick)
+        emit windowPicked(m_selectionVirt, m_hoverWindowId);
     emit areaSelected(m_selectionVirt);
     close();
 }
@@ -484,6 +503,14 @@ void AreaSelector::cancel()
 {
     emit areaSelected(QRect()); // empty rect = cancellation
     close();
+}
+
+bool AreaSelector::commitCurrentSelection()
+{
+    if (m_phase != Phase::Adjusting || m_selectionVirt.isEmpty())
+        return false;
+    commitSelection();
+    return true;
 }
 
 void AreaSelector::broadcastState()

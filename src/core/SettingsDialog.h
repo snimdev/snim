@@ -14,6 +14,7 @@
 #include <QStandardPaths>
 #include <QColorDialog>
 #include <QColor>
+#include <QCheckBox>
 
 namespace Core {
 
@@ -34,6 +35,7 @@ private slots:
 private:
     void setupUI();
     void setupGeneralTab();
+    void setupRecordingTab();
     void setupUploadTab();
     void setupHotkeysTab();
     void loadSettings();
@@ -53,6 +55,15 @@ private:
     QPushButton *m_backgroundColorButton;
     QColor m_foregroundColor;
     QColor m_backgroundColor;
+
+    // Recording Tab
+    QWidget *m_recordingTab;
+    QCheckBox *m_cameraEnabledCheck;
+    QComboBox *m_cameraCombo;
+    QCheckBox *m_micEnabledCheck;
+    QComboBox *m_micCombo;
+    QCheckBox *m_systemAudioCheck;
+    QCheckBox *m_frameCheck;   // "Highlight recorded area while recording"
 
     // Upload Tab
     QWidget *m_uploadTab;

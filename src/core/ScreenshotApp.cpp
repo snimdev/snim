@@ -11,8 +11,14 @@
 #include <QStyle>
 #include <QPalette>
 #include <QFile>
+#include <QFileInfo>
+#include <QFileDialog>
 
+#include "core/Settings.h"
 #include "editor/image/ImageEditor.h"
+#include "editor/video/VideoEditor.h"
+#include "recording/RecordingController.h"
+#include "recording/RecordingControls.h"
 
 namespace Core {
     ScreenshotApp::ScreenshotApp(int &argc, char **argv)
@@ -42,6 +48,24 @@ namespace Core {
         m_textSnipCapture = std::make_unique<TextSnipCapture>(this);
         connect(m_textSnipCapture.get(), &TextSnipCapture::textExtracted,
                 this, &ScreenshotApp::onTextExtracted);
+
+        // Initialize screen recording. RecordingFactory picks the platform backend
+        // (ScreenCaptureKit on macOS; a stub elsewhere), so the app is unchanged
+        // when Linux/Windows backends are added later.
+        m_recordingController = std::make_unique<Recording::RecordingController>(this);
+        connect(m_recordingController.get(), &Recording::RecordingController::recordingStateChanged,
+                this, &ScreenshotApp::onRecordingStateChanged);
+        connect(m_recordingController.get(), &Recording::RecordingController::recordingFinished,
+                this, &ScreenshotApp::onRecordingFinished);
+        connect(m_recordingController.get(), &Recording::RecordingController::recordingFailed,
+                this, &ScreenshotApp::onRecordingFailed);
+        // Non-fatal setup problems (e.g. camera/mic access denied): a tray balloon,
+        // not a modal box — the recording itself still proceeds.
+        connect(m_recordingController.get(), &Recording::RecordingController::recordingWarning,
+                this, [this](const QString &message) {
+                    if (m_trayIcon)
+                        m_trayIcon->showMessage(tr("Niceshot"), message, QSystemTrayIcon::Warning);
+                });
 
         setupSystemTray();
     }
@@ -93,6 +117,22 @@ namespace Core {
             m_textSnipAction->setToolTip("Install tesseract-ocr to enable this feature");
         }
 
+        m_recordAreaAction = new QAction("Record Area", this);
+        m_recordAreaAction->setShortcut(QKeySequence("Ctrl+Shift+R"));
+        connect(m_recordAreaAction, &QAction::triggered, this, &ScreenshotApp::toggleAreaRecording);
+
+        m_recordWindowAction = new QAction("Record Window", this);
+        connect(m_recordWindowAction, &QAction::triggered, this, &ScreenshotApp::startWindowRecording);
+
+        // Disable recording where the platform backend is unavailable (e.g. macOS < 12.3).
+        if (m_recordingController && !m_recordingController->isAvailable()) {
+            m_recordAreaAction->setEnabled(false);
+            m_recordAreaAction->setText("Record Area (unavailable)");
+            m_recordAreaAction->setToolTip("Screen recording requires macOS 12.3 or later");
+            m_recordWindowAction->setEnabled(false);
+            m_recordWindowAction->setToolTip("Screen recording requires macOS 12.3 or later");
+        }
+
         m_aboutAction = new QAction("About", this);
         m_settingsAction = new QAction("Settings", this);
         connect(m_settingsAction, &QAction::triggered, this, &ScreenshotApp::showSettings);
@@ -106,6 +146,8 @@ namespace Core {
         m_trayMenu = new QMenu();
         m_trayMenu->addAction(m_captureAreaAction);
         m_trayMenu->addAction(m_captureWindowAction);
+        m_trayMenu->addAction(m_recordAreaAction);
+        m_trayMenu->addAction(m_recordWindowAction);
         m_trayMenu->addAction(m_textSnipAction);
         m_trayMenu->addSeparator();
         m_trayMenu->addAction(m_settingsAction);
@@ -200,6 +242,69 @@ namespace Core {
     void ScreenshotApp::onTextExtracted(const QString &text, bool success) {
         qDebug() << "Text extraction" << (success ? "succeeded" : "failed");
         qDebug() << "Extracted text:" << text;
+    }
+
+    void ScreenshotApp::toggleAreaRecording() {
+        if (!m_recordingController)
+            return;
+        if (m_recordingController->isRecording())
+            m_recordingController->stop();
+        else
+            m_recordingController->recordArea();
+    }
+
+    void ScreenshotApp::startWindowRecording() {
+        if (m_recordingController)
+            m_recordingController->recordWindow();
+    }
+
+    void ScreenshotApp::onRecordingStateChanged(bool recording) {
+        if (m_recordAreaAction)
+            m_recordAreaAction->setText(recording ? "Stop Recording" : "Record Area");
+        if (m_recordWindowAction)
+            m_recordWindowAction->setEnabled(!recording);   // one session at a time
+
+        if (recording) {
+            if (!m_recordingControls) {
+                m_recordingControls = new Recording::RecordingControls();
+                connect(m_recordingControls, &Recording::RecordingControls::stopRequested,
+                        this, &ScreenshotApp::toggleAreaRecording);
+                connect(m_recordingControls, &Recording::RecordingControls::pauseRequested,
+                        m_recordingController.get(), &Recording::RecordingController::togglePause);
+                connect(m_recordingController.get(), &Recording::RecordingController::recordingDuration,
+                        m_recordingControls, &Recording::RecordingControls::setElapsed);
+                connect(m_recordingController.get(), &Recording::RecordingController::recordingPausedChanged,
+                        m_recordingControls, &Recording::RecordingControls::setPaused);
+            }
+            m_recordingControls->setElapsed(0);
+            m_recordingControls->show();
+            m_recordingControls->raise();
+        } else if (m_recordingControls) {
+            m_recordingControls->hide();
+            m_recordingControls->deleteLater();
+            m_recordingControls = nullptr;
+        }
+    }
+
+    void ScreenshotApp::onRecordingFinished(const QString &tempPath) {
+        // The recording was written to a temp file; open it in the trim editor,
+        // which owns the file from here (save / copy / discard all clean it up).
+        auto *editor = new Editor::Video::VideoEditor(tempPath);
+        editor->setAttribute(Qt::WA_DeleteOnClose);
+        connect(editor, &Editor::Video::VideoEditor::recordingSaved, this,
+                [this](const QString &finalPath) {
+                    if (m_trayIcon)
+                        m_trayIcon->showMessage(tr("Recording saved"),
+                                                QFileInfo(finalPath).fileName(),
+                                                QSystemTrayIcon::Information, 4000);
+                });
+        editor->show();
+        editor->raise();
+        editor->activateWindow();
+    }
+
+    void ScreenshotApp::onRecordingFailed(const QString &error) {
+        QMessageBox::warning(nullptr, "Recording Failed", error);
     }
 
     void ScreenshotApp::quit() {

@@ -3,6 +3,11 @@
 #include <QGroupBox>
 #include <QStandardPaths>
 #include <QDir>
+#include <QMediaDevices>
+#include <QCameraDevice>
+#include <QAudioDevice>
+#include <QApplication>
+#include <QPermissions>
 
 namespace Core {
 
@@ -17,6 +22,13 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     , m_backgroundColorButton(nullptr)
     , m_foregroundColor(Qt::red)
     , m_backgroundColor(Qt::transparent)
+    , m_recordingTab(nullptr)
+    , m_cameraEnabledCheck(nullptr)
+    , m_cameraCombo(nullptr)
+    , m_micEnabledCheck(nullptr)
+    , m_micCombo(nullptr)
+    , m_systemAudioCheck(nullptr)
+    , m_frameCheck(nullptr)
     , m_uploadTab(nullptr)
     , m_hotkeysTab(nullptr)
     , m_applyButton(nullptr)
@@ -40,6 +52,7 @@ void SettingsDialog::setupUI()
 
     // Setup tabs
     setupGeneralTab();
+    setupRecordingTab();
     setupUploadTab();
     setupHotkeysTab();
 
@@ -124,6 +137,72 @@ void SettingsDialog::setupGeneralTab()
     layout->addStretch();
 
     m_tabWidget->addTab(m_generalTab, "General");
+}
+
+void SettingsDialog::setupRecordingTab()
+{
+    m_recordingTab = new QWidget();
+    auto *layout = new QVBoxLayout(m_recordingTab);
+
+    // Webcam group
+    auto *camGroup = new QGroupBox("Webcam", m_recordingTab);
+    auto *camLayout = new QFormLayout(camGroup);
+    m_cameraEnabledCheck = new QCheckBox("Show webcam circle in recordings", camGroup);
+    m_cameraCombo = new QComboBox(camGroup);
+    for (const QCameraDevice &cam : QMediaDevices::videoInputs())
+        m_cameraCombo->addItem(cam.description(), cam.id());
+    if (m_cameraCombo->count() == 0)
+        m_cameraCombo->addItem("No camera found", QByteArray());
+    camLayout->addRow(m_cameraEnabledCheck);
+    camLayout->addRow("Camera:", m_cameraCombo);
+    layout->addWidget(camGroup);
+
+    // Audio group
+    auto *audioGroup = new QGroupBox("Audio", m_recordingTab);
+    auto *audioLayout = new QFormLayout(audioGroup);
+    m_micEnabledCheck = new QCheckBox("Record microphone", audioGroup);
+    m_micCombo = new QComboBox(audioGroup);
+    for (const QAudioDevice &mic : QMediaDevices::audioInputs())
+        m_micCombo->addItem(mic.description(), mic.id());
+    if (m_micCombo->count() == 0)
+        m_micCombo->addItem("No microphone found", QByteArray());
+    m_systemAudioCheck = new QCheckBox("Record system audio", audioGroup);
+    audioLayout->addRow(m_micEnabledCheck);
+    audioLayout->addRow("Microphone:", m_micCombo);
+    audioLayout->addRow(m_systemAudioCheck);
+    layout->addWidget(audioGroup);
+
+    // Display group: the on-screen recording frame (border + dim around the region).
+    auto *displayGroup = new QGroupBox("Display", m_recordingTab);
+    auto *displayLayout = new QFormLayout(displayGroup);
+    m_frameCheck = new QCheckBox("Highlight recorded area while recording", displayGroup);
+    displayLayout->addRow(m_frameCheck);
+    layout->addWidget(displayGroup);
+
+    layout->addStretch();
+    m_tabWidget->addTab(m_recordingTab, "Recording");
+
+    // Device dropdowns are only relevant when their input is enabled.
+    connect(m_cameraEnabledCheck, &QCheckBox::toggled, m_cameraCombo, &QWidget::setEnabled);
+    connect(m_micEnabledCheck, &QCheckBox::toggled, m_micCombo, &QWidget::setEnabled);
+
+    // Ask for the TCC permission the moment an input is enabled, while a normal
+    // dialog has focus — at recording time the full-screen selection overlays sit
+    // above system dialogs and would hide the prompt.
+    connect(m_cameraEnabledCheck, &QCheckBox::toggled, this, [this](bool on) {
+        if (!on)
+            return;
+        QCameraPermission permission;
+        if (qApp->checkPermission(permission) == Qt::PermissionStatus::Undetermined)
+            qApp->requestPermission(permission, this, [](const QPermission &) {});
+    });
+    connect(m_micEnabledCheck, &QCheckBox::toggled, this, [this](bool on) {
+        if (!on)
+            return;
+        QMicrophonePermission permission;
+        if (qApp->checkPermission(permission) == Qt::PermissionStatus::Undetermined)
+            qApp->requestPermission(permission, this, [](const QPermission &) {});
+    });
 }
 
 void SettingsDialog::setupUploadTab()
@@ -255,6 +334,21 @@ void SettingsDialog::loadSettings()
     m_backgroundColor = Settings::editorBackground();
     updateForegroundButtonStyle();
     updateBackgroundButtonStyle();
+
+    m_cameraEnabledCheck->setChecked(Settings::cameraEnabled());
+    int camIdx = m_cameraCombo->findData(Settings::cameraDeviceId());
+    if (camIdx != -1)
+        m_cameraCombo->setCurrentIndex(camIdx);
+    m_cameraCombo->setEnabled(m_cameraEnabledCheck->isChecked());
+
+    m_micEnabledCheck->setChecked(Settings::micEnabled());
+    int micIdx = m_micCombo->findData(Settings::micDeviceId());
+    if (micIdx != -1)
+        m_micCombo->setCurrentIndex(micIdx);
+    m_micCombo->setEnabled(m_micEnabledCheck->isChecked());
+
+    m_systemAudioCheck->setChecked(Settings::systemAudioEnabled());
+    m_frameCheck->setChecked(Settings::recordingFrameEnabled());
 }
 
 void SettingsDialog::saveSettings()
@@ -263,6 +357,13 @@ void SettingsDialog::saveSettings()
     Settings::setImageFormat(m_imageFormatCombo->currentData().toString());
     Settings::setEditorForeground(m_foregroundColor);
     Settings::setEditorBackground(m_backgroundColor);
+
+    Settings::setCameraEnabled(m_cameraEnabledCheck->isChecked());
+    Settings::setCameraDeviceId(m_cameraCombo->currentData().toByteArray());
+    Settings::setMicEnabled(m_micEnabledCheck->isChecked());
+    Settings::setMicDeviceId(m_micCombo->currentData().toByteArray());
+    Settings::setSystemAudioEnabled(m_systemAudioCheck->isChecked());
+    Settings::setRecordingFrameEnabled(m_frameCheck->isChecked());
 }
 
 void SettingsDialog::applySettings()
@@ -291,6 +392,16 @@ void SettingsDialog::resetSettings()
     m_backgroundColor = Qt::transparent;
     updateForegroundButtonStyle();
     updateBackgroundButtonStyle();
+
+    m_cameraEnabledCheck->setChecked(false);
+    m_micEnabledCheck->setChecked(false);
+    m_systemAudioCheck->setChecked(true);
+    if (m_cameraCombo->count() > 0)
+        m_cameraCombo->setCurrentIndex(0);
+    if (m_micCombo->count() > 0)
+        m_micCombo->setCurrentIndex(0);
+    m_cameraCombo->setEnabled(false);
+    m_micCombo->setEnabled(false);
 }
 
 } // namespace Core

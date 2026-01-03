@@ -36,4 +36,77 @@ void configureOverlayWindow(QWidget *widget)
     [window makeKeyAndOrderFront:nil];
 }
 
+void configureRecordingHud(QWidget *widget)
+{
+    if (!widget)
+        return;
+
+    NSView *view = reinterpret_cast<NSView *>(widget->winId());
+    NSWindow *window = view ? [view window] : nil;
+    if (!window)
+        return;
+
+    // Float above normal windows, across all Spaces, with no appear animation.
+    window.level = NSStatusWindowLevel;
+    window.animationBehavior = NSWindowAnimationBehaviorNone;
+    window.collectionBehavior = (NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                 NSWindowCollectionBehaviorStationary |
+                                 NSWindowCollectionBehaviorFullScreenAuxiliary |
+                                 NSWindowCollectionBehaviorIgnoresCycle);
+    // Stay on screen when Niceshot is deactivated. This is the key difference from
+    // the selection overlay: while recording, the user clicks OTHER apps, which
+    // deactivates us; without this the Tool window would hide and the Stop control
+    // would vanish.
+    window.hidesOnDeactivate = NO;
+    window.opaque = NO;
+
+    // Never steal focus from the app being recorded: a Qt::Tool window is an
+    // NSPanel, so make it a non-activating floating panel and just order it front.
+    if ([window isKindOfClass:[NSPanel class]]) {
+        NSPanel *panel = static_cast<NSPanel *>(window);
+        panel.floatingPanel = YES;
+        panel.becomesKeyOnlyIfNeeded = YES;
+        panel.styleMask |= NSWindowStyleMaskNonactivatingPanel;
+    }
+    [window orderFrontRegardless];
+}
+
+void configureSelectionHud(QWidget *widget)
+{
+    if (!widget)
+        return;
+
+    NSView *view = reinterpret_cast<NSView *>(widget->winId());
+    NSWindow *window = view ? [view window] : nil;
+    if (!window)
+        return;
+
+    // Same level as the selection overlay; being ordered front AFTER it stacks the
+    // bar on top. Non-activating, so the overlay keeps the keyboard (Enter/Esc).
+    window.level = (NSInteger)CGShieldingWindowLevel();
+    window.animationBehavior = NSWindowAnimationBehaviorNone;
+    window.collectionBehavior = (NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                 NSWindowCollectionBehaviorStationary |
+                                 NSWindowCollectionBehaviorFullScreenAuxiliary |
+                                 NSWindowCollectionBehaviorIgnoresCycle);
+    window.hidesOnDeactivate = NO;
+    window.opaque = NO;
+    if ([window isKindOfClass:[NSPanel class]]) {
+        NSPanel *panel = static_cast<NSPanel *>(window);
+        panel.floatingPanel = YES;
+        panel.becomesKeyOnlyIfNeeded = YES;
+        panel.styleMask |= NSWindowStyleMaskNonactivatingPanel;
+    }
+    [window orderFrontRegardless];
+}
+
+quint64 nativeWindowId(QWidget *widget)
+{
+    if (!widget)
+        return 0;
+    NSView *view = reinterpret_cast<NSView *>(widget->winId());
+    NSWindow *window = view ? [view window] : nil;
+    return window ? static_cast<quint64>([window windowNumber]) : 0;
+}
+
 } // namespace Capture

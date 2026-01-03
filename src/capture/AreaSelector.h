@@ -8,6 +8,7 @@
 #include <QPixmap>
 #include <QImage>
 #include <QVector>
+#include "capture/WindowEnumerator.h"
 
 class QEvent;
 class QShowEvent;
@@ -48,6 +49,10 @@ namespace Capture {
         // used by WindowPick mode. Empty -> falls back to screen-under-cursor.
         void setWindows(const QVector<QRect> &windows) { m_windows = windows; }
 
+        // Like setWindows, but also keeps each window's platform id so a WindowPick
+        // emits windowPicked(rect, id) for true window capture.
+        void setWindowInfos(const QVector<WindowInfo> &infos);
+
         // Show the floating action toolbar (Edit/Copy/Save/Cancel) during the
         // adjust phase. Off by default; the normal capture path enables it, OCR
         // leaves it off.
@@ -57,10 +62,20 @@ namespace Capture {
         // screen so this overlay renders its portion of a spanning selection.
         void applyPeerState(const QRect &selectionVirt, int phase, int mode, const QPoint &cursorVirt);
 
+        // External accept/cancel hooks for the recording options bar. Committing
+        // fires only while a non-empty selection is being adjusted (returns whether
+        // it did); cancelling mirrors Esc (areaSelected with an empty rect).
+        bool commitCurrentSelection();
+        void cancelSelection() { cancel(); }
+
     signals:
         void areaSelected(const QRect &area);
         void copyRequested(const QRect &area);
         void saveRequested(const QRect &area);
+        // WindowPick only: the picked window's rect AND its platform id (for true
+        // window capture). Emitted just before areaSelected; consumers that only
+        // want the rect (the screenshot path) can keep using areaSelected.
+        void windowPicked(const QRect &area, quint64 windowId);
         // Emitted whenever this overlay's live selection/cursor changes, so peer
         // overlays on other monitors can mirror it (see applyPeerState).
         void liveStateChanged(const QRect &selectionVirt, int phase, int mode, const QPoint &cursorVirt);
@@ -89,8 +104,7 @@ namespace Capture {
 
         Handle hitTest(const QPoint &local) const;
         QRect  handleRect(Handle h, const QRect &localSel) const;
-        QRect  windowAt(const QPoint &virt) const;     // topmost window rect under a point
-        void   updateHoverWindow();                    // WindowPick: refresh highlighted rect
+        void   updateHoverWindow();                    // WindowPick: refresh highlighted rect + id
         void   broadcastState();                       // emit liveStateChanged for peer overlays
         // Is the (shared) cursor over THIS overlay's screen? Gates crosshair/magnifier
         // so they appear on the right monitor, even during a grabbed cross-monitor drag.
@@ -137,6 +151,8 @@ namespace Capture {
         QPixmap m_dimmedBg;             // cached dimmed screenshot slice for this widget
 
         QVector<QRect> m_windows;       // WindowPick candidates (virtual-logical)
+        QVector<quint64> m_windowIds;   // parallel to m_windows (0 where unknown)
+        quint64 m_hoverWindowId = 0;    // id of the window currently under the cursor
 
         bool   m_actionsEnabled = false; // show the action toolbar
         int    m_hoveredButton = -1;     // toolbar button under cursor (-1 = none)

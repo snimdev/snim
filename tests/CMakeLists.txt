@@ -16,6 +16,11 @@ set(NICESHOT_TESTS
         tst_capturefactory
         tst_ocrservice
         tst_integration_scene
+        tst_recordingfactory
+        tst_recordtarget
+        tst_recordingcontroller
+        tst_pcmmixbuffer
+        tst_trimstate
 )
 
 foreach(test_name ${NICESHOT_TESTS})
@@ -35,6 +40,14 @@ add_test(NAME tst_imageeditor_smoke COMMAND tst_imageeditor_smoke)
 set_tests_properties(tst_imageeditor_smoke PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# Same deal for the VideoEditor smoke test (themed toolbar icons at construction).
+add_executable(tst_videoeditor_smoke tst_videoeditor_smoke.cpp
+        ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+target_link_libraries(tst_videoeditor_smoke PRIVATE niceshot_lib Qt6::Test)
+add_test(NAME tst_videoeditor_smoke COMMAND tst_videoeditor_smoke)
+set_tests_properties(tst_videoeditor_smoke PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # Convenience aggregate: build every test, then run the whole suite.
 #   CLI:    cmake --build <build-dir> --target check
 #   CLion:  pick the "check" target in the configuration switcher and Build/Run it.
@@ -45,4 +58,4 @@ add_custom_target(check
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         USES_TERMINAL
         COMMENT "Running all Niceshot tests")
-add_dependencies(check ${NICESHOT_TESTS} tst_imageeditor_smoke)
+add_dependencies(check ${NICESHOT_TESTS} tst_imageeditor_smoke tst_videoeditor_smoke)

@@ -19,6 +19,11 @@ namespace Capture {
 class CaptureStrategy;
 } // namespace Capture
 
+namespace Recording {
+class RecordingController;
+class RecordingControls;
+} // namespace Recording
+
 namespace Core {
 
 class ScreenshotApp : public QApplication
@@ -35,6 +40,11 @@ private slots:
     void captureTextSnip();
     void onScreenshotReady(const QPixmap &screenshot);
     void onTextExtracted(const QString &text, bool success);
+    void toggleAreaRecording();                              // Record Area / Stop (toggles)
+    void startWindowRecording();                             // Record Window (disabled while recording)
+    void onRecordingStateChanged(bool recording);
+    void onRecordingFinished(const QString &path);
+    void onRecordingFailed(const QString &error);
     static void showSettings();
     static void showAbout();
     static void quit();
@@ -48,12 +58,16 @@ private:
     QAction *m_captureAreaAction{};
     QAction *m_captureWindowAction{};
     QAction *m_textSnipAction{};
+    QAction *m_recordAreaAction{};
+    QAction *m_recordWindowAction{};
     QAction *m_settingsAction{};
     QAction *m_aboutAction{};
     QAction *m_quitAction{};
 
     std::unique_ptr<Capture::CaptureStrategy> m_captureStrategy;
     std::unique_ptr<TextSnipCapture> m_textSnipCapture;
+    std::unique_ptr<Recording::RecordingController> m_recordingController;
+    Recording::RecordingControls *m_recordingControls = nullptr;   // shown only while recording
 };
 
 } // namespace Core

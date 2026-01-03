@@ -13,6 +13,8 @@ find_package(Qt6 COMPONENTS
         DBus
         Concurrent
         Svg
+        Multimedia
+        MultimediaWidgets
         REQUIRED)
 
 # Optional Tesseract OCR support for text sniping feature
@@ -50,6 +52,19 @@ if(NOT TESSERACT_AVAILABLE)
 endif()
 
 if(TESSERACT_AVAILABLE)
+    # Some Leptonica builds expose pkg-config include as <prefix>/include/leptonica
+    # while OCRService includes <leptonica/allheaders.h>; also add the parent of each
+    # reported include dir so both tesseract/* and leptonica/* resolve either way.
+    set(_tess_inc ${TESSERACT_INCLUDE_DIRS})
+    foreach(_d ${TESSERACT_INCLUDE_DIRS})
+        get_filename_component(_p "${_d}" DIRECTORY)
+        if(_p)
+            list(APPEND _tess_inc "${_p}")
+        endif()
+    endforeach()
+    list(REMOVE_DUPLICATES _tess_inc)
+    set(TESSERACT_INCLUDE_DIRS ${_tess_inc})
+
     add_compile_definitions(HAVE_TESSERACT)
 else()
     message(STATUS "Tesseract OCR not found - text snipping feature will be disabled")
@@ -152,6 +167,41 @@ add_library(niceshot_lib STATIC
         src/ocr/OCRService.h
         src/ocr/OCRResult.h
 
+        # Editor::Video — post-recording trim editor (preview + cut + save). The
+        # macOS AVAssetExportSession exporter is added in the APPLE block below;
+        # the stub (which also hosts the factory) is the universal fallback.
+        src/editor/video/TrimState.cpp
+        src/editor/video/TrimState.h
+        src/editor/video/TrimTimeline.cpp
+        src/editor/video/TrimTimeline.h
+        src/editor/video/VideoEditor.cpp
+        src/editor/video/VideoEditor.h
+        src/editor/video/VideoExporter.h
+        src/editor/video/StubVideoExporter.cpp
+        src/editor/video/StubVideoExporter.h
+
+        # Recording: platform-agnostic Strategy + Factory (the macOS ScreenCaptureKit
+        # backend is added in the APPLE block below). The stub is the universal fallback.
+        src/recording/RecordTarget.h
+        src/recording/RecordingGeometry.h
+        src/recording/PcmMixBuffer.h
+        src/recording/RecordingStrategy.cpp
+        src/recording/RecordingStrategy.h
+        src/recording/RecordingFactory.cpp
+        src/recording/RecordingFactory.h
+        src/recording/RecordingController.cpp
+        src/recording/RecordingController.h
+        src/recording/RecordingControls.cpp
+        src/recording/RecordingControls.h
+        src/recording/RecordingFrameOverlay.cpp
+        src/recording/RecordingFrameOverlay.h
+        src/recording/RecordingOptionsBar.cpp
+        src/recording/RecordingOptionsBar.h
+        src/recording/CameraBubble.cpp
+        src/recording/CameraBubble.h
+        src/recording/strategies/StubRecordingStrategy.cpp
+        src/recording/strategies/StubRecordingStrategy.h
+
 )
 
 # The executable: entry point + resources only. The qrc is kept on the exe (and
@@ -168,11 +218,48 @@ if(APPLE)
     target_sources(niceshot_lib PRIVATE
             src/capture/WindowEnumerator_mac.mm
             src/capture/MacOverlay.h
-            src/capture/MacOverlay.mm)
+            src/capture/MacOverlay.mm
+            # macOS screen-recording backend (ScreenCaptureKit + AVAssetWriter)
+            src/recording/strategies/MacRecordingStrategy.h
+            src/recording/strategies/MacRecordingStrategy.mm
+            # macOS trim exporter for the video editor (AVAssetExportSession remux)
+            src/editor/video/MacVideoExporter.h
+            src/editor/video/MacVideoExporter.mm)
+    # These .mm files hold ScreenCaptureKit/AVFoundation objects across calls, so
+    # compile just them with ARC to manage those refs automatically.
+    set_source_files_properties(
+            src/recording/strategies/MacRecordingStrategy.mm
+            src/editor/video/MacVideoExporter.mm
+            PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    # Activates the Mac branch of RecordingFactory + makes Auto pick ScreenCaptureKit.
+    target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_MAC_RECORDER)
     target_link_libraries(niceshot_lib PUBLIC
             "-framework CoreGraphics"
             "-framework CoreFoundation"
-            "-framework AppKit")
+            "-framework AppKit"
+            "-framework ScreenCaptureKit"
+            "-framework AVFoundation"
+            "-framework CoreMedia"
+            "-framework CoreVideo")
+    # Qt ships the macOS permission backends as STATIC plugins (libqdarwin*permission.a),
+    # so they must be imported into the executable — otherwise the QPermission API has no
+    # backend at runtime and QCamera reports "Could not find permission plugin for
+    # QCameraPermission" even with the usage strings present in Info.plist.
+    qt_import_plugins(Niceshot INCLUDE
+            Qt6::QDarwinCameraPermissionPlugin
+            Qt6::QDarwinMicrophonePermissionPlugin)
+    # Each plugin archive keeps its requestPermission() implementation in a SEPARATE
+    # object, dragged in only by a `-Wl,-u,_QDarwin*PermissionRequest` link flag that
+    # Qt's exported targets emit when the consumer has the property below. Normally
+    # qt_add_executable's finalizer sets it after finding the NS*UsageDescription key
+    # in the Info.plist; this project uses plain add_executable, so no finalizer runs
+    # and without the property checkPermission() works but requestPermission() falls
+    # back to a stub that logs "Could not request QCameraPermission..." and instantly
+    # denies — the TCC prompt can never appear. The usage strings are guaranteed by
+    # cmake/Info.plist.in, so assert the properties ourselves.
+    set_target_properties(Niceshot PROPERTIES
+            _qt_has_QDarwinCameraPermissionPlugin_usage_description TRUE
+            _qt_has_QDarwinMicrophonePermissionPlugin_usage_description TRUE)
 else()
     target_sources(niceshot_lib PRIVATE src/capture/WindowEnumerator_stub.cpp)
 endif()
@@ -207,6 +294,10 @@ target_link_libraries(niceshot_lib PUBLIC
         # Needed to render the SVG tray/toolbar icons. Linking it explicitly also
         # ensures macdeployqt bundles QtSvg + the svg image/icon-engine plugins.
         Qt::Svg
+        # Camera/mic device enumeration + preview, and video playback in the trim editor.
+        # Linking these makes macdeployqt bundle the multimedia frameworks + media plugins.
+        Qt::Multimedia
+        Qt::MultimediaWidgets
 )
 
 # Link Tesseract if available (PUBLIC link: OCRService.o references its symbols and
@@ -225,11 +316,9 @@ endif()
 # macOS application bundle + deployment
 # ---------------------------------------------------------------------------
 # Building as a .app bundle (rather than a bare executable) gives the app a
-# stable bundle identifier, which is what lets macOS remember the Screen
-# Recording permission across launches/rebuilds. The `deploy` target then runs
-# macdeployqt to copy the Qt frameworks (and other linked dylibs) into the
-# bundle and ad-hoc code-signs it, producing a self-contained, distributable
-# Niceshot.app.
+# stable bundle identifier. The `deploy` target then runs macdeployqt to copy
+# the Qt frameworks (and other linked dylibs) into the bundle and ad-hoc
+# code-signs it, producing a self-contained, distributable Niceshot.app.
 if(APPLE)
     set_target_properties(Niceshot PROPERTIES
             MACOSX_BUNDLE TRUE
@@ -249,6 +338,32 @@ if(APPLE)
         set_source_files_properties("${NICESHOT_APP_ICON}" PROPERTIES
                 MACOSX_PACKAGE_LOCATION "Resources")
         set_target_properties(Niceshot PROPERTIES MACOSX_BUNDLE_ICON_FILE "AppIcon.icns")
+    endif()
+
+    # Dev code signing. Without this the linker ad-hoc signs the binary, whose
+    # identity is the binary's own hash — it changes on EVERY rebuild, so modern
+    # macOS treats each build as a new app and re-prompts for (or silently breaks)
+    # the Screen Recording / Camera / Microphone TCC grants, even though System
+    # Settings still shows Niceshot as enabled. Signing with a stable identity
+    # (a local self-signed "Niceshot Dev Signing" certificate) keeps the
+    # designated requirement identical across rebuilds, so grants persist.
+    # Set to "" (or build on a machine without the cert) to fall back to ad-hoc.
+    set(NICESHOT_CODESIGN_IDENTITY "Niceshot Dev Signing" CACHE STRING
+            "Code-signing identity for the dev build (empty = linker ad-hoc signing)")
+    if(NICESHOT_CODESIGN_IDENTITY)
+        # Only sign when the identity actually exists in the keychain, so fresh
+        # clones / CI runners without the cert still build out of the box.
+        execute_process(COMMAND security find-identity -v -p codesigning
+                OUTPUT_VARIABLE _niceshot_identities ERROR_QUIET)
+        string(FIND "${_niceshot_identities}" "${NICESHOT_CODESIGN_IDENTITY}" _niceshot_identity_found)
+        if(NOT _niceshot_identity_found EQUAL -1)
+            add_custom_command(TARGET Niceshot POST_BUILD
+                    COMMAND codesign --force --sign "${NICESHOT_CODESIGN_IDENTITY}"
+                            --timestamp=none "$<TARGET_BUNDLE_DIR:Niceshot>"
+                    COMMENT "Code-signing Niceshot.app with '${NICESHOT_CODESIGN_IDENTITY}' (stable TCC identity)")
+        else()
+            message(STATUS "Code-signing identity '${NICESHOT_CODESIGN_IDENTITY}' not in keychain — leaving ad-hoc signature")
+        endif()
     endif()
 
     # Locate macdeployqt next to the Qt tools (qmake lives in the same bin dir).
