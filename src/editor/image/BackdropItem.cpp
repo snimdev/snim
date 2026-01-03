@@ -1,5 +1,5 @@
 #include "BackdropItem.h"
-#include "editor/BackdropPresets.h"
+#include "editor/image/BackdropPresets.h"
 
 #include <QPainter>
 #include <QLinearGradient>
@@ -8,7 +8,9 @@
 #include <QStyleOptionGraphicsItem>
 #include <vector>
 
-namespace ImageEditor::Tools {
+namespace Editor::Image {
+
+using Tools::ToolProperty;   // ITool/ToolProperty live in the shared Editor::Tools
 
 namespace {
     struct GradientPreset { const char *name; const char *c1; const char *c2; };
@@ -441,4 +443,4 @@ void BackdropItem::setProperty(const QString &propertyId, const QVariant &value)
         m_onChanged(propertyId);
 }
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Image

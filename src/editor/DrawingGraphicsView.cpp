@@ -7,7 +7,7 @@
 #include <QWheelEvent>
 #include <QtMath>
 
-namespace ImageEditor {
+namespace Editor {
 
 DrawingGraphicsView::DrawingGraphicsView(QWidget *parent)
     : QGraphicsView(parent)
@@ -132,7 +132,7 @@ void DrawingGraphicsView::wheelEvent(QWheelEvent *event)
     // Only handle zoom when Ctrl key is pressed
     if (event->modifiers() & Qt::ControlModifier) {
         // ⌘/Ctrl+wheel resizes a text item: the one under the cursor, else the
-        // currently-selected text item. Emit a request that ImageEditor turns into an
+        // currently-selected text item. Emit a request that Editor turns into an
         // undoable PropertyChangeCommand("fontSize"); the view never mutates the model.
         auto *target = dynamic_cast<Tools::TextTool*>(
             scene()->itemAt(mapToScene(event->position().toPoint()), QTransform()));
@@ -195,4 +195,4 @@ bool DrawingGraphicsView::isWithinImageBounds(const QPointF &point) const
     return m_imageBounds.contains(point.toPoint());
 }
 
-} // namespace ImageEditor
+} // namespace Editor

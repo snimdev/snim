@@ -4,7 +4,7 @@
 #include "IDrawingInteraction.h"
 #include <QObject>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 /**
  * @brief Interaction for pointer/selection tool
@@ -42,6 +42,6 @@ private:
     QGraphicsItem* getTopLevelItem(QGraphicsItem *item) const;
 };
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions
 
 #endif // IMAGEEDITOR_POINTERTOOLINTERACTION_H

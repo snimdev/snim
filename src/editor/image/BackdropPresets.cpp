@@ -6,7 +6,7 @@
 #include <QJsonObject>
 #include <algorithm>
 
-namespace ImageEditor {
+namespace Editor::Image {
 
 namespace {
     QVector<BackdropPreset> builtins()
@@ -111,4 +111,4 @@ QVariantMap BackdropPresets::defaultConfig()
     return n.isEmpty() ? QVariantMap{} : configFor(n);
 }
 
-} // namespace ImageEditor
+} // namespace Editor::Image

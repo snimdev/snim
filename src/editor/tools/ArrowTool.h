@@ -6,7 +6,7 @@
 #include <QPen>
 #include <QPointF>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 class ArrowHandleTool;
 
@@ -78,6 +78,6 @@ private:
     ArrowHandleTool *m_endHandle;
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools
 
 #endif // IMAGEEDITOR_ARROWTOOL_H

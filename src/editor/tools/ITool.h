@@ -8,7 +8,7 @@
 
 class QGraphicsItem;
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 struct ToolProperty {
     QString id;
@@ -35,7 +35,7 @@ public:
     virtual void applyStyleFrom(const ITool* /*other*/) {}
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools
 
 #endif // ITOOL_H
 

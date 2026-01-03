@@ -3,7 +3,7 @@
 #include <QGraphicsScene>
 #include <cmath>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 ArrowDrawingInteraction::ArrowDrawingInteraction(QObject *parent)
     : BaseDrawingInteraction(parent)
@@ -50,4 +50,4 @@ bool ArrowDrawingInteraction::finalizeDrawing()
     return true;
 }
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions

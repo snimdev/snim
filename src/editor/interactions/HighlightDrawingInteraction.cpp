@@ -1,7 +1,7 @@
 #include "HighlightDrawingInteraction.h"
 #include "../tools/HighlightTool.h"
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 HighlightDrawingInteraction::HighlightDrawingInteraction(QObject *parent)
     : BaseDrawingInteraction(parent)
@@ -44,4 +44,4 @@ bool HighlightDrawingInteraction::finalizeDrawing()
     return false;
 }
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions

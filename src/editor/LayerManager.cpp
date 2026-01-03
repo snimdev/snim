@@ -7,7 +7,7 @@
 #include <QTreeWidgetItem>
 #include <QFont>
 
-namespace ImageEditor {
+namespace Editor {
 
 LayerManager::LayerManager(QWidget *parent) : QWidget(parent) {
     setMinimumWidth(180);
@@ -164,7 +164,7 @@ void LayerManager::deleteCurrentLayer() {
         neighbourItem = m_tree->itemAbove(cur);
     Layer *neighbour = neighbourItem ? layerForItem(neighbourItem) : nullptr;
 
-    emit deleteLayerRequested(selected);   // ImageEditor pushes RemoveLayerCommand + rebuilds the tree
+    emit deleteLayerRequested(selected);   // Editor pushes RemoveLayerCommand + rebuilds the tree
     if (neighbour)
         selectLayer(neighbour);            // neighbour Layer* survives the rebuild
 }
@@ -208,7 +208,7 @@ void LayerManager::addRow(QTreeWidgetItem *parentItem, Layer *layer) {
     visBtn->setText(layer->isVisible() ? "\xF0\x9F\x91\x81" : "\xE2\x80\x94");
     connect(visBtn, &QPushButton::toggled, this, [this, layer, visBtn](bool checked) {
         visBtn->setText(checked ? "\xF0\x9F\x91\x81" : "\xE2\x80\x94");
-        // Route through ImageEditor so the toggle is undoable; the command flips
+        // Route through Editor so the toggle is undoable; the command flips
         // the layer (don't call setVisible here, to avoid doing it twice).
         emit visibilityToggleRequested(layer, checked);
     });
@@ -258,4 +258,4 @@ void LayerManager::updateLayerList() {
         addRow(nullptr, m_layers[i]);
 }
 
-} // namespace ImageEditor
+} // namespace Editor

@@ -3,7 +3,7 @@
 
 #include "ShapeTool.h"
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 class RectangleTool : public ShapeTool
 {
@@ -20,6 +20,6 @@ protected:
     QPainterPath createShapePath() const override;
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools
 
 #endif // IMAGEEDITOR_RECTANGLETOOL_H

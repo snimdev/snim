@@ -8,7 +8,7 @@
 
 class QObject;
 
-namespace ImageEditor {
+namespace Editor {
 
 namespace Interactions { class IDrawingInteraction; }
 namespace Tools { class ITool; }
@@ -51,6 +51,6 @@ public:
     static const ToolSpec* find(const QString &id);
 };
 
-} // namespace ImageEditor
+} // namespace Editor
 
 #endif // IMAGEEDITOR_TOOLREGISTRY_H

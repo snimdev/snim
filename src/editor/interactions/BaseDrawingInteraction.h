@@ -5,7 +5,7 @@
 #include <QObject>
 #include <QPointF>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 /**
  * @brief Base class for drawing interactions providing common functionality
@@ -74,6 +74,6 @@ protected:
     QRect m_imageBounds;
 };
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions
 
 #endif // IMAGEEDITOR_BASEDRAWINGINTERACTION_H

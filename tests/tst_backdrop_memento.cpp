@@ -2,11 +2,12 @@
 #include <QUndoStack>
 #include <QColor>
 
-#include "editor/tools/BackdropItem.h"
-#include "editor/tools/BackdropMemento.h"
+#include "editor/image/BackdropItem.h"
+#include "editor/image/BackdropMemento.h"
 #include "editor/commands/EditorCommands.h"
 
-using namespace ImageEditor;
+using namespace Editor;
+using namespace Editor::Image;
 
 // BackdropItem snapshots/restores its complete state via an opaque BackdropMemento;
 // BackdropChangeCommand holds the memento to make backdrop edits undoable. Assertions
@@ -18,13 +19,13 @@ class tst_BackdropMemento : public QObject
 private slots:
     void memento_roundTrip()
     {
-        Tools::BackdropItem bd;
+        BackdropItem bd;
         bd.setProperty("padding", 120);
         bd.setProperty("fill", QString("Solid"));
         bd.setProperty("color", QColor("#123456"));
         bd.setActivePreset("Indigo");                 // set AFTER edits (edits clear it)
 
-        const Tools::BackdropMemento snap = bd.createMemento();
+        const BackdropMemento snap = bd.createMemento();
 
         // Diverge…
         bd.setProperty("padding", 10);
@@ -41,7 +42,7 @@ private slots:
 
     void command_undoRedo()
     {
-        Tools::BackdropItem bd;
+        BackdropItem bd;
         bd.setProperty("padding", 50);
 
         QUndoStack stack;
@@ -57,7 +58,7 @@ private slots:
 
     void command_mergesSliderDrag()
     {
-        Tools::BackdropItem bd;
+        BackdropItem bd;
         bd.setProperty("padding", 10);
 
         QUndoStack stack;

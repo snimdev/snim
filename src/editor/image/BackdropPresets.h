@@ -5,7 +5,7 @@
 #include <QVariantMap>
 #include <QVector>
 
-namespace ImageEditor {
+namespace Editor::Image {
 
 struct BackdropPreset {
     QString name;
@@ -27,6 +27,6 @@ namespace BackdropPresets {
     QVariantMap defaultConfig();                               // empty if no default set
 }
 
-} // namespace ImageEditor
+} // namespace Editor::Image
 
 #endif // IMAGEEDITOR_BACKDROPPRESETS_H

@@ -2,7 +2,7 @@
 #include <QGraphicsScene>
 #include <QPen>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 EllipseDrawingInteraction::EllipseDrawingInteraction(QObject *parent)
     : BaseDrawingInteraction(parent)
@@ -42,4 +42,4 @@ bool EllipseDrawingInteraction::finalizeDrawing()
     return true;
 }
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions

@@ -12,7 +12,7 @@
 #include <QPalette>
 #include <QFile>
 
-#include "editor/ImageEditor.h"
+#include "editor/image/ImageEditor.h"
 
 namespace Core {
     ScreenshotApp::ScreenshotApp(int &argc, char **argv)
@@ -178,7 +178,7 @@ namespace Core {
         qDebug() << "Screenshot ready, opening ImageEditor";
 
         // Create and show the ImageEditor with the captured screenshot
-        auto *editor = new ImageEditor::ImageEditor(screenshot);
+        auto *editor = new Editor::Image::ImageEditor(screenshot);
         editor->setAttribute(Qt::WA_DeleteOnClose);
         editor->show();
         editor->raise();

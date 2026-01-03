@@ -6,13 +6,13 @@
 #include <QList>
 #include <QPointF>
 
-namespace ImageEditor {
+namespace Editor {
     namespace Tools {
         class FreehandTool;
     }
 }
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 /**
  * @brief Interaction for freehand drawing tool
@@ -52,6 +52,6 @@ private:
     QPen m_pen;
 };
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions
 
 #endif // IMAGEEDITOR_FREEHANDDRAWINGINTERACTION_H

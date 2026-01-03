@@ -5,7 +5,7 @@
 #include <QString>
 #include <utility>
 
-namespace ImageEditor::Tools {
+namespace Editor::Image {
 
 class BackdropItem;
 
@@ -41,6 +41,6 @@ private:
     QString     m_activePreset; // which named preset was active, if any
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Image
 
 #endif // IMAGEEDITOR_BACKDROPMEMENTO_H

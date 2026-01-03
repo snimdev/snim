@@ -22,7 +22,7 @@
 #include <QPen>
 #include <QColor>
 
-namespace ImageEditor {
+namespace Editor {
 
 using namespace Interactions;
 using namespace Tools;
@@ -219,4 +219,4 @@ const ToolSpec* ToolRegistry::find(const QString &id)
     return nullptr;
 }
 
-} // namespace ImageEditor
+} // namespace Editor

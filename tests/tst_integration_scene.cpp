@@ -12,10 +12,10 @@
 #include "editor/tools/RectangleTool.h"
 #include "editor/tools/EllipseTool.h"
 
-using namespace ImageEditor;
-using namespace ImageEditor::Commands;
+using namespace Editor;
+using namespace Editor::Commands;
 
-// End-to-end through the same pieces ImageEditor wires (scene + manager + undo
+// End-to-end through the same pieces Editor wires (scene + manager + undo
 // stack + real tool items), without depending on real screen capture. Renders
 // the scene to a QImage and asserts pixels track edits and undo/redo.
 class tst_IntegrationScene : public QObject

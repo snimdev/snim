@@ -12,7 +12,7 @@
 #include "editor/tools/BlurTool.h"
 #include "editor/tools/TextTool.h"
 
-using namespace ImageEditor::Tools;
+using namespace Editor::Tools;
 
 // clone() is a full duplicate (geometry + style); applyStyleFrom() copies only the
 // style. Also exercises the dynamic getProperties/setProperty.

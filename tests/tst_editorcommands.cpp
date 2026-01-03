@@ -8,18 +8,18 @@
 #include "editor/LayerManager.h"
 #include "editor/tools/ArrowTool.h"
 
-using namespace ImageEditor;
-using namespace ImageEditor::Commands;
+using namespace Editor;
+using namespace Editor::Commands;
 
 // The undoable editor operations. Exercised against a real
-// QGraphicsScene + LayerManager + QUndoStack (offscreen, no ImageEditor).
+// QGraphicsScene + LayerManager + QUndoStack (offscreen, no Editor).
 class tst_EditorCommands : public QObject
 {
     Q_OBJECT
 
     QGraphicsScene *scene = nullptr;
     LayerManager *manager = nullptr;
-    QObject *owner = nullptr;     // owns Layers, mirroring ImageEditor's QObject parent
+    QObject *owner = nullptr;     // owns Layers, mirroring Editor's QObject parent
     QUndoStack *stack = nullptr;
 
     Layer* makeLeaf(const QString &name)

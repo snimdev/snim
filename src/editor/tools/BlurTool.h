@@ -9,7 +9,7 @@
 #include <QPixmap>
 #include <QTimer>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 /**
  * @brief A tool for applying blur effects along a painted path
@@ -81,6 +81,6 @@ private:
     QTimer *m_regenTimer = nullptr;  // coalesces re-blurring while the item is dragged
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools
 
 #endif // IMAGEEDITOR_BLURTOOL_H

@@ -4,7 +4,7 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QCursor>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 ShapeHandleTool::ShapeHandleTool(HandlePosition position, ShapeTool *shapeTool, QGraphicsItem *parent)
     : QGraphicsEllipseItem(parent)
@@ -146,4 +146,4 @@ void ShapeHandleTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *o
     painter->drawEllipse(QRectF(-dotSize/2, -dotSize/2, dotSize, dotSize));
 }
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools

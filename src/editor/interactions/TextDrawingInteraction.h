@@ -4,7 +4,7 @@
 #include "IDrawingInteraction.h"
 #include <QObject>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 /**
  * @brief Interaction for text tool
@@ -35,6 +35,6 @@ signals:
     void textRequested(const QPoint &position);
 };
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions
 
 #endif // IMAGEEDITOR_TEXTDRAWINGINTERACTION_H

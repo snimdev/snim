@@ -1,7 +1,7 @@
 #include "BlurDrawingInteraction.h"
 #include "../tools/BlurTool.h"
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 BlurDrawingInteraction::BlurDrawingInteraction(QObject *parent)
     : BaseDrawingInteraction(parent)
@@ -48,4 +48,4 @@ bool BlurDrawingInteraction::finalizeDrawing()
     return false;
 }
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions

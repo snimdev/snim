@@ -5,18 +5,19 @@
 #include <QString>
 #include <QVariant>
 #include <QPointF>
-#include "editor/tools/BackdropMemento.h"   // by-value member of BackdropChangeCommand
+#include "editor/image/BackdropMemento.h"   // by-value member of BackdropChangeCommand
 
 class QGraphicsScene;
 class QGraphicsItem;
 
-namespace ImageEditor {
+namespace Editor {
 
 class Layer;
 class LayerManager;
 class LayerProperties;
 
-namespace Tools { class ITool; class BackdropItem; }
+namespace Tools { class ITool; }
+namespace Image { class BackdropItem; }
 
 namespace Commands {
 
@@ -105,7 +106,7 @@ private:
 };
 
 /** Toggle a layer's visibility, undoably. (The layer list refresh is
- *  driven separately by ImageEditor on the stack's indexChanged.) */
+ *  driven separately by Editor on the stack's indexChanged.) */
 class VisibilityChangeCommand : public QUndoCommand {
 public:
     VisibilityChangeCommand(Layer *layer, bool newVisible, const QString &text);
@@ -157,21 +158,21 @@ private:
  */
 class BackdropChangeCommand : public QUndoCommand {
 public:
-    BackdropChangeCommand(Tools::BackdropItem *backdrop, QString propertyId,
-                          QVariant value, Tools::BackdropMemento before, const QString &text);
+    BackdropChangeCommand(Image::BackdropItem *backdrop, QString propertyId,
+                          QVariant value, Image::BackdropMemento before, const QString &text);
     void redo() override;
     void undo() override;
     [[nodiscard]] int id() const override { return BackdropChangeId; }
     bool mergeWith(const QUndoCommand *other) override;
 
 private:
-    Tools::BackdropItem *m_backdrop;
+    Image::BackdropItem *m_backdrop;
     QString m_propertyId;
     QVariant m_value;
-    Tools::BackdropMemento m_before;   // opaque snapshot used by undo()
+    Image::BackdropMemento m_before;   // opaque snapshot used by undo()
 };
 
 } // namespace Commands
-} // namespace ImageEditor
+} // namespace Editor
 
 #endif // IMAGEEDITOR_EDITORCOMMANDS_H

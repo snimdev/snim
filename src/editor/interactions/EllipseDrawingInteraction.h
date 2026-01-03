@@ -4,7 +4,7 @@
 #include "BaseDrawingInteraction.h"
 #include <QGraphicsEllipseItem>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 /**
  * @brief Interaction for ellipse drawing tool
@@ -39,6 +39,6 @@ private:
     static constexpr int MIN_SIZE = 5; // Minimum width/height
 };
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions
 
 #endif // IMAGEEDITOR_ELLIPSEDRAWINGINTERACTION_H

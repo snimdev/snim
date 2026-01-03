@@ -2,7 +2,7 @@
 #include <QGraphicsScene>
 #include <QTransform>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 PointerToolInteraction::PointerToolInteraction(QObject *parent)
     : QObject(parent)
@@ -60,4 +60,4 @@ QGraphicsItem* PointerToolInteraction::getTopLevelItem(QGraphicsItem *item) cons
     return item;
 }
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions

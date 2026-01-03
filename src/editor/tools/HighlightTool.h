@@ -8,7 +8,7 @@
 #include <QList>
 #include <QPointF>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 
 class HighlightTool : public QGraphicsObject, public ITool
@@ -66,6 +66,6 @@ private:
     QRectF m_boundingRect;
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools
 
 #endif // IMAGEEDITOR_HIGHLIGHTTOOL_H

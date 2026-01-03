@@ -84,9 +84,7 @@ add_library(niceshot_lib STATIC
         src/capture/strategies/NativeCaptureStrategy.cpp
         src/capture/strategies/NativeCaptureStrategy.h
 
-        # Image editor functionality
-        src/editor/ImageEditor.cpp
-        src/editor/ImageEditor.h
+        # Editor: shared canvas, layers, tools, interactions, commands
         src/editor/ToolRegistry.cpp
         src/editor/ToolRegistry.h
         src/editor/commands/EditorCommands.cpp
@@ -111,9 +109,6 @@ add_library(niceshot_lib STATIC
         src/editor/tools/HighlightTool.h
         src/editor/tools/BlurTool.cpp
         src/editor/tools/BlurTool.h
-        src/editor/tools/BackdropItem.cpp
-        src/editor/tools/BackdropItem.h
-        src/editor/tools/BackdropMemento.h
         src/editor/tools/TextTool.cpp
         src/editor/tools/TextTool.h
         src/editor/Layer.cpp
@@ -122,8 +117,6 @@ add_library(niceshot_lib STATIC
         src/editor/LayerManager.h
         src/editor/LayerProperties.cpp
         src/editor/LayerProperties.h
-        src/editor/BackdropPresets.cpp
-        src/editor/BackdropPresets.h
         # Drawing Interactions
         src/editor/interactions/IDrawingInteraction.h
         src/editor/interactions/BaseDrawingInteraction.cpp
@@ -144,6 +137,15 @@ add_library(niceshot_lib STATIC
         src/editor/interactions/HighlightDrawingInteraction.h
         src/editor/interactions/BlurDrawingInteraction.cpp
         src/editor/interactions/BlurDrawingInteraction.h
+
+        # Editor::Image: screenshot-specific (image editor window + beautify backdrop)
+        src/editor/image/ImageEditor.cpp
+        src/editor/image/ImageEditor.h
+        src/editor/image/BackdropItem.cpp
+        src/editor/image/BackdropItem.h
+        src/editor/image/BackdropMemento.h
+        src/editor/image/BackdropPresets.cpp
+        src/editor/image/BackdropPresets.h
 
         # OCR functionality
         src/ocr/OCRService.cpp

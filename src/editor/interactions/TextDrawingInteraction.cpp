@@ -1,6 +1,6 @@
 #include "TextDrawingInteraction.h"
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 TextDrawingInteraction::TextDrawingInteraction(QObject *parent)
     : QObject(parent)
@@ -37,4 +37,4 @@ void TextDrawingInteraction::cleanup(QGraphicsScene *scene)
     // Text tool has no preview to clean up
 }
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions

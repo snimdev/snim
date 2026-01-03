@@ -3,7 +3,7 @@
 #include <QPainterPath>
 #include <QPainterPathStroker>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 RectangleTool::RectangleTool(const QRectF &rect, QGraphicsItem *parent)
     : ShapeTool(rect, parent)
@@ -42,4 +42,4 @@ QPainterPath RectangleTool::createShapePath() const
     return path;
 }
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools

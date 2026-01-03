@@ -7,7 +7,7 @@
 #include <QGraphicsItem>
 #include <QRect>
 
-namespace ImageEditor {
+namespace Editor {
     namespace Interactions {
         class IDrawingInteraction;
     }
@@ -16,7 +16,7 @@ namespace ImageEditor {
     }
 }
 
-namespace ImageEditor {
+namespace Editor {
 
 class DrawingGraphicsView : public QGraphicsView
 {
@@ -47,7 +47,7 @@ signals:
 
     /**
      * @brief ⌘/Ctrl+wheel over (or with a selected) text item requests a font-size
-     * change of `steps` notches. ImageEditor turns this into an undoable command;
+     * change of `steps` notches. Editor turns this into an undoable command;
      * the view never mutates the model itself.
      */
     void adjustTextSizeRequested(Tools::ITool *tool, int steps);
@@ -66,6 +66,6 @@ private:
     QRect m_imageBounds;
 };
 
-} // namespace ImageEditor
+} // namespace Editor
 
 #endif // IMAGEEDITOR_DRAWINGGRAPHICSVIEW_H

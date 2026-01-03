@@ -7,7 +7,7 @@
 #include <QBrush>
 #include <QRectF>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 class ShapeHandleTool;
 
@@ -86,6 +86,6 @@ private:
     QRectF m_boundingRect;
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools
 
 #endif // IMAGEEDITOR_SHAPETOOL_H

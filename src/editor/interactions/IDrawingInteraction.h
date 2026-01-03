@@ -8,7 +8,7 @@
 #include <QRect>
 #include <QPen>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 /**
  * @brief Interface for tool-specific drawing behavior.
@@ -67,6 +67,6 @@ public:
     virtual bool isDrawing() const = 0;
 };
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions
 
 #endif // IMAGEEDITOR_IDRAWINGINTERACTION_H

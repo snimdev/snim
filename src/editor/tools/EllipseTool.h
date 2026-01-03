@@ -3,7 +3,7 @@
 
 #include "ShapeTool.h"
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 /**
  * @brief Ellipse shape tool
@@ -26,6 +26,6 @@ protected:
     QPainterPath createShapePath() const override;
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools
 
 #endif // IMAGEEDITOR_ELLIPSETOOL_H

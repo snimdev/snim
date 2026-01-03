@@ -5,7 +5,7 @@
 #include <QGraphicsItem>
 #include <QList>
 
-namespace ImageEditor {
+namespace Editor {
 
 /**
  * A layer is either a leaf (wraps a single QGraphicsItem) or a group (type Group,
@@ -64,6 +64,6 @@ private:
     QList<Layer*> m_children;   // non-empty only for Group layers
 };
 
-} // namespace ImageEditor
+} // namespace Editor
 
 #endif // IMAGEEDITOR_LAYER_H

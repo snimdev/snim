@@ -7,7 +7,7 @@
 #include <QFocusEvent>
 #include <QGraphicsSceneWheelEvent>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 class TextTool : public QGraphicsTextItem, public ITool
 {
@@ -35,6 +35,6 @@ signals:
     void editingFinished();   // emitted when inline editing ends (focus lost)
 };
 
-} // namespace ImageEditor
+} // namespace Editor
 
 #endif // IMAGEEDITOR_TEXTTOOL_H

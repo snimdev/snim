@@ -4,7 +4,7 @@
 #include <QGraphicsEllipseItem>
 #include <QPointF>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 class ShapeTool;
 
@@ -40,6 +40,6 @@ private:
     static constexpr qreal HANDLE_HOVER_SIZE = 10.0;
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools
 
 #endif // IMAGEEDITOR_SHAPEHANDLETOOL_H

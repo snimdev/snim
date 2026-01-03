@@ -2,13 +2,13 @@
 #include <QStandardPaths>
 #include <QPixmap>
 
-#include "editor/ImageEditor.h"
+#include "editor/image/ImageEditor.h"
 #include "editor/DrawingGraphicsView.h"
 #include "editor/LayerManager.h"
 
-// The editor class is named ImageEditor inside namespace ImageEditor, so a
-// `using namespace` makes the bare name ambiguous; alias the class instead.
-using Editor = ImageEditor::ImageEditor;
+// The editor window is Editor::Image::ImageEditor; alias it for brevity (a plain
+// `using namespace` would clash with the Editor namespace).
+using ImageEditorWindow = Editor::Image::ImageEditor;
 
 // Smoke test: the full editor window constructs offscreen (loads its qss + themed
 // SVG icons from the qrc that's linked into this test target) without crashing.
@@ -29,9 +29,9 @@ private slots:
         QPixmap shot(400, 300);
         shot.fill(Qt::darkGray);
 
-        Editor editor(shot);   // not shown; just constructed
-        QVERIFY(editor.findChild<ImageEditor::DrawingGraphicsView*>() != nullptr);
-        QVERIFY(editor.findChild<ImageEditor::LayerManager*>() != nullptr);
+        ImageEditorWindow editor(shot);   // not shown; just constructed
+        QVERIFY(editor.findChild<Editor::DrawingGraphicsView*>() != nullptr);
+        QVERIFY(editor.findChild<Editor::LayerManager*>() != nullptr);
     }
 };
 

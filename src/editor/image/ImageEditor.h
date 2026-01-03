@@ -18,7 +18,7 @@
 class QActionGroup;
 class QUndoStack;
 
-namespace ImageEditor {
+namespace Editor {
 
 class DrawingGraphicsView;
 class LayerManager;
@@ -27,13 +27,16 @@ class Layer;
 
 namespace Tools {
     class ITool;
-    class BackdropItem;
     class TextTool;
 }
 
 namespace Interactions {
     class IDrawingInteraction;
 }
+
+namespace Image {
+
+class BackdropItem;
 
 class ImageEditor : public QMainWindow
 {
@@ -137,7 +140,7 @@ private:
     bool m_firstShown = false;   // fit/center the view only on the first show
     bool m_dirty = false;        // unsaved changes (layers added/edited, backdrop, ...)
     Layer *m_backgroundLayer;
-    Tools::BackdropItem *m_backdropItem;  // beautify backdrop (null when off)
+    BackdropItem *m_backdropItem;  // beautify backdrop (null when off)
     Layer *m_backdropLayer;
     QWidget *m_backdropPopover = nullptr;   // floating quick-actions popover
     QWidget *m_presetGrid = nullptr;        // preset-tiles container inside the popover
@@ -145,6 +148,7 @@ private:
     Tools::TextTool *m_pendingTextItem = nullptr;  // text box being created/edited inline (uncommitted)
 };
 
-} // namespace ImageEditor
+} // namespace Image
+} // namespace Editor
 
 #endif // IMAGEEDITOR_IMAGEEDITOR_H

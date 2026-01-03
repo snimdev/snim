@@ -4,7 +4,7 @@
 #include <QPainterPathStroker>
 #include <QStyleOptionGraphicsItem>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 FreehandTool::FreehandTool(QGraphicsItem *parent)
     : QGraphicsObject(parent)
@@ -175,4 +175,4 @@ void FreehandTool::setProperty(const QString& propertyId, const QVariant& value)
     }
 }
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools

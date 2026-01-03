@@ -4,10 +4,10 @@
 #include <QVariantMap>
 #include <QPixmap>
 
-#include "editor/BackdropPresets.h"
-#include "editor/tools/BackdropItem.h"
+#include "editor/image/BackdropPresets.h"
+#include "editor/image/BackdropItem.h"
 
-using namespace ImageEditor;
+using namespace Editor::Image;
 
 class tst_BackdropPresets : public QObject
 {
@@ -77,7 +77,7 @@ private slots:
     void backdropItem_configRoundTrip()
     {
         const QVariantMap indigo = BackdropPresets::configFor("Indigo");
-        Tools::BackdropItem item;
+        BackdropItem item;
         item.applyConfig(indigo);
         const QVariantMap out = item.toConfig();
         // The fields Indigo specifies must survive the round-trip.
@@ -90,7 +90,7 @@ private slots:
 
     void configPreview_rendersRequestedSize()
     {
-        const QPixmap pm = Tools::BackdropItem::configPreview(
+        const QPixmap pm = BackdropItem::configPreview(
             BackdropPresets::configFor("Indigo"), QSize(58, 40));
         QVERIFY(!pm.isNull());
         QCOMPARE(pm.size(), QSize(58, 40));

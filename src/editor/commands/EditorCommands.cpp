@@ -4,12 +4,12 @@
 #include "editor/LayerManager.h"
 #include "editor/LayerProperties.h"
 #include "editor/tools/ITool.h"
-#include "editor/tools/BackdropItem.h"
+#include "editor/image/BackdropItem.h"
 
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 
-namespace ImageEditor::Commands {
+namespace Editor::Commands {
 
 // ---------------------------------------------------------------- AddLayerCommand
 AddLayerCommand::AddLayerCommand(QGraphicsScene *scene, LayerManager *manager,
@@ -210,8 +210,8 @@ void UngroupLayersCommand::undo()
 }
 
 // --------------------------------------------------------- BackdropChangeCommand
-BackdropChangeCommand::BackdropChangeCommand(Tools::BackdropItem *backdrop, QString propertyId,
-                                             QVariant value, Tools::BackdropMemento before,
+BackdropChangeCommand::BackdropChangeCommand(Image::BackdropItem *backdrop, QString propertyId,
+                                             QVariant value, Image::BackdropMemento before,
                                              const QString &text)
     : m_backdrop(backdrop), m_propertyId(std::move(propertyId)),
       m_value(std::move(value)), m_before(std::move(before))
@@ -240,4 +240,4 @@ bool BackdropChangeCommand::mergeWith(const QUndoCommand *other)
     return true;
 }
 
-} // namespace ImageEditor::Commands
+} // namespace Editor::Commands

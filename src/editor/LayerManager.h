@@ -6,7 +6,7 @@
 #include <QPushButton>
 #include <QHash>
 
-namespace ImageEditor {
+namespace Editor {
 
 class Layer;
 
@@ -32,7 +32,7 @@ signals:
     void layerVisibilityChanged(Layer *layer, bool visible);
     void deleteLayerRequested(Layer *layer);
     void layerAdded(Layer *layer);
-    // Eye-button toggle request; ImageEditor turns this into an undoable command
+    // Eye-button toggle request; Editor turns this into an undoable command
     // (the command flips the layer, not the button directly).
     void visibilityToggleRequested(Layer *layer, bool visible);
     // Group the given top-level leaves, or dissolve a group.
@@ -57,6 +57,6 @@ private:
     QHash<QTreeWidgetItem*, Layer*> m_itemToLayer;
 };
 
-} // namespace ImageEditor
+} // namespace Editor
 
 #endif // IMAGEEDITOR_LAYERMANAGER_H

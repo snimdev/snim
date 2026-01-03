@@ -2,7 +2,7 @@
 #include <QGraphicsScene>
 #include <QtMath>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 BaseDrawingInteraction::BaseDrawingInteraction(QObject *parent)
     : QObject(parent)
@@ -87,4 +87,4 @@ QPointF BaseDrawingInteraction::clampToImageBounds(const QPointF &point) const
     return QPointF(clampedX, clampedY);
 }
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions

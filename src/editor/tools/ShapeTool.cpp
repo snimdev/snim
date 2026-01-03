@@ -4,7 +4,7 @@
 #include <QPainterPath>
 #include <QStyleOptionGraphicsItem>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 ShapeTool::ShapeTool(const QRectF &rect, QGraphicsItem *parent)
     : QGraphicsObject(parent)
@@ -287,4 +287,4 @@ void ShapeTool::setProperty(const QString& propertyId, const QVariant& value)
     }
 }
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools

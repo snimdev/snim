@@ -3,7 +3,7 @@
 #include <QFontDatabase>
 #include <QColor>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 TextTool::TextTool(const QString &text, QGraphicsItem *parent)
     : QGraphicsTextItem(text, parent)
@@ -132,4 +132,4 @@ void TextTool::wheelEvent(QGraphicsSceneWheelEvent *event)
     QGraphicsTextItem::wheelEvent(event);
 }
 
-} // namespace ImageEditor
+} // namespace Editor

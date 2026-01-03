@@ -4,7 +4,7 @@
 #include <QPainterPathStroker>
 #include <QStyleOptionGraphicsItem>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 HighlightTool::HighlightTool(QGraphicsItem *parent)
     : QGraphicsObject(parent)
@@ -219,4 +219,4 @@ void HighlightTool::setProperty(const QString& propertyId, const QVariant& value
     }
 }
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools

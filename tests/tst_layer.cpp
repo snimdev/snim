@@ -4,7 +4,7 @@
 
 #include "editor/Layer.h"
 
-using namespace ImageEditor;
+using namespace Editor;
 
 // A Layer is a leaf (wraps an item) or a Group (has children); visibility cascades
 // from a group to its children.

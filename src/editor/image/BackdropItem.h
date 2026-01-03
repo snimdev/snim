@@ -6,10 +6,10 @@
 #include <QPixmap>
 #include <QRectF>
 #include <functional>
-#include "ITool.h"
+#include "editor/tools/ITool.h"
 #include "BackdropMemento.h"
 
-namespace ImageEditor::Tools {
+namespace Editor::Image {
 
 /**
  * Full-canvas backdrop drawn BEHIND the screenshot (z below it). Provides the
@@ -21,7 +21,7 @@ namespace ImageEditor::Tools {
  * The editor sets the rect to fill via setCanvasRect(); a change callback lets the
  * editor re-layout when a geometry/appearance property changes.
  */
-class BackdropItem : public QGraphicsItem, public ITool
+class BackdropItem : public QGraphicsItem, public Tools::ITool
 {
 public:
     enum class Fill { Solid, Gradient, Wallpaper };
@@ -43,7 +43,7 @@ public:
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override;
 
     // ITool (drives the Properties panel)
-    [[nodiscard]] QList<ToolProperty> getProperties() const override;
+    [[nodiscard]] QList<Tools::ToolProperty> getProperties() const override;
     void setProperty(const QString &propertyId, const QVariant &value) override;
 
     static QStringList gradientNames();
@@ -87,6 +87,6 @@ private:
     std::function<void(const QString &)> m_onChanged;
 };
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Image
 
 #endif // IMAGEEDITOR_BACKDROPITEM_H

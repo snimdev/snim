@@ -14,7 +14,7 @@
 
 #include <QGraphicsItem>
 
-using namespace ImageEditor;
+using namespace Editor;
 
 // Tool registry: one ToolSpec per tool supplies an interaction builder and a
 // property-template builder, plus metadata.

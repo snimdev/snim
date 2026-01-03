@@ -1,5 +1,5 @@
 #include "ScreenshotDialog.h"
-#include "../editor/ImageEditor.h"
+#include "editor/image/ImageEditor.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QApplication>
@@ -57,7 +57,7 @@ void ScreenshotDialog::copyToClipboard()
 void ScreenshotDialog::openInEditor()
 {
     qDebug() << "Opening editor with screenshot size:" << m_screenshot.size();
-    auto *editor = new ImageEditor::ImageEditor(m_screenshot);
+    auto *editor = new Editor::Image::ImageEditor(m_screenshot);
     editor->setAttribute(Qt::WA_DeleteOnClose);
     qDebug() << "Editor created, showing...";
 

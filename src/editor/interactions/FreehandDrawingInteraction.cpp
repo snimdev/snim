@@ -1,7 +1,7 @@
 #include "FreehandDrawingInteraction.h"
 #include "../tools/FreehandTool.h"
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 FreehandDrawingInteraction::FreehandDrawingInteraction(QObject *parent)
     : BaseDrawingInteraction(parent)
@@ -42,4 +42,4 @@ bool FreehandDrawingInteraction::finalizeDrawing()
     return false;
 }
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions

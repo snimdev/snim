@@ -2,7 +2,7 @@
 #include <QGraphicsScene>
 #include <QPen>
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 RectangleDrawingInteraction::RectangleDrawingInteraction(QObject *parent)
     : BaseDrawingInteraction(parent)
@@ -42,4 +42,4 @@ bool RectangleDrawingInteraction::finalizeDrawing()
     return true;
 }
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions

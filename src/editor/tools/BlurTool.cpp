@@ -7,7 +7,7 @@
 #include <QGraphicsBlurEffect>
 #include <QImage>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 BlurTool::BlurTool(QGraphicsItem *parent)
     : QGraphicsObject(parent)
@@ -353,4 +353,4 @@ void BlurTool::setProperty(const QString& propertyId, const QVariant& value)
     }
 }
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools

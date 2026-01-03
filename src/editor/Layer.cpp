@@ -1,6 +1,6 @@
 #include "Layer.h"
 
-namespace ImageEditor {
+namespace Editor {
 
 Layer::Layer(const QString &name, LayerType type, QObject *parent)
     : QObject(parent)
@@ -50,4 +50,4 @@ QGraphicsItem* Layer::getTool() const
     return m_item;
 }
 
-} // namespace ImageEditor
+} // namespace Editor

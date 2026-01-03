@@ -9,7 +9,7 @@
 class QStackedWidget;
 class QLayout;
 
-namespace ImageEditor {
+namespace Editor {
 
 class Layer;
 
@@ -26,7 +26,7 @@ public:
 
 signals:
     void savePresetRequested();   // emitted by the backdrop panel's "Save as preset…" button
-    // A control changed a tool property. ImageEditor turns this into an undoable
+    // A control changed a tool property. Editor turns this into an undoable
     // command (kept undo-agnostic here so the widget stays reusable).
     void propertyChangeRequested(Tools::ITool *tool, const QString &propertyId, const QVariant &value);
 
@@ -44,6 +44,6 @@ private:
     QPalette m_originalPalette;
 };
 
-} // namespace ImageEditor
+} // namespace Editor
 
 #endif // IMAGEEDITOR_LAYERPROPERTIES_H

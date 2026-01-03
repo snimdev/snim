@@ -6,7 +6,7 @@
 #include <QStyleOptionGraphicsItem>
 #include <cmath>
 
-namespace ImageEditor::Tools {
+namespace Editor::Tools {
 
 ArrowTool::ArrowTool(const QPointF &start, const QPointF &end, QGraphicsItem *parent)
     : QGraphicsObject(parent)
@@ -302,4 +302,4 @@ void ArrowTool::setProperty(const QString& propertyId, const QVariant& value)
     }
 }
 
-} // namespace ImageEditor::Tools
+} // namespace Editor::Tools

@@ -4,7 +4,7 @@
 #include "editor/LayerManager.h"
 #include "editor/Layer.h"
 
-using namespace ImageEditor;
+using namespace Editor;
 
 // LayerManager is a QWidget (QTreeWidget); construct it offscreen and drive its
 // public API. (Multi-select group-button enablement uses the private tree and is

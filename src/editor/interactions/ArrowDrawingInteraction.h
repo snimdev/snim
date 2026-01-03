@@ -4,13 +4,13 @@
 #include "BaseDrawingInteraction.h"
 #include <QPen>
 
-namespace ImageEditor {
+namespace Editor {
     namespace Tools {
         class ArrowTool;
     }
 }
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 /**
  * @brief Interaction for arrow drawing tool
@@ -47,6 +47,6 @@ private:
     static constexpr qreal MIN_ARROW_LENGTH = 10.0;
 };
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions
 
 #endif // IMAGEEDITOR_ARROWDRAWINGINTERACTION_H

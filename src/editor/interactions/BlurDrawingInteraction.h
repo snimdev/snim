@@ -6,13 +6,13 @@
 #include <QPointF>
 #include <QPixmap>
 
-namespace ImageEditor {
+namespace Editor {
     namespace Tools {
         class BlurTool;
     }
 }
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 /**
  * @brief Interaction for blur tool
@@ -59,6 +59,6 @@ private:
     QPixmap m_sourcePixmap;
 };
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions
 
 #endif // IMAGEEDITOR_BLURDRAWINGINTERACTION_H

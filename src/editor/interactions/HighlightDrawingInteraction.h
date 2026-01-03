@@ -6,13 +6,13 @@
 #include <QList>
 #include <QPointF>
 
-namespace ImageEditor {
+namespace Editor {
     namespace Tools {
         class HighlightTool;
     }
 }
 
-namespace ImageEditor::Interactions {
+namespace Editor::Interactions {
 
 /**
  * @brief Interaction for highlight drawing tool
@@ -56,6 +56,6 @@ private:
     qreal m_width;
 };
 
-} // namespace ImageEditor::Interactions
+} // namespace Editor::Interactions
 
 #endif // IMAGEEDITOR_HIGHLIGHTDRAWINGINTERACTION_H

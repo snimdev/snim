@@ -19,7 +19,7 @@
 #include <QPixmap>
 #include <QMargins>
 
-namespace ImageEditor {
+namespace Editor {
 
 namespace {
 
@@ -335,7 +335,7 @@ void LayerProperties::buildPropertiesUI(Layer *layer)
         layout->addLayout(createPropertyControl(tool, prop, propertiesWidget));
 
     // Backdrop layers get a "Save as preset…" action so the current config can be
-    // stored without going back to the popover. ImageEditor handles the save.
+    // stored without going back to the popover. Editor handles the save.
     if (layer->type() == Layer::Backdrop) {
         auto *saveBtn = new QPushButton(QStringLiteral("＋  Save as preset…"), propertiesWidget);
         saveBtn->setObjectName("savePresetBtn");
@@ -406,4 +406,4 @@ void LayerProperties::hidePropertiesStyle()
     // Styling handled by editor.qss via #propertiesStack object name
 }
 
-} // namespace ImageEditor
+} // namespace Editor

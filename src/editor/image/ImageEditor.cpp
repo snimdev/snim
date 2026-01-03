@@ -1,28 +1,28 @@
-#include "ImageEditor.h"
-#include "DrawingGraphicsView.h"
-#include "LayerManager.h"
-#include "LayerProperties.h"
-#include "Layer.h"
-#include "ToolRegistry.h"
-#include "commands/EditorCommands.h"
+#include "editor/image/ImageEditor.h"
+#include "editor/DrawingGraphicsView.h"
+#include "editor/LayerManager.h"
+#include "editor/LayerProperties.h"
+#include "editor/Layer.h"
+#include "editor/ToolRegistry.h"
+#include "editor/commands/EditorCommands.h"
 #include "core/IconUtil.h"
-#include "tools/TextTool.h"
-#include "tools/ArrowTool.h"
-#include "tools/RectangleTool.h"
-#include "tools/EllipseTool.h"
-#include "tools/FreehandTool.h"
-#include "tools/HighlightTool.h"
-#include "tools/BlurTool.h"
-#include "tools/BackdropItem.h"
-#include "BackdropPresets.h"
-#include "interactions/PointerToolInteraction.h"
-#include "interactions/ArrowDrawingInteraction.h"
-#include "interactions/TextDrawingInteraction.h"
-#include "interactions/RectangleDrawingInteraction.h"
-#include "interactions/EllipseDrawingInteraction.h"
-#include "interactions/FreehandDrawingInteraction.h"
-#include "interactions/HighlightDrawingInteraction.h"
-#include "interactions/BlurDrawingInteraction.h"
+#include "editor/tools/TextTool.h"
+#include "editor/tools/ArrowTool.h"
+#include "editor/tools/RectangleTool.h"
+#include "editor/tools/EllipseTool.h"
+#include "editor/tools/FreehandTool.h"
+#include "editor/tools/HighlightTool.h"
+#include "editor/tools/BlurTool.h"
+#include "editor/image/BackdropItem.h"
+#include "editor/image/BackdropPresets.h"
+#include "editor/interactions/PointerToolInteraction.h"
+#include "editor/interactions/ArrowDrawingInteraction.h"
+#include "editor/interactions/TextDrawingInteraction.h"
+#include "editor/interactions/RectangleDrawingInteraction.h"
+#include "editor/interactions/EllipseDrawingInteraction.h"
+#include "editor/interactions/FreehandDrawingInteraction.h"
+#include "editor/interactions/HighlightDrawingInteraction.h"
+#include "editor/interactions/BlurDrawingInteraction.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -61,7 +61,8 @@
 #include <QKeyEvent>
 #include <cmath>
 
-namespace ImageEditor {
+namespace Editor {
+namespace Image {
 
 ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     : QMainWindow(parent)
@@ -340,7 +341,7 @@ void ImageEditor::setupUI()
             [this](Tools::ITool *tool, const QString &propId, const QVariant &value) {
                 if (!tool)
                     return;
-                if (auto *bd = dynamic_cast<Tools::BackdropItem*>(tool)) {
+                if (auto *bd = dynamic_cast<BackdropItem*>(tool)) {
                     m_undoStack->push(new Commands::BackdropChangeCommand(
                         bd, propId, value, bd->createMemento(),
                         QStringLiteral("Backdrop %1").arg(propId)));
@@ -860,7 +861,7 @@ QPixmap roundedScreenshot(const QPixmap &src, int radiusDevicePx)
 void ImageEditor::setBackdropEnabled(bool on)
 {
     if (on && !m_backdropItem) {
-        m_backdropItem = new Tools::BackdropItem();
+        m_backdropItem = new BackdropItem();
         m_scene->addItem(m_backdropItem);
         m_backdropItem->setOnChanged([this](const QString &id) { onBackdropChanged(id); });
 
@@ -1076,7 +1077,7 @@ void ImageEditor::rebuildPresetGrid()
     for (const BackdropPreset &preset : BackdropPresets::all()) {
         const bool isDefault = (preset.name == def);
         auto *btn = new QToolButton(m_presetGrid);
-        QPixmap preview = Tools::BackdropItem::configPreview(preset.config, tile);
+        QPixmap preview = BackdropItem::configPreview(preset.config, tile);
         if (isDefault)
             preview = withDefaultBadge(preview);
         btn->setIcon(QIcon(preview));
@@ -1320,4 +1321,5 @@ void ImageEditor::mouseReleaseEvent(QMouseEvent *event)
     QMainWindow::mouseReleaseEvent(event);
 }
 
-} // namespace ImageEditor
+} // namespace Image
+} // namespace Editor
