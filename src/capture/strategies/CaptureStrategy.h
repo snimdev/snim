@@ -29,9 +29,17 @@ public:
     // Get strategy name for debugging/logging
     virtual QString name() const = 0;
 
+    // Whether the area selector should offer quick actions (Edit/Copy/Save toolbar).
+    // On for normal capture; the OCR text-snip path turns it off.
+    void setQuickActionsEnabled(bool enabled) { m_quickActionsEnabled = enabled; }
+    [[nodiscard]] bool quickActionsEnabled() const { return m_quickActionsEnabled; }
+
 signals:
     void screenshotReady(const QPixmap &pixmap);
     void screenshotFailed(const QString &error);
+
+protected:
+    bool m_quickActionsEnabled = true;
 };
 
 } // namespace Capture

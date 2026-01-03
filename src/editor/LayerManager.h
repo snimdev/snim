@@ -30,6 +30,7 @@ signals:
     void layerSelected(Layer *layer);
     void layerVisibilityChanged(Layer *layer, bool visible);
     void deleteLayerRequested(Layer *layer);
+    void layerAdded(Layer *layer);
 
 private slots:
     void onItemSelectionChanged();

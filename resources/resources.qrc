@@ -15,6 +15,12 @@
         <file>icons/freehand.svg</file>
         <file>icons/highlight.svg</file>
         <file>icons/blur.svg</file>
+
+        <!-- View controls -->
+        <file>icons/fit.svg</file>
+        <file>icons/actual-size.svg</file>
+        <file>icons/background.svg</file>
+        <file>icons/panels.svg</file>
     </qresource>
     <qresource prefix="/styles">
         <file>styles/editor.qss</file>

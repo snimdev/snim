@@ -13,6 +13,7 @@ class Layer : public QObject
 public:
     enum LayerType {
         Background,
+        Backdrop,   // CleanShot-style beautify background (behind Background)
         Arrow,
         Text,
         Rectangle,

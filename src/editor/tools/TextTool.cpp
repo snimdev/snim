@@ -1,5 +1,6 @@
 #include "TextTool.h"
 #include <QFont>
+#include <QFontDatabase>
 #include <QColor>
 
 namespace ImageEditor::Tools {
@@ -17,21 +18,72 @@ TextTool::TextTool(const QString &text, QGraphicsItem *parent)
 QList<ToolProperty> TextTool::getProperties() const
 {
     QList<ToolProperty> properties;
+
     ToolProperty colorProp;
     colorProp.id = "color";
     colorProp.name = "Color";
     colorProp.value = defaultTextColor();
     colorProp.controlType = "color";
     properties.append(colorProp);
+
+    const QFont f = font();
+
+    ToolProperty familyProp;
+    familyProp.id = "fontFamily";
+    familyProp.name = "Font";
+    familyProp.controlType = "dropdown";
+    familyProp.options["items"] = QFontDatabase::families();
+    familyProp.value = f.family();
+    properties.append(familyProp);
+
+    ToolProperty sizeProp;
+    sizeProp.id = "fontSize";
+    sizeProp.name = "Size";
+    sizeProp.controlType = "slider";
+    sizeProp.options["min"] = 6;
+    sizeProp.options["max"] = 96;
+    int size = f.pointSize();
+    if (size <= 0)
+        size = (f.pixelSize() > 0 ? f.pixelSize() : 12);
+    sizeProp.value = size;
+    properties.append(sizeProp);
+
+    ToolProperty styleProp;
+    styleProp.id = "fontStyle";
+    styleProp.name = "Style";
+    styleProp.controlType = "dropdown";
+    styleProp.options["items"] = QStringList{"Regular", "Bold", "Italic", "Bold Italic"};
+    styleProp.value = f.bold() ? (f.italic() ? "Bold Italic" : "Bold")
+                               : (f.italic() ? "Italic" : "Regular");
+    properties.append(styleProp);
+
     return properties;
 }
 
 void TextTool::setProperty(const QString& propertyId, const QVariant& value)
 {
-    if (propertyId == "color" && value.canConvert<QColor>()) {
-        setDefaultTextColor(value.value<QColor>());
-        emit textChanged();
+    if (propertyId == "color") {
+        if (value.canConvert<QColor>()) {
+            setDefaultTextColor(value.value<QColor>());
+            emit textChanged();
+        }
+        return;
     }
+
+    QFont f = font();
+    if (propertyId == "fontFamily") {
+        f.setFamily(value.toString());
+    } else if (propertyId == "fontSize") {
+        f.setPointSize(qMax(1, value.toInt()));
+    } else if (propertyId == "fontStyle") {
+        const QString style = value.toString();
+        f.setBold(style.contains("Bold"));
+        f.setItalic(style.contains("Italic"));
+    } else {
+        return;
+    }
+    setFont(f);
+    emit textChanged();
 }
 
 void TextTool::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)

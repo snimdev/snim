@@ -4,16 +4,14 @@
 #include <QWidget>
 #include <QMap>
 #include <QPalette>
+#include "tools/ITool.h"
 
 class QStackedWidget;
+class QLayout;
 
 namespace ImageEditor {
 
 class Layer;
-
-namespace Tools {
-    class ITool;
-}
 
 class LayerProperties : public QWidget
 {
@@ -22,12 +20,17 @@ class LayerProperties : public QWidget
 public:
     explicit LayerProperties(QWidget *parent = nullptr);
     void setLayer(Layer *layer);
+    void rebuildLayer(Layer *layer);   // force a fresh build (for dynamic property sets)
     void setTool(Tools::ITool *tool, const QString &toolName);
     void removeLayer(Layer *layer);
+
+signals:
+    void savePresetRequested();   // emitted by the backdrop panel's "Save as preset…" button
 
 private:
     void buildPropertiesUI(Layer *layer);
     void buildPropertiesUIForTool(Tools::ITool *tool, const QString &title);
+    QLayout* createPropertyControl(Tools::ITool *tool, const Tools::ToolProperty &prop, QWidget *parent);
     void showPropertiesStyle();
     void hidePropertiesStyle();
 

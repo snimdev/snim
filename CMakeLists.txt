@@ -74,6 +74,7 @@ add_executable(Niceshot
         src/capture/AreaSelector.h
         src/capture/CaptureFactory.cpp
         src/capture/CaptureFactory.h
+        src/capture/WindowEnumerator.h
         src/capture/strategies/CaptureStrategy.cpp
         src/capture/strategies/CaptureStrategy.h
         src/capture/strategies/NativeCaptureStrategy.cpp
@@ -102,6 +103,8 @@ add_executable(Niceshot
         src/editor/tools/HighlightTool.h
         src/editor/tools/BlurTool.cpp
         src/editor/tools/BlurTool.h
+        src/editor/tools/BackdropItem.cpp
+        src/editor/tools/BackdropItem.h
         src/editor/tools/TextTool.cpp
         src/editor/tools/TextTool.h
         src/editor/Layer.cpp
@@ -110,6 +113,8 @@ add_executable(Niceshot
         src/editor/LayerManager.h
         src/editor/LayerProperties.cpp
         src/editor/LayerProperties.h
+        src/editor/BackdropPresets.cpp
+        src/editor/BackdropPresets.h
         # Drawing Interactions
         src/editor/interactions/IDrawingInteraction.h
         src/editor/interactions/BaseDrawingInteraction.cpp
@@ -139,6 +144,23 @@ add_executable(Niceshot
         # Resources
         resources/resources.qrc
 )
+
+# Platform-specific window enumeration for the interactive window picker.
+# macOS uses CGWindowList (Objective-C++); other platforms get a stub that
+# returns no windows, so window-pick falls back to the screen under the cursor.
+if(APPLE)
+    enable_language(OBJCXX)
+    target_sources(Niceshot PRIVATE
+            src/capture/WindowEnumerator_mac.mm
+            src/capture/MacOverlay.h
+            src/capture/MacOverlay.mm)
+    target_link_libraries(Niceshot
+            "-framework CoreGraphics"
+            "-framework CoreFoundation"
+            "-framework AppKit")
+else()
+    target_sources(Niceshot PRIVATE src/capture/WindowEnumerator_stub.cpp)
+endif()
 
 # Linux-only capture strategies. These rely on Linux desktop APIs that don't
 # exist elsewhere: KWin uses the org.kde.KWin.ScreenShot2 D-Bus interface plus

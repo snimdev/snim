@@ -22,6 +22,7 @@ class Layer;
 
 namespace Tools {
     class ITool;
+    class BackdropItem;
 }
 
 namespace Interactions {
@@ -59,6 +60,9 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private slots:
     void onLayerVisibilityChanged(Layer *layer, bool visible);
@@ -80,6 +84,15 @@ private:
     void addHighlightLayer(const QList<QPointF> &points, const QColor &color, qreal width);
     void addBlurLayer(const QList<QPointF> &points);
     Layer* createBackgroundLayer();
+    void setBackdropEnabled(bool on);
+    void onBackgroundButtonClicked();
+    void showBackdropPopover();
+    void rebuildPresetGrid();
+    void saveCurrentBackdropAsPreset();
+    void applyBackdropGeometry(bool refit);
+    void applyRoundedScreenshot();
+    void applyShadow();
+    void onBackdropChanged(const QString &propertyId);
     void selectLayerByItem(QGraphicsItem *item);
     bool isWithinImageBounds(const QPoint &point) const;
     QPoint clampToImageBounds(const QPoint &point) const;
@@ -113,6 +126,12 @@ private:
     QAction *m_saveAsAction;
     QAction *m_copyAction;
 
+    // - Toolbar :: View controls
+    QAction *m_fitAction;
+    QAction *m_actualSizeAction;
+    QAction *m_panelsAction;       // toggle the Layers/Properties side panel
+    QAction *m_backgroundAction;   // toggle the CleanShot-style beautify backdrop
+
     // - Toolbar :: Tools
     QAction *m_pointerAction;
     QAction *m_arrowAction;
@@ -135,8 +154,15 @@ private:
     QPixmap m_originalScreenshot;
     ToolType m_currentTool;
     bool m_drawing;
+    bool m_firstShown = false;   // fit/center the view only on the first show
+    bool m_dirty = false;        // unsaved changes (layers added/edited, backdrop, ...)
     QGraphicsItem *m_currentArrow;
     Layer *m_backgroundLayer;
+    Tools::BackdropItem *m_backdropItem;  // beautify backdrop (null when off)
+    Layer *m_backdropLayer;
+    QWidget *m_backdropPopover = nullptr;   // floating quick-actions popover
+    QWidget *m_presetGrid = nullptr;        // preset-tiles container inside the popover
+    Layer *m_selectedLayer = nullptr;       // current side-panel selection
     Layer *m_lastFreehandLayer; // Track last freehand layer to remember settings
     Layer *m_lastHighlightLayer; // Track last highlight layer to remember color
     Layer *m_lastBlurLayer; // Track last blur layer to remember settings

@@ -5,6 +5,9 @@
 #include <QScreen>
 #include <QApplication>
 #include <QTimer>
+#include <QVector>
+#include <QRect>
+#include <QList>
 
 namespace Capture {
 
@@ -34,7 +37,12 @@ private slots:
 private:
     QPixmap captureScreen();
     QPixmap captureAllScreens();
-    void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry);
+    void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry,
+                          bool windowPick = false, const QVector<QRect> &windows = {});
+    void teardownSelectors(QList<AreaSelector*> *selectors);
+    [[nodiscard]] QPixmap cropSelection(const QRect &area) const;
+    void onCopyRequested(const QRect &area);
+    void onSaveRequested(const QRect &area);
 
     QPixmap m_fullScreenshot; // Store for area selection
     QRect m_virtualGeometry;  // Store virtual desktop geometry

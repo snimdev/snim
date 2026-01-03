@@ -11,6 +11,7 @@
 namespace ImageEditor {
     LayerManager::LayerManager(QWidget *parent) : QWidget(parent) {
         setMinimumWidth(180);
+        setMinimumHeight(80);   // can shrink in the splitter, but never vanish
         setWindowTitle("Layers");
 
         auto *layout = new QVBoxLayout(this);
@@ -24,7 +25,9 @@ namespace ImageEditor {
 
         m_layerList = new QListWidget();
         m_layerList->setSelectionMode(QAbstractItemView::SingleSelection);
-        m_layerList->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+        // Let the list scroll and follow the splitter instead of growing to fit
+        // every row (which would crowd out the Properties panel below).
+        m_layerList->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
         m_layerList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         connect(m_layerList, &QListWidget::itemSelectionChanged, this, &LayerManager::onItemSelectionChanged);
         layout->addWidget(m_layerList, 1);
@@ -42,6 +45,8 @@ namespace ImageEditor {
         connect(layer, &Layer::visibilityChanged, [this, layer](bool visible) {
             emit layerVisibilityChanged(layer, visible);
         });
+
+        emit layerAdded(layer);
     }
 
     void LayerManager::removeLayer(Layer *layer) {
@@ -51,7 +56,7 @@ namespace ImageEditor {
 
     void LayerManager::removeSelectedLayer() {
         Layer *selected = selectedLayer();
-        if (selected && selected->type() != Layer::Background) {
+        if (selected && selected->type() != Layer::Background && selected->type() != Layer::Backdrop) {
             emit deleteLayerRequested(selected);
         }
     }
@@ -80,7 +85,7 @@ namespace ImageEditor {
 
     void LayerManager::onItemSelectionChanged() {
         Layer *selected = selectedLayer();
-        m_deleteButton->setEnabled(selected && selected->type() != Layer::Background);
+        m_deleteButton->setEnabled(selected && selected->type() != Layer::Background && selected->type() != Layer::Backdrop);
         if (selected) {
             emit layerSelected(selected);
         }
@@ -90,7 +95,7 @@ namespace ImageEditor {
         int currentRow = m_layerList->currentRow();
         Layer *selected = selectedLayer();
 
-        if (selected && selected->type() != Layer::Background) {
+        if (selected && selected->type() != Layer::Background && selected->type() != Layer::Backdrop) {
             emit deleteLayerRequested(selected);
 
             int newRow = currentRow;

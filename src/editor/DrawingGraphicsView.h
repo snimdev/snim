@@ -30,6 +30,12 @@ public:
 
     void setImageBounds(const QRect &bounds) { m_imageBounds = bounds; }
 
+    /// Fit the whole scene in the view, but never zoom past 100% (small captures
+    /// stay crisp and centered rather than being upscaled).
+    void fitContent();
+    /// Reset to 100% zoom, centered on the content.
+    void zoomActual();
+
 signals:
     /**
      * @brief Emitted when an item is clicked with pointer tool

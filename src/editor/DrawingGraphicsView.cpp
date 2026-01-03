@@ -22,6 +22,31 @@ DrawingGraphicsView::DrawingGraphicsView(QWidget *parent)
     setFrameStyle(QFrame::NoFrame);
 }
 
+void DrawingGraphicsView::fitContent()
+{
+    if (!scene())
+        return;
+    const QRectF r = scene()->sceneRect();
+    if (r.isEmpty())
+        return;
+
+    fitInView(r, Qt::KeepAspectRatio);
+    // Never upscale past 100% — small captures should stay crisp and centered.
+    if (transform().m11() > 1.0) {
+        resetTransform();
+        centerOn(r.center());
+    }
+}
+
+void DrawingGraphicsView::zoomActual()
+{
+    // Show the capture at 100% (no scaling), centered. Larger-than-viewport
+    // captures are then scrollable (ScrollBarAsNeeded), not shrunk to fit.
+    resetTransform();
+    if (scene())
+        centerOn(scene()->sceneRect().center());
+}
+
 void DrawingGraphicsView::setDrawingStrategy(Interactions::IDrawingInteraction *strategy)
 {
     // Clean up previous strategy if it was drawing
@@ -144,7 +169,7 @@ void DrawingGraphicsView::wheelEvent(QWheelEvent *event)
             factor = maxScale / currentScale;
         }
 
-        // Zoom centered on mouse position
+        // Zoom centered on mouse position; scrollbars then allow panning.
         setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
         scale(factor, factor);
         setTransformationAnchor(QGraphicsView::AnchorViewCenter);

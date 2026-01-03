@@ -37,12 +37,16 @@ QSplitter::handle {
     background: palette(mid);
 }
 
+QSplitter::handle:hover {
+    background: palette(highlight);
+}
+
 QSplitter::handle:horizontal {
     width: 1px;
 }
 
 QSplitter::handle:vertical {
-    height: 1px;
+    height: 6px;
 }
 
 /* Layer list */
@@ -139,6 +143,15 @@ QPushButton:pressed {
     background: palette(mid);
 }
 
+/* "Save as preset…" action at the bottom of the backdrop properties panel */
+QPushButton#savePresetBtn {
+    padding: 6px 12px;
+    margin-top: 4px;
+}
+QPushButton#savePresetBtn:hover {
+    border-color: palette(highlight);
+}
+
 /* ComboBox */
 QComboBox {
     border: 1px solid palette(mid);
@@ -154,6 +167,22 @@ QComboBox:hover {
 QComboBox::drop-down {
     border: none;
     padding-right: 6px;
+}
+
+/* Dropdown popup list — without explicit selection-color the highlighted/hovered
+   item's text takes the highlight background color and becomes invisible. */
+QComboBox QAbstractItemView {
+    border: 1px solid palette(mid);
+    background: palette(base);
+    outline: none;
+    padding: 2px;
+    selection-background-color: palette(highlight);
+    selection-color: palette(highlighted-text);
+}
+
+QComboBox QAbstractItemView::item {
+    padding: 4px 6px;
+    color: palette(text);
 }
 
 /* Sliders */
