@@ -15,6 +15,11 @@
 #include <QColorDialog>
 #include <QColor>
 #include <QCheckBox>
+#include <QListWidget>
+#include <QVector>
+#include <QHash>
+
+#include "upload/UploadProfiles.h"
 
 namespace Core {
 
@@ -40,6 +45,14 @@ private:
     void setupHotkeysTab();
     void loadSettings();
     void saveSettings();
+    // Upload profiles UI helpers (work on the in-memory working copy).
+    void refreshUploadList();                  // rebuild the list from m_uploadWorking
+    void bindUploadForm(int row);              // load working[row] into the field widgets
+    void flushUploadForm(int row);             // write the field widgets back into working[row]
+    void onUploadSelectionChanged(int row);
+    void onUploadAddProfile();
+    void onUploadRemoveProfile();
+    void onUploadSetDefault();
     void updateForegroundButtonStyle();
     void updateBackgroundButtonStyle();
 
@@ -65,10 +78,18 @@ private:
     QCheckBox *m_systemAudioCheck;
     QCheckBox *m_frameCheck;   // "Highlight recorded area while recording"
 
-    // Upload Tab (S3-compatible). The secret access key is NOT a member persisted to
-    // QSettings — it is written to the OS keychain on Apply and the field is cleared.
+    // Upload Tab (S3-compatible, multi-destination). The secret access key is NOT
+    // persisted to QSettings — it goes to the OS keychain (keyed by profile id) on Apply.
+    // The form binds to the selected profile in an in-memory working copy; nothing is
+    // persisted until Apply.
     QWidget *m_uploadTab;
     QCheckBox *m_uploadEnabledCheck = nullptr;
+    QListWidget *m_uploadList = nullptr;
+    QPushButton *m_uploadAddButton = nullptr;
+    QPushButton *m_uploadRemoveButton = nullptr;
+    QPushButton *m_uploadDefaultButton = nullptr;
+    QWidget *m_uploadForm = nullptr;             // the field group; disabled when no selection
+    QLineEdit *m_uploadNameEdit = nullptr;
     QLineEdit *m_uploadEndpointEdit = nullptr;
     QLineEdit *m_uploadRegionEdit = nullptr;
     QLineEdit *m_uploadBucketEdit = nullptr;
@@ -77,6 +98,11 @@ private:
     QLineEdit *m_uploadPrefixEdit = nullptr;
     QLineEdit *m_uploadPublicUrlEdit = nullptr;
     QCheckBox *m_uploadPathStyleCheck = nullptr;
+
+    QVector<Upload::UploadProfile> m_uploadWorking;   // edited copy; committed on Apply
+    QString m_uploadDefaultId;                        // working default profile id
+    QHash<QString, QString> m_uploadNewSecrets;       // profile id -> newly entered secret
+    int m_uploadCurrentRow = -1;                      // row currently bound to the form
 
     // Hotkeys Tab
     QWidget *m_hotkeysTab;

@@ -3,6 +3,9 @@
 #include "editor/video/VideoExporter.h"
 #include "editor/video/GifParams.h"
 #include "upload/UploaderFactory.h"
+#include "upload/UploadConfig.h"
+#include "upload/UploadMenu.h"
+#include <QMenu>
 #include "core/IconUtil.h"
 #include "core/Settings.h"
 
@@ -102,9 +105,19 @@ void VideoEditor::setupUi()
     m_gifAction->setToolTip(tr("Export the trimmed range as an animated GIF"));
     connect(m_gifAction, &QAction::triggered, this, &VideoEditor::onExportGif);
 
-    m_uploadAction = m_toolbar->addAction(themedIcon(":/icons/icons/upload.svg"), tr("Upload"));
-    m_uploadAction->setToolTip(tr("Upload the recording and copy the link"));
-    connect(m_uploadAction, &QAction::triggered, this, &VideoEditor::onUpload);
+    // Upload as a split button: click = default destination; ▾ = pick a saved server.
+    m_uploadAction = new QAction(themedIcon(":/icons/icons/upload.svg"), tr("Upload"), this);
+    m_uploadAction->setToolTip(tr("Upload to the default server and copy the link"));
+    connect(m_uploadAction, &QAction::triggered, this, [this] { doUpload(QString()); });
+    auto *uploadButton = new QToolButton(m_toolbar);
+    uploadButton->setDefaultAction(m_uploadAction);
+    uploadButton->setPopupMode(QToolButton::MenuButtonPopup);
+    auto *uploadMenu = new QMenu(uploadButton);
+    uploadButton->setMenu(uploadMenu);
+    connect(uploadMenu, &QMenu::aboutToShow, this, [this, uploadMenu] {
+        Upload::rebuildUploadMenu(uploadMenu, [this](const QString &id) { doUpload(id); });
+    });
+    m_toolbar->addWidget(uploadButton);
 
     auto *spacer = new QWidget(m_toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -414,11 +427,12 @@ void VideoEditor::onExportGif()
     exporter()->toGif(m_tempPath, m_exportTempPath, in, out, GifParams{});
 }
 
-void VideoEditor::onUpload()
+void VideoEditor::doUpload(const QString &profileId)
 {
-    if (!Upload::UploaderFactory::isStrategyAvailable(Upload::UploaderFactory::StrategyType::S3)) {
+    // Validate the CHOSEN destination (empty id = default), not just the default.
+    if (!Upload::UploadConfig::forProfile(profileId).isComplete()) {
         QMessageBox::information(this, tr("Upload not configured"),
-                                tr("Set up your S3 bucket in Settings → Upload first."));
+                                tr("Set up an S3 destination in Settings → Upload first."));
         return;
     }
     const TrimState &state = m_timeline->state();
@@ -426,12 +440,14 @@ void VideoEditor::onUpload()
         // Hand the recording temp to the app's uploader; mark saved so closeEvent
         // won't delete it out from under the in-flight PUT (the app owns it now).
         m_saved = true;
-        emit uploadRequested(m_tempPath, QStringLiteral("recording.mp4"), /*deleteWhenDone=*/true);
+        emit uploadRequested(m_tempPath, QStringLiteral("recording.mp4"), /*deleteWhenDone=*/true, profileId);
         close();
         return;
     }
-    // Trimmed: export to a temp, then upload that (handled in onExporterFinished).
+    // Trimmed: export to a temp, then upload that (handled in onExporterFinished). Stash
+    // the chosen profile across the async export.
     m_pending = Pending::Upload;
+    m_pendingUploadProfileId = profileId;
     m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
                        + QStringLiteral("/Niceshot_upload_")
                        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
@@ -475,7 +491,8 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
         QFile::remove(m_tempPath);
         m_exportTempPath.clear();
         m_saved = true;
-        emit uploadRequested(exportedPath, QStringLiteral("recording.mp4"), /*deleteWhenDone=*/true);
+        emit uploadRequested(exportedPath, QStringLiteral("recording.mp4"), /*deleteWhenDone=*/true,
+                             m_pendingUploadProfileId);
         close();
     } else if (pending == Pending::ExportGif) {
         // Mirror SaveMove exactly: move the GIF temp to the destination, drop the
@@ -497,11 +514,16 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
 void VideoEditor::onExporterFailed(const QString &error)
 {
     setBusy(false);
+    const Pending pending = m_pending;
     m_pending = Pending::None;
     if (!m_exportTempPath.isEmpty()) {            // belt & suspenders; the .mm cleans too
         QFile::remove(m_exportTempPath);
         m_exportTempPath.clear();
     }
+    // A failure with nothing pending means the export was cancelled (e.g. the window is
+    // closing) — clean up silently, no error dialog.
+    if (pending == Pending::None)
+        return;
     // Keep the original temp so the user can retry, save untrimmed, or discard.
     QMessageBox::warning(this, tr("Export Failed"), error);
 }
@@ -518,13 +540,21 @@ void VideoEditor::closeEvent(QCloseEvent *event)
         event->accept();
         return;
     }
-    if (m_pending != Pending::None && m_exporter)
-        m_exporter->cancel();                     // late completion is a harmless no-op
+    // Cancel any in-flight export AND drop its pending action BEFORE the prompt: the
+    // QMessageBox below spins a nested event loop that can deliver the export's queued
+    // completion, which would otherwise run its move/upload (or pop an error) before the
+    // user has answered. With m_pending cleared, a late finished/failed callback no-ops.
+    if (m_pending != Pending::None) {
+        if (m_exporter)
+            m_exporter->cancel();
+        m_pending = Pending::None;
+    }
 
     const auto answer = QMessageBox::question(
         this, tr("Discard Recording"), tr("Discard this recording?"),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) {
+        setBusy(false);          // the export (if any) was cancelled; return to editing
         event->ignore();
         return;
     }

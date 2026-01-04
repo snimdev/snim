@@ -49,12 +49,13 @@ public:
 public slots:
     void saveAs();
     void copyToClipboard();
-    void onUpload();   // render to a temp PNG and hand off to the app's uploader
+    void doUpload(const QString &profileId);   // render to a temp PNG -> app's uploader (empty id = default)
 
 signals:
     // The app owns the upload (it outlives this window); deleteWhenDone=true means the
-    // temp PNG is the app's to delete once the upload finishes.
-    void uploadRequested(const QString &localPath, const QString &suggestedName, bool deleteWhenDone);
+    // temp PNG is the app's to delete once the upload finishes. profileId empty = default.
+    void uploadRequested(const QString &localPath, const QString &suggestedName,
+                         bool deleteWhenDone, const QString &profileId);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;

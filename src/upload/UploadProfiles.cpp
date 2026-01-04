@@ -1,0 +1,181 @@
+#include "upload/UploadProfiles.h"
+
+#include "core/KeychainStore.h"
+#include "core/Settings.h"
+
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QUuid>
+#include <algorithm>
+
+namespace Upload {
+
+namespace {
+
+UploadProfile fromJson(const QJsonObject &o)
+{
+    UploadProfile p;
+    p.id = o.value("id").toString();
+    p.name = o.value("name").toString();
+    p.endpoint = o.value("endpoint").toString();
+    p.region = o.value("region").toString();
+    p.bucket = o.value("bucket").toString();
+    p.accessKeyId = o.value("accessKeyId").toString();
+    p.keyPrefix = o.value("keyPrefix").toString();
+    p.publicBaseUrl = o.value("publicBaseUrl").toString();
+    p.forcePathStyle = o.value("forcePathStyle").toBool();
+    return p;
+}
+
+QJsonObject toJson(const UploadProfile &p)
+{
+    QJsonObject o;
+    o["id"] = p.id;
+    o["name"] = p.name;
+    o["endpoint"] = p.endpoint;
+    o["region"] = p.region;
+    o["bucket"] = p.bucket;
+    o["accessKeyId"] = p.accessKeyId;
+    o["keyPrefix"] = p.keyPrefix;
+    o["publicBaseUrl"] = p.publicBaseUrl;
+    o["forcePathStyle"] = p.forcePathStyle;
+    return o;
+}
+
+void write(const QVector<UploadProfile> &v)
+{
+    QJsonArray arr;
+    for (const UploadProfile &p : v)
+        arr.append(toJson(p));
+    Core::Settings::setUploadProfilesJson(
+        QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)));
+}
+
+// One-time: turn a pre-existing single Upload/* config into a "Default" profile and
+// re-key its secret from (legacy accessKeyId) to (new profile id). Runs only when the
+// profiles list is still empty but a legacy bucket exists; persisting a non-empty list
+// makes the guard fail forever after.
+QVector<UploadProfile> migrateLegacyIfNeeded()
+{
+    if (Core::Settings::uploadBucket().isEmpty())
+        return {};
+
+    UploadProfile p;
+    p.id = UploadProfiles::newId();
+    p.name = QStringLiteral("Default");
+    p.endpoint = Core::Settings::uploadEndpoint();
+    p.region = Core::Settings::uploadRegion();
+    p.bucket = Core::Settings::uploadBucket();
+    p.accessKeyId = Core::Settings::uploadAccessKeyId();
+    p.keyPrefix = Core::Settings::uploadKeyPrefix();
+    p.publicBaseUrl = Core::Settings::uploadPublicBaseUrl();
+    p.forcePathStyle = Core::Settings::uploadForcePathStyle();
+
+    // Move the secret from the old (accessKeyId-keyed) slot to the new (id-keyed) slot,
+    // then erase the old slot so no stale credential copy lingers in the keychain.
+    if (!p.accessKeyId.isEmpty()) {
+        const auto secret = Core::KeychainStore::retrieve(
+            Core::KeychainStore::s3Service(), p.accessKeyId);
+        if (secret) {
+            Core::KeychainStore::store(Core::KeychainStore::s3Service(), p.id, *secret);
+            Core::KeychainStore::erase(Core::KeychainStore::s3Service(), p.accessKeyId);
+        }
+    }
+
+    QVector<UploadProfile> v{p};
+    write(v);
+    Core::Settings::setUploadDefaultProfileId(p.id);
+    return v;
+}
+
+} // namespace
+
+QString UploadProfiles::newId()
+{
+    return QUuid::createUuid().toString(QUuid::Id128);
+}
+
+QVector<UploadProfile> UploadProfiles::all()
+{
+    const QByteArray json = Core::Settings::uploadProfilesJson().toUtf8();
+    const QJsonArray arr = QJsonDocument::fromJson(json).array();
+    if (arr.isEmpty())
+        return migrateLegacyIfNeeded();   // empty list -> maybe a legacy single config
+
+    QVector<UploadProfile> v;
+    v.reserve(arr.size());
+    for (const QJsonValue &e : arr)
+        v.push_back(fromJson(e.toObject()));
+    return v;
+}
+
+UploadProfile UploadProfiles::byId(const QString &id)
+{
+    if (id.isEmpty())
+        return {};
+    for (const UploadProfile &p : all())
+        if (p.id == id)
+            return p;
+    return {};
+}
+
+void UploadProfiles::save(const UploadProfile &p)
+{
+    if (p.id.isEmpty())
+        return;
+    QVector<UploadProfile> v = all();
+    bool replaced = false;
+    for (UploadProfile &e : v) {
+        if (e.id == p.id) { e = p; replaced = true; break; }
+    }
+    if (!replaced)
+        v.push_back(p);
+    write(v);
+    // First profile saved becomes the default automatically.
+    if (defaultId().isEmpty())
+        setDefault(p.id);
+}
+
+void UploadProfiles::remove(const QString &id)
+{
+    if (id.isEmpty())
+        return;
+    QVector<UploadProfile> v = all();
+    v.erase(std::remove_if(v.begin(), v.end(),
+                           [&](const UploadProfile &p) { return p.id == id; }), v.end());
+    write(v);
+    Core::KeychainStore::erase(Core::KeychainStore::s3Service(), id);
+    // If the default was removed, hand it to the first remaining profile (or clear).
+    if (defaultId() == id)
+        setDefault(v.isEmpty() ? QString() : v.first().id);
+}
+
+void UploadProfiles::setAll(const QVector<UploadProfile> &profiles, const QString &defaultId)
+{
+    write(profiles);
+    // Validate the default against the new list; fall back to the first (or none).
+    QString def = defaultId;
+    const bool present = std::any_of(profiles.begin(), profiles.end(),
+                                     [&](const UploadProfile &p) { return p.id == def; });
+    if (!present)
+        def = profiles.isEmpty() ? QString() : profiles.first().id;
+    setDefault(def);
+}
+
+QString UploadProfiles::defaultId()
+{
+    return Core::Settings::uploadDefaultProfileId();
+}
+
+void UploadProfiles::setDefault(const QString &id)
+{
+    Core::Settings::setUploadDefaultProfileId(id);
+}
+
+UploadProfile UploadProfiles::defaultProfile()
+{
+    return byId(defaultId());
+}
+
+} // namespace Upload

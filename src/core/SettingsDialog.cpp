@@ -1,7 +1,10 @@
 #include "SettingsDialog.h"
 #include "core/Settings.h"
 #include "core/KeychainStore.h"
+#include "upload/UploadProfiles.h"
 #include <QGroupBox>
+#include <QSet>
+#include <QSignalBlocker>
 #include <QStandardPaths>
 #include <QDir>
 #include <QMediaDevices>
@@ -214,53 +217,190 @@ void SettingsDialog::setupUploadTab()
     m_uploadEnabledCheck = new QCheckBox("Enable upload (S3-compatible)", m_uploadTab);
     layout->addWidget(m_uploadEnabledCheck);
 
-    auto *group = new QGroupBox("S3 destination", m_uploadTab);
-    auto *form = new QFormLayout(group);
+    // Left: the list of saved servers + Add/Remove/Set-default. Right: the field form.
+    auto *split = new QHBoxLayout();
 
-    m_uploadEndpointEdit = new QLineEdit(group);
+    auto *leftCol = new QVBoxLayout();
+    m_uploadList = new QListWidget(m_uploadTab);
+    m_uploadList->setMaximumWidth(200);
+    leftCol->addWidget(m_uploadList, /*stretch=*/1);
+    auto *listButtons = new QHBoxLayout();
+    m_uploadAddButton = new QPushButton("Add", m_uploadTab);
+    m_uploadRemoveButton = new QPushButton("Remove", m_uploadTab);
+    listButtons->addWidget(m_uploadAddButton);
+    listButtons->addWidget(m_uploadRemoveButton);
+    leftCol->addLayout(listButtons);
+    m_uploadDefaultButton = new QPushButton("Set as default", m_uploadTab);
+    leftCol->addWidget(m_uploadDefaultButton);
+    split->addLayout(leftCol);
+
+    m_uploadForm = new QGroupBox("Server", m_uploadTab);
+    auto *form = new QFormLayout(m_uploadForm);
+
+    m_uploadNameEdit = new QLineEdit(m_uploadForm);
+    m_uploadNameEdit->setPlaceholderText("My S3 / R2 / MinIO");
+    form->addRow("Name:", m_uploadNameEdit);
+
+    m_uploadEndpointEdit = new QLineEdit(m_uploadForm);
     m_uploadEndpointEdit->setPlaceholderText("s3.amazonaws.com  ·  <acct>.r2.cloudflarestorage.com");
     form->addRow("Endpoint:", m_uploadEndpointEdit);
 
-    m_uploadRegionEdit = new QLineEdit(group);
+    m_uploadRegionEdit = new QLineEdit(m_uploadForm);
     m_uploadRegionEdit->setPlaceholderText("us-east-1  ·  auto (Cloudflare R2)");
     form->addRow("Region:", m_uploadRegionEdit);
 
-    m_uploadBucketEdit = new QLineEdit(group);
+    m_uploadBucketEdit = new QLineEdit(m_uploadForm);
     form->addRow("Bucket:", m_uploadBucketEdit);
 
-    m_uploadAccessKeyEdit = new QLineEdit(group);
+    m_uploadAccessKeyEdit = new QLineEdit(m_uploadForm);
     form->addRow("Access key ID:", m_uploadAccessKeyEdit);
 
-    m_uploadSecretEdit = new QLineEdit(group);
+    m_uploadSecretEdit = new QLineEdit(m_uploadForm);
     m_uploadSecretEdit->setEchoMode(QLineEdit::Password);
-    // The secret lives in the keychain; never shown. Placeholder reflects whether one
-    // is stored. Leaving it blank on Apply keeps the existing secret.
     form->addRow("Secret key:", m_uploadSecretEdit);
 
-    m_uploadPrefixEdit = new QLineEdit(group);
+    m_uploadPrefixEdit = new QLineEdit(m_uploadForm);
     m_uploadPrefixEdit->setPlaceholderText("e.g. screenshots/");
     form->addRow("Key prefix:", m_uploadPrefixEdit);
 
-    m_uploadPublicUrlEdit = new QLineEdit(group);
+    m_uploadPublicUrlEdit = new QLineEdit(m_uploadForm);
     m_uploadPublicUrlEdit->setPlaceholderText("https://cdn.example.com  (required for R2 public links)");
     form->addRow("Public base URL:", m_uploadPublicUrlEdit);
 
-    m_uploadPathStyleCheck = new QCheckBox("Force path-style URLs (MinIO / Wasabi)", group);
+    m_uploadPathStyleCheck = new QCheckBox("Force path-style URLs (MinIO / Wasabi)", m_uploadForm);
     form->addRow(QString(), m_uploadPathStyleCheck);
 
-    layout->addWidget(group);
+    split->addWidget(m_uploadForm, /*stretch=*/1);
+    layout->addLayout(split);
 
-    auto *note = new QLabel("The secret key is stored in your system keychain, not in settings.",
-                            m_uploadTab);
+    auto *note = new QLabel("Each server's secret key is stored in your system keychain, "
+                            "not in settings. Uploads use the default ★ server; the Upload "
+                            "button's ▾ menu lets you pick another per upload.", m_uploadTab);
     note->setStyleSheet("color: gray; font-style: italic;");
     note->setWordWrap(true);
     layout->addWidget(note);
-    layout->addStretch();
 
-    // The destination fields only matter when upload is enabled.
-    connect(m_uploadEnabledCheck, &QCheckBox::toggled, group, &QWidget::setEnabled);
+    connect(m_uploadList, &QListWidget::currentRowChanged, this,
+            &SettingsDialog::onUploadSelectionChanged);
+    connect(m_uploadAddButton, &QPushButton::clicked, this, &SettingsDialog::onUploadAddProfile);
+    connect(m_uploadRemoveButton, &QPushButton::clicked, this, &SettingsDialog::onUploadRemoveProfile);
+    connect(m_uploadDefaultButton, &QPushButton::clicked, this, &SettingsDialog::onUploadSetDefault);
+    // The whole editor only matters when upload is enabled.
+    auto *editorArea = m_uploadForm;   // visual cue; list stays usable to inspect
+    connect(m_uploadEnabledCheck, &QCheckBox::toggled, editorArea, &QWidget::setEnabled);
 
     m_tabWidget->addTab(m_uploadTab, "Upload");
+}
+
+void SettingsDialog::refreshUploadList()
+{
+    const QSignalBlocker block(m_uploadList);   // don't fire selection changes while rebuilding
+    m_uploadList->clear();
+    for (const Upload::UploadProfile &p : m_uploadWorking) {
+        const QString name = p.name.isEmpty() ? tr("(unnamed)") : p.name;
+        m_uploadList->addItem((p.id == m_uploadDefaultId) ? QStringLiteral("★ ") + name : name);
+    }
+    const bool any = !m_uploadWorking.isEmpty();
+    m_uploadRemoveButton->setEnabled(any);
+    m_uploadDefaultButton->setEnabled(any);
+    m_uploadForm->setEnabled(any && m_uploadEnabledCheck->isChecked());
+}
+
+void SettingsDialog::bindUploadForm(int row)
+{
+    const bool valid = row >= 0 && row < m_uploadWorking.size();
+    m_uploadCurrentRow = valid ? row : -1;
+    const Upload::UploadProfile p = valid ? m_uploadWorking[row] : Upload::UploadProfile{};
+    m_uploadNameEdit->setText(p.name);
+    m_uploadEndpointEdit->setText(p.endpoint);
+    m_uploadRegionEdit->setText(p.region);
+    m_uploadBucketEdit->setText(p.bucket);
+    m_uploadAccessKeyEdit->setText(p.accessKeyId);
+    m_uploadPrefixEdit->setText(p.keyPrefix);
+    m_uploadPublicUrlEdit->setText(p.publicBaseUrl);
+    m_uploadPathStyleCheck->setChecked(p.forcePathStyle);
+    m_uploadSecretEdit->clear();
+    // Placeholder reflects whether a secret is already stored (keychain or pending).
+    const bool hasSecret = valid &&
+        (m_uploadNewSecrets.contains(p.id) ||
+         Core::KeychainStore::retrieve(Core::KeychainStore::s3Service(), p.id).has_value());
+    m_uploadSecretEdit->setPlaceholderText(hasSecret ? tr("•••••••• (stored)") : tr("Secret access key"));
+}
+
+void SettingsDialog::flushUploadForm(int row)
+{
+    if (row < 0 || row >= m_uploadWorking.size())
+        return;
+    Upload::UploadProfile &p = m_uploadWorking[row];
+    p.name = m_uploadNameEdit->text().trimmed();
+    p.endpoint = m_uploadEndpointEdit->text().trimmed();
+    p.region = m_uploadRegionEdit->text().trimmed();
+    p.bucket = m_uploadBucketEdit->text().trimmed();
+    p.accessKeyId = m_uploadAccessKeyEdit->text().trimmed();
+    p.keyPrefix = m_uploadPrefixEdit->text().trimmed();
+    p.publicBaseUrl = m_uploadPublicUrlEdit->text().trimmed();
+    p.forcePathStyle = m_uploadPathStyleCheck->isChecked();
+    const QString secret = m_uploadSecretEdit->text();
+    if (!secret.isEmpty())
+        m_uploadNewSecrets.insert(p.id, secret);   // staged; written to keychain on Apply
+}
+
+void SettingsDialog::onUploadSelectionChanged(int row)
+{
+    flushUploadForm(m_uploadCurrentRow);   // don't lose edits on the outgoing row
+    // The list label may have changed (name edit) — refresh without re-entrancy.
+    if (m_uploadCurrentRow >= 0 && m_uploadCurrentRow < m_uploadWorking.size()) {
+        const QString n = m_uploadWorking[m_uploadCurrentRow].name;
+        const QString name = n.isEmpty() ? tr("(unnamed)") : n;
+        if (auto *it = m_uploadList->item(m_uploadCurrentRow))
+            it->setText((m_uploadWorking[m_uploadCurrentRow].id == m_uploadDefaultId)
+                            ? QStringLiteral("★ ") + name : name);
+    }
+    bindUploadForm(row);
+}
+
+void SettingsDialog::onUploadAddProfile()
+{
+    flushUploadForm(m_uploadCurrentRow);
+    Upload::UploadProfile p;
+    p.id = Upload::UploadProfiles::newId();
+    p.name = tr("New server");
+    p.endpoint = QStringLiteral("s3.amazonaws.com");
+    p.region = QStringLiteral("us-east-1");
+    m_uploadWorking.push_back(p);
+    if (m_uploadDefaultId.isEmpty())
+        m_uploadDefaultId = p.id;          // first one is the default
+    refreshUploadList();
+    m_uploadList->setCurrentRow(m_uploadWorking.size() - 1);   // selects + binds via signal
+}
+
+void SettingsDialog::onUploadRemoveProfile()
+{
+    const int row = m_uploadList->currentRow();
+    if (row < 0 || row >= m_uploadWorking.size())
+        return;
+    const QString removedId = m_uploadWorking[row].id;
+    m_uploadWorking.remove(row);
+    m_uploadNewSecrets.remove(removedId);
+    if (m_uploadDefaultId == removedId)
+        m_uploadDefaultId = m_uploadWorking.isEmpty() ? QString() : m_uploadWorking.first().id;
+    m_uploadCurrentRow = -1;   // the bound row is gone; avoid flushing into a shifted index
+    refreshUploadList();
+    if (!m_uploadWorking.isEmpty())
+        m_uploadList->setCurrentRow(qMin(row, m_uploadWorking.size() - 1));
+    else
+        bindUploadForm(-1);
+}
+
+void SettingsDialog::onUploadSetDefault()
+{
+    const int row = m_uploadList->currentRow();
+    if (row < 0 || row >= m_uploadWorking.size())
+        return;
+    m_uploadDefaultId = m_uploadWorking[row].id;
+    flushUploadForm(m_uploadCurrentRow);
+    refreshUploadList();
+    m_uploadList->setCurrentRow(row);
 }
 
 void SettingsDialog::setupHotkeysTab()
@@ -392,21 +532,18 @@ void SettingsDialog::loadSettings()
     m_systemAudioCheck->setChecked(Settings::systemAudioEnabled());
     m_frameCheck->setChecked(Settings::recordingFrameEnabled());
 
-    // Upload — non-secret fields from Settings; the secret is never shown. Its
-    // placeholder reflects whether a key is already stored in the keychain.
+    // Upload — load the working copy of all profiles (this also runs the one-time
+    // legacy single-config migration the first time). Secrets stay in the keychain.
     m_uploadEnabledCheck->setChecked(Settings::uploadEnabled());
-    m_uploadEndpointEdit->setText(Settings::uploadEndpoint());
-    m_uploadRegionEdit->setText(Settings::uploadRegion());
-    m_uploadBucketEdit->setText(Settings::uploadBucket());
-    m_uploadAccessKeyEdit->setText(Settings::uploadAccessKeyId());
-    m_uploadPrefixEdit->setText(Settings::uploadKeyPrefix());
-    m_uploadPublicUrlEdit->setText(Settings::uploadPublicBaseUrl());
-    m_uploadPathStyleCheck->setChecked(Settings::uploadForcePathStyle());
-    m_uploadSecretEdit->clear();
-    const bool hasSecret = !Settings::uploadAccessKeyId().isEmpty()
-        && KeychainStore::retrieve(KeychainStore::s3Service(), Settings::uploadAccessKeyId()).has_value();
-    m_uploadSecretEdit->setPlaceholderText(hasSecret ? "•••••••• (stored)" : "Secret access key");
-    m_uploadTab->findChild<QGroupBox *>()->setEnabled(m_uploadEnabledCheck->isChecked());
+    m_uploadWorking = Upload::UploadProfiles::all();
+    m_uploadDefaultId = Upload::UploadProfiles::defaultId();
+    m_uploadNewSecrets.clear();
+    m_uploadCurrentRow = -1;
+    refreshUploadList();
+    if (!m_uploadWorking.isEmpty())
+        m_uploadList->setCurrentRow(0);
+    else
+        bindUploadForm(-1);
 }
 
 void SettingsDialog::saveSettings()
@@ -423,25 +560,26 @@ void SettingsDialog::saveSettings()
     Settings::setSystemAudioEnabled(m_systemAudioCheck->isChecked());
     Settings::setRecordingFrameEnabled(m_frameCheck->isChecked());
 
-    // Upload — non-secret config to QSettings; the secret to the keychain only.
-    const QString oldAccessKey = Settings::uploadAccessKeyId();
-    const QString newAccessKey = m_uploadAccessKeyEdit->text().trimmed();
+    // Upload — commit the working profiles. Secrets go to the keychain (keyed by
+    // profile id), never to QSettings.
+    flushUploadForm(m_uploadCurrentRow);
     Settings::setUploadEnabled(m_uploadEnabledCheck->isChecked());
-    Settings::setUploadEndpoint(m_uploadEndpointEdit->text().trimmed());
-    Settings::setUploadRegion(m_uploadRegionEdit->text().trimmed());
-    Settings::setUploadBucket(m_uploadBucketEdit->text().trimmed());
-    Settings::setUploadAccessKeyId(newAccessKey);
-    Settings::setUploadKeyPrefix(m_uploadPrefixEdit->text().trimmed());
-    Settings::setUploadPublicBaseUrl(m_uploadPublicUrlEdit->text().trimmed());
-    Settings::setUploadForcePathStyle(m_uploadPathStyleCheck->isChecked());
 
-    // Rotating the access key id orphans the old secret — erase it.
-    if (!oldAccessKey.isEmpty() && oldAccessKey != newAccessKey)
-        KeychainStore::erase(KeychainStore::s3Service(), oldAccessKey);
-    // Save a newly-entered secret; a blank field keeps the existing one. Clear after.
-    const QString secret = m_uploadSecretEdit->text();
-    if (!secret.isEmpty() && !newAccessKey.isEmpty())
-        KeychainStore::store(KeychainStore::s3Service(), newAccessKey, secret);
+    // Profiles dropped this session (present originally, absent now): erase their secrets.
+    QSet<QString> workingIds;
+    for (const Upload::UploadProfile &p : m_uploadWorking)
+        workingIds.insert(p.id);
+    for (const Upload::UploadProfile &o : Upload::UploadProfiles::all())
+        if (!workingIds.contains(o.id))
+            KeychainStore::erase(KeychainStore::s3Service(), o.id);
+
+    // Newly-entered secrets for surviving profiles.
+    for (auto it = m_uploadNewSecrets.cbegin(); it != m_uploadNewSecrets.cend(); ++it)
+        if (workingIds.contains(it.key()) && !it.value().isEmpty())
+            KeychainStore::store(KeychainStore::s3Service(), it.key(), it.value());
+
+    Upload::UploadProfiles::setAll(m_uploadWorking, m_uploadDefaultId);
+    m_uploadNewSecrets.clear();
     m_uploadSecretEdit->clear();
 }
 

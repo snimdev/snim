@@ -37,6 +37,8 @@
 #include <QStandardPaths>
 #include <QDateTime>
 #include "upload/UploaderFactory.h"
+#include "upload/UploadConfig.h"
+#include "upload/UploadMenu.h"
 #include <QLineEdit>
 #include <QSettings>
 #include <QDebug>
@@ -417,11 +419,20 @@ void ImageEditor::setupToolbar()
     connect(m_copyAction, &QAction::triggered, this, &ImageEditor::copyToClipboard);
     m_toolbar->addAction(m_copyAction);
 
+    // Upload as a split button: click = default destination; ▾ = pick a saved server.
     m_uploadAction = new QAction(this);
-    m_uploadAction->setToolTip("Upload and copy the link");
+    m_uploadAction->setToolTip("Upload to the default server and copy the link");
     m_uploadAction->setIcon(createThemedIcon(":/icons/icons/upload.svg"));
-    connect(m_uploadAction, &QAction::triggered, this, &ImageEditor::onUpload);
-    m_toolbar->addAction(m_uploadAction);
+    connect(m_uploadAction, &QAction::triggered, this, [this] { doUpload(QString()); });
+    auto *uploadButton = new QToolButton(m_toolbar);
+    uploadButton->setDefaultAction(m_uploadAction);
+    uploadButton->setPopupMode(QToolButton::MenuButtonPopup);
+    auto *uploadMenu = new QMenu(uploadButton);
+    uploadButton->setMenu(uploadMenu);
+    connect(uploadMenu, &QMenu::aboutToShow, this, [this, uploadMenu] {
+        Upload::rebuildUploadMenu(uploadMenu, [this](const QString &id) { doUpload(id); });
+    });
+    m_toolbar->addWidget(uploadButton);
 
     m_toolbar->addSeparator();
 
@@ -625,11 +636,12 @@ void ImageEditor::copyToClipboard()
     QMessageBox::information(this, "Success", "Screenshot copied to clipboard!");
 }
 
-void ImageEditor::onUpload()
+void ImageEditor::doUpload(const QString &profileId)
 {
-    if (!Upload::UploaderFactory::isStrategyAvailable(Upload::UploaderFactory::StrategyType::S3)) {
+    // Validate the CHOSEN destination (empty id = default), not just the default.
+    if (!Upload::UploadConfig::forProfile(profileId).isComplete()) {
         QMessageBox::information(this, tr("Upload not configured"),
-                                tr("Set up your S3 bucket in Settings → Upload first."));
+                                tr("Set up an S3 destination in Settings → Upload first."));
         return;
     }
     // Render to a temp PNG and hand it to the app's uploader (which outlives this
@@ -644,7 +656,7 @@ void ImageEditor::onUpload()
     }
     m_dirty = false;   // exported; closing won't lose work
     if (m_undoStack) m_undoStack->setClean();
-    emit uploadRequested(tmp, QStringLiteral("screenshot.png"), /*deleteWhenDone=*/true);
+    emit uploadRequested(tmp, QStringLiteral("screenshot.png"), /*deleteWhenDone=*/true, profileId);
 }
 
 QPixmap ImageEditor::renderScene()

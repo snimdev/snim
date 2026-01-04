@@ -66,6 +66,12 @@ public:
     static void setUploadPublicBaseUrl(const QString &v);
     static bool uploadForcePathStyle();                // default: false (MinIO/Wasabi need true)
     static void setUploadForcePathStyle(bool on);
+    // Multi-destination: a JSON array of server profiles + the default profile id.
+    // (The legacy single-config accessors above are read once by the one-time migration.)
+    static QString uploadProfilesJson();               // default: "" (empty list)
+    static void setUploadProfilesJson(const QString &json);
+    static QString uploadDefaultProfileId();           // default: ""
+    static void setUploadDefaultProfileId(const QString &id);
 
     // Editor annotation defaults
     static QColor editorForeground();                   // default: red

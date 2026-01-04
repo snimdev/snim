@@ -33,8 +33,8 @@ QString sanitizeHint(const QString &keyHint)
 }
 } // namespace
 
-S3Uploader::S3Uploader(QObject *parent)
-    : Uploader(parent), m_nam(new QNetworkAccessManager(this))
+S3Uploader::S3Uploader(const QString &profileId, QObject *parent)
+    : Uploader(parent), m_profileId(profileId), m_nam(new QNetworkAccessManager(this))
 {
 }
 
@@ -42,13 +42,13 @@ S3Uploader::~S3Uploader() = default;
 
 bool S3Uploader::isConfigured() const
 {
-    return UploadConfig::fromSettings().isComplete();
+    return UploadConfig::forProfile(m_profileId).isComplete();
 }
 
 void S3Uploader::upload(const QString &localPath, const QString &keyHint)
 {
     m_finished = false;
-    const UploadConfig cfg = UploadConfig::fromSettings();
+    const UploadConfig cfg = UploadConfig::forProfile(m_profileId);
     if (!cfg.isComplete()) {
         m_finished = true;
         emit failed(tr("Upload is not configured."));

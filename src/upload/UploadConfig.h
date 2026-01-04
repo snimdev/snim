@@ -3,16 +3,17 @@
 
 #include "core/KeychainStore.h"
 #include "core/Settings.h"
+#include "upload/UploadProfiles.h"
 
 #include <QString>
 
 namespace Upload {
 
 /**
- * A snapshot of the upload destination: non-secret fields from Core::Settings plus the
- * secret access key pulled from the OS keychain. Built once per upload via fromSettings()
- * so the secret is read just-in-time and never persisted in QSettings. No streaming
- * operator is defined on purpose — the secret must never end up in a log.
+ * A snapshot of one upload destination: a profile's non-secret fields plus the secret
+ * access key pulled from the OS keychain (keyed by the profile id). Built just-in-time
+ * via forProfile() so the secret is read at sign time and never persisted in QSettings.
+ * No streaming operator is defined on purpose — the secret must never end up in a log.
  */
 struct UploadConfig {
     bool enabled = false;
@@ -30,19 +31,23 @@ struct UploadConfig {
                && !accessKeyId.isEmpty() && !secretKey.isEmpty();
     }
 
-    [[nodiscard]] static UploadConfig fromSettings() {
+    // Snapshot the given profile (empty id = the default profile). enabled comes from
+    // the global toggle; the secret from the keychain under the profile's id.
+    [[nodiscard]] static UploadConfig forProfile(const QString &profileId) {
+        const UploadProfile p = profileId.isEmpty() ? UploadProfiles::defaultProfile()
+                                                    : UploadProfiles::byId(profileId);
         UploadConfig c;
         c.enabled = Core::Settings::uploadEnabled();
-        c.endpoint = Core::Settings::uploadEndpoint();
-        c.region = Core::Settings::uploadRegion();
-        c.bucket = Core::Settings::uploadBucket();
-        c.accessKeyId = Core::Settings::uploadAccessKeyId();
-        c.keyPrefix = Core::Settings::uploadKeyPrefix();
-        c.publicBaseUrl = Core::Settings::uploadPublicBaseUrl();
-        c.forcePathStyle = Core::Settings::uploadForcePathStyle();
-        if (!c.accessKeyId.isEmpty()) {
+        c.endpoint = p.endpoint;
+        c.region = p.region;
+        c.bucket = p.bucket;
+        c.accessKeyId = p.accessKeyId;
+        c.keyPrefix = p.keyPrefix;
+        c.publicBaseUrl = p.publicBaseUrl;
+        c.forcePathStyle = p.forcePathStyle;
+        if (!p.id.isEmpty()) {
             const auto secret = Core::KeychainStore::retrieve(
-                Core::KeychainStore::s3Service(), c.accessKeyId);
+                Core::KeychainStore::s3Service(), p.id);
             if (secret)
                 c.secretKey = *secret;
         }

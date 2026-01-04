@@ -51,7 +51,8 @@ private slots:
     void onRecordingFailed(const QString &error);
     // Owns the in-flight upload so it outlives the editor window that triggered it
     // (the editor may close mid-upload). Copies the URL + shows a tray toast on done.
-    void startUpload(const QString &localPath, const QString &suggestedName, bool deleteWhenDone);
+    void startUpload(const QString &localPath, const QString &suggestedName, bool deleteWhenDone,
+                     const QString &profileId);
     static void showSettings();
     static void showAbout();
     static void quit();

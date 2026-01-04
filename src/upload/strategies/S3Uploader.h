@@ -23,7 +23,8 @@ class S3Uploader : public Uploader
     Q_OBJECT
 
 public:
-    explicit S3Uploader(QObject *parent = nullptr);
+    // profileId empty = the default profile (resolved at upload time).
+    explicit S3Uploader(const QString &profileId = QString(), QObject *parent = nullptr);
     ~S3Uploader() override;
 
     void upload(const QString &localPath, const QString &keyHint) override;
@@ -34,6 +35,7 @@ public:
 private:
     void onFinished();
 
+    QString m_profileId;              // empty = default profile
     QNetworkAccessManager *m_nam = nullptr;
     QPointer<QNetworkReply> m_reply;
     QFile *m_file = nullptr;          // streamed body; parented to the reply

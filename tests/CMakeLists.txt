@@ -24,6 +24,7 @@ set(NICESHOT_TESTS
         tst_gifparams
         tst_sigv4
         tst_uploaderfactory
+        tst_uploadprofiles
 )
 
 foreach(test_name ${NICESHOT_TESTS})

@@ -96,6 +96,8 @@ add_library(niceshot_lib STATIC
         src/upload/UploaderFactory.cpp
         src/upload/UploaderFactory.h
         src/upload/UploadConfig.h
+        src/upload/UploadProfiles.cpp
+        src/upload/UploadProfiles.h
         src/upload/SigV4.cpp
         src/upload/SigV4.h
         src/upload/strategies/S3Uploader.cpp

@@ -17,8 +17,10 @@ class UploaderFactory
 public:
     enum class StrategyType { Auto, S3, Stub /*, Ftp, Sftp, Http (reserved) */ };
 
+    // profileId selects an S3 destination (empty = the default profile).
     static std::unique_ptr<Uploader> create(StrategyType type = StrategyType::Auto,
-                                            QObject *parent = nullptr);
+                                            QObject *parent = nullptr,
+                                            const QString &profileId = QString());
     static StrategyType getDefaultStrategyType();
     static bool isStrategyAvailable(StrategyType type);
 };

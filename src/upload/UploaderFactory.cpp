@@ -5,14 +5,15 @@
 
 namespace Upload {
 
-std::unique_ptr<Uploader> UploaderFactory::create(StrategyType type, QObject *parent)
+std::unique_ptr<Uploader> UploaderFactory::create(StrategyType type, QObject *parent,
+                                                  const QString &profileId)
 {
     if (type == StrategyType::Auto)
         type = getDefaultStrategyType();
 
     switch (type) {
     case StrategyType::S3: {
-        auto s3 = std::make_unique<S3Uploader>(parent);
+        auto s3 = std::make_unique<S3Uploader>(profileId, parent);
         if (s3->isConfigured())
             return s3;
         [[fallthrough]];   // bucket/secret missing -> inert stub
@@ -25,13 +26,13 @@ std::unique_ptr<Uploader> UploaderFactory::create(StrategyType type, QObject *pa
 
 UploaderFactory::StrategyType UploaderFactory::getDefaultStrategyType()
 {
-    return UploadConfig::fromSettings().isComplete() ? StrategyType::S3 : StrategyType::Stub;
+    return UploadConfig::forProfile(QString()).isComplete() ? StrategyType::S3 : StrategyType::Stub;
 }
 
 bool UploaderFactory::isStrategyAvailable(StrategyType type)
 {
     switch (type) {
-    case StrategyType::S3:   return UploadConfig::fromSettings().isComplete();
+    case StrategyType::S3:   return UploadConfig::forProfile(QString()).isComplete();
     case StrategyType::Stub: return true;
     case StrategyType::Auto: return true;
     default:                 return false;

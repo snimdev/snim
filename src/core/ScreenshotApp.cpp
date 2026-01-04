@@ -234,7 +234,7 @@ namespace Core {
     }
 
     void ScreenshotApp::startUpload(const QString &localPath, const QString &suggestedName,
-                                    bool deleteWhenDone) {
+                                    bool deleteWhenDone, const QString &profileId) {
         if (m_uploader) {   // one upload at a time
             if (m_trayIcon)
                 m_trayIcon->showMessage(tr("Upload"), tr("An upload is already in progress."),
@@ -243,9 +243,10 @@ namespace Core {
                 QFile::remove(localPath);
             return;
         }
-        // Factory yields the configured S3 uploader, or the stub if not configured.
+        // Factory yields the configured S3 uploader for the chosen profile (empty =
+        // default), or the stub if that profile isn't fully configured.
         m_uploader = Upload::UploaderFactory::create(
-                         Upload::UploaderFactory::StrategyType::Auto, this).release();
+                         Upload::UploaderFactory::StrategyType::Auto, this, profileId).release();
         if (m_trayIcon)
             m_trayIcon->showMessage(tr("Uploading…"), QFileInfo(suggestedName).fileName(),
                                     QSystemTrayIcon::Information, 2000);
