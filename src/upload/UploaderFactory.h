@@ -7,6 +7,8 @@
 
 namespace Upload {
 
+struct UploadConfig;
+
 /**
  * Picks the active Uploader from settings. Mirrors RecordingFactory: an enum with the
  * backends, an Auto that resolves to the requested profile's type, and a Stub fallback
@@ -24,6 +26,13 @@ public:
     static std::unique_ptr<Uploader> create(StrategyType type = StrategyType::Auto,
                                             QObject *parent = nullptr,
                                             const QString &profileId = QString());
+    // Build the backend for an explicit config instead of a stored profile, so the
+    // Settings dialog can test values that are typed but not saved (and not in the
+    // keychain) yet. Resolution is by cfg.type + compile-time availability only: a type
+    // this build lacks yields the Stub that says so, while an incomplete config still
+    // yields the real backend, whose testConnection() reports precisely what is missing.
+    static std::unique_ptr<Uploader> createForConfig(const UploadConfig &cfg,
+                                                     QObject *parent = nullptr);
     static StrategyType getDefaultStrategyType();
     // Compile-time availability ("was this backend built in"), NOT configuredness - the
     // settings UI uses it to grey out provider types it could never run.

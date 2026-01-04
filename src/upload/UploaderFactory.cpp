@@ -76,6 +76,32 @@ std::unique_ptr<Uploader> UploaderFactory::create(StrategyType type, QObject *pa
     return std::make_unique<StubUploader>(QString(), parent);
 }
 
+std::unique_ptr<Uploader> UploaderFactory::createForConfig(const UploadConfig &cfg,
+                                                           QObject *parent)
+{
+    switch (cfg.type) {
+    case ProviderType::Sftp:
+#ifdef HAVE_LIBSSH2
+        return std::make_unique<SftpUploader>(cfg, parent);
+#else
+        return std::make_unique<StubUploader>(
+            StubUploader::tr("SFTP support is not included in this build."), parent);
+#endif
+    case ProviderType::Ftp:
+#ifdef HAVE_LIBCURL
+        return std::make_unique<FtpUploader>(cfg, parent);
+#else
+        return std::make_unique<StubUploader>(
+            StubUploader::tr("FTP support is not included in this build."), parent);
+#endif
+    case ProviderType::S3:
+        break;
+    }
+    // Deliberately no isComplete() gate here (unlike create()): the caller wants the real
+    // backend's own verdict on a half-filled destination, not a generic stub.
+    return std::make_unique<S3Uploader>(cfg, parent);
+}
+
 UploaderFactory::StrategyType UploaderFactory::getDefaultStrategyType()
 {
     return resolveForProfile(QString());

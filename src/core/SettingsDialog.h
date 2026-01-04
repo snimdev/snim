@@ -24,6 +24,8 @@
 
 #include "upload/UploadProfiles.h"
 
+namespace Upload { class Uploader; }
+
 namespace Core {
 
 class SettingsDialog : public QDialog
@@ -62,6 +64,9 @@ private:
     void onUploadAddProfile(Upload::ProviderType type);
     void onUploadRemoveProfile();
     void onUploadSetDefault();
+    // Test the destination as currently typed (saved or not) by uploading a probe file
+    // and deleting it again. Never writes to the keychain - only Apply does.
+    void onUploadTestConnection();
     void browseSftpKeyFile();
     // Auth-mode combo -> secret row label + private-key row visibility. Pure UI: it never
     // touches m_uploadWorking (the working copy is flushed on selection change / Apply).
@@ -143,6 +148,11 @@ private:
 
     // Shared by every provider type
     QLineEdit *m_uploadPublicUrlEdit = nullptr;
+    QPushButton *m_uploadTestButton = nullptr;
+    QLabel *m_uploadTestStatusLabel = nullptr;    // result of the last test, colored
+    // Alive only while a test runs; parented to the dialog, so closing Settings during a
+    // test destroys it, which is what tells its worker to abort.
+    Upload::Uploader *m_uploadTester = nullptr;
 
     QVector<Upload::UploadProfile> m_uploadWorking;   // edited copy; committed on Apply
     QString m_uploadDefaultId;                        // working default profile id

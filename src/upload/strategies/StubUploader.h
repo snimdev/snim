@@ -20,6 +20,7 @@ public:
         : Uploader(parent), m_message(std::move(message)) {}
 
     void upload(const QString &localPath, const QString &keyHint) override;
+    void testConnection() override;
     [[nodiscard]] bool isConfigured() const override { return false; }
     [[nodiscard]] QString name() const override { return QStringLiteral("None"); }
 

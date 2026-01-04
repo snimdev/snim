@@ -13,4 +13,14 @@ void StubUploader::upload(const QString &localPath, const QString &keyHint)
     }, Qt::QueuedConnection);
 }
 
+void StubUploader::testConnection()
+{
+    // The same reason an upload would fail - a compiled-out transport or nothing
+    // configured - is the reason there is nothing to test.
+    const QString message = m_message.isEmpty() ? tr("Upload is not configured.") : m_message;
+    QMetaObject::invokeMethod(this, [this, message] {
+        emit testFinished(false, message);
+    }, Qt::QueuedConnection);
+}
+
 } // namespace Upload

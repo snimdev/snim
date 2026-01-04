@@ -1,6 +1,7 @@
 #ifndef UPLOAD_UPLOADER_H
 #define UPLOAD_UPLOADER_H
 
+#include <QMetaObject>
 #include <QObject>
 #include <QString>
 #include <QUrl>
@@ -29,11 +30,27 @@ public:
     [[nodiscard]] virtual bool isConfigured() const = 0;
     [[nodiscard]] virtual QString name() const = 0;
 
+    // Check the destination end to end: a backend that supports testing writes a tiny
+    // probe file through the real transport and removes it again, which is the only
+    // honest way to validate the credentials, the host key, the remote directory and
+    // write permission. A tester is single-shot and separate from any upload use: build
+    // one, test once, drop it. The default says so instead of pretending to succeed.
+    virtual void testConnection()
+    {
+        QMetaObject::invokeMethod(this, [this] {
+            emit testFinished(false, tr("Testing is not supported for this destination."));
+        }, Qt::QueuedConnection);
+    }
+
 signals:
     void started();
     void uploadProgress(qint64 sent, qint64 total);
     void uploaded(const QUrl &publicUrl);
     void failed(const QString &error);
+    // Exactly one emission per testConnection() call, always on this object's (GUI)
+    // thread and never before the call returns, so a caller may connect afterwards.
+    // ok=true can still carry a note - e.g. the probe was written but not removable.
+    void testFinished(bool ok, const QString &message);
 };
 
 } // namespace Upload

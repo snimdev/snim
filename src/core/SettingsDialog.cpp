@@ -2,6 +2,8 @@
 #include "core/Settings.h"
 #include "core/KeychainStore.h"
 #include "upload/UploadProfiles.h"
+#include "upload/UploadConfig.h"
+#include "upload/Uploader.h"
 #include "upload/UploaderFactory.h"
 #include <QAction>
 #include <QGroupBox>
@@ -380,6 +382,18 @@ void SettingsDialog::setupUploadTab()
         tr("https://cdn.example.com - optional; the link uses the server URL otherwise"));
     sharedForm->addRow(tr("Public base URL:"), m_uploadPublicUrlEdit);
     formCol->addLayout(sharedForm);
+
+    // Test connection: a real probe upload through the real backend, reported inline.
+    // No dialog and no spinner - the label carries the whole story.
+    auto *testRow = new QHBoxLayout();
+    m_uploadTestButton = new QPushButton(tr("Test connection"), m_uploadForm);
+    m_uploadTestButton->setFixedWidth(140);
+    m_uploadTestStatusLabel = new QLabel(m_uploadForm);
+    m_uploadTestStatusLabel->setWordWrap(true);
+    testRow->addWidget(m_uploadTestButton);
+    testRow->addWidget(m_uploadTestStatusLabel, /*stretch=*/1);
+    formCol->addLayout(testRow);
+
     formCol->addStretch();
 
     split->addWidget(m_uploadForm, /*stretch=*/1);
@@ -397,9 +411,9 @@ void SettingsDialog::setupUploadTab()
             &SettingsDialog::onUploadSelectionChanged);
     connect(m_uploadRemoveButton, &QPushButton::clicked, this, &SettingsDialog::onUploadRemoveProfile);
     connect(m_uploadDefaultButton, &QPushButton::clicked, this, &SettingsDialog::onUploadSetDefault);
-    // The whole editor only matters when upload is enabled.
-    auto *editorArea = m_uploadForm;   // visual cue; list stays usable to inspect
-    connect(m_uploadEnabledCheck, &QCheckBox::toggled, editorArea, &QWidget::setEnabled);
+    connect(m_uploadTestButton, &QPushButton::clicked, this, &SettingsDialog::onUploadTestConnection);
+    // "Enable upload" is a runtime switch, not an edit lock: destinations can be set up
+    // or fixed while uploads are off, so the form only cares about having a selection.
 
     m_tabWidget->addTab(m_uploadTab, "Upload");
 }
@@ -569,7 +583,10 @@ void SettingsDialog::refreshUploadList()
     const bool any = !m_uploadWorking.isEmpty();
     m_uploadRemoveButton->setEnabled(any);
     m_uploadDefaultButton->setEnabled(any);
-    m_uploadForm->setEnabled(any && m_uploadEnabledCheck->isChecked());
+    m_uploadForm->setEnabled(any);
+    // Same condition as the form, minus a test that is still running (its own handler
+    // re-enables the button when it reports back).
+    m_uploadTestButton->setEnabled(any && !m_uploadTester);
 }
 
 void SettingsDialog::clearUploadPages()
@@ -614,7 +631,12 @@ void SettingsDialog::bindUploadForm(int row)
     m_uploadNameEdit->setPlaceholderText(p.type == Upload::ProviderType::S3
                                              ? tr("My S3 / R2 / MinIO")
                                              : tr("My server"));
+    // A result from the previously bound profile would read as this one's - drop it.
+    m_uploadTestStatusLabel->clear();
+    m_uploadTestStatusLabel->setStyleSheet(QString());
     m_uploadTypeLabel->setText(valid ? Upload::providerDisplayName(p.type) : QString());
+    // No selection = no type to show; a visible "Type:" with an empty value reads broken.
+    m_uploadTopForm->setRowVisible(m_uploadTypeLabel, valid);
     m_uploadPublicUrlEdit->setText(p.publicBaseUrl);
     m_uploadTopForm->setRowVisible(
         m_uploadWarningRow,
@@ -773,6 +795,82 @@ void SettingsDialog::onUploadSetDefault()
     flushUploadForm(m_uploadCurrentRow);
     refreshUploadList();
     m_uploadList->setCurrentRow(row);
+}
+
+void SettingsDialog::onUploadTestConnection()
+{
+    if (m_uploadTester)
+        return;                            // a test is already running
+    flushUploadForm(m_uploadCurrentRow);   // test what is on screen, not what was bound
+    if (m_uploadCurrentRow < 0 || m_uploadCurrentRow >= m_uploadWorking.size())
+        return;
+    const Upload::UploadProfile &p = m_uploadWorking[m_uploadCurrentRow];
+
+    auto setStatus = [this](const QString &text, const char *color) {
+        m_uploadTestStatusLabel->setStyleSheet(color ? QString("color: %1;").arg(color)
+                                                     : QString());
+        m_uploadTestStatusLabel->setText(text);
+    };
+
+    // A destination whose transport was never compiled in can't be tested at all; say so
+    // here rather than spinning up the stub just to hear the same sentence back.
+    if (!Upload::UploaderFactory::isStrategyAvailable(strategyForType(p.type))) {
+        setStatus(tr("%1 support is not included in this build.")
+                      .arg(Upload::providerDisplayName(p.type)), "#c62828");
+        return;
+    }
+
+    // Build the config straight from the working copy: the point is to test values the
+    // user has typed but not saved. The secret comes from this session's staged entry if
+    // there is one, else from the keychain - and is never written back here (only Apply
+    // does that). `enabled` is forced on: the global upload switch says whether the app
+    // uploads, not whether a destination may be checked while it is being set up.
+    Upload::UploadConfig cfg;
+    cfg.enabled = true;
+    cfg.type = p.type;
+    cfg.endpoint = p.endpoint;
+    cfg.region = p.region;
+    cfg.bucket = p.bucket;
+    cfg.accessKeyId = p.accessKeyId;
+    cfg.keyPrefix = p.keyPrefix;
+    cfg.forcePathStyle = p.forcePathStyle;
+    cfg.host = p.host;
+    cfg.port = p.port;
+    cfg.username = p.username;
+    cfg.remoteDir = p.remoteDir;
+    cfg.sftpAuth = p.sftpAuth;
+    cfg.privateKeyPath = p.privateKeyPath;
+    cfg.ftpEncryption = p.ftpEncryption;
+    cfg.publicBaseUrl = p.publicBaseUrl;
+    const QString staged = m_uploadNewSecrets.value(p.id);
+    if (!staged.isEmpty()) {
+        cfg.secretKey = staged;
+    } else if (const auto stored =
+                   KeychainStore::retrieve(Upload::keychainServiceFor(p.type), p.id)) {
+        cfg.secretKey = *stored;
+    }
+
+    if (!cfg.isComplete()) {
+        setStatus(tr("Fill in the required fields first."), nullptr);
+        return;
+    }
+
+    m_uploadTestButton->setEnabled(false);
+    setStatus(tr("Testing..."), nullptr);
+
+    // Parented to the dialog: closing Settings mid-test destroys the tester, whose
+    // destructor tells the worker to give up and whose queued replies are then dropped.
+    m_uploadTester = Upload::UploaderFactory::createForConfig(cfg, this).release();
+    connect(m_uploadTester, &Upload::Uploader::testFinished, this,
+            [this, setStatus](bool ok, const QString &message) {
+                setStatus(message, ok ? "#2e7d32" : "#c62828");
+                if (m_uploadTester) {
+                    m_uploadTester->deleteLater();
+                    m_uploadTester = nullptr;
+                }
+                m_uploadTestButton->setEnabled(!m_uploadWorking.isEmpty());
+            });
+    m_uploadTester->testConnection();
 }
 
 void SettingsDialog::setupHotkeysTab()
