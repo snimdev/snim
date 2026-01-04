@@ -8,7 +8,7 @@
 using namespace Editor::Video;
 
 // Pure GIF-export math (frame planning, delay, downscale, filename) plus the
-// cross-platform exporter contract for GIF. No AVFoundation / ImageIO here — the
+// cross-platform exporter contract for GIF. No AVFoundation / ImageIO here - the
 // actual encode is verified live; this locks the logic that feeds it.
 class tst_GifParams : public QObject
 {

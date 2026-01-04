@@ -2,6 +2,8 @@
 #include "core/Settings.h"
 #include "core/KeychainStore.h"
 #include "upload/UploadProfiles.h"
+#include "upload/UploaderFactory.h"
+#include <QAction>
 #include <QGroupBox>
 #include <QSet>
 #include <QSignalBlocker>
@@ -12,6 +14,7 @@
 #include <QAudioDevice>
 #include <QApplication>
 #include <QPermissions>
+#include <algorithm>
 
 namespace Core {
 
@@ -191,7 +194,7 @@ void SettingsDialog::setupRecordingTab()
     connect(m_micEnabledCheck, &QCheckBox::toggled, m_micCombo, &QWidget::setEnabled);
 
     // Ask for the TCC permission the moment an input is enabled, while a normal
-    // dialog has focus — at recording time the full-screen selection overlays sit
+    // dialog has focus - at recording time the full-screen selection overlays sit
     // above system dialogs and would hide the prompt.
     connect(m_cameraEnabledCheck, &QCheckBox::toggled, this, [this](bool on) {
         if (!on)
@@ -209,12 +212,92 @@ void SettingsDialog::setupRecordingTab()
     });
 }
 
+namespace {
+
+// Provider pages inside m_uploadStack. Fixed, explicit indices - nothing relies on the
+// numeric value of ProviderType.
+constexpr int kS3Page   = 0;
+constexpr int kSftpPage = 1;
+constexpr int kFtpPage  = 2;
+
+int pageForType(Upload::ProviderType t)
+{
+    switch (t) {
+    case Upload::ProviderType::Sftp: return kSftpPage;
+    case Upload::ProviderType::Ftp:  return kFtpPage;
+    case Upload::ProviderType::S3:   break;
+    }
+    return kS3Page;
+}
+
+// Which factory backend a profile type needs, for the compile-time availability check.
+Upload::UploaderFactory::StrategyType strategyForType(Upload::ProviderType t)
+{
+    switch (t) {
+    case Upload::ProviderType::Sftp: return Upload::UploaderFactory::StrategyType::Sftp;
+    case Upload::ProviderType::Ftp:  return Upload::UploaderFactory::StrategyType::Ftp;
+    case Upload::ProviderType::S3:   break;
+    }
+    return Upload::UploaderFactory::StrategyType::S3;
+}
+
+// Combo index <-> enum maps. Written out rather than cast, so reordering a combo can
+// never silently rewrite stored profiles.
+constexpr int kSftpAuthPassword = 0;
+constexpr int kSftpAuthKey      = 1;
+
+Upload::SftpAuthMode sftpAuthForIndex(int index)
+{
+    return index == kSftpAuthKey ? Upload::SftpAuthMode::PrivateKey
+                                 : Upload::SftpAuthMode::Password;
+}
+
+int indexForSftpAuth(Upload::SftpAuthMode mode)
+{
+    return mode == Upload::SftpAuthMode::PrivateKey ? kSftpAuthKey : kSftpAuthPassword;
+}
+
+// The encryption combo leads with the secure default, so index != enum value here.
+constexpr int kFtpEncExplicit = 0;
+constexpr int kFtpEncImplicit = 1;
+constexpr int kFtpEncNone     = 2;
+
+Upload::FtpEncryption ftpEncryptionForIndex(int index)
+{
+    switch (index) {
+    case kFtpEncImplicit: return Upload::FtpEncryption::Implicit;
+    case kFtpEncNone:     return Upload::FtpEncryption::None;
+    default:              return Upload::FtpEncryption::Explicit;
+    }
+}
+
+int indexForFtpEncryption(Upload::FtpEncryption enc)
+{
+    switch (enc) {
+    case Upload::FtpEncryption::Implicit: return kFtpEncImplicit;
+    case Upload::FtpEncryption::None:     return kFtpEncNone;
+    case Upload::FtpEncryption::Explicit: break;
+    }
+    return kFtpEncExplicit;
+}
+
+// The one place that formats a list row ("★ Name - SFTP"), so the full rebuild and the
+// in-place refresh after a name edit cannot drift apart.
+QString displayRowText(const Upload::UploadProfile &p, bool isDefault)
+{
+    const QString name = p.name.isEmpty() ? SettingsDialog::tr("(unnamed)") : p.name;
+    const QString label = name + QStringLiteral(" - ") + Upload::providerDisplayName(p.type);
+    return isDefault ? QStringLiteral("★ ") + label : label;
+}
+
+} // namespace
+
 void SettingsDialog::setupUploadTab()
 {
     m_uploadTab = new QWidget();
     auto *layout = new QVBoxLayout(m_uploadTab);
 
-    m_uploadEnabledCheck = new QCheckBox("Enable upload (S3-compatible)", m_uploadTab);
+    m_uploadEnabledCheck = new QCheckBox(tr("Enable upload"), m_uploadTab);
     layout->addWidget(m_uploadEnabledCheck);
 
     // Left: the list of saved servers + Add/Remove/Set-default. Right: the field form.
@@ -234,55 +317,84 @@ void SettingsDialog::setupUploadTab()
     leftCol->addWidget(m_uploadDefaultButton);
     split->addLayout(leftCol);
 
+    // The provider type is fixed at creation (switching one in place would mean remapping
+    // fields and re-keying the keychain entry), so Add asks for it up front.
+    m_uploadAddMenu = new QMenu(m_uploadAddButton);
+    m_uploadAddMenu->setToolTipsVisible(true);
+    struct AddEntry { Upload::ProviderType type; QString text; QString missingDep; };
+    const AddEntry addEntries[] = {
+        { Upload::ProviderType::S3, tr("S3-compatible…"), QString() },
+        { Upload::ProviderType::Sftp, tr("SFTP…"),
+          tr("Requires libssh2, which was not included in this build.") },
+        { Upload::ProviderType::Ftp, tr("FTP / FTPS…"),
+          tr("Requires libcurl, which was not included in this build.") },
+    };
+    for (const AddEntry &entry : addEntries) {
+        QAction *action = m_uploadAddMenu->addAction(entry.text);
+        const bool available =
+            Upload::UploaderFactory::isStrategyAvailable(strategyForType(entry.type));
+        action->setEnabled(available);
+        if (!available)
+            action->setToolTip(entry.missingDep);
+        const Upload::ProviderType type = entry.type;
+        connect(action, &QAction::triggered, this, [this, type] { onUploadAddProfile(type); });
+    }
+    m_uploadAddButton->setMenu(m_uploadAddMenu);   // a menu button: click opens the list
+
     m_uploadForm = new QGroupBox("Server", m_uploadTab);
-    auto *form = new QFormLayout(m_uploadForm);
+    auto *formCol = new QVBoxLayout(m_uploadForm);
+
+    // Shared header: name + the (read-only) type, plus a warning for a saved profile whose
+    // transport this build lacks. The form stays editable - only uploading would fail.
+    m_uploadTopForm = new QFormLayout();
+    m_uploadTopForm->setContentsMargins(0, 0, 0, 0);
 
     m_uploadNameEdit = new QLineEdit(m_uploadForm);
-    m_uploadNameEdit->setPlaceholderText("My S3 / R2 / MinIO");
-    form->addRow("Name:", m_uploadNameEdit);
+    m_uploadNameEdit->setPlaceholderText(tr("e.g. My server"));   // per-type hint set on bind
+    m_uploadTopForm->addRow(tr("Name:"), m_uploadNameEdit);
 
-    m_uploadEndpointEdit = new QLineEdit(m_uploadForm);
-    m_uploadEndpointEdit->setPlaceholderText("s3.amazonaws.com  ·  <acct>.r2.cloudflarestorage.com");
-    form->addRow("Endpoint:", m_uploadEndpointEdit);
+    m_uploadTypeLabel = new QLabel(m_uploadForm);
+    m_uploadTopForm->addRow(tr("Type:"), m_uploadTypeLabel);
 
-    m_uploadRegionEdit = new QLineEdit(m_uploadForm);
-    m_uploadRegionEdit->setPlaceholderText("us-east-1  ·  auto (Cloudflare R2)");
-    form->addRow("Region:", m_uploadRegionEdit);
+    m_uploadUnavailableLabel = new QLabel(
+        tr("This provider isn't available in this build - uploads from this destination will fail."),
+        m_uploadForm);
+    m_uploadUnavailableLabel->setWordWrap(true);
+    m_uploadUnavailableLabel->setStyleSheet("color: #c86400;");
+    m_uploadWarningRow = m_uploadTopForm->rowCount();
+    m_uploadTopForm->addRow(m_uploadUnavailableLabel);
+    m_uploadTopForm->setRowVisible(m_uploadWarningRow, false);
+    formCol->addLayout(m_uploadTopForm);
 
-    m_uploadBucketEdit = new QLineEdit(m_uploadForm);
-    form->addRow("Bucket:", m_uploadBucketEdit);
+    // One page of fields per provider type; bind/flush only ever touch the current one.
+    m_uploadStack = new QStackedWidget(m_uploadForm);
+    m_uploadStack->addWidget(createUploadS3Page());     // kS3Page
+    m_uploadStack->addWidget(createUploadSftpPage());   // kSftpPage
+    m_uploadStack->addWidget(createUploadFtpPage());    // kFtpPage
+    formCol->addWidget(m_uploadStack);
 
-    m_uploadAccessKeyEdit = new QLineEdit(m_uploadForm);
-    form->addRow("Access key ID:", m_uploadAccessKeyEdit);
-
-    m_uploadSecretEdit = new QLineEdit(m_uploadForm);
-    m_uploadSecretEdit->setEchoMode(QLineEdit::Password);
-    form->addRow("Secret key:", m_uploadSecretEdit);
-
-    m_uploadPrefixEdit = new QLineEdit(m_uploadForm);
-    m_uploadPrefixEdit->setPlaceholderText("e.g. screenshots/");
-    form->addRow("Key prefix:", m_uploadPrefixEdit);
-
+    auto *sharedForm = new QFormLayout();
+    sharedForm->setContentsMargins(0, 0, 0, 0);
     m_uploadPublicUrlEdit = new QLineEdit(m_uploadForm);
-    m_uploadPublicUrlEdit->setPlaceholderText("https://cdn.example.com  (required for R2 public links)");
-    form->addRow("Public base URL:", m_uploadPublicUrlEdit);
-
-    m_uploadPathStyleCheck = new QCheckBox("Force path-style URLs (MinIO / Wasabi)", m_uploadForm);
-    form->addRow(QString(), m_uploadPathStyleCheck);
+    m_uploadPublicUrlEdit->setPlaceholderText(
+        tr("https://cdn.example.com - optional; the link uses the server URL otherwise"));
+    sharedForm->addRow(tr("Public base URL:"), m_uploadPublicUrlEdit);
+    formCol->addLayout(sharedForm);
+    formCol->addStretch();
 
     split->addWidget(m_uploadForm, /*stretch=*/1);
     layout->addLayout(split);
 
-    auto *note = new QLabel("Each server's secret key is stored in your system keychain, "
-                            "not in settings. Uploads use the default ★ server; the Upload "
-                            "button's ▾ menu lets you pick another per upload.", m_uploadTab);
+    auto *note = new QLabel(tr("Each destination's secret (S3 secret key, SFTP/FTP password or "
+                               "key passphrase) is stored in your system keychain, not in "
+                               "settings. Uploads use the default ★ server; the Upload button's "
+                               "▾ menu lets you pick another per upload."), m_uploadTab);
     note->setStyleSheet("color: gray; font-style: italic;");
     note->setWordWrap(true);
     layout->addWidget(note);
 
     connect(m_uploadList, &QListWidget::currentRowChanged, this,
             &SettingsDialog::onUploadSelectionChanged);
-    connect(m_uploadAddButton, &QPushButton::clicked, this, &SettingsDialog::onUploadAddProfile);
     connect(m_uploadRemoveButton, &QPushButton::clicked, this, &SettingsDialog::onUploadRemoveProfile);
     connect(m_uploadDefaultButton, &QPushButton::clicked, this, &SettingsDialog::onUploadSetDefault);
     // The whole editor only matters when upload is enabled.
@@ -292,18 +404,202 @@ void SettingsDialog::setupUploadTab()
     m_tabWidget->addTab(m_uploadTab, "Upload");
 }
 
+QWidget *SettingsDialog::createUploadS3Page()
+{
+    auto *page = new QWidget(m_uploadStack);
+    auto *form = new QFormLayout(page);
+    form->setContentsMargins(0, 0, 0, 0);
+
+    m_uploadEndpointEdit = new QLineEdit(page);
+    m_uploadEndpointEdit->setPlaceholderText("s3.amazonaws.com  ·  <acct>.r2.cloudflarestorage.com");
+    form->addRow("Endpoint:", m_uploadEndpointEdit);
+
+    m_uploadRegionEdit = new QLineEdit(page);
+    m_uploadRegionEdit->setPlaceholderText("us-east-1  ·  auto (Cloudflare R2)");
+    form->addRow("Region:", m_uploadRegionEdit);
+
+    m_uploadBucketEdit = new QLineEdit(page);
+    form->addRow("Bucket:", m_uploadBucketEdit);
+
+    m_uploadAccessKeyEdit = new QLineEdit(page);
+    form->addRow("Access key ID:", m_uploadAccessKeyEdit);
+
+    m_uploadSecretEdit = new QLineEdit(page);
+    m_uploadSecretEdit->setEchoMode(QLineEdit::Password);
+    form->addRow("Secret key:", m_uploadSecretEdit);
+
+    m_uploadPrefixEdit = new QLineEdit(page);
+    m_uploadPrefixEdit->setPlaceholderText("e.g. screenshots/");
+    form->addRow("Key prefix:", m_uploadPrefixEdit);
+
+    m_uploadPathStyleCheck = new QCheckBox("Force path-style URLs (MinIO / Wasabi)", page);
+    form->addRow(QString(), m_uploadPathStyleCheck);
+
+    return page;
+}
+
+QWidget *SettingsDialog::createUploadSftpPage()
+{
+    auto *page = new QWidget(m_uploadStack);
+    m_sftpForm = new QFormLayout(page);
+    m_sftpForm->setContentsMargins(0, 0, 0, 0);
+
+    m_sftpHostEdit = new QLineEdit(page);
+    m_sftpHostEdit->setPlaceholderText(QStringLiteral("sftp.example.com"));
+    m_sftpForm->addRow(tr("Host:"), m_sftpHostEdit);
+
+    m_sftpPortSpin = new QSpinBox(page);
+    m_sftpPortSpin->setRange(0, 65535);
+    m_sftpPortSpin->setSpecialValueText(tr("22 (default)"));   // shown at 0
+    m_sftpForm->addRow(tr("Port:"), m_sftpPortSpin);
+
+    m_sftpUserEdit = new QLineEdit(page);
+    m_sftpForm->addRow(tr("Username:"), m_sftpUserEdit);
+
+    m_sftpAuthCombo = new QComboBox(page);
+    m_sftpAuthCombo->addItem(tr("Password"));            // kSftpAuthPassword
+    m_sftpAuthCombo->addItem(tr("Private key file"));    // kSftpAuthKey
+    m_sftpForm->addRow(tr("Authentication:"), m_sftpAuthCombo);
+
+    // One secret edit for both modes - the label says which it is.
+    m_sftpSecretLabel = new QLabel(tr("Password:"), page);
+    m_sftpSecretEdit = new QLineEdit(page);
+    m_sftpSecretEdit->setEchoMode(QLineEdit::Password);
+    m_sftpForm->addRow(m_sftpSecretLabel, m_sftpSecretEdit);
+
+    // The path + Browse pair lives in a container widget so hiding the row in password
+    // mode (setRowVisible) hides both, not just the label.
+    auto *keyRowWidget = new QWidget(page);
+    auto *keyRow = new QHBoxLayout(keyRowWidget);
+    keyRow->setContentsMargins(0, 0, 0, 0);
+    m_sftpKeyPathEdit = new QLineEdit(keyRowWidget);
+    m_sftpKeyPathEdit->setPlaceholderText(QDir::homePath() + QStringLiteral("/.ssh/id_ed25519"));
+    m_sftpKeyBrowseButton = new QPushButton(tr("Browse…"), keyRowWidget);
+    m_sftpKeyBrowseButton->setMaximumWidth(90);
+    keyRow->addWidget(m_sftpKeyPathEdit);
+    keyRow->addWidget(m_sftpKeyBrowseButton);
+    m_sftpKeyPathRow = m_sftpForm->rowCount();
+    m_sftpForm->addRow(tr("Private key:"), keyRowWidget);
+
+    m_sftpRemoteDirEdit = new QLineEdit(page);
+    m_sftpRemoteDirEdit->setPlaceholderText(tr("e.g. /var/www/uploads - empty = login folder"));
+    m_sftpForm->addRow(tr("Remote directory:"), m_sftpRemoteDirEdit);
+
+    connect(m_sftpAuthCombo, &QComboBox::currentIndexChanged,
+            this, &SettingsDialog::updateSftpAuthMode);
+    connect(m_sftpKeyBrowseButton, &QPushButton::clicked, this, &SettingsDialog::browseSftpKeyFile);
+    updateSftpAuthMode();
+
+    return page;
+}
+
+QWidget *SettingsDialog::createUploadFtpPage()
+{
+    auto *page = new QWidget(m_uploadStack);
+    auto *form = new QFormLayout(page);
+    form->setContentsMargins(0, 0, 0, 0);
+
+    m_ftpHostEdit = new QLineEdit(page);
+    m_ftpHostEdit->setPlaceholderText(QStringLiteral("ftp.example.com"));
+    form->addRow(tr("Host:"), m_ftpHostEdit);
+
+    m_ftpPortSpin = new QSpinBox(page);
+    m_ftpPortSpin->setRange(0, 65535);
+    m_ftpPortSpin->setSpecialValueText(tr("21 (default)"));   // shown at 0
+    form->addRow(tr("Port:"), m_ftpPortSpin);
+
+    m_ftpUserEdit = new QLineEdit(page);
+    m_ftpUserEdit->setPlaceholderText(tr("empty = anonymous"));
+    form->addRow(tr("Username:"), m_ftpUserEdit);
+
+    m_ftpSecretEdit = new QLineEdit(page);
+    m_ftpSecretEdit->setEchoMode(QLineEdit::Password);
+    form->addRow(tr("Password:"), m_ftpSecretEdit);
+
+    m_ftpEncryptionCombo = new QComboBox(page);
+    m_ftpEncryptionCombo->addItem(tr("Explicit TLS (FTPS)"));        // kFtpEncExplicit
+    m_ftpEncryptionCombo->addItem(tr("Implicit TLS (port 990)"));    // kFtpEncImplicit
+    m_ftpEncryptionCombo->addItem(tr("None (plain FTP - insecure)"));// kFtpEncNone
+    form->addRow(tr("Encryption:"), m_ftpEncryptionCombo);
+
+    m_ftpRemoteDirEdit = new QLineEdit(page);
+    m_ftpRemoteDirEdit->setPlaceholderText(tr("e.g. /var/www/uploads - empty = login folder"));
+    form->addRow(tr("Remote directory:"), m_ftpRemoteDirEdit);
+
+    return page;
+}
+
+QLineEdit *SettingsDialog::secretEditFor(Upload::ProviderType type) const
+{
+    switch (type) {
+    case Upload::ProviderType::Sftp: return m_sftpSecretEdit;
+    case Upload::ProviderType::Ftp:  return m_ftpSecretEdit;
+    case Upload::ProviderType::S3:   break;
+    }
+    return m_uploadSecretEdit;
+}
+
+void SettingsDialog::updateSftpAuthMode()
+{
+    const bool keyAuth =
+        sftpAuthForIndex(m_sftpAuthCombo->currentIndex()) == Upload::SftpAuthMode::PrivateKey;
+    m_sftpSecretLabel->setText(keyAuth ? tr("Key passphrase (optional):") : tr("Password:"));
+    m_sftpForm->setRowVisible(m_sftpKeyPathRow, keyAuth);
+    // Keep the hint in step with the mode - but never clobber the "stored" marker.
+    if (m_sftpSecretEdit->placeholderText() != tr("•••••••• (stored)"))
+        m_sftpSecretEdit->setPlaceholderText(keyAuth ? tr("Key passphrase") : tr("Password"));
+}
+
+void SettingsDialog::browseSftpKeyFile()
+{
+    QString start = m_sftpKeyPathEdit->text().trimmed();
+    if (start.isEmpty())
+        start = QDir::homePath() + QStringLiteral("/.ssh");
+    const QString path = QFileDialog::getOpenFileName(this, tr("Select private key file"), start);
+    if (!path.isEmpty())
+        m_sftpKeyPathEdit->setText(path);
+}
+
 void SettingsDialog::refreshUploadList()
 {
     const QSignalBlocker block(m_uploadList);   // don't fire selection changes while rebuilding
     m_uploadList->clear();
-    for (const Upload::UploadProfile &p : m_uploadWorking) {
-        const QString name = p.name.isEmpty() ? tr("(unnamed)") : p.name;
-        m_uploadList->addItem((p.id == m_uploadDefaultId) ? QStringLiteral("★ ") + name : name);
-    }
+    for (const Upload::UploadProfile &p : m_uploadWorking)
+        m_uploadList->addItem(displayRowText(p, p.id == m_uploadDefaultId));
     const bool any = !m_uploadWorking.isEmpty();
     m_uploadRemoveButton->setEnabled(any);
     m_uploadDefaultButton->setEnabled(any);
     m_uploadForm->setEnabled(any && m_uploadEnabledCheck->isChecked());
+}
+
+void SettingsDialog::clearUploadPages()
+{
+    m_uploadEndpointEdit->clear();
+    m_uploadRegionEdit->clear();
+    m_uploadBucketEdit->clear();
+    m_uploadAccessKeyEdit->clear();
+    m_uploadSecretEdit->clear();
+    m_uploadPrefixEdit->clear();
+    m_uploadPathStyleCheck->setChecked(false);
+
+    m_sftpHostEdit->clear();
+    m_sftpPortSpin->setValue(0);
+    m_sftpUserEdit->clear();
+    {
+        const QSignalBlocker block(m_sftpAuthCombo);
+        m_sftpAuthCombo->setCurrentIndex(kSftpAuthPassword);
+    }
+    updateSftpAuthMode();
+    m_sftpSecretEdit->clear();
+    m_sftpKeyPathEdit->clear();
+    m_sftpRemoteDirEdit->clear();
+
+    m_ftpHostEdit->clear();
+    m_ftpPortSpin->setValue(0);
+    m_ftpUserEdit->clear();
+    m_ftpSecretEdit->clear();
+    m_ftpEncryptionCombo->setCurrentIndex(kFtpEncExplicit);
+    m_ftpRemoteDirEdit->clear();
 }
 
 void SettingsDialog::bindUploadForm(int row)
@@ -311,20 +607,74 @@ void SettingsDialog::bindUploadForm(int row)
     const bool valid = row >= 0 && row < m_uploadWorking.size();
     m_uploadCurrentRow = valid ? row : -1;
     const Upload::UploadProfile p = valid ? m_uploadWorking[row] : Upload::UploadProfile{};
+
+    // Shared fields + the read-only type, and the "not built in" warning for a saved
+    // profile whose transport this build lacks (the form stays editable).
     m_uploadNameEdit->setText(p.name);
-    m_uploadEndpointEdit->setText(p.endpoint);
-    m_uploadRegionEdit->setText(p.region);
-    m_uploadBucketEdit->setText(p.bucket);
-    m_uploadAccessKeyEdit->setText(p.accessKeyId);
-    m_uploadPrefixEdit->setText(p.keyPrefix);
+    m_uploadNameEdit->setPlaceholderText(p.type == Upload::ProviderType::S3
+                                             ? tr("My S3 / R2 / MinIO")
+                                             : tr("My server"));
+    m_uploadTypeLabel->setText(valid ? Upload::providerDisplayName(p.type) : QString());
     m_uploadPublicUrlEdit->setText(p.publicBaseUrl);
-    m_uploadPathStyleCheck->setChecked(p.forcePathStyle);
-    m_uploadSecretEdit->clear();
-    // Placeholder reflects whether a secret is already stored (keychain or pending).
-    const bool hasSecret = valid &&
-        (m_uploadNewSecrets.contains(p.id) ||
-         Core::KeychainStore::retrieve(Core::KeychainStore::s3Service(), p.id).has_value());
-    m_uploadSecretEdit->setPlaceholderText(hasSecret ? tr("•••••••• (stored)") : tr("Secret access key"));
+    m_uploadTopForm->setRowVisible(
+        m_uploadWarningRow,
+        valid && !Upload::UploaderFactory::isStrategyAvailable(strategyForType(p.type)));
+
+    // Only the current page is ever read back, but blanking the others keeps a previous
+    // profile's values from lingering behind the stack (and clears the row when invalid).
+    clearUploadPages();
+    m_uploadStack->setCurrentIndex(pageForType(p.type));
+    if (!valid)
+        return;
+
+    switch (p.type) {
+    case Upload::ProviderType::S3:
+        m_uploadEndpointEdit->setText(p.endpoint);
+        m_uploadRegionEdit->setText(p.region);
+        m_uploadBucketEdit->setText(p.bucket);
+        m_uploadAccessKeyEdit->setText(p.accessKeyId);
+        m_uploadPrefixEdit->setText(p.keyPrefix);
+        m_uploadPathStyleCheck->setChecked(p.forcePathStyle);
+        break;
+    case Upload::ProviderType::Sftp:
+        m_sftpHostEdit->setText(p.host);
+        m_sftpPortSpin->setValue(p.port);
+        m_sftpUserEdit->setText(p.username);
+        {
+            const QSignalBlocker block(m_sftpAuthCombo);
+            m_sftpAuthCombo->setCurrentIndex(indexForSftpAuth(p.sftpAuth));
+        }
+        updateSftpAuthMode();   // secret row label + private-key row visibility
+        m_sftpKeyPathEdit->setText(p.privateKeyPath);
+        m_sftpRemoteDirEdit->setText(p.remoteDir);
+        break;
+    case Upload::ProviderType::Ftp:
+        m_ftpHostEdit->setText(p.host);
+        m_ftpPortSpin->setValue(p.port);
+        m_ftpUserEdit->setText(p.username);
+        m_ftpEncryptionCombo->setCurrentIndex(indexForFtpEncryption(p.ftpEncryption));
+        m_ftpRemoteDirEdit->setText(p.remoteDir);
+        break;
+    }
+
+    // The secret edit is write-only: it stays empty and its placeholder says whether one
+    // is already stored (in this type's keychain service) or staged for this Apply.
+    QLineEdit *secret = secretEditFor(p.type);
+    const bool hasSecret = m_uploadNewSecrets.contains(p.id) ||
+        Core::KeychainStore::retrieve(Upload::keychainServiceFor(p.type), p.id).has_value();
+    QString hint;
+    switch (p.type) {
+    case Upload::ProviderType::S3:
+        hint = tr("Secret access key");
+        break;
+    case Upload::ProviderType::Sftp:
+        hint = p.sftpAuth == Upload::SftpAuthMode::PrivateKey ? tr("Key passphrase") : tr("Password");
+        break;
+    case Upload::ProviderType::Ftp:
+        hint = tr("Password");
+        break;
+    }
+    secret->setPlaceholderText(hasSecret ? tr("•••••••• (stored)") : hint);
 }
 
 void SettingsDialog::flushUploadForm(int row)
@@ -333,14 +683,34 @@ void SettingsDialog::flushUploadForm(int row)
         return;
     Upload::UploadProfile &p = m_uploadWorking[row];
     p.name = m_uploadNameEdit->text().trimmed();
-    p.endpoint = m_uploadEndpointEdit->text().trimmed();
-    p.region = m_uploadRegionEdit->text().trimmed();
-    p.bucket = m_uploadBucketEdit->text().trimmed();
-    p.accessKeyId = m_uploadAccessKeyEdit->text().trimmed();
-    p.keyPrefix = m_uploadPrefixEdit->text().trimmed();
     p.publicBaseUrl = m_uploadPublicUrlEdit->text().trimmed();
-    p.forcePathStyle = m_uploadPathStyleCheck->isChecked();
-    const QString secret = m_uploadSecretEdit->text();
+    // The type never changes, so the bound page is still the one this profile owns.
+    switch (p.type) {
+    case Upload::ProviderType::S3:
+        p.endpoint = m_uploadEndpointEdit->text().trimmed();
+        p.region = m_uploadRegionEdit->text().trimmed();
+        p.bucket = m_uploadBucketEdit->text().trimmed();
+        p.accessKeyId = m_uploadAccessKeyEdit->text().trimmed();
+        p.keyPrefix = m_uploadPrefixEdit->text().trimmed();
+        p.forcePathStyle = m_uploadPathStyleCheck->isChecked();
+        break;
+    case Upload::ProviderType::Sftp:
+        p.host = m_sftpHostEdit->text().trimmed();
+        p.port = m_sftpPortSpin->value();          // 0 = the protocol default
+        p.username = m_sftpUserEdit->text().trimmed();
+        p.sftpAuth = sftpAuthForIndex(m_sftpAuthCombo->currentIndex());
+        p.privateKeyPath = m_sftpKeyPathEdit->text().trimmed();
+        p.remoteDir = m_sftpRemoteDirEdit->text().trimmed();
+        break;
+    case Upload::ProviderType::Ftp:
+        p.host = m_ftpHostEdit->text().trimmed();
+        p.port = m_ftpPortSpin->value();           // 0 = the protocol default
+        p.username = m_ftpUserEdit->text().trimmed();
+        p.ftpEncryption = ftpEncryptionForIndex(m_ftpEncryptionCombo->currentIndex());
+        p.remoteDir = m_ftpRemoteDirEdit->text().trimmed();
+        break;
+    }
+    const QString secret = secretEditFor(p.type)->text();
     if (!secret.isEmpty())
         m_uploadNewSecrets.insert(p.id, secret);   // staged; written to keychain on Apply
 }
@@ -348,25 +718,27 @@ void SettingsDialog::flushUploadForm(int row)
 void SettingsDialog::onUploadSelectionChanged(int row)
 {
     flushUploadForm(m_uploadCurrentRow);   // don't lose edits on the outgoing row
-    // The list label may have changed (name edit) — refresh without re-entrancy.
+    // The list label may have changed (name edit) - refresh without re-entrancy.
     if (m_uploadCurrentRow >= 0 && m_uploadCurrentRow < m_uploadWorking.size()) {
-        const QString n = m_uploadWorking[m_uploadCurrentRow].name;
-        const QString name = n.isEmpty() ? tr("(unnamed)") : n;
+        const Upload::UploadProfile &p = m_uploadWorking[m_uploadCurrentRow];
         if (auto *it = m_uploadList->item(m_uploadCurrentRow))
-            it->setText((m_uploadWorking[m_uploadCurrentRow].id == m_uploadDefaultId)
-                            ? QStringLiteral("★ ") + name : name);
+            it->setText(displayRowText(p, p.id == m_uploadDefaultId));
     }
     bindUploadForm(row);
 }
 
-void SettingsDialog::onUploadAddProfile()
+void SettingsDialog::onUploadAddProfile(Upload::ProviderType type)
 {
     flushUploadForm(m_uploadCurrentRow);
     Upload::UploadProfile p;
     p.id = Upload::UploadProfiles::newId();
     p.name = tr("New server");
-    p.endpoint = QStringLiteral("s3.amazonaws.com");
-    p.region = QStringLiteral("us-east-1");
+    p.type = type;
+    if (type == Upload::ProviderType::S3) {
+        p.endpoint = QStringLiteral("s3.amazonaws.com");
+        p.region = QStringLiteral("us-east-1");
+    }
+    // SFTP/FTP keep the struct defaults: port 0 (protocol default) and explicit FTPS.
     m_uploadWorking.push_back(p);
     if (m_uploadDefaultId.isEmpty())
         m_uploadDefaultId = p.id;          // first one is the default
@@ -532,7 +904,7 @@ void SettingsDialog::loadSettings()
     m_systemAudioCheck->setChecked(Settings::systemAudioEnabled());
     m_frameCheck->setChecked(Settings::recordingFrameEnabled());
 
-    // Upload — load the working copy of all profiles (this also runs the one-time
+    // Upload - load the working copy of all profiles (this also runs the one-time
     // legacy single-config migration the first time). Secrets stay in the keychain.
     m_uploadEnabledCheck->setChecked(Settings::uploadEnabled());
     m_uploadWorking = Upload::UploadProfiles::all();
@@ -560,27 +932,38 @@ void SettingsDialog::saveSettings()
     Settings::setSystemAudioEnabled(m_systemAudioCheck->isChecked());
     Settings::setRecordingFrameEnabled(m_frameCheck->isChecked());
 
-    // Upload — commit the working profiles. Secrets go to the keychain (keyed by
+    // Upload - commit the working profiles. Secrets go to the keychain (keyed by
     // profile id), never to QSettings.
     flushUploadForm(m_uploadCurrentRow);
     Settings::setUploadEnabled(m_uploadEnabledCheck->isChecked());
 
-    // Profiles dropped this session (present originally, absent now): erase their secrets.
+    // Profiles dropped this session (present originally, absent now): erase their secrets
+    // from the service their type used.
     QSet<QString> workingIds;
     for (const Upload::UploadProfile &p : m_uploadWorking)
         workingIds.insert(p.id);
     for (const Upload::UploadProfile &o : Upload::UploadProfiles::all())
         if (!workingIds.contains(o.id))
-            KeychainStore::erase(KeychainStore::s3Service(), o.id);
+            KeychainStore::erase(Upload::keychainServiceFor(o.type), o.id);
 
-    // Newly-entered secrets for surviving profiles.
-    for (auto it = m_uploadNewSecrets.cbegin(); it != m_uploadNewSecrets.cend(); ++it)
-        if (workingIds.contains(it.key()) && !it.value().isEmpty())
-            KeychainStore::store(KeychainStore::s3Service(), it.key(), it.value());
+    // Newly-entered secrets for surviving profiles. The service depends on the profile's
+    // type, so resolve it in the working copy (a removed one is skipped by workingIds).
+    for (auto it = m_uploadNewSecrets.cbegin(); it != m_uploadNewSecrets.cend(); ++it) {
+        if (!workingIds.contains(it.key()) || it.value().isEmpty())
+            continue;
+        const auto profile = std::find_if(m_uploadWorking.cbegin(), m_uploadWorking.cend(),
+                                          [&it](const Upload::UploadProfile &p) {
+                                              return p.id == it.key();
+                                          });
+        if (profile != m_uploadWorking.cend())
+            KeychainStore::store(Upload::keychainServiceFor(profile->type), it.key(), it.value());
+    }
 
     Upload::UploadProfiles::setAll(m_uploadWorking, m_uploadDefaultId);
     m_uploadNewSecrets.clear();
     m_uploadSecretEdit->clear();
+    m_sftpSecretEdit->clear();
+    m_ftpSecretEdit->clear();
 }
 
 void SettingsDialog::applySettings()

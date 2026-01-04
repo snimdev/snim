@@ -6,7 +6,7 @@ using namespace Upload;
 
 // AWS Signature V4 for S3. The expected Authorization strings below were computed by an
 // INDEPENDENT Python implementation of the AWS algorithm (see plan), so a match proves
-// the C++ signer agrees on the spec — across virtual-hosted (AWS), path-style (MinIO),
+// the C++ signer agrees on the spec - across virtual-hosted (AWS), path-style (MinIO),
 // and region="auto" (R2). Fixed AWS example credentials + a fixed UTC date make it
 // deterministic; no network, no clock dependence.
 class tst_SigV4 : public QObject

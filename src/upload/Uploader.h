@@ -10,7 +10,7 @@ namespace Upload {
 /**
  * Strategy interface for sending a local file to a remote and getting back a shareable
  * URL. S3 is the only concrete backend today; FTP/SFTP/custom-HTTP drop in as new
- * subclasses selected by UploaderFactory — mirroring CaptureStrategy / RecordingStrategy.
+ * subclasses selected by UploaderFactory - mirroring CaptureStrategy / RecordingStrategy.
  *
  * Async, single-shot: upload() returns immediately; exactly one of uploaded()/failed()
  * fires later on this object's (GUI) thread. Lives on the GUI thread (QNetworkAccessManager

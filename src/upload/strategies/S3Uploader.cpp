@@ -1,5 +1,6 @@
 #include "upload/strategies/S3Uploader.h"
 #include "upload/SigV4.h"
+#include "upload/UploadUtil.h"
 
 #include <QDateTime>
 #include <QFile>
@@ -7,7 +8,6 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
-#include <QUuid>
 
 namespace Upload {
 
@@ -23,13 +23,6 @@ QString contentTypeFor(const QString &keyHint)
     if (ext == "gif")  return QStringLiteral("image/gif");
     if (ext == "mp4" || ext == "mov")  return QStringLiteral("video/mp4");
     return QStringLiteral("application/octet-stream");
-}
-
-// Strip any path components from the hint so a stray "../" can't escape the prefix.
-QString sanitizeHint(const QString &keyHint)
-{
-    QString name = QFileInfo(keyHint).fileName();
-    return name.isEmpty() ? QStringLiteral("upload.bin") : name;
 }
 } // namespace
 
@@ -64,8 +57,7 @@ void S3Uploader::upload(const QString &localPath, const QString &keyHint)
     }
 
     // Object key: prefix + a short uuid (avoids collisions / overwrites) + safe name.
-    const QString unique = QUuid::createUuid().toString(QUuid::Id128).left(8);
-    const QString objectKey = cfg.keyPrefix + unique + QLatin1Char('-') + sanitizeHint(keyHint);
+    const QString objectKey = cfg.keyPrefix + Util::uniqueRemoteName(keyHint);
 
     // Host + path differ by URL style; both feed the signer AND the request URL so the
     // wire path matches the signed path exactly.
@@ -104,15 +96,12 @@ void S3Uploader::upload(const QString &localPath, const QString &keyHint)
     req.setRawHeader("x-amz-date", sig.amzDate.toUtf8());
     req.setRawHeader("x-amz-content-sha256", sig.payloadHash.toUtf8());
     req.setRawHeader("Authorization", sig.authorization.toUtf8());
-    req.setTransferTimeout(60'000);   // idle timeout (resets on activity) — survives slow uploads
+    req.setTransferTimeout(60'000);   // idle timeout (resets on activity) - survives slow uploads
 
     // Public URL: explicit base (required for R2's separate public host) else the
     // request URL (works for AWS/MinIO when the object is publicly readable).
     if (!cfg.publicBaseUrl.isEmpty()) {
-        QString base = cfg.publicBaseUrl;
-        while (base.endsWith(QLatin1Char('/')))
-            base.chop(1);
-        m_publicUrl = QUrl(base + QLatin1Char('/') + SigV4::awsUriEncode(objectKey, false));
+        m_publicUrl = QUrl(Util::joinPublicUrl(cfg.publicBaseUrl, objectKey));
     } else {
         m_publicUrl = url;
     }

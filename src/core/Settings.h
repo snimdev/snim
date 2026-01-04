@@ -48,7 +48,7 @@ public:
     static bool recordingFrameEnabled();               // default: true (border + dim around the recorded area)
     static void setRecordingFrameEnabled(bool on);
 
-    // Upload (S3-compatible). NON-SECRET config only — the secret access key lives in
+    // Upload (S3-compatible). NON-SECRET config only - the secret access key lives in
     // the OS keychain (Core::KeychainStore), never in QSettings.
     static bool uploadEnabled();                       // default: false
     static void setUploadEnabled(bool on);
@@ -72,6 +72,10 @@ public:
     static void setUploadProfilesJson(const QString &json);
     static QString uploadDefaultProfileId();           // default: ""
     static void setUploadDefaultProfileId(const QString &id);
+    // SFTP host-key pins, a JSON object "host:port" -> fingerprint (Upload::KnownHosts
+    // owns the shape; this is raw I/O).
+    static QString uploadKnownHostKeys();              // default: "" (nothing pinned)
+    static void setUploadKnownHostKeys(const QString &json);
 
     // Editor annotation defaults
     static QColor editorForeground();                   // default: red

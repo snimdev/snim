@@ -14,8 +14,8 @@ namespace Upload {
 
 /**
  * S3-compatible uploader: a single streamed PUT signed with AWS SigV4 (works with AWS,
- * Cloudflare R2, MinIO, Wasabi via the endpoint/region/path-style config). Pure Qt — no
- * platform code — so it compiles everywhere; isConfigured() is false until a bucket +
+ * Cloudflare R2, MinIO, Wasabi via the endpoint/region/path-style config). Pure Qt - no
+ * platform code - so it compiles everywhere; isConfigured() is false until a bucket +
  * keychain secret exist, so an unconfigured app just gets a disabled Upload action.
  */
 class S3Uploader : public Uploader

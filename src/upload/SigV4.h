@@ -6,7 +6,7 @@
 #include <QString>
 
 // AWS Signature Version 4 for S3 (and S3-compatible: Cloudflare R2, MinIO, Wasabi).
-// Pure functions — no QtNetwork, no I/O, no keychain — so the signing is unit-tested
+// Pure functions - no QtNetwork, no I/O, no keychain - so the signing is unit-tested
 // against fixed vectors. The caller injects the timestamp and sets the returned
 // headers on its QNetworkRequest.
 namespace Upload::SigV4 {

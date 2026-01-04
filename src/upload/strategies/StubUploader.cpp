@@ -7,8 +7,9 @@ namespace Upload {
 void StubUploader::upload(const QString &localPath, const QString &keyHint)
 {
     Q_UNUSED(localPath); Q_UNUSED(keyHint);
-    QMetaObject::invokeMethod(this, [this] {
-        emit failed(tr("Upload is not configured."));
+    const QString message = m_message.isEmpty() ? tr("Upload is not configured.") : m_message;
+    QMetaObject::invokeMethod(this, [this, message] {
+        emit failed(message);
     }, Qt::QueuedConnection);
 }
 

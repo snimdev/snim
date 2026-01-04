@@ -64,7 +64,7 @@ namespace Core {
         connect(m_recordingController.get(), &Recording::RecordingController::recordingFailed,
                 this, &ScreenshotApp::onRecordingFailed);
         // Non-fatal setup problems (e.g. camera/mic access denied): a tray balloon,
-        // not a modal box — the recording itself still proceeds.
+        // not a modal box - the recording itself still proceeds.
         connect(m_recordingController.get(), &Recording::RecordingController::recordingWarning,
                 this, [this](const QString &message) {
                     if (m_trayIcon)
@@ -260,7 +260,7 @@ namespace Core {
                 [this, cleanup](const QUrl &url) {
                     QApplication::clipboard()->setText(url.toString());
                     if (m_trayIcon)
-                        m_trayIcon->showMessage(tr("Uploaded — link copied"), url.toString(),
+                        m_trayIcon->showMessage(tr("Uploaded - link copied"), url.toString(),
                                                 QSystemTrayIcon::Information, 5000);
                     cleanup();
                 });

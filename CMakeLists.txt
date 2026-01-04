@@ -72,6 +72,39 @@ else()
     message(STATUS "  Install with: sudo dnf install tesseract-devel")
 endif()
 
+# Optional libcurl - FTP/FTPS upload transport (Qt6 dropped FTP from QNetworkAccessManager)
+set(LIBCURL_AVAILABLE FALSE)
+
+if(PkgConfig_FOUND)
+    pkg_check_modules(LIBCURL libcurl)
+    if(LIBCURL_FOUND)
+        set(LIBCURL_AVAILABLE TRUE)
+        message(STATUS "libcurl found via pkg-config - enabling FTP/FTPS uploads")
+        message(STATUS "  Version: ${LIBCURL_VERSION}")
+        message(STATUS "  Libraries: ${LIBCURL_LIBRARIES}")
+    endif()
+endif()
+
+# The macOS SDK ships libcurl without a .pc file, so fall back to CMake's finder.
+if(NOT LIBCURL_AVAILABLE)
+    find_package(CURL QUIET)
+    if(CURL_FOUND)
+        set(LIBCURL_AVAILABLE TRUE)
+        set(LIBCURL_INCLUDE_DIRS ${CURL_INCLUDE_DIRS})
+        set(LIBCURL_LIBRARIES ${CURL_LIBRARIES})
+        message(STATUS "libcurl found (find_package CURL) - enabling FTP/FTPS uploads")
+        message(STATUS "  Version: ${CURL_VERSION_STRING}")
+        message(STATUS "  Libraries: ${LIBCURL_LIBRARIES}")
+    endif()
+endif()
+
+if(LIBCURL_AVAILABLE)
+    add_compile_definitions(HAVE_LIBCURL)
+else()
+    message(STATUS "libcurl not found - FTP/FTPS upload destinations will be disabled")
+    message(STATUS "  Install with: sudo apt install libcurl4-openssl-dev (macOS ships one)")
+endif()
+
 # All cross-platform sources live in a static library so both the executable and
 # the test suite can link them. main.cpp + the .app bundle stay on the executable.
 add_library(niceshot_lib STATIC
@@ -91,13 +124,18 @@ add_library(niceshot_lib STATIC
         src/core/KeychainStore.h
 
         # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
-        # macOS keychain backing is added in the APPLE block; a stub elsewhere.
+        # macOS keychain backing is added in the APPLE block; a stub elsewhere. The
+        # SFTP/FTP backends are conditional on libssh2/libcurl; everything here is not.
         src/upload/Uploader.h
         src/upload/UploaderFactory.cpp
         src/upload/UploaderFactory.h
         src/upload/UploadConfig.h
         src/upload/UploadProfiles.cpp
         src/upload/UploadProfiles.h
+        src/upload/UploadUtil.cpp
+        src/upload/UploadUtil.h
+        src/upload/KnownHosts.cpp
+        src/upload/KnownHosts.h
         src/upload/SigV4.cpp
         src/upload/SigV4.h
         src/upload/strategies/S3Uploader.cpp
@@ -184,7 +222,7 @@ add_library(niceshot_lib STATIC
         src/ocr/OCRService.h
         src/ocr/OCRResult.h
 
-        # Editor::Video — post-recording trim editor (preview + cut + save). The
+        # Editor::Video - post-recording trim editor (preview + cut + save). The
         # macOS AVAssetExportSession exporter is added in the APPLE block below;
         # the stub (which also hosts the factory) is the universal fallback.
         src/editor/video/TrimState.cpp
@@ -265,7 +303,7 @@ if(APPLE)
             "-framework ImageIO"     # animated-GIF encode in the trim editor
             "-framework Security")   # keychain (S3 secret access key)
     # Qt ships the macOS permission backends as STATIC plugins (libqdarwin*permission.a),
-    # so they must be imported into the executable — otherwise the QPermission API has no
+    # so they must be imported into the executable - otherwise the QPermission API has no
     # backend at runtime and QCamera reports "Could not find permission plugin for
     # QCameraPermission" even with the usage strings present in Info.plist.
     qt_import_plugins(Niceshot INCLUDE
@@ -278,7 +316,7 @@ if(APPLE)
     # in the Info.plist; this project uses plain add_executable, so no finalizer runs
     # and without the property checkPermission() works but requestPermission() falls
     # back to a stub that logs "Could not request QCameraPermission..." and instantly
-    # denies — the TCC prompt can never appear. The usage strings are guaranteed by
+    # denies - the TCC prompt can never appear. The usage strings are guaranteed by
     # cmake/Info.plist.in, so assert the properties ourselves.
     set_target_properties(Niceshot PROPERTIES
             _qt_has_QDarwinCameraPermissionPlugin_usage_description TRUE
@@ -328,7 +366,7 @@ target_link_libraries(niceshot_lib PUBLIC
 )
 
 # Link Tesseract if available (PUBLIC link: OCRService.o references its symbols and
-# HAVE_TESSERACT is a global define, so consumers — exe and tests — must link it).
+# HAVE_TESSERACT is a global define, so consumers - exe and tests - must link it).
 if(TESSERACT_AVAILABLE)
     target_include_directories(niceshot_lib PRIVATE ${TESSERACT_INCLUDE_DIRS})
     # pkg-config reports library names (-ltesseract ...) without their location;
@@ -337,6 +375,23 @@ if(TESSERACT_AVAILABLE)
     # manual-detection fallback, which already uses absolute library paths.
     target_link_directories(niceshot_lib PUBLIC ${TESSERACT_LIBRARY_DIRS})
     target_link_libraries(niceshot_lib PUBLIC ${TESSERACT_LIBRARIES})
+endif()
+
+# FTP/FTPS upload backend - compiled only where libcurl exists (like the Linux-only
+# capture strategies). Without it UploaderFactory returns a Stub that says so, and the
+# rest of the upload feature is unaffected. PUBLIC link: HAVE_LIBCURL is a global define,
+# so consumers (the exe and the tests) must resolve FtpUploader's curl symbols too.
+if(LIBCURL_AVAILABLE)
+    target_sources(niceshot_lib PRIVATE
+            src/upload/strategies/FtpUploader.cpp
+            src/upload/strategies/FtpUploader.h)
+    target_include_directories(niceshot_lib PRIVATE ${LIBCURL_INCLUDE_DIRS})
+    # pkg-config reports plain library names; add its dirs so a non-default prefix
+    # (Homebrew) still links. Empty for the find_package fallback (absolute paths).
+    if(LIBCURL_LIBRARY_DIRS)
+        target_link_directories(niceshot_lib PUBLIC ${LIBCURL_LIBRARY_DIRS})
+    endif()
+    target_link_libraries(niceshot_lib PUBLIC ${LIBCURL_LIBRARIES})
 endif()
 
 # ---------------------------------------------------------------------------
@@ -368,7 +423,7 @@ if(APPLE)
     endif()
 
     # Dev code signing. Without this the linker ad-hoc signs the binary, whose
-    # identity is the binary's own hash — it changes on EVERY rebuild, so modern
+    # identity is the binary's own hash - it changes on EVERY rebuild, so modern
     # macOS treats each build as a new app and re-prompts for (or silently breaks)
     # the Screen Recording / Camera / Microphone TCC grants, even though System
     # Settings still shows Niceshot as enabled. Signing with a stable identity
@@ -389,7 +444,7 @@ if(APPLE)
                             --timestamp=none "$<TARGET_BUNDLE_DIR:Niceshot>"
                     COMMENT "Code-signing Niceshot.app with '${NICESHOT_CODESIGN_IDENTITY}' (stable TCC identity)")
         else()
-            message(STATUS "Code-signing identity '${NICESHOT_CODESIGN_IDENTITY}' not in keychain — leaving ad-hoc signature")
+            message(STATUS "Code-signing identity '${NICESHOT_CODESIGN_IDENTITY}' not in keychain - leaving ad-hoc signature")
         endif()
     endif()
 

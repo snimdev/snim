@@ -33,6 +33,7 @@ constexpr auto kUploadPublicBaseUrl    = "Upload/PublicBaseUrl";
 constexpr auto kUploadForcePathStyle   = "Upload/ForcePathStyle";
 constexpr auto kUploadProfilesJson     = "Upload/Profiles";
 constexpr auto kUploadDefaultProfileId = "Upload/DefaultProfileId";
+constexpr auto kUploadKnownHostKeys    = "Upload/KnownHostKeys";
 }
 
 QString Settings::screenshotFolder()
@@ -102,6 +103,8 @@ QString Settings::uploadProfilesJson() { return QSettings().value(kUploadProfile
 void Settings::setUploadProfilesJson(const QString &json) { QSettings().setValue(kUploadProfilesJson, json); }
 QString Settings::uploadDefaultProfileId() { return QSettings().value(kUploadDefaultProfileId).toString(); }
 void Settings::setUploadDefaultProfileId(const QString &id) { QSettings().setValue(kUploadDefaultProfileId, id); }
+QString Settings::uploadKnownHostKeys() { return QSettings().value(kUploadKnownHostKeys).toString(); }
+void Settings::setUploadKnownHostKeys(const QString &json) { QSettings().setValue(kUploadKnownHostKeys, json); }
 
 QColor Settings::editorForeground() { return QSettings().value(kForeground, QColor(Qt::red)).value<QColor>(); }
 void Settings::setEditorForeground(const QColor &c) { QSettings().setValue(kForeground, c); }

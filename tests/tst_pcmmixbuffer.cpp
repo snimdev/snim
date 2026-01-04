@@ -125,7 +125,7 @@ private slots:
         PcmMixBuffer mix(2, 0);
         const std::vector<float> pcm(20 * 2, 0.2f);
         mix.mix(0, pcm.data(), 20);
-        // (no flush here — "input busy")
+        // (no flush here - "input busy")
         mix.mix(20, pcm.data(), 20);
 
         std::vector<Chunk> chunks;

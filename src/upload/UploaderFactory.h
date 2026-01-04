@@ -9,19 +9,24 @@ namespace Upload {
 
 /**
  * Picks the active Uploader from settings. Mirrors RecordingFactory: an enum with the
- * backends, an Auto that resolves to the configured one (S3 today; Ftp/Sftp/Http are
- * reserved slots), and a Stub fallback so the app always has a valid (inert) uploader.
+ * backends, an Auto that resolves to the requested profile's type, and a Stub fallback
+ * so the app always has a valid (inert) uploader. The enum is never persisted, so it is
+ * safe to extend; the Sftp/Ftp members exist in every build even when their optional
+ * dependency (libssh2 / libcurl) isn't there - those builds just resolve to a Stub that
+ * says so.
  */
 class UploaderFactory
 {
 public:
-    enum class StrategyType { Auto, S3, Stub /*, Ftp, Sftp, Http (reserved) */ };
+    enum class StrategyType { Auto, S3, Sftp, Ftp, Stub };
 
-    // profileId selects an S3 destination (empty = the default profile).
+    // profileId selects a destination (empty = the default profile).
     static std::unique_ptr<Uploader> create(StrategyType type = StrategyType::Auto,
                                             QObject *parent = nullptr,
                                             const QString &profileId = QString());
     static StrategyType getDefaultStrategyType();
+    // Compile-time availability ("was this backend built in"), NOT configuredness - the
+    // settings UI uses it to grey out provider types it could never run.
     static bool isStrategyAvailable(StrategyType type);
 };
 

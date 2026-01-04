@@ -2,40 +2,85 @@
 #include "upload/UploadConfig.h"
 #include "upload/strategies/S3Uploader.h"
 #include "upload/strategies/StubUploader.h"
+#ifdef HAVE_LIBCURL
+#include "upload/strategies/FtpUploader.h"
+#endif
 
 namespace Upload {
+
+namespace {
+
+// Which backend one profile asks for (empty id = the default profile). An incomplete
+// destination resolves to Stub, so Auto never hands back a backend that can't run.
+UploaderFactory::StrategyType resolveForProfile(const QString &profileId)
+{
+    const UploadConfig cfg = UploadConfig::forProfile(profileId);
+    if (!cfg.isComplete())
+        return UploaderFactory::StrategyType::Stub;
+    switch (cfg.type) {
+    case ProviderType::Sftp: return UploaderFactory::StrategyType::Sftp;
+    case ProviderType::Ftp:  return UploaderFactory::StrategyType::Ftp;
+    case ProviderType::S3:   break;
+    }
+    return UploaderFactory::StrategyType::S3;
+}
+
+} // namespace
 
 std::unique_ptr<Uploader> UploaderFactory::create(StrategyType type, QObject *parent,
                                                   const QString &profileId)
 {
+    // Resolve from the REQUESTED profile, not the default one - the ▾ menu uploads to a
+    // non-default destination all the time.
     if (type == StrategyType::Auto)
-        type = getDefaultStrategyType();
+        type = resolveForProfile(profileId);
 
     switch (type) {
     case StrategyType::S3: {
         auto s3 = std::make_unique<S3Uploader>(profileId, parent);
         if (s3->isConfigured())
             return s3;
-        [[fallthrough]];   // bucket/secret missing -> inert stub
+        break;   // bucket/secret missing -> inert stub
     }
+    case StrategyType::Sftp:
+        // The SFTP transport (libssh2) is not wired up yet; the profile type exists so
+        // stored destinations survive, but uploading one explains itself.
+        return std::make_unique<StubUploader>(
+            StubUploader::tr("SFTP support is not included in this build."), parent);
+    case StrategyType::Ftp:
+#ifdef HAVE_LIBCURL
+    {
+        auto ftp = std::make_unique<FtpUploader>(profileId, parent);
+        if (ftp->isConfigured())
+            return ftp;
+        break;   // host/password missing -> inert stub
+    }
+#else
+        return std::make_unique<StubUploader>(
+            StubUploader::tr("FTP support is not included in this build."), parent);
+#endif
     case StrategyType::Stub:
-    default:
-        return std::make_unique<StubUploader>(parent);
+    case StrategyType::Auto:
+        break;
     }
+    return std::make_unique<StubUploader>(QString(), parent);
 }
 
 UploaderFactory::StrategyType UploaderFactory::getDefaultStrategyType()
 {
-    return UploadConfig::forProfile(QString()).isComplete() ? StrategyType::S3 : StrategyType::Stub;
+    return resolveForProfile(QString());
 }
 
 bool UploaderFactory::isStrategyAvailable(StrategyType type)
 {
     switch (type) {
-    case StrategyType::S3:   return UploadConfig::forProfile(QString()).isComplete();
-    case StrategyType::Stub: return true;
-    case StrategyType::Auto: return true;
-    default:                 return false;
+#ifndef HAVE_LIBSSH2
+    case StrategyType::Sftp: return false;
+#endif
+#ifndef HAVE_LIBCURL
+    case StrategyType::Ftp:  return false;
+#endif
+    default: return true;   // S3/Stub/Auto are pure Qt, plus whatever dep compiled in
     }
 }
 

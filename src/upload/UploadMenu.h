@@ -13,7 +13,7 @@ namespace Upload {
 /**
  * (Re)populate `menu` from the saved upload profiles: a first "Upload to default" item
  * (empty id) then one item per profile (the default one marked with a star). `onPick`
- * is invoked with the chosen profile id — empty means "the default". Call this from the
+ * is invoked with the chosen profile id - empty means "the default". Call this from the
  * menu's aboutToShow so it reflects profile/default changes made while an editor is open.
  */
 inline void rebuildUploadMenu(QMenu *menu, const std::function<void(const QString &)> &onPick)
@@ -28,7 +28,10 @@ inline void rebuildUploadMenu(QMenu *menu, const std::function<void(const QStrin
     if (!profiles.isEmpty())
         menu->addSeparator();
     for (const UploadProfile &p : profiles) {
-        const QString label = (p.id == defId) ? QStringLiteral("★ ") + p.name : p.name;
+        // "Name - SFTP": the transport matters when picking between destinations.
+        const QString shown = p.name.isEmpty() ? QObject::tr("(unnamed)") : p.name;
+        const QString name = shown + QStringLiteral(" - ") + providerDisplayName(p.type);
+        const QString label = (p.id == defId) ? QStringLiteral("★ ") + name : name;
         QAction *a = menu->addAction(label);
         const QString id = p.id;
         QObject::connect(a, &QAction::triggered, menu, [onPick, id] { onPick(id); });

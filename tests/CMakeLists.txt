@@ -25,6 +25,8 @@ set(NICESHOT_TESTS
         tst_sigv4
         tst_uploaderfactory
         tst_uploadprofiles
+        tst_uploadconfig
+        tst_uploadutil
 )
 
 foreach(test_name ${NICESHOT_TESTS})

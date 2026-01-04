@@ -432,7 +432,7 @@ void VideoEditor::doUpload(const QString &profileId)
     // Validate the CHOSEN destination (empty id = default), not just the default.
     if (!Upload::UploadConfig::forProfile(profileId).isComplete()) {
         QMessageBox::information(this, tr("Upload not configured"),
-                                tr("Set up an S3 destination in Settings → Upload first."));
+                                tr("Set up an upload destination in Settings → Upload first."));
         return;
     }
     const TrimState &state = m_timeline->state();

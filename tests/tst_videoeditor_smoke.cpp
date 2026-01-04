@@ -10,7 +10,7 @@ using namespace Editor::Video;
 
 // Construction smoke test on the preview-error path: the editor is pointed at a
 // nonexistent file (offscreen CI has no decodable media anyway) and must still
-// come up with its chrome intact and Save usable — saving is a plain file move
+// come up with its chrome intact and Save usable - saving is a plain file move
 // that never decodes. The widget is deleted directly (not close()d), so the
 // interactive "Discard this recording?" prompt never runs headless.
 class tst_VideoEditorSmoke : public QObject
