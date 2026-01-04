@@ -36,12 +36,14 @@ private slots:
         QVERIFY(!editor->findChildren<QLabel *>().isEmpty());
 
         // Save / Copy / Discard must exist and stay enabled even while the player
-        // is failing to load the missing media.
+        // is failing to load the missing media. The icon actions are tooltip-only
+        // (matching the image editor's toolbar idiom), so probe tooltips; Discard is
+        // the one text button.
         const auto actions = editor->findChildren<QAction *>();
         bool sawSave = false, sawCopy = false, sawDiscard = false;
         for (const QAction *a : actions) {
-            if (a->text().startsWith("Save")) { sawSave = true; QVERIFY(a->isEnabled()); }
-            if (a->text() == "Copy") { sawCopy = true; QVERIFY(a->isEnabled()); }
+            if (a->toolTip().startsWith("Save As")) { sawSave = true; QVERIFY(a->isEnabled()); }
+            if (a->toolTip().contains("copy the file")) { sawCopy = true; QVERIFY(a->isEnabled()); }
             if (a->text() == "Discard") { sawDiscard = true; QVERIFY(a->isEnabled()); }
         }
         QVERIFY(sawSave);

@@ -1,5 +1,6 @@
 #include "editor/image/ImageEditor.h"
 #include "editor/DrawingGraphicsView.h"
+#include "editor/EditorChrome.h"
 #include "editor/LayerManager.h"
 #include "editor/LayerProperties.h"
 #include "editor/Layer.h"
@@ -167,12 +168,8 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
         });
     });
 
-    // Load stylesheet
-    QFile styleFile(":/styles/styles/editor.qss");
-    if (styleFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        setStyleSheet(QString::fromUtf8(styleFile.readAll()));
-        styleFile.close();
-    }
+    // Shared editor chrome (same sheet as the video editor).
+    Editor::applyEditorStyleSheet(this);
 
     // Open at a consistent 70% of the current screen (the one under the cursor, where
     // the capture happened), independent of the capture's size, so a small grab doesn't

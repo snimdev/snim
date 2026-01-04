@@ -1,4 +1,5 @@
 #include "editor/video/VideoEditor.h"
+#include "editor/EditorChrome.h"
 #include "editor/video/TrimTimeline.h"
 #include "editor/video/VideoExporter.h"
 #include "editor/video/GifParams.h"
@@ -89,24 +90,33 @@ VideoEditor::~VideoEditor()
 
 void VideoEditor::setupUi()
 {
+    // Same shell as the image editor: identical icon size, icon-only buttons, and the
+    // shared stylesheet, so the two windows read as one app.
     m_toolbar = addToolBar(tr("Recording"));
+    m_toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    m_toolbar->setIconSize(QSize(20, 20));
     m_toolbar->setMovable(false);
+    m_toolbar->setFloatable(false);
+    Editor::applyEditorStyleSheet(this);
 
-    m_saveAction = m_toolbar->addAction(themedIcon(":/icons/icons/save.svg"), tr("Save…"));
+    m_saveAction = m_toolbar->addAction(themedIcon(":/icons/icons/save.svg"), QString());
+    m_saveAction->setToolTip(tr("Save As (Ctrl+S)"));
     m_saveAction->setShortcut(QKeySequence::Save);
     connect(m_saveAction, &QAction::triggered, this, &VideoEditor::onSave);
 
-    m_copyAction = m_toolbar->addAction(themedIcon(":/icons/icons/copy.svg"), tr("Copy"));
+    m_copyAction = m_toolbar->addAction(themedIcon(":/icons/icons/copy.svg"), QString());
     m_copyAction->setShortcut(QKeySequence::Copy);
     m_copyAction->setToolTip(tr("Save into the recordings folder and copy the file to the clipboard"));
     connect(m_copyAction, &QAction::triggered, this, &VideoEditor::onCopy);
 
-    m_gifAction = m_toolbar->addAction(themedIcon(":/icons/icons/export-gif.svg"), tr("Export as GIF…"));
+    m_toolbar->addSeparator();
+
+    m_gifAction = m_toolbar->addAction(themedIcon(":/icons/icons/export-gif.svg"), QString());
     m_gifAction->setToolTip(tr("Export the trimmed range as an animated GIF"));
     connect(m_gifAction, &QAction::triggered, this, &VideoEditor::onExportGif);
 
     // Upload as a split button: click = default destination; ▾ = pick a saved server.
-    m_uploadAction = new QAction(themedIcon(":/icons/icons/upload.svg"), tr("Upload"), this);
+    m_uploadAction = new QAction(themedIcon(":/icons/icons/upload.svg"), QString(), this);
     m_uploadAction->setToolTip(tr("Upload to the default server and copy the link"));
     connect(m_uploadAction, &QAction::triggered, this, [this] { doUpload(QString()); });
     auto *uploadButton = new QToolButton(m_toolbar);
@@ -150,6 +160,7 @@ void VideoEditor::setupUi()
     auto *playButton = new QToolButton(transport);
     playButton->setDefaultAction(m_playPauseAction);
     playButton->setAutoRaise(true);
+    playButton->setIconSize(QSize(20, 20));   // match the toolbar glyphs, not the 16pt default
     transportLayout->addWidget(playButton);
 
     m_timeLabel = new QLabel(QStringLiteral("0:00 / 0:00"), transport);
@@ -164,10 +175,13 @@ void VideoEditor::setupUi()
 
 QIcon VideoEditor::themedIcon(const QString &svgPath) const
 {
-    // Same tone selection as the image editor's toolbar.
+    // Same tone selection as the image editor's toolbar, rendered at the toolbar's own
+    // icon size so the glyph fills its slot exactly (a hardcoded size in a bigger slot
+    // reads as a small icon floating in dead space).
     const QColor windowColor = QApplication::palette().color(QPalette::Window);
     const bool isDarkMode = windowColor.lightness() < 128;
-    return Core::themedSvgIcon(svgPath, QColor(isDarkMode ? "#d0d0d0" : "#333333"), 20);
+    const int size = m_toolbar ? m_toolbar->iconSize().width() : 20;
+    return Core::themedSvgIcon(svgPath, QColor(isDarkMode ? "#d0d0d0" : "#333333"), size);
 }
 
 // ---- playback ------------------------------------------------------------------

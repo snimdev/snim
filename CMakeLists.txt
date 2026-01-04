@@ -200,6 +200,7 @@ add_library(niceshot_lib STATIC
         src/capture/strategies/NativeCaptureStrategy.h
 
         # Editor: shared canvas, layers, tools, interactions, commands
+        src/editor/EditorChrome.h
         src/editor/ToolRegistry.cpp
         src/editor/ToolRegistry.h
         src/editor/commands/EditorCommands.cpp

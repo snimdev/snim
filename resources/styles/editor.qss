@@ -26,6 +26,28 @@ QToolBar QToolButton:hover:!checked {
     border-color: palette(mid);
 }
 
+/* Split menu buttons (Upload): once QToolButton is styled, the stylesheet renderer also
+   draws the MenuButtonPopup strip, and with no rules it paints the arrow over the icon.
+   Compact idiom: a small chevron tight against the glyph, no divider, no dead space.
+   (popupMode="1" is MenuButtonPopup; the numeric form is what property selectors match.) */
+QToolBar QToolButton[popupMode="1"],
+QToolBar QToolButton[popupMode="MenuButtonPopup"] {
+    padding-right: 12px;
+}
+
+QToolBar QToolButton::menu-button {
+    border: none;
+    width: 12px;
+}
+
+QToolBar QToolButton::menu-arrow {
+    image: url(:/icons/icons/chevron-down.svg);
+    width: 9px;
+    height: 9px;
+    subcontrol-origin: padding;
+    subcontrol-position: center;
+}
+
 QToolBar::separator {
     width: 1px;
     margin: 4px 6px;
