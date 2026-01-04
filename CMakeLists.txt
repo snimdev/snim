@@ -105,6 +105,51 @@ else()
     message(STATUS "  Install with: sudo apt install libcurl4-openssl-dev (macOS ships one)")
 endif()
 
+# Optional libssh2 - SFTP upload transport (Qt has no SFTP at all)
+set(LIBSSH2_AVAILABLE FALSE)
+
+if(PkgConfig_FOUND)
+    pkg_check_modules(LIBSSH2 libssh2)
+    if(LIBSSH2_FOUND)
+        set(LIBSSH2_AVAILABLE TRUE)
+        message(STATUS "libssh2 found via pkg-config - enabling SFTP uploads")
+        message(STATUS "  Version: ${LIBSSH2_VERSION}")
+        message(STATUS "  Include: ${LIBSSH2_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${LIBSSH2_LIBRARIES}")
+    endif()
+endif()
+
+# If pkg-config didn't find it, try manual detection (Homebrew keeps it under /opt).
+if(NOT LIBSSH2_AVAILABLE)
+    find_path(Libssh2_INCLUDE_DIR libssh2.h
+        PATHS /usr/include /usr/local/include /opt/homebrew/include)
+    find_library(Libssh2_LIBRARY ssh2
+        PATHS /usr/lib64 /usr/lib /usr/local/lib /opt/homebrew/lib)
+
+    if(Libssh2_INCLUDE_DIR AND Libssh2_LIBRARY)
+        set(LIBSSH2_AVAILABLE TRUE)
+        set(LIBSSH2_INCLUDE_DIRS ${Libssh2_INCLUDE_DIR})
+        set(LIBSSH2_LIBRARIES ${Libssh2_LIBRARY})
+        message(STATUS "libssh2 found (manual detection) - enabling SFTP uploads")
+        message(STATUS "  Include: ${LIBSSH2_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${LIBSSH2_LIBRARIES}")
+    endif()
+endif()
+
+if(LIBSSH2_AVAILABLE AND WIN32)
+    # SftpUploader is written against POSIX sockets; a Windows port needs Winsock
+    # plumbing first, so a found libssh2 must not switch it on there.
+    set(LIBSSH2_AVAILABLE FALSE)
+    message(STATUS "libssh2 found but SFTP upload is not ported to Windows - disabled")
+endif()
+
+if(LIBSSH2_AVAILABLE)
+    add_compile_definitions(HAVE_LIBSSH2)
+else()
+    message(STATUS "libssh2 not found - SFTP upload destinations will be disabled")
+    message(STATUS "  Install with: brew install libssh2 / sudo apt install libssh2-1-dev")
+endif()
+
 # All cross-platform sources live in a static library so both the executable and
 # the test suite can link them. main.cpp + the .app bundle stay on the executable.
 add_library(niceshot_lib STATIC
@@ -392,6 +437,23 @@ if(LIBCURL_AVAILABLE)
         target_link_directories(niceshot_lib PUBLIC ${LIBCURL_LIBRARY_DIRS})
     endif()
     target_link_libraries(niceshot_lib PUBLIC ${LIBCURL_LIBRARIES})
+endif()
+
+# SFTP upload backend - compiled only where libssh2 exists, exactly like the FTP one
+# above. Without it UploaderFactory returns a Stub that says so. PUBLIC link:
+# HAVE_LIBSSH2 is a global define, so consumers (the exe and the tests) must resolve
+# SftpUploader's libssh2 symbols too.
+if(LIBSSH2_AVAILABLE)
+    target_sources(niceshot_lib PRIVATE
+            src/upload/strategies/SftpUploader.cpp
+            src/upload/strategies/SftpUploader.h)
+    target_include_directories(niceshot_lib PRIVATE ${LIBSSH2_INCLUDE_DIRS})
+    # pkg-config reports plain library names; add its dirs so a non-default prefix
+    # (Homebrew) still links. Empty for the manual-detection fallback (absolute paths).
+    if(LIBSSH2_LIBRARY_DIRS)
+        target_link_directories(niceshot_lib PUBLIC ${LIBSSH2_LIBRARY_DIRS})
+    endif()
+    target_link_libraries(niceshot_lib PUBLIC ${LIBSSH2_LIBRARIES})
 endif()
 
 # ---------------------------------------------------------------------------

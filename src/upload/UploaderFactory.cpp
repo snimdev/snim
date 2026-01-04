@@ -5,6 +5,9 @@
 #ifdef HAVE_LIBCURL
 #include "upload/strategies/FtpUploader.h"
 #endif
+#ifdef HAVE_LIBSSH2
+#include "upload/strategies/SftpUploader.h"
+#endif
 
 namespace Upload {
 
@@ -43,10 +46,17 @@ std::unique_ptr<Uploader> UploaderFactory::create(StrategyType type, QObject *pa
         break;   // bucket/secret missing -> inert stub
     }
     case StrategyType::Sftp:
-        // The SFTP transport (libssh2) is not wired up yet; the profile type exists so
-        // stored destinations survive, but uploading one explains itself.
+#ifdef HAVE_LIBSSH2
+    {
+        auto sftp = std::make_unique<SftpUploader>(profileId, parent);
+        if (sftp->isConfigured())
+            return sftp;
+        break;   // host/credentials missing -> inert stub
+    }
+#else
         return std::make_unique<StubUploader>(
             StubUploader::tr("SFTP support is not included in this build."), parent);
+#endif
     case StrategyType::Ftp:
 #ifdef HAVE_LIBCURL
     {
