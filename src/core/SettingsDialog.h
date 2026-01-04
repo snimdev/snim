@@ -65,8 +65,18 @@ private:
     QCheckBox *m_systemAudioCheck;
     QCheckBox *m_frameCheck;   // "Highlight recorded area while recording"
 
-    // Upload Tab
+    // Upload Tab (S3-compatible). The secret access key is NOT a member persisted to
+    // QSettings — it is written to the OS keychain on Apply and the field is cleared.
     QWidget *m_uploadTab;
+    QCheckBox *m_uploadEnabledCheck = nullptr;
+    QLineEdit *m_uploadEndpointEdit = nullptr;
+    QLineEdit *m_uploadRegionEdit = nullptr;
+    QLineEdit *m_uploadBucketEdit = nullptr;
+    QLineEdit *m_uploadAccessKeyEdit = nullptr;
+    QLineEdit *m_uploadSecretEdit = nullptr;     // write-only into the keychain
+    QLineEdit *m_uploadPrefixEdit = nullptr;
+    QLineEdit *m_uploadPublicUrlEdit = nullptr;
+    QCheckBox *m_uploadPathStyleCheck = nullptr;
 
     // Hotkeys Tab
     QWidget *m_hotkeysTab;

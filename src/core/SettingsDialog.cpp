@@ -1,5 +1,6 @@
 #include "SettingsDialog.h"
 #include "core/Settings.h"
+#include "core/KeychainStore.h"
 #include <QGroupBox>
 #include <QStandardPaths>
 #include <QDir>
@@ -208,15 +209,56 @@ void SettingsDialog::setupRecordingTab()
 void SettingsDialog::setupUploadTab()
 {
     m_uploadTab = new QWidget();
-
     auto *layout = new QVBoxLayout(m_uploadTab);
 
-    auto *label = new QLabel("Upload settings will be implemented here.", m_uploadTab);
-    label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet("color: gray; font-style: italic;");
+    m_uploadEnabledCheck = new QCheckBox("Enable upload (S3-compatible)", m_uploadTab);
+    layout->addWidget(m_uploadEnabledCheck);
 
-    layout->addWidget(label);
+    auto *group = new QGroupBox("S3 destination", m_uploadTab);
+    auto *form = new QFormLayout(group);
+
+    m_uploadEndpointEdit = new QLineEdit(group);
+    m_uploadEndpointEdit->setPlaceholderText("s3.amazonaws.com  ·  <acct>.r2.cloudflarestorage.com");
+    form->addRow("Endpoint:", m_uploadEndpointEdit);
+
+    m_uploadRegionEdit = new QLineEdit(group);
+    m_uploadRegionEdit->setPlaceholderText("us-east-1  ·  auto (Cloudflare R2)");
+    form->addRow("Region:", m_uploadRegionEdit);
+
+    m_uploadBucketEdit = new QLineEdit(group);
+    form->addRow("Bucket:", m_uploadBucketEdit);
+
+    m_uploadAccessKeyEdit = new QLineEdit(group);
+    form->addRow("Access key ID:", m_uploadAccessKeyEdit);
+
+    m_uploadSecretEdit = new QLineEdit(group);
+    m_uploadSecretEdit->setEchoMode(QLineEdit::Password);
+    // The secret lives in the keychain; never shown. Placeholder reflects whether one
+    // is stored. Leaving it blank on Apply keeps the existing secret.
+    form->addRow("Secret key:", m_uploadSecretEdit);
+
+    m_uploadPrefixEdit = new QLineEdit(group);
+    m_uploadPrefixEdit->setPlaceholderText("e.g. screenshots/");
+    form->addRow("Key prefix:", m_uploadPrefixEdit);
+
+    m_uploadPublicUrlEdit = new QLineEdit(group);
+    m_uploadPublicUrlEdit->setPlaceholderText("https://cdn.example.com  (required for R2 public links)");
+    form->addRow("Public base URL:", m_uploadPublicUrlEdit);
+
+    m_uploadPathStyleCheck = new QCheckBox("Force path-style URLs (MinIO / Wasabi)", group);
+    form->addRow(QString(), m_uploadPathStyleCheck);
+
+    layout->addWidget(group);
+
+    auto *note = new QLabel("The secret key is stored in your system keychain, not in settings.",
+                            m_uploadTab);
+    note->setStyleSheet("color: gray; font-style: italic;");
+    note->setWordWrap(true);
+    layout->addWidget(note);
     layout->addStretch();
+
+    // The destination fields only matter when upload is enabled.
+    connect(m_uploadEnabledCheck, &QCheckBox::toggled, group, &QWidget::setEnabled);
 
     m_tabWidget->addTab(m_uploadTab, "Upload");
 }
@@ -349,6 +391,22 @@ void SettingsDialog::loadSettings()
 
     m_systemAudioCheck->setChecked(Settings::systemAudioEnabled());
     m_frameCheck->setChecked(Settings::recordingFrameEnabled());
+
+    // Upload — non-secret fields from Settings; the secret is never shown. Its
+    // placeholder reflects whether a key is already stored in the keychain.
+    m_uploadEnabledCheck->setChecked(Settings::uploadEnabled());
+    m_uploadEndpointEdit->setText(Settings::uploadEndpoint());
+    m_uploadRegionEdit->setText(Settings::uploadRegion());
+    m_uploadBucketEdit->setText(Settings::uploadBucket());
+    m_uploadAccessKeyEdit->setText(Settings::uploadAccessKeyId());
+    m_uploadPrefixEdit->setText(Settings::uploadKeyPrefix());
+    m_uploadPublicUrlEdit->setText(Settings::uploadPublicBaseUrl());
+    m_uploadPathStyleCheck->setChecked(Settings::uploadForcePathStyle());
+    m_uploadSecretEdit->clear();
+    const bool hasSecret = !Settings::uploadAccessKeyId().isEmpty()
+        && KeychainStore::retrieve(KeychainStore::s3Service(), Settings::uploadAccessKeyId()).has_value();
+    m_uploadSecretEdit->setPlaceholderText(hasSecret ? "•••••••• (stored)" : "Secret access key");
+    m_uploadTab->findChild<QGroupBox *>()->setEnabled(m_uploadEnabledCheck->isChecked());
 }
 
 void SettingsDialog::saveSettings()
@@ -364,6 +422,27 @@ void SettingsDialog::saveSettings()
     Settings::setMicDeviceId(m_micCombo->currentData().toByteArray());
     Settings::setSystemAudioEnabled(m_systemAudioCheck->isChecked());
     Settings::setRecordingFrameEnabled(m_frameCheck->isChecked());
+
+    // Upload — non-secret config to QSettings; the secret to the keychain only.
+    const QString oldAccessKey = Settings::uploadAccessKeyId();
+    const QString newAccessKey = m_uploadAccessKeyEdit->text().trimmed();
+    Settings::setUploadEnabled(m_uploadEnabledCheck->isChecked());
+    Settings::setUploadEndpoint(m_uploadEndpointEdit->text().trimmed());
+    Settings::setUploadRegion(m_uploadRegionEdit->text().trimmed());
+    Settings::setUploadBucket(m_uploadBucketEdit->text().trimmed());
+    Settings::setUploadAccessKeyId(newAccessKey);
+    Settings::setUploadKeyPrefix(m_uploadPrefixEdit->text().trimmed());
+    Settings::setUploadPublicBaseUrl(m_uploadPublicUrlEdit->text().trimmed());
+    Settings::setUploadForcePathStyle(m_uploadPathStyleCheck->isChecked());
+
+    // Rotating the access key id orphans the old secret — erase it.
+    if (!oldAccessKey.isEmpty() && oldAccessKey != newAccessKey)
+        KeychainStore::erase(KeychainStore::s3Service(), oldAccessKey);
+    // Save a newly-entered secret; a blank field keeps the existing one. Clear after.
+    const QString secret = m_uploadSecretEdit->text();
+    if (!secret.isEmpty() && !newAccessKey.isEmpty())
+        KeychainStore::store(KeychainStore::s3Service(), newAccessKey, secret);
+    m_uploadSecretEdit->clear();
 }
 
 void SettingsDialog::applySettings()

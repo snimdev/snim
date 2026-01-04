@@ -19,6 +19,10 @@
 #include "editor/video/VideoEditor.h"
 #include "recording/RecordingController.h"
 #include "recording/RecordingControls.h"
+#include "upload/Uploader.h"
+#include "upload/UploaderFactory.h"
+#include <QClipboard>
+#include <QUrl>
 
 namespace Core {
     ScreenshotApp::ScreenshotApp(int &argc, char **argv)
@@ -222,9 +226,51 @@ namespace Core {
         // Create and show the ImageEditor with the captured screenshot
         auto *editor = new Editor::Image::ImageEditor(screenshot);
         editor->setAttribute(Qt::WA_DeleteOnClose);
+        connect(editor, &Editor::Image::ImageEditor::uploadRequested,
+                this, &ScreenshotApp::startUpload);
         editor->show();
         editor->raise();
         editor->activateWindow();
+    }
+
+    void ScreenshotApp::startUpload(const QString &localPath, const QString &suggestedName,
+                                    bool deleteWhenDone) {
+        if (m_uploader) {   // one upload at a time
+            if (m_trayIcon)
+                m_trayIcon->showMessage(tr("Upload"), tr("An upload is already in progress."),
+                                        QSystemTrayIcon::Warning, 3000);
+            if (deleteWhenDone)
+                QFile::remove(localPath);
+            return;
+        }
+        // Factory yields the configured S3 uploader, or the stub if not configured.
+        m_uploader = Upload::UploaderFactory::create(
+                         Upload::UploaderFactory::StrategyType::Auto, this).release();
+        if (m_trayIcon)
+            m_trayIcon->showMessage(tr("Uploading…"), QFileInfo(suggestedName).fileName(),
+                                    QSystemTrayIcon::Information, 2000);
+
+        auto cleanup = [this, localPath, deleteWhenDone] {
+            if (deleteWhenDone)
+                QFile::remove(localPath);
+            if (m_uploader) { m_uploader->deleteLater(); m_uploader = nullptr; }
+        };
+        connect(m_uploader, &Upload::Uploader::uploaded, this,
+                [this, cleanup](const QUrl &url) {
+                    QApplication::clipboard()->setText(url.toString());
+                    if (m_trayIcon)
+                        m_trayIcon->showMessage(tr("Uploaded — link copied"), url.toString(),
+                                                QSystemTrayIcon::Information, 5000);
+                    cleanup();
+                });
+        connect(m_uploader, &Upload::Uploader::failed, this,
+                [this, cleanup](const QString &err) {
+                    if (m_trayIcon)
+                        m_trayIcon->showMessage(tr("Upload failed"), err,
+                                                QSystemTrayIcon::Warning, 6000);
+                    cleanup();
+                });
+        m_uploader->upload(localPath, suggestedName);
     }
 
     void ScreenshotApp::captureTextSnip() {
@@ -298,6 +344,8 @@ namespace Core {
                                                 QFileInfo(finalPath).fileName(),
                                                 QSystemTrayIcon::Information, 4000);
                 });
+        connect(editor, &Editor::Video::VideoEditor::uploadRequested,
+                this, &ScreenshotApp::startUpload);
         editor->show();
         editor->raise();
         editor->activateWindow();

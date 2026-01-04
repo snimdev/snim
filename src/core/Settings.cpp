@@ -23,6 +23,14 @@ constexpr auto kMicDeviceId            = "Recording/MicDeviceId";
 constexpr auto kSystemAudioEnabled     = "Recording/SystemAudioEnabled";
 constexpr auto kRecordingFrameEnabled  = "Recording/FrameEnabled";
 constexpr auto kRecordingRetina        = "Recording/RetinaCapture";
+constexpr auto kUploadEnabled          = "Upload/Enabled";
+constexpr auto kUploadEndpoint         = "Upload/Endpoint";
+constexpr auto kUploadRegion           = "Upload/Region";
+constexpr auto kUploadBucket           = "Upload/Bucket";
+constexpr auto kUploadAccessKeyId      = "Upload/AccessKeyId";
+constexpr auto kUploadKeyPrefix        = "Upload/KeyPrefix";
+constexpr auto kUploadPublicBaseUrl    = "Upload/PublicBaseUrl";
+constexpr auto kUploadForcePathStyle   = "Upload/ForcePathStyle";
 }
 
 QString Settings::screenshotFolder()
@@ -71,6 +79,23 @@ void Settings::setSystemAudioEnabled(bool on) { QSettings().setValue(kSystemAudi
 
 bool Settings::recordingFrameEnabled() { return QSettings().value(kRecordingFrameEnabled, true).toBool(); }
 void Settings::setRecordingFrameEnabled(bool on) { QSettings().setValue(kRecordingFrameEnabled, on); }
+
+bool Settings::uploadEnabled() { return QSettings().value(kUploadEnabled, false).toBool(); }
+void Settings::setUploadEnabled(bool on) { QSettings().setValue(kUploadEnabled, on); }
+QString Settings::uploadEndpoint() { return QSettings().value(kUploadEndpoint, "s3.amazonaws.com").toString(); }
+void Settings::setUploadEndpoint(const QString &v) { QSettings().setValue(kUploadEndpoint, v); }
+QString Settings::uploadRegion() { return QSettings().value(kUploadRegion, "us-east-1").toString(); }
+void Settings::setUploadRegion(const QString &v) { QSettings().setValue(kUploadRegion, v); }
+QString Settings::uploadBucket() { return QSettings().value(kUploadBucket).toString(); }
+void Settings::setUploadBucket(const QString &v) { QSettings().setValue(kUploadBucket, v); }
+QString Settings::uploadAccessKeyId() { return QSettings().value(kUploadAccessKeyId).toString(); }
+void Settings::setUploadAccessKeyId(const QString &v) { QSettings().setValue(kUploadAccessKeyId, v); }
+QString Settings::uploadKeyPrefix() { return QSettings().value(kUploadKeyPrefix).toString(); }
+void Settings::setUploadKeyPrefix(const QString &v) { QSettings().setValue(kUploadKeyPrefix, v); }
+QString Settings::uploadPublicBaseUrl() { return QSettings().value(kUploadPublicBaseUrl).toString(); }
+void Settings::setUploadPublicBaseUrl(const QString &v) { QSettings().setValue(kUploadPublicBaseUrl, v); }
+bool Settings::uploadForcePathStyle() { return QSettings().value(kUploadForcePathStyle, false).toBool(); }
+void Settings::setUploadForcePathStyle(bool on) { QSettings().setValue(kUploadForcePathStyle, on); }
 
 QColor Settings::editorForeground() { return QSettings().value(kForeground, QColor(Qt::red)).value<QColor>(); }
 void Settings::setEditorForeground(const QColor &c) { QSettings().setValue(kForeground, c); }

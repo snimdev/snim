@@ -2,6 +2,7 @@
 #include "editor/video/TrimTimeline.h"
 #include "editor/video/VideoExporter.h"
 #include "editor/video/GifParams.h"
+#include "upload/UploaderFactory.h"
 #include "core/IconUtil.h"
 #include "core/Settings.h"
 
@@ -100,6 +101,10 @@ void VideoEditor::setupUi()
     m_gifAction = m_toolbar->addAction(themedIcon(":/icons/icons/export-gif.svg"), tr("Export as GIF…"));
     m_gifAction->setToolTip(tr("Export the trimmed range as an animated GIF"));
     connect(m_gifAction, &QAction::triggered, this, &VideoEditor::onExportGif);
+
+    m_uploadAction = m_toolbar->addAction(themedIcon(":/icons/icons/upload.svg"), tr("Upload"));
+    m_uploadAction->setToolTip(tr("Upload the recording and copy the link"));
+    connect(m_uploadAction, &QAction::triggered, this, &VideoEditor::onUpload);
 
     auto *spacer = new QWidget(m_toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -307,6 +312,7 @@ void VideoEditor::setBusy(bool busy)
     m_saveAction->setEnabled(!busy);
     m_copyAction->setEnabled(!busy);
     m_gifAction->setEnabled(!busy && m_previewOk);   // GIF needs a decodable source
+    m_uploadAction->setEnabled(!busy);
     m_discardAction->setEnabled(!busy);
     m_playPauseAction->setEnabled(!busy && m_previewOk);
     m_timeline->setInteractive(!busy && m_previewOk);
@@ -408,6 +414,33 @@ void VideoEditor::onExportGif()
     exporter()->toGif(m_tempPath, m_exportTempPath, in, out, GifParams{});
 }
 
+void VideoEditor::onUpload()
+{
+    if (!Upload::UploaderFactory::isStrategyAvailable(Upload::UploaderFactory::StrategyType::S3)) {
+        QMessageBox::information(this, tr("Upload not configured"),
+                                tr("Set up your S3 bucket in Settings → Upload first."));
+        return;
+    }
+    const TrimState &state = m_timeline->state();
+    if (!state.isTrimmed()) {
+        // Hand the recording temp to the app's uploader; mark saved so closeEvent
+        // won't delete it out from under the in-flight PUT (the app owns it now).
+        m_saved = true;
+        emit uploadRequested(m_tempPath, QStringLiteral("recording.mp4"), /*deleteWhenDone=*/true);
+        close();
+        return;
+    }
+    // Trimmed: export to a temp, then upload that (handled in onExporterFinished).
+    m_pending = Pending::Upload;
+    m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+                       + QStringLiteral("/Niceshot_upload_")
+                       + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
+                       + QStringLiteral(".mp4");
+    setBusy(true);
+    m_player->pause();
+    exporter()->trim(m_tempPath, m_exportTempPath, state.inMs(), state.outMs());
+}
+
 void VideoEditor::putOnClipboard(const QString &path)
 {
     auto *mime = new QMimeData();   // clipboard takes ownership
@@ -436,6 +469,14 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
         putOnClipboard(exportedPath);             // already at its final destination
         QFile::remove(m_tempPath);
         finishSaved(exportedPath);
+    } else if (pending == Pending::Upload) {
+        // The trimmed temp is ready: hand it to the app's uploader (which deletes it
+        // when done), drop the original recording, and close.
+        QFile::remove(m_tempPath);
+        m_exportTempPath.clear();
+        m_saved = true;
+        emit uploadRequested(exportedPath, QStringLiteral("recording.mp4"), /*deleteWhenDone=*/true);
+        close();
     } else if (pending == Pending::ExportGif) {
         // Mirror SaveMove exactly: move the GIF temp to the destination, drop the
         // source MP4 temp, clear m_exportTempPath on BOTH the success and failure

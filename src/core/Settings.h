@@ -48,6 +48,25 @@ public:
     static bool recordingFrameEnabled();               // default: true (border + dim around the recorded area)
     static void setRecordingFrameEnabled(bool on);
 
+    // Upload (S3-compatible). NON-SECRET config only — the secret access key lives in
+    // the OS keychain (Core::KeychainStore), never in QSettings.
+    static bool uploadEnabled();                       // default: false
+    static void setUploadEnabled(bool on);
+    static QString uploadEndpoint();                   // default: "s3.amazonaws.com"
+    static void setUploadEndpoint(const QString &v);
+    static QString uploadRegion();                     // default: "us-east-1" (R2 needs "auto")
+    static void setUploadRegion(const QString &v);
+    static QString uploadBucket();
+    static void setUploadBucket(const QString &v);
+    static QString uploadAccessKeyId();                // keychain account for the secret
+    static void setUploadAccessKeyId(const QString &v);
+    static QString uploadKeyPrefix();                  // default: "" (e.g. "screenshots/")
+    static void setUploadKeyPrefix(const QString &v);
+    static QString uploadPublicBaseUrl();              // default: "" (required for R2 public links)
+    static void setUploadPublicBaseUrl(const QString &v);
+    static bool uploadForcePathStyle();                // default: false (MinIO/Wasabi need true)
+    static void setUploadForcePathStyle(bool on);
+
     // Editor annotation defaults
     static QColor editorForeground();                   // default: red
     static void setEditorForeground(const QColor &c);

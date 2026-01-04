@@ -24,6 +24,10 @@ class RecordingController;
 class RecordingControls;
 } // namespace Recording
 
+namespace Upload {
+class Uploader;
+} // namespace Upload
+
 namespace Core {
 
 class ScreenshotApp : public QApplication
@@ -45,6 +49,9 @@ private slots:
     void onRecordingStateChanged(bool recording);
     void onRecordingFinished(const QString &path);
     void onRecordingFailed(const QString &error);
+    // Owns the in-flight upload so it outlives the editor window that triggered it
+    // (the editor may close mid-upload). Copies the URL + shows a tray toast on done.
+    void startUpload(const QString &localPath, const QString &suggestedName, bool deleteWhenDone);
     static void showSettings();
     static void showAbout();
     static void quit();
@@ -68,6 +75,7 @@ private:
     std::unique_ptr<TextSnipCapture> m_textSnipCapture;
     std::unique_ptr<Recording::RecordingController> m_recordingController;
     Recording::RecordingControls *m_recordingControls = nullptr;   // shown only while recording
+    Upload::Uploader *m_uploader = nullptr;   // current upload (one at a time), parented to this
 };
 
 } // namespace Core

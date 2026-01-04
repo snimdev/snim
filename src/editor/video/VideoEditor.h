@@ -36,6 +36,8 @@ public:
 
 signals:
     void recordingSaved(const QString &finalPath);   // the app shows the tray balloon
+    // The app owns the upload (outlives this window) and deletes the temp when done.
+    void uploadRequested(const QString &localPath, const QString &suggestedName, bool deleteWhenDone);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -45,6 +47,7 @@ private slots:
     void onSave();
     void onCopy();
     void onExportGif();
+    void onUpload();
     void togglePlayPause();
     void onDurationChanged(qint64 durationMs);
     void onPositionChanged(qint64 positionMs);
@@ -54,7 +57,7 @@ private slots:
     void onExportProgress(int done, int total);
 
 private:
-    enum class Pending { None, SaveMove, Copy, ExportGif };
+    enum class Pending { None, SaveMove, Copy, ExportGif, Upload };
 
     void setupUi();
     void previewFailed();
@@ -88,6 +91,7 @@ private:
     QAction *m_saveAction = nullptr;
     QAction *m_copyAction = nullptr;
     QAction *m_gifAction = nullptr;
+    QAction *m_uploadAction = nullptr;
     QAction *m_discardAction = nullptr;
     std::unique_ptr<VideoExporter> m_exporter;
 };

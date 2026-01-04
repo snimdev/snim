@@ -22,6 +22,8 @@ set(NICESHOT_TESTS
         tst_pcmmixbuffer
         tst_trimstate
         tst_gifparams
+        tst_sigv4
+        tst_uploaderfactory
 )
 
 foreach(test_name ${NICESHOT_TESTS})

@@ -15,6 +15,7 @@ find_package(Qt6 COMPONENTS
         Svg
         Multimedia
         MultimediaWidgets
+        Network
         REQUIRED)
 
 # Optional Tesseract OCR support for text sniping feature
@@ -87,6 +88,20 @@ add_library(niceshot_lib STATIC
         src/core/SettingsDialog.h
         src/core/TextSnipCapture.cpp
         src/core/TextSnipCapture.h
+        src/core/KeychainStore.h
+
+        # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
+        # macOS keychain backing is added in the APPLE block; a stub elsewhere.
+        src/upload/Uploader.h
+        src/upload/UploaderFactory.cpp
+        src/upload/UploaderFactory.h
+        src/upload/UploadConfig.h
+        src/upload/SigV4.cpp
+        src/upload/SigV4.h
+        src/upload/strategies/S3Uploader.cpp
+        src/upload/strategies/S3Uploader.h
+        src/upload/strategies/StubUploader.cpp
+        src/upload/strategies/StubUploader.h
 
         # Capture functionality
         src/capture/AreaSelector.cpp
@@ -225,12 +240,15 @@ if(APPLE)
             src/recording/strategies/MacRecordingStrategy.mm
             # macOS trim exporter for the video editor (AVAssetExportSession remux)
             src/editor/video/MacVideoExporter.h
-            src/editor/video/MacVideoExporter.mm)
-    # These .mm files hold ScreenCaptureKit/AVFoundation objects across calls, so
-    # compile just them with ARC to manage those refs automatically.
+            src/editor/video/MacVideoExporter.mm
+            # macOS keychain backing for the S3 secret access key (Security.framework)
+            src/core/KeychainStore_mac.mm)
+    # These .mm files hold ScreenCaptureKit/AVFoundation/Foundation objects across calls,
+    # so compile them with ARC to manage those refs automatically.
     set_source_files_properties(
             src/recording/strategies/MacRecordingStrategy.mm
             src/editor/video/MacVideoExporter.mm
+            src/core/KeychainStore_mac.mm
             PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     # Activates the Mac branch of RecordingFactory + makes Auto pick ScreenCaptureKit.
     target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_MAC_RECORDER)
@@ -242,7 +260,8 @@ if(APPLE)
             "-framework AVFoundation"
             "-framework CoreMedia"
             "-framework CoreVideo"
-            "-framework ImageIO")   # animated-GIF encode in the trim editor
+            "-framework ImageIO"     # animated-GIF encode in the trim editor
+            "-framework Security")   # keychain (S3 secret access key)
     # Qt ships the macOS permission backends as STATIC plugins (libqdarwin*permission.a),
     # so they must be imported into the executable — otherwise the QPermission API has no
     # backend at runtime and QCamera reports "Could not find permission plugin for
@@ -263,7 +282,9 @@ if(APPLE)
             _qt_has_QDarwinCameraPermissionPlugin_usage_description TRUE
             _qt_has_QDarwinMicrophonePermissionPlugin_usage_description TRUE)
 else()
-    target_sources(niceshot_lib PRIVATE src/capture/WindowEnumerator_stub.cpp)
+    target_sources(niceshot_lib PRIVATE
+            src/capture/WindowEnumerator_stub.cpp
+            src/core/KeychainStore_stub.cpp)
 endif()
 
 # Linux-only capture strategies. These rely on Linux desktop APIs that don't
@@ -300,6 +321,8 @@ target_link_libraries(niceshot_lib PUBLIC
         # Linking these makes macdeployqt bundle the multimedia frameworks + media plugins.
         Qt::Multimedia
         Qt::MultimediaWidgets
+        # S3-compatible upload via QNetworkAccessManager + hand-rolled SigV4.
+        Qt::Network
 )
 
 # Link Tesseract if available (PUBLIC link: OCRService.o references its symbols and

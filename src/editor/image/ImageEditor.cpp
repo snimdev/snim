@@ -35,6 +35,8 @@
 #include <QKeySequence>
 #include <QTimer>
 #include <QStandardPaths>
+#include <QDateTime>
+#include "upload/UploaderFactory.h"
 #include <QLineEdit>
 #include <QSettings>
 #include <QDebug>
@@ -415,6 +417,12 @@ void ImageEditor::setupToolbar()
     connect(m_copyAction, &QAction::triggered, this, &ImageEditor::copyToClipboard);
     m_toolbar->addAction(m_copyAction);
 
+    m_uploadAction = new QAction(this);
+    m_uploadAction->setToolTip("Upload and copy the link");
+    m_uploadAction->setIcon(createThemedIcon(":/icons/icons/upload.svg"));
+    connect(m_uploadAction, &QAction::triggered, this, &ImageEditor::onUpload);
+    m_toolbar->addAction(m_uploadAction);
+
     m_toolbar->addSeparator();
 
     // --- Undo / Redo (Command pattern). These QActions are vended by the stack:
@@ -615,6 +623,28 @@ void ImageEditor::copyToClipboard()
     m_dirty = false;   // the result has been exported; closing won't lose work
     if (m_undoStack) m_undoStack->setClean();
     QMessageBox::information(this, "Success", "Screenshot copied to clipboard!");
+}
+
+void ImageEditor::onUpload()
+{
+    if (!Upload::UploaderFactory::isStrategyAvailable(Upload::UploaderFactory::StrategyType::S3)) {
+        QMessageBox::information(this, tr("Upload not configured"),
+                                tr("Set up your S3 bucket in Settings → Upload first."));
+        return;
+    }
+    // Render to a temp PNG and hand it to the app's uploader (which outlives this
+    // window and deletes the temp when the upload finishes).
+    const QString tmp = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+                        + QStringLiteral("/Niceshot_upload_")
+                        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss-zzz"))
+                        + QStringLiteral(".png");
+    if (!renderScene().save(tmp)) {
+        QMessageBox::warning(this, tr("Upload failed"), tr("Could not prepare the image."));
+        return;
+    }
+    m_dirty = false;   // exported; closing won't lose work
+    if (m_undoStack) m_undoStack->setClean();
+    emit uploadRequested(tmp, QStringLiteral("screenshot.png"), /*deleteWhenDone=*/true);
 }
 
 QPixmap ImageEditor::renderScene()

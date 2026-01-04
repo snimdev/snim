@@ -97,6 +97,37 @@ private slots:
         QVERIFY(!Settings::recordingFrameEnabled());
         QVERIFY(!Settings::recordingRetina());
     }
+
+    void upload_defaults_then_roundtrip()
+    {
+        QVERIFY(!Settings::uploadEnabled());                              // default off
+        QCOMPARE(Settings::uploadEndpoint(), QStringLiteral("s3.amazonaws.com"));
+        QCOMPARE(Settings::uploadRegion(), QStringLiteral("us-east-1"));
+        QVERIFY(Settings::uploadBucket().isEmpty());
+        QVERIFY(!Settings::uploadForcePathStyle());
+
+        Settings::setUploadEnabled(true);
+        Settings::setUploadEndpoint("acct.r2.cloudflarestorage.com");
+        Settings::setUploadRegion("auto");
+        Settings::setUploadBucket("clips");
+        Settings::setUploadAccessKeyId("AKIA123");
+        Settings::setUploadKeyPrefix("screenshots/");
+        Settings::setUploadPublicBaseUrl("https://pub-x.r2.dev");
+        Settings::setUploadForcePathStyle(true);
+
+        QVERIFY(Settings::uploadEnabled());
+        QCOMPARE(Settings::uploadRegion(), QStringLiteral("auto"));
+        QCOMPARE(Settings::uploadBucket(), QStringLiteral("clips"));
+        QCOMPARE(Settings::uploadAccessKeyId(), QStringLiteral("AKIA123"));
+        QCOMPARE(Settings::uploadKeyPrefix(), QStringLiteral("screenshots/"));
+        QCOMPARE(Settings::uploadPublicBaseUrl(), QStringLiteral("https://pub-x.r2.dev"));
+        QVERIFY(Settings::uploadForcePathStyle());
+
+        // The secret key must NEVER be a persisted QSettings key.
+        const QStringList keys = QSettings().allKeys();
+        for (const QString &k : keys)
+            QVERIFY(!k.contains("Secret", Qt::CaseInsensitive));
+    }
 };
 
 QTEST_MAIN(tst_Settings)
