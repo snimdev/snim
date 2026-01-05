@@ -27,6 +27,10 @@ set(NICESHOT_TESTS
         tst_uploadprofiles
         tst_uploadconfig
         tst_uploadutil
+        tst_hotkeyaction
+        tst_hotkeybindings
+        tst_hotkeymapping
+        tst_hotkeymanager
 )
 
 foreach(test_name ${NICESHOT_TESTS})

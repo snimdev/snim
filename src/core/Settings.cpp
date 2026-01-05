@@ -34,6 +34,12 @@ constexpr auto kUploadForcePathStyle   = "Upload/ForcePathStyle";
 constexpr auto kUploadProfilesJson     = "Upload/Profiles";
 constexpr auto kUploadDefaultProfileId = "Upload/DefaultProfileId";
 constexpr auto kUploadKnownHostKeys    = "Upload/KnownHostKeys";
+constexpr auto kHotkeyCaptureArea       = "Hotkeys/CaptureArea";
+constexpr auto kHotkeyCaptureWindow     = "Hotkeys/CaptureWindow";
+constexpr auto kHotkeyCaptureFullScreen = "Hotkeys/CaptureFullScreen";
+constexpr auto kHotkeyOcrTextSnip       = "Hotkeys/OcrTextSnip";
+constexpr auto kHotkeyRecordArea        = "Hotkeys/RecordArea";
+constexpr auto kHotkeyRecordWindow      = "Hotkeys/RecordWindow";
 }
 
 QString Settings::screenshotFolder()
@@ -105,6 +111,20 @@ QString Settings::uploadDefaultProfileId() { return QSettings().value(kUploadDef
 void Settings::setUploadDefaultProfileId(const QString &id) { QSettings().setValue(kUploadDefaultProfileId, id); }
 QString Settings::uploadKnownHostKeys() { return QSettings().value(kUploadKnownHostKeys).toString(); }
 void Settings::setUploadKnownHostKeys(const QString &json) { QSettings().setValue(kUploadKnownHostKeys, json); }
+
+// The default only applies when the key is absent; a stored "" stays "unbound".
+QString Settings::hotkeyCaptureArea() { return QSettings().value(kHotkeyCaptureArea, "Ctrl+Shift+A").toString(); }
+void Settings::setHotkeyCaptureArea(const QString &seq) { QSettings().setValue(kHotkeyCaptureArea, seq); }
+QString Settings::hotkeyCaptureWindow() { return QSettings().value(kHotkeyCaptureWindow, "Ctrl+Shift+W").toString(); }
+void Settings::setHotkeyCaptureWindow(const QString &seq) { QSettings().setValue(kHotkeyCaptureWindow, seq); }
+QString Settings::hotkeyCaptureFullScreen() { return QSettings().value(kHotkeyCaptureFullScreen, "").toString(); }
+void Settings::setHotkeyCaptureFullScreen(const QString &seq) { QSettings().setValue(kHotkeyCaptureFullScreen, seq); }
+QString Settings::hotkeyOcrTextSnip() { return QSettings().value(kHotkeyOcrTextSnip, "Ctrl+Shift+T").toString(); }
+void Settings::setHotkeyOcrTextSnip(const QString &seq) { QSettings().setValue(kHotkeyOcrTextSnip, seq); }
+QString Settings::hotkeyRecordArea() { return QSettings().value(kHotkeyRecordArea, "Ctrl+Shift+R").toString(); }
+void Settings::setHotkeyRecordArea(const QString &seq) { QSettings().setValue(kHotkeyRecordArea, seq); }
+QString Settings::hotkeyRecordWindow() { return QSettings().value(kHotkeyRecordWindow, "").toString(); }
+void Settings::setHotkeyRecordWindow(const QString &seq) { QSettings().setValue(kHotkeyRecordWindow, seq); }
 
 QColor Settings::editorForeground() { return QSettings().value(kForeground, QColor(Qt::red)).value<QColor>(); }
 void Settings::setEditorForeground(const QColor &c) { QSettings().setValue(kForeground, c); }

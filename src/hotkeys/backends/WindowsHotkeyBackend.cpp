@@ -1,0 +1,110 @@
+#include "hotkeys/backends/WindowsHotkeyBackend.h"
+
+// Everything below is Win32; on any other host this compiles to an empty translation
+// unit, so a stray build outside the WIN32 CMake block stays harmless.
+#ifdef Q_OS_WIN
+
+#include "hotkeys/WinKeyMapping.h"
+
+#include <QCoreApplication>
+#include <QDebug>
+
+#include <windows.h>
+
+#ifndef MOD_NOREPEAT
+#define MOD_NOREPEAT 0x4000
+#endif
+
+namespace Hotkeys {
+
+WindowsHotkeyBackend::WindowsHotkeyBackend(QObject *parent) : HotkeyBackend(parent)
+{
+    // WM_HOTKEY goes to the thread that called RegisterHotKey, which is this (GUI) one.
+    if (qApp)
+        qApp->installNativeEventFilter(this);
+}
+
+WindowsHotkeyBackend::~WindowsHotkeyBackend()
+{
+    unregisterAll();
+    if (qApp)
+        qApp->removeNativeEventFilter(this);
+}
+
+void WindowsHotkeyBackend::registerAll(const QList<HotkeyBinding> &bindings)
+{
+    unregisterAll();
+
+    int id = 0;
+    for (const HotkeyBinding &binding : bindings) {
+        const std::optional<WinHotkey> hotkey = toWinHotkey(binding.sequence);
+        if (!hotkey) {
+            emit registrationFailed(binding.action,
+                                    tr("this key combination is not supported on Windows"));
+            continue;
+        }
+
+        ++id;
+        // MOD_NOREPEAT: a held-down chord fires once, not once per auto-repeat.
+        if (!RegisterHotKey(nullptr, id, hotkey->modifiers | MOD_NOREPEAT, hotkey->virtualKey)) {
+            const DWORD error = GetLastError();
+            // Best effort: a rejected sequence must not cost the remaining ones.
+            if (error == ERROR_HOTKEY_ALREADY_REGISTERED)
+                emit registrationFailed(binding.action,
+                                        tr("already in use by another application"));
+            else
+                emit registrationFailed(binding.action,
+                                        tr("registration failed (error %1)").arg(error));
+            continue;
+        }
+
+        m_registered.insert(id, binding.action);
+    }
+}
+
+void WindowsHotkeyBackend::unregisterAll()
+{
+    for (auto it = m_registered.cbegin(); it != m_registered.cend(); ++it)
+        UnregisterHotKey(nullptr, it.key());
+    m_registered.clear();
+}
+
+bool WindowsHotkeyBackend::isAvailable() const
+{
+    return true;
+}
+
+QString WindowsHotkeyBackend::name() const
+{
+    return QStringLiteral("Win32");
+}
+
+HotkeyBackend::Capabilities WindowsHotkeyBackend::capabilities() const
+{
+    return Capability::UserConfiguresKeys;
+}
+
+bool WindowsHotkeyBackend::nativeEventFilter(const QByteArray &eventType, void *message,
+                                             qintptr *result)
+{
+    Q_UNUSED(result)
+
+    if (eventType != "windows_generic_MSG" || !message)
+        return false;
+
+    const MSG *msg = static_cast<MSG *>(message);
+    if (msg->message != WM_HOTKEY)
+        return false;
+
+    const auto it = m_registered.constFind(static_cast<int>(msg->wParam));
+    if (it == m_registered.cend())
+        return false;
+
+    // The filter runs on the GUI thread, so this lands where a tray click would.
+    emit activated(it.value());
+    return true;
+}
+
+} // namespace Hotkeys
+
+#endif // Q_OS_WIN

@@ -77,6 +77,21 @@ public:
     static QString uploadKnownHostKeys();              // default: "" (nothing pinned)
     static void setUploadKnownHostKeys(const QString &json);
 
+    // Global hotkeys, stored as QKeySequence::PortableText. Absent key = default
+    // below; "" = explicitly unbound (Hotkeys::HotkeyBindings owns the distinction).
+    static QString hotkeyCaptureArea();                // default: "Ctrl+Shift+A"
+    static void setHotkeyCaptureArea(const QString &seq);
+    static QString hotkeyCaptureWindow();              // default: "Ctrl+Shift+W"
+    static void setHotkeyCaptureWindow(const QString &seq);
+    static QString hotkeyCaptureFullScreen();          // default: "" (unbound)
+    static void setHotkeyCaptureFullScreen(const QString &seq);
+    static QString hotkeyOcrTextSnip();                // default: "Ctrl+Shift+T"
+    static void setHotkeyOcrTextSnip(const QString &seq);
+    static QString hotkeyRecordArea();                 // default: "Ctrl+Shift+R"
+    static void setHotkeyRecordArea(const QString &seq);
+    static QString hotkeyRecordWindow();               // default: "" (unbound)
+    static void setHotkeyRecordWindow(const QString &seq);
+
     // Editor annotation defaults
     static QColor editorForeground();                   // default: red
     static void setEditorForeground(const QColor &c);

@@ -304,6 +304,27 @@ add_library(niceshot_lib STATIC
         src/recording/strategies/StubRecordingStrategy.cpp
         src/recording/strategies/StubRecordingStrategy.h
 
+        # Hotkeys: platform-agnostic core + pure key mappers (no platform headers, so
+        # testable on any host). The real backends live in the platform blocks below.
+        src/hotkeys/HotkeyAction.cpp
+        src/hotkeys/HotkeyAction.h
+        src/hotkeys/HotkeyBindings.cpp
+        src/hotkeys/HotkeyBindings.h
+        src/hotkeys/HotkeyBackend.cpp
+        src/hotkeys/HotkeyBackend.h
+        src/hotkeys/HotkeyBackendFactory.cpp
+        src/hotkeys/HotkeyBackendFactory.h
+        src/hotkeys/GlobalHotkeyManager.cpp
+        src/hotkeys/GlobalHotkeyManager.h
+        src/hotkeys/MacKeyMapping.cpp
+        src/hotkeys/MacKeyMapping.h
+        src/hotkeys/WinKeyMapping.cpp
+        src/hotkeys/WinKeyMapping.h
+        src/hotkeys/PortalKeyMapping.cpp
+        src/hotkeys/PortalKeyMapping.h
+        src/hotkeys/backends/StubHotkeyBackend.cpp
+        src/hotkeys/backends/StubHotkeyBackend.h
+
 )
 
 # The executable: entry point + resources only. The qrc is kept on the exe (and
@@ -328,7 +349,11 @@ if(APPLE)
             src/editor/video/MacVideoExporter.h
             src/editor/video/MacVideoExporter.mm
             # macOS keychain backing for the S3 secret access key (Security.framework)
-            src/core/KeychainStore_mac.mm)
+            src/core/KeychainStore_mac.mm
+            # macOS global hotkeys (Carbon RegisterEventHotKey); the header is listed
+            # so AUTOMOC sees its Q_OBJECT, as with the .mm-backed classes above
+            src/hotkeys/backends/MacHotkeyBackend.h
+            src/hotkeys/backends/MacHotkeyBackend.mm)
     # These .mm files hold ScreenCaptureKit/AVFoundation/Foundation objects across calls,
     # so compile them with ARC to manage those refs automatically.
     set_source_files_properties(
@@ -336,8 +361,11 @@ if(APPLE)
             src/editor/video/MacVideoExporter.mm
             src/core/KeychainStore_mac.mm
             PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-    # Activates the Mac branch of RecordingFactory + makes Auto pick ScreenCaptureKit.
-    target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_MAC_RECORDER)
+    # Activates the Mac branch of RecordingFactory + makes Auto pick ScreenCaptureKit,
+    # and the Carbon branch of HotkeyBackendFactory.
+    target_compile_definitions(niceshot_lib PUBLIC
+            NICESHOT_HAVE_MAC_RECORDER
+            NICESHOT_HAVE_MAC_HOTKEYS)
     target_link_libraries(niceshot_lib PUBLIC
             "-framework CoreGraphics"
             "-framework CoreFoundation"
@@ -347,7 +375,8 @@ if(APPLE)
             "-framework CoreMedia"
             "-framework CoreVideo"
             "-framework ImageIO"     # animated-GIF encode in the trim editor
-            "-framework Security")   # keychain (S3 secret access key)
+            "-framework Security"    # keychain (S3 secret access key)
+            "-framework Carbon")     # RegisterEventHotKey (global hotkeys)
     # Qt ships the macOS permission backends as STATIC plugins (libqdarwin*permission.a),
     # so they must be imported into the executable - otherwise the QPermission API has no
     # backend at runtime and QCamera reports "Could not find permission plugin for
@@ -384,7 +413,20 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             src/capture/strategies/WaylandCaptureStrategy.h
             src/capture/strategies/KWinCaptureStrategy.cpp
             src/capture/strategies/KWinCaptureStrategy.h
+            # Global hotkeys via the xdg-desktop-portal GlobalShortcuts session
+            src/hotkeys/backends/PortalHotkeyBackend.cpp
+            src/hotkeys/backends/PortalHotkeyBackend.h
     )
+endif()
+
+# Windows global hotkeys: RegisterHotKey + a WM_HOTKEY native event filter. The define
+# activates the Windows branch of HotkeyBackendFactory (user32 needs no extra linking).
+if(WIN32)
+    target_sources(niceshot_lib PRIVATE
+            src/hotkeys/backends/WindowsHotkeyBackend.cpp
+            src/hotkeys/backends/WindowsHotkeyBackend.h
+    )
+    target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_WIN_HOTKEYS)
 endif()
 
 # Set include directories for the organized structure. PUBLIC so the executable
