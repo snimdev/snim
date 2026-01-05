@@ -15,6 +15,9 @@
 #include <QFileDialog>
 
 #include "core/Settings.h"
+#include "capture/AreaSelector.h"
+#include "hotkeys/GlobalHotkeyManager.h"
+#include "hotkeys/HotkeyBindings.h"
 #include "editor/image/ImageEditor.h"
 #include "editor/video/VideoEditor.h"
 #include "recording/RecordingController.h"
@@ -23,6 +26,7 @@
 #include "upload/UploaderFactory.h"
 #include <QClipboard>
 #include <QUrl>
+#include <algorithm>
 
 namespace Core {
     ScreenshotApp::ScreenshotApp(int &argc, char **argv)
@@ -72,6 +76,28 @@ namespace Core {
                 });
 
         setupSystemTray();
+
+        // Deferred: the backends register against a running event loop.
+        QTimer::singleShot(0, this, [this] {
+            m_hotkeyManager = std::make_unique<Hotkeys::GlobalHotkeyManager>(this);
+            connect(m_hotkeyManager.get(), &Hotkeys::GlobalHotkeyManager::actionTriggered,
+                    this, [this](Hotkeys::HotkeyAction action) {
+                        if (hotkeyBlockedBySelection(action))
+                            return;
+                        // trigger() on a disabled action is a no-op, so the OCR /
+                        // recorder availability gating carries over unchanged.
+                        if (QAction *target = actionFor(action))
+                            target->trigger();
+                    });
+            connect(m_hotkeyManager.get(), &Hotkeys::GlobalHotkeyManager::registrationFailed,
+                    this, [this](const QString &message) {
+                        if (m_trayIcon)
+                            m_trayIcon->showMessage(tr("Hotkey unavailable"), message,
+                                                    QSystemTrayIcon::Warning, 5000);
+                    });
+            m_hotkeyManager->applyBindings();
+            refreshActionShortcuts();
+        });
     }
 
     ScreenshotApp::~ScreenshotApp() {
@@ -103,15 +129,15 @@ namespace Core {
     void ScreenshotApp::setupSystemTray() {
         // Create actions
         m_captureAreaAction = new QAction("Capture Area", this);
-        m_captureAreaAction->setShortcut(QKeySequence("Ctrl+Shift+A"));
         connect(m_captureAreaAction, &QAction::triggered, this, &ScreenshotApp::captureArea);
 
         m_captureWindowAction = new QAction("Capture Window", this);
-        m_captureWindowAction->setShortcut(QKeySequence("Ctrl+Shift+W"));
         connect(m_captureWindowAction, &QAction::triggered, this, &ScreenshotApp::captureWindow);
 
+        m_captureFullScreenAction = new QAction("Capture Full Screen", this);
+        connect(m_captureFullScreenAction, &QAction::triggered, this, &ScreenshotApp::captureFullScreen);
+
         m_textSnipAction = new QAction("Extract Text (OCR)", this);
-        m_textSnipAction->setShortcut(QKeySequence("Ctrl+Shift+T"));
         connect(m_textSnipAction, &QAction::triggered, this, &ScreenshotApp::captureTextSnip);
 
         // Disable text snip if OCR is not available
@@ -122,7 +148,6 @@ namespace Core {
         }
 
         m_recordAreaAction = new QAction("Record Area", this);
-        m_recordAreaAction->setShortcut(QKeySequence("Ctrl+Shift+R"));
         connect(m_recordAreaAction, &QAction::triggered, this, &ScreenshotApp::toggleAreaRecording);
 
         m_recordWindowAction = new QAction("Record Window", this);
@@ -150,6 +175,7 @@ namespace Core {
         m_trayMenu = new QMenu();
         m_trayMenu->addAction(m_captureAreaAction);
         m_trayMenu->addAction(m_captureWindowAction);
+        m_trayMenu->addAction(m_captureFullScreenAction);
         m_trayMenu->addAction(m_recordAreaAction);
         m_trayMenu->addAction(m_recordWindowAction);
         m_trayMenu->addAction(m_textSnipAction);
@@ -199,16 +225,66 @@ namespace Core {
         m_captureStrategy->captureWindow();
     }
 
+    void ScreenshotApp::captureFullScreen() const {
+        qDebug() << "Capture full screen using strategy:" << m_captureStrategy->name();
+
+        // The strategy emits screenshotReady, so this joins the normal editor flow.
+        m_captureStrategy->captureFullScreen();
+    }
+
+    QAction *ScreenshotApp::actionFor(const Hotkeys::HotkeyAction action) const {
+        switch (action) {
+        case Hotkeys::HotkeyAction::CaptureArea:       return m_captureAreaAction;
+        case Hotkeys::HotkeyAction::CaptureWindow:     return m_captureWindowAction;
+        case Hotkeys::HotkeyAction::CaptureFullScreen: return m_captureFullScreenAction;
+        case Hotkeys::HotkeyAction::OcrTextSnip:       return m_textSnipAction;
+        case Hotkeys::HotkeyAction::RecordArea:        return m_recordAreaAction;
+        case Hotkeys::HotkeyAction::RecordWindow:      return m_recordWindowAction;
+        }
+        return nullptr;
+    }
+
+    bool ScreenshotApp::hotkeyBlockedBySelection(const Hotkeys::HotkeyAction action) const {
+        // A stateless widget scan on purpose, not a latch: the overlay's Esc-cancel
+        // path emits no completion signal, so a flag would stay stuck.
+        const auto widgets = QApplication::topLevelWidgets();
+        const bool selecting = std::any_of(widgets.cbegin(), widgets.cend(), [](const QWidget *w) {
+            return w->isVisible() && qobject_cast<const Capture::AreaSelector *>(w) != nullptr;
+        });
+        if (!selecting)
+            return false;
+
+        // Record Area doubles as Stop, so it still passes while a recording runs.
+        if (action == Hotkeys::HotkeyAction::RecordArea)
+            return !(m_recordingController && m_recordingController->isRecording());
+        return true;
+    }
+
+    void ScreenshotApp::refreshActionShortcuts() {
+        for (const Hotkeys::HotkeyAction action : Hotkeys::allHotkeyActions()) {
+            if (QAction *target = actionFor(action))
+                target->setShortcut(Hotkeys::HotkeyBindings::sequence(action));
+        }
+    }
+
     void ScreenshotApp::showAbout() {
         QString aboutText = "Screenshot App v1.0\n\n"
                            "A simple screenshot tool with editing capabilities.\n\n"
-                           "Shortcuts:\n"
-                           "• Ctrl+Shift+A: Capture Area\n"
-                           "• Ctrl+Shift+W: Capture Window";
+                           "Shortcuts:";
 
-        if (TextSnipCapture::isOCRAvailable()) {
-            aboutText += "\n• Ctrl+Shift+T: Extract Text (OCR)";
+        bool anyBound = false;
+        for (const Hotkeys::HotkeyAction action : Hotkeys::allHotkeyActions()) {
+            if (action == Hotkeys::HotkeyAction::OcrTextSnip && !TextSnipCapture::isOCRAvailable())
+                continue;
+            const QKeySequence seq = Hotkeys::HotkeyBindings::sequence(action);
+            if (seq.isEmpty())
+                continue;
+            aboutText += "\n• " + Hotkeys::hotkeyActionDescription(action) + ": "
+                         + seq.toString(QKeySequence::NativeText);
+            anyBound = true;
         }
+        if (!anyBound)
+            aboutText += "\n• None configured";
 
         QMessageBox::about(nullptr, "About Screenshot App", aboutText);
     }
@@ -216,6 +292,11 @@ namespace Core {
     void ScreenshotApp::showSettings() {
         auto *settingsDialog = new SettingsDialog();
         settingsDialog->setAttribute(Qt::WA_DeleteOnClose);
+        connect(settingsDialog, &SettingsDialog::settingsApplied, this, [this] {
+            if (m_hotkeyManager)
+                m_hotkeyManager->applyBindings();
+            refreshActionShortcuts();
+        });
         settingsDialog->exec();
     }
 

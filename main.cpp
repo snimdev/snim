@@ -11,12 +11,13 @@ int main(int argc, char *argv[]) {
         "Niceshot.debug=true\n"
         "default.debug=true"  // For qDebug() without category
     );
-    Core::ScreenshotApp app(argc, argv);
-
-    // Set application properties
+    // Static setters, set before construction: ScreenshotApp's constructor already
+    // reads QSettings, which resolves its scope from these names.
     Core::ScreenshotApp::setApplicationName("Screenshot App");
     Core::ScreenshotApp::setApplicationVersion("1.0");
     Core::ScreenshotApp::setOrganizationName("Screenshot Tools");
+
+    Core::ScreenshotApp app(argc, argv);
 
     // Test debug output
     qDebug() << "Application starting...";

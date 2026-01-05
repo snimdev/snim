@@ -21,7 +21,9 @@
 #include <QStackedWidget>
 #include <QVector>
 #include <QHash>
+#include <QKeySequenceEdit>
 
+#include "hotkeys/HotkeyAction.h"
 #include "upload/UploadProfiles.h"
 
 namespace Upload { class Uploader; }
@@ -35,12 +37,17 @@ class SettingsDialog : public QDialog
 public:
     explicit SettingsDialog(QWidget *parent = nullptr);
 
+signals:
+    // Emitted after Apply has persisted everything, before the dialog closes.
+    void settingsApplied();
+
 private slots:
     void browseScreenshotFolder();
     void chooseForegroundColor();
     void chooseBackgroundColor();
     void applySettings();
     void resetSettings();
+    void validateHotkeys();
 
 private:
     void setupUI();
@@ -159,8 +166,16 @@ private:
     QHash<QString, QString> m_uploadNewSecrets;       // profile id -> newly entered secret
     int m_uploadCurrentRow = -1;                      // row currently bound to the form
 
-    // Hotkeys Tab
+    // Hotkeys Tab - one row per Hotkeys::HotkeyAction, in enum order.
+    struct HotkeyRow {
+        Hotkeys::HotkeyAction action;
+        QKeySequenceEdit *edit;
+    };
+    [[nodiscard]] bool hasHotkeyConflicts() const;
+
     QWidget *m_hotkeysTab;
+    QVector<HotkeyRow> m_hotkeyRows;
+    QLabel *m_hotkeyConflictLabel = nullptr;   // hidden unless two rows collide
 
     // Dialog buttons
     QPushButton *m_applyButton;

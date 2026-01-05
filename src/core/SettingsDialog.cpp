@@ -1,13 +1,17 @@
 #include "SettingsDialog.h"
 #include "core/Settings.h"
 #include "core/KeychainStore.h"
+#include "hotkeys/HotkeyBackendFactory.h"
+#include "hotkeys/HotkeyBindings.h"
 #include "upload/UploadProfiles.h"
 #include "upload/UploadConfig.h"
 #include "upload/Uploader.h"
 #include "upload/UploaderFactory.h"
 #include <QAction>
 #include <QGroupBox>
+#include <QMessageBox>
 #include <QSet>
+#include <QToolButton>
 #include <QSignalBlocker>
 #include <QStandardPaths>
 #include <QDir>
@@ -879,14 +883,108 @@ void SettingsDialog::setupHotkeysTab()
 
     auto *layout = new QVBoxLayout(m_hotkeysTab);
 
-    auto *label = new QLabel("Hotkey settings will be implemented here.", m_hotkeysTab);
-    label->setAlignment(Qt::AlignCenter);
-    label->setStyleSheet("color: gray; font-style: italic;");
+    // Built first: the rows below connect validateHotkeys, which writes to it.
+    m_hotkeyConflictLabel = new QLabel(m_hotkeysTab);
+    m_hotkeyConflictLabel->setWordWrap(true);
+    m_hotkeyConflictLabel->setStyleSheet("color: #c62828;");
+    m_hotkeyConflictLabel->hide();
 
-    layout->addWidget(label);
+    auto *group = new QGroupBox(tr("Global Hotkeys"), m_hotkeysTab);
+    auto *form = new QFormLayout(group);
+
+    for (const Hotkeys::HotkeyAction action : Hotkeys::allHotkeyActions()) {
+        auto *edit = new QKeySequenceEdit(group);
+        edit->setMaximumSequenceLength(1);   // no backend can register a second chord
+        edit->setClearButtonEnabled(true);
+
+        auto *defaultButton = new QToolButton(group);
+        defaultButton->setText(tr("Default"));
+        defaultButton->setToolTip(tr("Restore the factory hotkey"));
+        connect(defaultButton, &QToolButton::clicked, this, [edit, action] {
+            edit->setKeySequence(Hotkeys::HotkeyBindings::defaultSequence(action));
+        });
+
+        auto *row = new QHBoxLayout();
+        row->addWidget(edit);
+        row->addWidget(defaultButton);
+        form->addRow(Hotkeys::hotkeyActionDescription(action) + ":", row);
+
+        connect(edit, &QKeySequenceEdit::keySequenceChanged, this, &SettingsDialog::validateHotkeys);
+        m_hotkeyRows.append(HotkeyRow{action, edit});
+    }
+
+    layout->addWidget(group);
+
+    // The factory answers for the platform without creating a backend, so no Carbon
+    // handler is installed and no portal session is opened by opening Settings.
+    if (!Hotkeys::HotkeyBackendFactory::isAvailable()) {
+        auto *info = new QLabel(tr("Global hotkeys are not supported on this system."), m_hotkeysTab);
+        info->setWordWrap(true);
+        info->setStyleSheet("color: gray;");
+        layout->addWidget(info);
+        group->setEnabled(false);
+    } else if (!Hotkeys::HotkeyBackendFactory::capabilities()
+                    .testFlag(Hotkeys::HotkeyBackend::Capability::UserConfiguresKeys)) {
+        auto *info = new QLabel(tr("Your desktop manages global shortcut keys. The combinations "
+                                   "below are suggestions; the system's own shortcut dialog "
+                                   "decides the final bindings."), m_hotkeysTab);
+        info->setWordWrap(true);
+        info->setStyleSheet("color: gray;");
+        layout->addWidget(info);
+    }
+
+    layout->addWidget(m_hotkeyConflictLabel);
     layout->addStretch();
 
     m_tabWidget->addTab(m_hotkeysTab, "Hotkeys");
+}
+
+void SettingsDialog::validateHotkeys()
+{
+    QHash<QString, QVector<int>> bySequence;   // portable text -> row indices
+    for (int i = 0; i < m_hotkeyRows.size(); ++i) {
+        const QKeySequence seq = m_hotkeyRows[i].edit->keySequence();
+        if (!seq.isEmpty())
+            bySequence[seq.toString(QKeySequence::PortableText)].append(i);
+    }
+
+    QSet<int> clashing;
+    QStringList messages;
+    for (auto it = bySequence.cbegin(); it != bySequence.cend(); ++it) {
+        if (it.value().size() < 2)
+            continue;
+        QStringList names;
+        for (const int row : it.value()) {
+            clashing.insert(row);
+            names << Hotkeys::hotkeyActionDescription(m_hotkeyRows[row].action);
+        }
+        const QString last = names.takeLast();
+        messages << tr("%1 and %2 use the same hotkey").arg(names.join(", "), last);
+    }
+
+    // The :focus arm too, or the focused edit keeps the platform focus frame instead.
+    static const QString kClashStyle =
+        QStringLiteral("QLineEdit { border: 1px solid #c62828; }"
+                       "QLineEdit:focus { border: 1px solid #c62828; }");
+    for (int i = 0; i < m_hotkeyRows.size(); ++i)
+        m_hotkeyRows[i].edit->setStyleSheet(clashing.contains(i) ? kClashStyle : QString());
+    m_hotkeyConflictLabel->setText(messages.join(QStringLiteral("\n")));
+    m_hotkeyConflictLabel->setVisible(!messages.isEmpty());
+}
+
+bool SettingsDialog::hasHotkeyConflicts() const
+{
+    QSet<QString> seen;
+    for (const HotkeyRow &row : m_hotkeyRows) {
+        const QKeySequence seq = row.edit->keySequence();
+        if (seq.isEmpty())
+            continue;
+        const QString text = seq.toString(QKeySequence::PortableText);
+        if (seen.contains(text))
+            return true;
+        seen.insert(text);
+    }
+    return false;
 }
 
 void SettingsDialog::browseScreenshotFolder()
@@ -1002,6 +1100,10 @@ void SettingsDialog::loadSettings()
     m_systemAudioCheck->setChecked(Settings::systemAudioEnabled());
     m_frameCheck->setChecked(Settings::recordingFrameEnabled());
 
+    for (const HotkeyRow &row : m_hotkeyRows)
+        row.edit->setKeySequence(Hotkeys::HotkeyBindings::sequence(row.action));
+    validateHotkeys();
+
     // Upload - load the working copy of all profiles (this also runs the one-time
     // legacy single-config migration the first time). Secrets stay in the keychain.
     m_uploadEnabledCheck->setChecked(Settings::uploadEnabled());
@@ -1029,6 +1131,10 @@ void SettingsDialog::saveSettings()
     Settings::setMicDeviceId(m_micCombo->currentData().toByteArray());
     Settings::setSystemAudioEnabled(m_systemAudioCheck->isChecked());
     Settings::setRecordingFrameEnabled(m_frameCheck->isChecked());
+
+    for (const HotkeyRow &row : m_hotkeyRows)
+        Hotkeys::HotkeyBindings::setSequence(
+            row.action, Hotkeys::HotkeyBindings::normalized(row.edit->keySequence()));
 
     // Upload - commit the working profiles. Secrets go to the keychain (keyed by
     // profile id), never to QSettings.
@@ -1066,6 +1172,15 @@ void SettingsDialog::saveSettings()
 
 void SettingsDialog::applySettings()
 {
+    // Two actions sharing a sequence would register once and fire the wrong one.
+    if (hasHotkeyConflicts()) {
+        m_tabWidget->setCurrentWidget(m_hotkeysTab);
+        QMessageBox::warning(this, tr("Conflicting hotkeys"),
+                             tr("Two actions are assigned the same hotkey. Change or clear one "
+                                "of them before applying."));
+        return;
+    }
+
     // Create screenshot folder if it doesn't exist
     QString folderPath = m_screenshotFolderEdit->text();
     if (!folderPath.isEmpty()) {
@@ -1076,6 +1191,7 @@ void SettingsDialog::applySettings()
     }
 
     saveSettings();
+    emit settingsApplied();
     accept();
 }
 
@@ -1100,6 +1216,11 @@ void SettingsDialog::resetSettings()
         m_micCombo->setCurrentIndex(0);
     m_cameraCombo->setEnabled(false);
     m_micCombo->setEnabled(false);
+
+    // Form-level only, like the rest of this slot: committed on Apply.
+    for (const HotkeyRow &row : m_hotkeyRows)
+        row.edit->setKeySequence(Hotkeys::HotkeyBindings::defaultSequence(row.action));
+    validateHotkeys();
 }
 
 } // namespace Core
