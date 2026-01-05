@@ -18,6 +18,7 @@ set(NICESHOT_TESTS
         tst_integration_scene
         tst_recordingfactory
         tst_recordtarget
+        tst_recordinggeometry
         tst_recordingcontroller
         tst_pcmmixbuffer
         tst_trimstate

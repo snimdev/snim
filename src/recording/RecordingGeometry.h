@@ -2,6 +2,7 @@
 #define RECORDING_RECORDINGGEOMETRY_H
 
 #include <QRect>
+#include <QSize>
 #include <QVector>
 
 namespace Recording {
@@ -43,6 +44,59 @@ inline QVector<QRect> surroundingRects(const QRect &outer, const QRect &holeIn)
         strips.append(QRect(hole.right() + 1, hole.top(),
                             outer.right() - hole.right(), hole.height()));
     return strips;
+}
+
+struct StreamCrop {
+    QRect cropPx;     // crop rect in stream pixels
+    QSize outputPx;   // final encoded size
+    bool  valid = false;
+};
+
+/**
+ * Map a virtual-desktop logical rect onto one xdg-desktop-portal ScreenCast stream:
+ * where to crop inside the stream's pixel buffer, and how large the encoded output
+ * should be. `streamRectLogical` is the stream's place on the virtual desktop and
+ * `streamSizePx` its real buffer size, so their ratio is the compositor's scale
+ * (fractional under Wayland, 1.0 on X11 portals). Both sizes are rounded down to even
+ * because H.264 4:2:0 cannot encode odd dimensions. Pure, so it's unit-tested without
+ * a portal or GStreamer.
+ */
+inline StreamCrop portalStreamCrop(const QRect &regionVirtual,
+                                   const QRect &streamRectLogical,
+                                   const QSize &streamSizePx,
+                                   bool retinaCapture)
+{
+    StreamCrop out;
+    if (regionVirtual.isEmpty() || streamRectLogical.isEmpty()
+        || streamSizePx.width() <= 0 || streamSizePx.height() <= 0)
+        return out;
+
+    const QRect inter = regionVirtual.intersected(streamRectLogical);
+    if (inter.isEmpty())
+        return out;
+
+    const qreal scaleX = streamSizePx.width() / (qreal)streamRectLogical.width();
+    const qreal scaleY = streamSizePx.height() / (qreal)streamRectLogical.height();
+
+    const QRect local = inter.translated(-streamRectLogical.topLeft());
+    QRect cropPx(qRound(local.x() * scaleX), qRound(local.y() * scaleY),
+                 qRound(local.width() * scaleX), qRound(local.height() * scaleY));
+    cropPx = cropPx.intersected(QRect(QPoint(0, 0), streamSizePx));
+
+    QSize outputPx = retinaCapture ? cropPx.size() : inter.size();
+    cropPx.setWidth(cropPx.width() & ~1);
+    cropPx.setHeight(cropPx.height() & ~1);
+    outputPx.setWidth(outputPx.width() & ~1);
+    outputPx.setHeight(outputPx.height() & ~1);
+
+    if (cropPx.width() < 2 || cropPx.height() < 2
+        || outputPx.width() < 2 || outputPx.height() < 2)
+        return out;
+
+    out.cropPx = cropPx;
+    out.outputPx = outputPx;
+    out.valid = true;
+    return out;
 }
 
 } // namespace Recording
