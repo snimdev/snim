@@ -155,11 +155,19 @@ namespace Core {
 
         // Disable recording where the platform backend is unavailable (e.g. macOS < 12.3).
         if (m_recordingController && !m_recordingController->isAvailable()) {
+#if defined(Q_OS_MACOS)
+            const QString reason = "Screen recording requires macOS 12.3 or later";
+#elif defined(Q_OS_LINUX)
+            const QString reason = "Screen recording requires the ScreenCast portal and "
+                                   "GStreamer (with an H.264 encoder)";
+#else
+            const QString reason = "Screen recording is not supported on this platform yet";
+#endif
             m_recordAreaAction->setEnabled(false);
             m_recordAreaAction->setText("Record Area (unavailable)");
-            m_recordAreaAction->setToolTip("Screen recording requires macOS 12.3 or later");
+            m_recordAreaAction->setToolTip(reason);
             m_recordWindowAction->setEnabled(false);
-            m_recordWindowAction->setToolTip("Screen recording requires macOS 12.3 or later");
+            m_recordWindowAction->setToolTip(reason);
         }
 
         m_aboutAction = new QAction("About", this);

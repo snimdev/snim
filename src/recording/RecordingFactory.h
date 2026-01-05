@@ -18,6 +18,7 @@ public:
     enum class StrategyType {
         Auto,       // best available for this system
         Mac,        // ScreenCaptureKit (macOS 12.3+)
+        Linux,      // portal ScreenCast + GStreamer
         Stub        // unsupported-platform fallback
     };
 

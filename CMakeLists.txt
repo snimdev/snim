@@ -150,6 +150,25 @@ else()
     message(STATUS "  Install with: brew install libssh2 / sudo apt install libssh2-1-dev")
 endif()
 
+# Optional GStreamer - Linux screen recording (portal ScreenCast stream -> H.264 file)
+set(GSTREAMER_AVAILABLE FALSE)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PkgConfig_FOUND)
+    pkg_check_modules(GSTREAMER gstreamer-1.0>=1.18)
+    if(GSTREAMER_FOUND)
+        set(GSTREAMER_AVAILABLE TRUE)
+        message(STATUS "GStreamer found via pkg-config - enabling Linux screen recording")
+        message(STATUS "  Version: ${GSTREAMER_VERSION}")
+        message(STATUS "  Include: ${GSTREAMER_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${GSTREAMER_LIBRARIES}")
+    endif()
+endif()
+
+if(NOT GSTREAMER_AVAILABLE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(STATUS "GStreamer not found - Linux screen recording will be disabled")
+    message(STATUS "  Install with: sudo dnf install gstreamer1-devel")
+endif()
+
 # All cross-platform sources live in a static library so both the executable and
 # the test suite can link them. main.cpp + the .app bundle stay on the executable.
 add_library(niceshot_lib STATIC
@@ -421,6 +440,23 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             src/recording/strategies/ScreenCastPortalSession.cpp
             src/recording/strategies/ScreenCastPortalSession.h
     )
+endif()
+
+# Linux screen-recording backend - compiled only where GStreamer exists, like the
+# optional upload transports. Without it RecordingFactory keeps returning the stub.
+if(GSTREAMER_AVAILABLE)
+    target_sources(niceshot_lib PRIVATE
+            src/recording/strategies/LinuxRecordingStrategy.cpp
+            src/recording/strategies/LinuxRecordingStrategy.h)
+    target_include_directories(niceshot_lib PRIVATE ${GSTREAMER_INCLUDE_DIRS})
+    # pkg-config reports plain library names; add its dirs so a non-default prefix links.
+    if(GSTREAMER_LIBRARY_DIRS)
+        target_link_directories(niceshot_lib PUBLIC ${GSTREAMER_LIBRARY_DIRS})
+    endif()
+    target_link_libraries(niceshot_lib PUBLIC ${GSTREAMER_LIBRARIES})
+    # Activates the Linux branch of RecordingFactory + makes Auto pick the portal
+    # recorder. PUBLIC because the tests check the macro.
+    target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_LINUX_RECORDER)
 endif()
 
 # Windows global hotkeys: RegisterHotKey + a WM_HOTKEY native event filter. The define

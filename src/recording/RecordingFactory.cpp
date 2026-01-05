@@ -3,6 +3,9 @@
 #ifdef NICESHOT_HAVE_MAC_RECORDER
 #include "recording/strategies/MacRecordingStrategy.h"
 #endif
+#ifdef NICESHOT_HAVE_LINUX_RECORDER
+#include "recording/strategies/LinuxRecordingStrategy.h"
+#endif
 
 #include <QtGlobal>
 #include <QDebug>
@@ -27,6 +30,19 @@ std::unique_ptr<RecordingStrategy> RecordingFactory::createStrategy(StrategyType
         }
         [[fallthrough]];
 
+        case StrategyType::Linux: {
+#ifdef NICESHOT_HAVE_LINUX_RECORDER
+            auto strategy = std::make_unique<LinuxRecordingStrategy>(parent);
+            if (strategy->isAvailable()) {
+                qDebug() << "Created portal/GStreamer recording strategy";
+                return strategy;
+            }
+            qWarning() << "Portal/GStreamer recorder unavailable (needs the ScreenCast portal "
+                          "and an H.264 encoder), using stub";
+#endif
+        }
+        [[fallthrough]];
+
         case StrategyType::Stub:
         default:
             return std::make_unique<StubRecordingStrategy>(parent);
@@ -35,8 +51,10 @@ std::unique_ptr<RecordingStrategy> RecordingFactory::createStrategy(StrategyType
 
 RecordingFactory::StrategyType RecordingFactory::getDefaultStrategyType()
 {
-#ifdef NICESHOT_HAVE_MAC_RECORDER
+#if defined(NICESHOT_HAVE_MAC_RECORDER)
     return StrategyType::Mac;
+#elif defined(NICESHOT_HAVE_LINUX_RECORDER)
+    return StrategyType::Linux;
 #else
     return StrategyType::Stub;
 #endif
@@ -48,6 +66,14 @@ bool RecordingFactory::isStrategyAvailable(StrategyType type)
         case StrategyType::Mac: {
 #ifdef NICESHOT_HAVE_MAC_RECORDER
             auto strategy = std::make_unique<MacRecordingStrategy>();
+            return strategy->isAvailable();
+#else
+            return false;
+#endif
+        }
+        case StrategyType::Linux: {
+#ifdef NICESHOT_HAVE_LINUX_RECORDER
+            auto strategy = std::make_unique<LinuxRecordingStrategy>();
             return strategy->isAvailable();
 #else
             return false;

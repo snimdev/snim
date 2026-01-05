@@ -32,10 +32,23 @@ private slots:
     {
         QVERIFY(RecordingFactory::isStrategyAvailable(RecordingFactory::StrategyType::Auto));
         QVERIFY(RecordingFactory::isStrategyAvailable(RecordingFactory::StrategyType::Stub));
-#ifdef NICESHOT_HAVE_MAC_RECORDER
+#if defined(NICESHOT_HAVE_MAC_RECORDER)
         QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Mac);
+#elif defined(NICESHOT_HAVE_LINUX_RECORDER)
+        QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Linux);
 #endif
     }
+
+#ifdef NICESHOT_HAVE_LINUX_RECORDER
+    void createsLinuxOrFallsBack()
+    {
+        auto s = RecordingFactory::createStrategy(RecordingFactory::StrategyType::Linux);
+        QVERIFY(s);
+        // Headless environments have no ScreenCast portal, so the stub is a valid answer.
+        QVERIFY(s->name() == QStringLiteral("Portal/GStreamer")
+                || s->name() == QStringLiteral("Unsupported"));
+    }
+#endif
 };
 
 QTEST_MAIN(tst_RecordingFactory)
