@@ -416,6 +416,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             # Global hotkeys via the xdg-desktop-portal GlobalShortcuts session
             src/hotkeys/backends/PortalHotkeyBackend.cpp
             src/hotkeys/backends/PortalHotkeyBackend.h
+            # Screen recording handshake via the xdg-desktop-portal ScreenCast session.
+            # Needs only QtDBus, so it is not gated on the GStreamer recorder.
+            src/recording/strategies/ScreenCastPortalSession.cpp
+            src/recording/strategies/ScreenCastPortalSession.h
     )
 endif()
 
