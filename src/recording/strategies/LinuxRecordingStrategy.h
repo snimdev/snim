@@ -33,6 +33,9 @@ public:
 
     void start(const RecordTarget &target, const QString &outputPath) override;
     void stop() override;
+    void pause() override;
+    void resume() override;
+    [[nodiscard]] bool isPaused() const override { return m_paused; }
     [[nodiscard]] bool isRecording() const override { return m_starting || m_recording; }
     [[nodiscard]] bool isAvailable() const override;
     [[nodiscard]] QString name() const override { return QStringLiteral("Portal/GStreamer"); }
@@ -66,6 +69,7 @@ private:
     bool m_starting = false;
     bool m_recording = false;
     bool m_stopping = false;
+    bool m_paused = false;
 
     mutable std::optional<bool> m_available;
 };

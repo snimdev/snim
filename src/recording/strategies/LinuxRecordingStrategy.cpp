@@ -363,9 +363,41 @@ void LinuxRecordingStrategy::stop()
         return;
     }
 
+    // EOS only drains through the muxer while data flows, so leave PAUSED first.
+    if (m_paused) {
+        gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
+        m_paused = false;
+        emit pausedChanged(false);
+    }
+
     m_durationTimer->stop();
     gst_element_send_event(m_pipeline, gst_event_new_eos());
     m_eosTimer->start();
+}
+
+void LinuxRecordingStrategy::pause()
+{
+    if (!m_recording || m_paused || m_stopping || !m_pipeline)
+        return;
+
+    // The pipeline saves the running time here and the live sources produce nothing while
+    // PAUSED, so the paused span never reaches the muxer or the position query.
+    gst_element_set_state(m_pipeline, GST_STATE_PAUSED);
+    m_durationTimer->stop();
+    m_paused = true;
+    emit pausedChanged(true);
+}
+
+void LinuxRecordingStrategy::resume()
+{
+    if (!m_recording || !m_paused || m_stopping || !m_pipeline)
+        return;
+
+    // Redistributes base_time, so buffers continue at the running time the pause froze.
+    gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
+    m_durationTimer->start();
+    m_paused = false;
+    emit pausedChanged(false);
 }
 
 void LinuxRecordingStrategy::handleSessionReady(quint32 nodeId, const QRect &streamRectLogical,
@@ -528,7 +560,7 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
 
 void LinuxRecordingStrategy::reportStarted(quint64 generation)
 {
-    if (generation != m_generation || m_recording || m_stopping)
+    if (generation != m_generation || m_recording || m_stopping || m_paused)
         return;
 
     m_starting = false;
@@ -590,6 +622,7 @@ void LinuxRecordingStrategy::teardown()
     m_starting = false;
     m_recording = false;
     m_stopping = false;
+    m_paused = false;
 }
 
 } // namespace Recording
