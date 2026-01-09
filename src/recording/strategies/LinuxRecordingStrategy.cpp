@@ -63,6 +63,16 @@ bool hasAnyEncoder()
     return hasFactory("x264enc") || hasFactory("vah264enc") || hasFactory("openh264enc");
 }
 
+// AAC encoders in preference order. Empty when none is installed.
+QString aacEncoderChain()
+{
+    for (const char *name : {"fdkaacenc", "avenc_aac", "voaacenc"}) {
+        if (hasFactory(name))
+            return QString::fromLatin1(name);
+    }
+    return {};
+}
+
 // The screen holding the selection, used when the portal omits the stream position/size.
 QRect screenRectFor(const QRect &regionVirtual)
 {
@@ -103,22 +113,44 @@ void freeCropContext(gpointer data)
     delete ctx;
 }
 
-// The first sink pad of a muxer, which parse-launch has already requested for us.
-GstPad *firstSinkPad(GstElement *element)
+// The muxer's video sink pad, which parse-launch has already requested for us. mp4mux and
+// qtmux name their request pads video_%u / audio_%u, so match on the prefix.
+GstPad *videoSinkPad(GstElement *element)
 {
     GstIterator *it = gst_element_iterate_sink_pads(element);
     if (!it)
         return nullptr;
 
     GValue value = G_VALUE_INIT;
-    GstPad *pad = nullptr;
-    while (!pad && gst_iterator_next(it, &value) == GST_ITERATOR_OK) {
-        pad = GST_PAD(g_value_dup_object(&value));
+    GstPad *fallback = nullptr;
+    GstPad *video = nullptr;
+    while (!video && gst_iterator_next(it, &value) == GST_ITERATOR_OK) {
+        GstPad *pad = GST_PAD(g_value_dup_object(&value));
         g_value_reset(&value);
+        if (!pad)
+            continue;
+
+        gchar *name = gst_pad_get_name(pad);
+        const bool isVideo = name && g_str_has_prefix(name, "video");
+        g_free(name);
+
+        if (isVideo) {
+            video = pad;
+        } else if (!fallback) {
+            fallback = pad;
+        } else {
+            gst_object_unref(pad);
+        }
     }
     g_value_unset(&value);
     gst_iterator_free(it);
-    return pad;
+
+    if (video) {
+        if (fallback)
+            gst_object_unref(fallback);
+        return video;
+    }
+    return fallback;
 }
 
 GstPadProbeReturn onCapsEvent(GstPad *pad, GstPadProbeInfo *info, gpointer data)
@@ -387,13 +419,38 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
                                                                  Qt::CaseInsensitive) == 0
                         ? QStringLiteral("qtmux") : QStringLiteral("mp4mux");
 
-    const QString description =
+    QString description =
         QStringLiteral("pipewiresrc name=src keepalive-time=1000 resend-last=true "
                        "! videorate drop-only=true max-rate=%1 skip-to-first=true "
                        "! videocrop name=crop ! videoscale ! videoconvert "
                        "! capsfilter name=outcaps caps=video/x-raw,pixel-aspect-ratio=1/1 "
                        "! queue ! %2 ! h264parse ! queue ! %3 name=mux ! filesink name=sink")
             .arg(QString::number(m_target.fps), encoder, mux);
+
+    if (m_target.captureMic || m_target.captureSystemAudio) {
+        const QString aac = aacEncoderChain();
+        // Audio is best-effort: a missing piece costs the audio track, not the recording.
+        if (!hasFactory("pulsesrc") || !hasFactory("aacparse") || aac.isEmpty()) {
+            qWarning() << "Audio capture requested but pulsesrc, aacparse or an AAC encoder is "
+                          "missing; recording video only";
+        } else {
+            // An audiomixer even for a single source, so mic, system audio and both share
+            // one code path.
+            description += QStringLiteral(
+                " audiomixer name=amix ! audioconvert ! audioresample "
+                "! audio/x-raw,rate=48000,channels=2 ! %1 ! aacparse ! queue ! mux.").arg(aac);
+            if (m_target.captureMic) {
+                description += QStringLiteral(
+                    " pulsesrc name=micsrc ! queue ! audioconvert ! audioresample ! amix.");
+            }
+            if (m_target.captureSystemAudio) {
+                // @DEFAULT_MONITOR@ is a pipewire-pulse alias for the default sink's monitor.
+                description += QStringLiteral(
+                    " pulsesrc name=syssrc device=@DEFAULT_MONITOR@ provide-clock=false "
+                    "! queue ! audioconvert ! audioresample ! amix.");
+            }
+        }
+    }
 
     GError *parseError = nullptr;
     m_pipeline = gst_parse_launch(description.toUtf8().constData(), &parseError);
@@ -431,6 +488,13 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
                  "path", QByteArray::number(nodeId).constData(), nullptr);
     g_object_set(sink, "location", m_outputPath.toUtf8().constData(), nullptr);
 
+    if (GstElement *micsrc = gst_bin_get_by_name(GST_BIN(m_pipeline), "micsrc")) {
+        // Under Qt's pulse backend QAudioDevice::id() is the pulse source name.
+        if (!m_target.micDeviceId.isEmpty())
+            g_object_set(micsrc, "device", m_target.micDeviceId.constData(), nullptr);
+        gst_object_unref(micsrc);
+    }
+
     if (GstPad *srcPad = gst_element_get_static_pad(src, "src")) {
         auto *cropCtx = new CropContext;
         cropCtx->strategy = this;
@@ -445,8 +509,8 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         gst_object_unref(srcPad);
     }
 
-    // The first buffer reaching the muxer is the moment capture is really live.
-    if (GstPad *muxPad = firstSinkPad(muxer)) {
+    // The first video buffer reaching the muxer is the moment capture is really live.
+    if (GstPad *muxPad = videoSinkPad(muxer)) {
         auto *bufferCtx = new CallbackContext{this, m_generation};
         gst_pad_add_probe(muxPad, GST_PAD_PROBE_TYPE_BUFFER, onFirstBuffer, bufferCtx,
                           freeCallbackContext);
