@@ -212,6 +212,9 @@ add_library(niceshot_lib STATIC
         src/capture/AreaSelector.h
         src/capture/CaptureFactory.cpp
         src/capture/CaptureFactory.h
+        # Frozen backdrop for the selection overlays (portal-based on Wayland).
+        src/capture/FrozenFrameGrabber.cpp
+        src/capture/FrozenFrameGrabber.h
         src/capture/WindowEnumerator.h
         src/capture/strategies/CaptureStrategy.cpp
         src/capture/strategies/CaptureStrategy.h

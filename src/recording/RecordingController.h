@@ -2,6 +2,7 @@
 #define RECORDING_RECORDINGCONTROLLER_H
 
 #include "recording/RecordTarget.h"
+#include "capture/FrozenFrameGrabber.h"
 
 #include <QObject>
 #include <QString>
@@ -87,6 +88,9 @@ private:
     CameraBubble *m_cameraBubble = nullptr;   // shown while a camera-enabled recording is set up/running
     RecordingFrameOverlay *m_frameOverlay = nullptr;   // recording frame, shown while recording a region
     QRect m_activeRegion;                     // region of the recording being started (virtual coords)
+    // Owned by value: it can never outlive the controller, so its callback may
+    // capture a plain `this`. Async on Wayland, synchronous everywhere else.
+    Capture::FrozenFrameGrabber m_frameGrabber;
 
     // Permission requests fired for the current selection attempt. Guarantees the
     // pre-selection TCC gate asks each permission at most ONCE per attempt — even if

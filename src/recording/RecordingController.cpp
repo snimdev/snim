@@ -17,48 +17,12 @@
 #include <QStandardPaths>
 #include <QScreen>
 #include <QGuiApplication>
-#include <QPainter>
 #include <QPermissions>
 #include <QPixmap>
 #include <QWindow>
 #include <QList>
-#include <algorithm>
 
 namespace Recording {
-
-namespace {
-// Freeze every screen into one virtual-desktop pixmap so the selection overlay has
-// a frozen frame to draw (mirrors the screenshot path's compositing). Phase iv will
-// factor this and the per-screen overlay setup into a shared selection helper.
-QPixmap grabAllScreens(QRect &virtualGeometryOut)
-{
-    const QList<QScreen*> screens = QGuiApplication::screens();
-    if (screens.isEmpty())
-        return {};
-
-    QRect virtualDesktop;
-    for (QScreen *s : screens)
-        virtualDesktop = virtualDesktop.united(s->geometry());
-    virtualGeometryOut = virtualDesktop;
-
-    qreal dpr = 1.0;
-    for (QScreen *s : screens)
-        dpr = std::max(dpr, s->devicePixelRatio());
-
-    QPixmap full(virtualDesktop.size() * dpr);
-    full.setDevicePixelRatio(dpr);
-    full.fill(Qt::black);
-    QPainter painter(&full);
-    for (QScreen *s : screens) {
-        const QRect geo = s->geometry();
-        const QPixmap shot = s->grabWindow(0);
-        const QRect destLogical(geo.topLeft() - virtualDesktop.topLeft(), geo.size());
-        painter.drawPixmap(destLogical, shot, shot.rect());
-    }
-    painter.end();
-    return full;
-}
-} // namespace
 
 RecordingController::RecordingController(QObject *parent)
     : RecordingController(RecordingFactory::createStrategy(RecordingFactory::StrategyType::Auto),
@@ -252,137 +216,138 @@ void RecordingController::presentSelection(bool windowPick)
     m_askedCameraPermission = false;
     m_askedMicPermission = false;
 
-    QRect virtualGeometry;
-    const QPixmap frozen = grabAllScreens(virtualGeometry);
-    if (frozen.isNull()) {
-        m_state = State::Idle;
-        emit recordingFailed(tr("Could not capture the screen for selection."));
-        return;
-    }
-
-    // Show the webcam bubble now (if enabled) so the user sees it while selecting;
-    // it is re-ensured at commit (the options bar can toggle it mid-selection).
-    ensureCameraBubble();
-
-    const QList<QScreen*> screens = QGuiApplication::screens();
-    // Window-pick needs each candidate window's rect + id for true window capture.
-    const QVector<Capture::WindowInfo> windowInfos =
-        windowPick ? Capture::enumerateWindowInfos() : QVector<Capture::WindowInfo>{};
-    auto *selectors = new QList<Capture::AreaSelector*>();
-
-    // One overlay per screen, frozen-frame backdrop (mirrors the screenshot path).
-    for (QScreen *screen : screens) {
-        const QRect screenGeometry = screen->geometry();
-        auto *selector = new Capture::AreaSelector();
-        selector->setScreenshot(frozen);
-        selector->setVirtualGeometry(virtualGeometry);
-        selector->setScreenOffset(screenGeometry.topLeft());
-        if (windowPick) {
-            selector->setMode(Capture::AreaSelector::Mode::WindowPick);
-            selector->setWindowInfos(windowInfos);
+    // The grabber is a member and dies with the controller, so a plain `this` is safe.
+    m_frameGrabber.grab([this, windowPick](const QPixmap &frozen, const QRect &virtualGeometry) {
+        if (frozen.isNull()) {
+            m_state = State::Idle;
+            emit recordingFailed(tr("Could not capture the screen for selection."));
+            return;
         }
-        selector->setActionsEnabled(false);   // recording has no Edit/Copy/Save toolbar
-        selector->setGeometry(screenGeometry);
-        selector->winId();
-        if (QWindow *wh = selector->windowHandle())
-            wh->setScreen(screen);
-        selector->show();
-        selector->raise();
-        selector->activateWindow();
+
+        // Show the webcam bubble now (if enabled) so the user sees it while selecting;
+        // it is re-ensured at commit (the options bar can toggle it mid-selection).
+        ensureCameraBubble();
+
+        const QList<QScreen*> screens = QGuiApplication::screens();
+        // Window-pick needs each candidate window's rect + id for true window capture.
+        const QVector<Capture::WindowInfo> windowInfos =
+            windowPick ? Capture::enumerateWindowInfos() : QVector<Capture::WindowInfo>{};
+        auto *selectors = new QList<Capture::AreaSelector*>();
+
+        // One overlay per screen, frozen-frame backdrop (mirrors the screenshot path).
+        for (QScreen *screen : screens) {
+            const QRect screenGeometry = screen->geometry();
+            auto *selector = new Capture::AreaSelector();
+            selector->setScreenshot(frozen);
+            selector->setVirtualGeometry(virtualGeometry);
+            selector->setScreenOffset(screenGeometry.topLeft());
+            if (windowPick) {
+                selector->setMode(Capture::AreaSelector::Mode::WindowPick);
+                selector->setWindowInfos(windowInfos);
+            }
+            selector->setActionsEnabled(false);   // recording has no Edit/Copy/Save toolbar
+            selector->setGeometry(screenGeometry);
+            selector->winId();
+            if (QWindow *wh = selector->windowHandle())
+                wh->setScreen(screen);
+            selector->show();
+            selector->raise();
+            selector->activateWindow();
 #ifdef Q_OS_MACOS
-        Capture::configureOverlayWindow(selector);
+            Capture::configureOverlayWindow(selector);
 #endif
-        selectors->append(selector);
-    }
-
-    // The inline options bar, floating above the overlays: camera/mic/audio/fps/
-    // scale write Settings directly (the commit handler re-reads them); record and
-    // cancel drive the selectors. Shown AFTER the overlays so it stacks on top.
-    auto *optionsBar = new RecordingOptionsBar();
-    optionsBar->setRecordVisible(!windowPick);   // in window-pick the click commits
-    connect(optionsBar, &RecordingOptionsBar::cameraToggled, this, [this](bool on) {
-        // Never fire a TCC prompt while the shielding overlays are up (it would
-        // open underneath them): only touch the bubble live when access is already
-        // granted; otherwise the commit-time permission gate handles it.
-        if (on) {
-            QCameraPermission cameraPermission;
-            if (qApp->checkPermission(cameraPermission) != Qt::PermissionStatus::Granted)
-                return;
+            selectors->append(selector);
         }
-        ensureCameraBubble();   // honors the just-written setting: creates or destroys
-    });
-    connect(optionsBar, &RecordingOptionsBar::recordRequested, this, [selectors] {
-        // All overlays share the synced selection; the first one in Adjusting
-        // commits (which tears everything down — iterate over a copy).
-        const QList<Capture::AreaSelector *> sels = *selectors;
-        for (auto *sel : sels)
-            if (sel->commitCurrentSelection())
-                break;
-    });
-    connect(optionsBar, &RecordingOptionsBar::cancelRequested, this, [selectors] {
-        if (!selectors->isEmpty())
-            selectors->first()->cancelSelection();   // mirrors Esc
-    });
-    optionsBar->show();
-    optionsBar->raise();
+
+        // The inline options bar, floating above the overlays: camera/mic/audio/fps/
+        // scale write Settings directly (the commit handler re-reads them); record and
+        // cancel drive the selectors. Shown AFTER the overlays so it stacks on top.
+        auto *optionsBar = new RecordingOptionsBar();
+        optionsBar->setRecordVisible(!windowPick);   // in window-pick the click commits
+        connect(optionsBar, &RecordingOptionsBar::cameraToggled, this, [this](bool on) {
+            // Never fire a TCC prompt while the shielding overlays are up (it would
+            // open underneath them): only touch the bubble live when access is already
+            // granted; otherwise the commit-time permission gate handles it.
+            if (on) {
+                QCameraPermission cameraPermission;
+                if (qApp->checkPermission(cameraPermission) != Qt::PermissionStatus::Granted)
+                    return;
+            }
+            ensureCameraBubble();   // honors the just-written setting: creates or destroys
+        });
+        connect(optionsBar, &RecordingOptionsBar::recordRequested, this, [selectors] {
+            // All overlays share the synced selection; the first one in Adjusting
+            // commits (which tears everything down, so iterate over a copy).
+            const QList<Capture::AreaSelector *> sels = *selectors;
+            for (auto *sel : sels)
+                if (sel->commitCurrentSelection())
+                    break;
+        });
+        connect(optionsBar, &RecordingOptionsBar::cancelRequested, this, [selectors] {
+            if (!selectors->isEmpty())
+                selectors->first()->cancelSelection();   // mirrors Esc
+        });
+        optionsBar->show();
+        optionsBar->raise();
 #ifdef Q_OS_MACOS
-    // AFTER show() returns: Qt re-applies its own window level while making the
-    // window visible, which would bury the bar beneath the shielding-level overlay
-    // if we only configured from showEvent (same reason configureOverlayWindow is
-    // applied to the selectors post-show above).
-    Capture::configureSelectionHud(optionsBar);
+        // AFTER show() returns: Qt re-applies its own window level while making the
+        // window visible, which would bury the bar beneath the shielding-level overlay
+        // if we only configured from showEvent (same reason configureOverlayWindow is
+        // applied to the selectors post-show above).
+        Capture::configureSelectionHud(optionsBar);
 #endif
 
-    auto teardown = [selectors, optionsBar]() {
-        optionsBar->hide();
-        optionsBar->deleteLater();
-        for (auto *sel : *selectors) {
-            sel->blockSignals(true);   // prevent re-entry from the other overlays
-            sel->disconnect();
-            sel->close();
-            sel->deleteLater();
-        }
-        selectors->clear();
-        delete selectors;
-    };
+        auto teardown = [selectors, optionsBar]() {
+            optionsBar->hide();
+            optionsBar->deleteLater();
+            for (auto *sel : *selectors) {
+                sel->blockSignals(true);   // prevent re-entry from the other overlays
+                sel->disconnect();
+                sel->close();
+                sel->deleteLater();
+            }
+            selectors->clear();
+            delete selectors;
+        };
 
-    for (auto *selector : *selectors) {
-        connect(selector, &Capture::AreaSelector::areaSelected, this,
-                [this, teardown, windowPick](const QRect &area) {
-                    teardown();
-                    m_state = State::Idle;
-                    if (area.isEmpty()) {           // cancelled (Esc / ✕ / empty)
-                        destroyCameraBubble();
-                        return;
-                    }
-                    if (windowPick)                 // window success handled in windowPicked
-                        return;
-                    beginRecordingForSelection(area, /*windowId=*/0, /*isWindow=*/false);
-                });
-        if (windowPick) {
-            connect(selector, &Capture::AreaSelector::windowPicked, this,
-                    [this, teardown](const QRect &area, quint64 windowId) {
+        for (auto *selector : *selectors) {
+            connect(selector, &Capture::AreaSelector::areaSelected, this,
+                    [this, teardown, windowPick](const QRect &area) {
                         teardown();
                         m_state = State::Idle;
-                        if (area.isEmpty() && windowId == 0) {   // nothing under the cursor
+                        if (area.isEmpty()) {           // cancelled (Esc / ✕ / empty)
                             destroyCameraBubble();
                             return;
                         }
-                        beginRecordingForSelection(area, windowId, /*isWindow=*/true);
+                        if (windowPick)                 // window success handled in windowPicked
+                            return;
+                        beginRecordingForSelection(area, /*windowId=*/0, /*isWindow=*/false);
+                    });
+            if (windowPick) {
+                connect(selector, &Capture::AreaSelector::windowPicked, this,
+                        [this, teardown](const QRect &area, quint64 windowId) {
+                            teardown();
+                            m_state = State::Idle;
+                            if (area.isEmpty() && windowId == 0) {   // nothing under the cursor
+                                destroyCameraBubble();
+                                return;
+                            }
+                            beginRecordingForSelection(area, windowId, /*isWindow=*/true);
+                        });
+            }
+            // Multi-monitor: mirror the live selection onto the other overlays. Also
+            // park the webcam bubble in the selection's corner as it is adjusted (2 ==
+            // Phase::Adjusting), so it previews exactly where it will be recorded.
+            connect(selector, &Capture::AreaSelector::liveStateChanged, this,
+                    [this, selectors, selector](const QRect &sel, int phase, int mode, const QPoint &cursor) {
+                        for (auto *other : *selectors)
+                            if (other != selector)
+                                other->applyPeerState(sel, phase, mode, cursor);
+                        if (m_cameraBubble && phase == 2 && !sel.isEmpty())
+                            m_cameraBubble->moveToRegionCorner(sel);
                     });
         }
-        // Multi-monitor: mirror the live selection onto the other overlays. Also
-        // park the webcam bubble in the selection's corner as it is adjusted (2 ==
-        // Phase::Adjusting), so it previews exactly where it will be recorded.
-        connect(selector, &Capture::AreaSelector::liveStateChanged, this,
-                [this, selectors, selector](const QRect &sel, int phase, int mode, const QPoint &cursor) {
-                    for (auto *other : *selectors)
-                        if (other != selector)
-                            other->applyPeerState(sel, phase, mode, cursor);
-                    if (m_cameraBubble && phase == 2 && !sel.isEmpty())
-                        m_cameraBubble->moveToRegionCorner(sel);
-                });
-    }
+    });
 }
 
 void RecordingController::beginRecordingForSelection(const QRect &area, quint64 windowId,
