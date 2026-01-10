@@ -29,6 +29,7 @@ public:
     explicit RecordingOptionsBar(QWidget *parent = nullptr);
 
     void setRecordVisible(bool visible);   // hidden in window-pick (the click commits)
+    void attachToOverlay(QWidget *overlay);
 
 signals:
     void cameraToggled(bool enabled);      // controller shows/hides the bubble live
@@ -36,6 +37,7 @@ signals:
     void cancelRequested();
 
 protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -46,6 +48,7 @@ private:
                                           bool checked);
     void rebuildCameraMenu();
     void rebuildMicMenu();
+    void repositionInParent();
 
     QToolButton *m_cameraButton = nullptr;
     QToolButton *m_micButton = nullptr;

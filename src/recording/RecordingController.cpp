@@ -12,7 +12,6 @@
 #include "capture/MacOverlay.h"
 #endif
 
-#include <QCursor>
 #include <QDir>
 #include <QDateTime>
 #include <QStandardPaths>
@@ -20,6 +19,7 @@
 #include <QGuiApplication>
 #include <QPermissions>
 #include <QPixmap>
+#include <QPointer>
 #include <QWindow>
 #include <QList>
 
@@ -267,10 +267,12 @@ void RecordingController::presentSelection(bool windowPick)
 #ifdef Q_OS_MACOS
         auto *optionsBar = new RecordingOptionsBar();
 #else
+        // QCursor::pos() is (0,0) on Wayland, so start on the primary screen and let the
+        // first hover reparent the bar to the overlay the user is actually working on.
         Capture::AreaSelector *barParent = selectors->isEmpty() ? nullptr : selectors->first();
-        QScreen *cursorScreen = QGuiApplication::screenAt(QCursor::pos());
+        QScreen *primary = QGuiApplication::primaryScreen();
         for (int i = 0; i < screens.size() && i < selectors->size(); ++i)
-            if (screens.at(i) == cursorScreen)
+            if (screens.at(i) == primary)
                 barParent = selectors->at(i);
         auto *optionsBar = new RecordingOptionsBar(barParent);
 #endif
@@ -350,7 +352,14 @@ void RecordingController::presentSelection(bool windowPick)
             // park the webcam bubble in the selection's corner as it is adjusted (2 ==
             // Phase::Adjusting), so it previews exactly where it will be recorded.
             connect(selector, &Capture::AreaSelector::liveStateChanged, this,
-                    [this, selectors, selector](const QRect &sel, int phase, int mode, const QPoint &cursor) {
+                    [this, selectors, selector, bar = QPointer<RecordingOptionsBar>(optionsBar)](
+                        const QRect &sel, int phase, int mode, const QPoint &cursor) {
+#ifndef Q_OS_MACOS
+                        // The pointer is over this overlay: move the bar onto it (a no-op
+                        // once it is already the parent).
+                        if (bar)
+                            bar->attachToOverlay(selector);
+#endif
                         for (auto *other : *selectors)
                             if (other != selector)
                                 other->applyPeerState(sel, phase, mode, cursor);

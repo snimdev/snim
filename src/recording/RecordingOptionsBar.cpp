@@ -6,6 +6,7 @@
 #include <QAudioDevice>
 #include <QCameraDevice>
 #include <QCursor>
+#include <QEvent>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -40,6 +41,8 @@ RecordingOptionsBar::RecordingOptionsBar(QWidget *parent)
         setAttribute(Qt::WA_ShowWithoutActivating);   // keyboard stays on the overlay
     }
     setFocusPolicy(Qt::NoFocus);
+    if (parent)
+        parent->installEventFilter(this);
 
     auto *pill = new QWidget(this);
     pill->setObjectName("optionsPill");
@@ -216,6 +219,46 @@ void RecordingOptionsBar::rebuildMicMenu()
         m_micMenu->addAction(tr("No microphone found"))->setEnabled(false);
 }
 
+void RecordingOptionsBar::repositionInParent()
+{
+    QWidget *parent = parentWidget();
+    if (!parent)
+        return;
+    move((parent->width() - width()) / 2, parent->height() - height() - 24);
+}
+
+// On Wayland the cursor screen is only known once the pointer enters an overlay, so the
+// controller reparents the bar to the overlay under the mouse.
+void RecordingOptionsBar::attachToOverlay(QWidget *overlay)
+{
+    if (!overlay || overlay == parentWidget())
+        return;
+    if (QWidget *old = parentWidget())
+        old->removeEventFilter(this);
+    setParent(overlay);
+    overlay->installEventFilter(this);
+    m_userMoved = false;   // a drag position on another screen is meaningless
+    show();                // setParent() hides the widget
+    repositionInParent();
+}
+
+bool RecordingOptionsBar::eventFilter(QObject *watched, QEvent *event)
+{
+    // The compositor can resize the overlay after mapping.
+    if (watched == parentWidget() && event->type() == QEvent::Resize) {
+        QWidget *parent = parentWidget();
+        if (!m_userMoved) {
+            repositionInParent();
+        } else {
+            QPoint p = pos();
+            p.setX(qBound(0, p.x(), qMax(0, parent->width() - width())));
+            p.setY(qBound(0, p.y(), qMax(0, parent->height() - height())));
+            move(p);
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
 void RecordingOptionsBar::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
@@ -237,9 +280,8 @@ void RecordingOptionsBar::showEvent(QShowEvent *event)
     }
 
     // Child of the overlay: bottom-center of the parent.
-    QWidget *parent = parentWidget();
-    if (parent && !m_userMoved)
-        move((parent->width() - width()) / 2, parent->height() - height() - 24);
+    if (!m_userMoved)
+        repositionInParent();
 }
 
 void RecordingOptionsBar::mousePressEvent(QMouseEvent *event)
