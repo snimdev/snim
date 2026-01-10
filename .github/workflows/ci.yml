@@ -34,3 +34,42 @@ jobs:
           export TESSDATA_PREFIX="$(brew --prefix)/share/tessdata"
           # --timeout kills a hung test's process tree instead of leaving it orphaned
           ctest --output-on-failure --timeout 120
+
+  linux:
+    name: Build & test (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        # qt6 + tesseract (OCR) + ninja. cmake is not installed from apt: the
+        # runner image ships a newer one that satisfies cmake_minimum_required.
+        run: >
+          sudo apt-get update && sudo apt-get install -y
+          ninja-build
+          qt6-base-dev
+          libqt6svg6-dev
+          qt6-multimedia-dev
+          qt6-tools-dev
+          libgl1-mesa-dev
+          libgstreamer1.0-dev
+          tesseract-ocr
+          libtesseract-dev
+          libleptonica-dev
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        working-directory: build
+        run: |
+          export QT_QPA_PLATFORM=offscreen
+          # --timeout kills a hung test's process tree instead of leaving it orphaned
+          ctest --output-on-failure --timeout 120
