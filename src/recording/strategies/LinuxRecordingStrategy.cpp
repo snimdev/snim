@@ -73,13 +73,41 @@ QString aacEncoderChain()
     return {};
 }
 
-// The screen holding the selection, used when the portal omits the stream position/size.
-QRect screenRectFor(const QRect &regionVirtual)
+QSize pixelSize(const QRect &logical, qreal dpr)
 {
-    const QScreen *screen = QGuiApplication::screenAt(regionVirtual.center());
-    if (!screen)
-        screen = QGuiApplication::primaryScreen();
-    return screen ? screen->geometry() : QRect();
+    return {qRound(logical.width() * dpr), qRound(logical.height() * dpr)};
+}
+
+// Every attached screen plus the whole workspace, as the portal could be sharing either.
+// GUI thread only.
+void collectStreamSources(QVector<StreamSource> *screens, StreamSource *virtualDesktop)
+{
+    QRect unionRect;
+    qreal maxDpr = 0.0;
+    bool uniformDpr = true;
+
+    const QList<QScreen *> all = QGuiApplication::screens();
+    for (const QScreen *screen : all) {
+        const QRect geometry = screen->geometry();
+        const qreal dpr = screen->devicePixelRatio();
+        screens->append(StreamSource{geometry, pixelSize(geometry, dpr)});
+
+        unionRect = unionRect.united(geometry);
+        if (maxDpr != 0.0 && !qFuzzyCompare(dpr, maxDpr))
+            uniformDpr = false;
+        maxDpr = qMax(maxDpr, dpr);
+    }
+
+    // Mixed scale factors give the workspace no single ratio, so assume the primary
+    // screen's; a guess wrong here only costs the workspace-share shortcut.
+    qreal desktopDpr = uniformDpr ? maxDpr : 0.0;
+    if (desktopDpr == 0.0) {
+        const QScreen *primary = QGuiApplication::primaryScreen();
+        desktopDpr = primary ? primary->devicePixelRatio() : 1.0;
+    }
+
+    virtualDesktop->rectLogical = unionRect;
+    virtualDesktop->sizePx = pixelSize(unionRect, desktopDpr);
 }
 
 // The strategy plus the pipeline it belongs to; callbacks run on GStreamer threads.
@@ -92,7 +120,9 @@ struct CropContext {
     LinuxRecordingStrategy *strategy = nullptr;
     quint64 generation = 0;
     QRect regionVirtual;
-    QRect streamRect;
+    QRect streamRect;                // null when the portal sent no geometry
+    QVector<StreamSource> screens;
+    StreamSource virtualDesktop;
     bool retina = true;
     GstElement *crop = nullptr;      // owned ref
     GstElement *outcaps = nullptr;   // owned ref
@@ -175,8 +205,17 @@ GstPadProbeReturn onCapsEvent(GstPad *pad, GstPadProbeInfo *info, gpointer data)
 
     // The negotiated caps carry the real pixel size, which the logical stream metadata
     // cannot give us under fractional scaling.
-    const StreamCrop crop = portalStreamCrop(ctx->regionVirtual, ctx->streamRect,
-                                             QSize(width, height), ctx->retina);
+    const QSize capsPx(width, height);
+    QRect streamRect = ctx->streamRect;
+    // KDE reports monitor shares in output-local coordinates (position 0,0 for any
+    // monitor), so a rect that misses the selection is repositioned by inference too.
+    if (streamRect.isEmpty() || !streamRect.intersects(ctx->regionVirtual)) {
+        streamRect = resolveStreamRect(capsPx, ctx->screens, ctx->virtualDesktop,
+                                       ctx->regionVirtual);
+    }
+
+    const StreamCrop crop = portalStreamCrop(ctx->regionVirtual, streamRect, capsPx,
+                                             ctx->retina);
     if (!crop.valid) {
         LinuxRecordingStrategy *strategy = ctx->strategy;
         const quint64 generation = ctx->generation;
@@ -409,8 +448,12 @@ void LinuxRecordingStrategy::handleSessionReady(quint32 nodeId, const QRect &str
     }
 
     m_pipewireFd = pipewireFd;
-    m_streamRect = streamRectLogical.isEmpty() ? screenRectFor(m_target.regionVirtual)
-                                               : streamRectLogical;
+    m_streamRect = streamRectLogical;
+
+    // Portals that send no geometry leave the caps probe to infer it from these.
+    m_screens.clear();
+    m_virtualDesktop = StreamSource{};
+    collectStreamSources(&m_screens, &m_virtualDesktop);
 
     QString error;
     if (!buildPipeline(nodeId, &error)) {
@@ -533,6 +576,8 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         cropCtx->generation = m_generation;
         cropCtx->regionVirtual = m_target.regionVirtual;
         cropCtx->streamRect = m_streamRect;
+        cropCtx->screens = m_screens;
+        cropCtx->virtualDesktop = m_virtualDesktop;
         cropCtx->retina = m_target.retinaCapture;
         cropCtx->crop = GST_ELEMENT(gst_object_ref(crop));
         cropCtx->outcaps = GST_ELEMENT(gst_object_ref(outcaps));

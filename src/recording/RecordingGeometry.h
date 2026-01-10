@@ -99,6 +99,50 @@ inline StreamCrop portalStreamCrop(const QRect &regionVirtual,
     return out;
 }
 
+struct StreamSource {
+    QRect rectLogical;   // screen or virtual desktop rect in logical coords
+    QSize sizePx;        // its pixel size (logical size * device pixel ratio)
+};
+
+/**
+ * Work out which display a portal ScreenCast stream shows, from its pixel size alone.
+ * Some portals (KDE's) never send position/size stream metadata, so the negotiated
+ * PipeWire caps are the only clue about what was shared. Pure, so it's unit-tested.
+ */
+inline QRect resolveStreamRect(const QSize &capsPx,
+                               const QVector<StreamSource> &screens,
+                               const StreamSource &virtualDesktop,
+                               const QRect &regionVirtual)
+{
+    if (capsPx.isEmpty())
+        return {};
+
+    if (capsPx == virtualDesktop.sizePx)
+        return virtualDesktop.rectLogical;
+
+    QVector<QRect> matches;
+    for (const StreamSource &screen : screens) {
+        if (screen.sizePx == capsPx)
+            matches.append(screen.rectLogical);
+    }
+
+    // Identical monitors are indistinguishable by size, but the user just picked a source
+    // in the portal dialog for the selection they made, so the screen holding it wins.
+    if (!matches.isEmpty()) {
+        for (const QRect &rect : matches) {
+            if (rect.contains(regionVirtual.center()))
+                return rect;
+        }
+        return matches.constFirst();
+    }
+
+    for (const StreamSource &screen : screens) {
+        if (screen.rectLogical.contains(regionVirtual.center()))
+            return screen.rectLogical;
+    }
+    return {};
+}
+
 } // namespace Recording
 
 #endif // RECORDING_RECORDINGGEOMETRY_H

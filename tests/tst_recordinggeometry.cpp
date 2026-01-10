@@ -75,6 +75,87 @@ private slots:
         QCOMPARE(c.cropPx, QRect(0, 0, 202, 102));
         QCOMPARE(c.outputPx, QSize(100, 50));
     }
+
+    void resolveStreamRectWorkspaceShare()
+    {
+        const QVector<StreamSource> screens{{QRect(0, 0, 2560, 1440), QSize(2560, 1440)},
+                                            {QRect(2560, 0, 2560, 1440), QSize(2560, 1440)}};
+        const StreamSource desktop{QRect(0, 0, 5120, 1440), QSize(5120, 1440)};
+        QCOMPARE(resolveStreamRect(QSize(5120, 1440), screens, desktop,
+                                   QRect(2700, 200, 800, 500)),
+                 QRect(0, 0, 5120, 1440));
+    }
+
+    void resolveStreamRectUniqueMonitor()
+    {
+        const QVector<StreamSource> screens{{QRect(0, 0, 2560, 1440), QSize(2560, 1440)},
+                                            {QRect(2560, 0, 1920, 1080), QSize(1920, 1080)}};
+        const StreamSource desktop{QRect(0, 0, 4480, 1440), QSize(4480, 1440)};
+
+        // Only one screen has this pixel size, so the region's place cannot change it.
+        QCOMPARE(resolveStreamRect(QSize(1920, 1080), screens, desktop, QRect(10, 10, 100, 100)),
+                 QRect(2560, 0, 1920, 1080));
+        QCOMPARE(resolveStreamRect(QSize(1920, 1080), screens, desktop,
+                                   QRect(2600, 10, 100, 100)),
+                 QRect(2560, 0, 1920, 1080));
+    }
+
+    void resolveStreamRectAmbiguousPicksRegionScreen()
+    {
+        const QVector<StreamSource> screens{{QRect(0, 0, 2560, 1440), QSize(2560, 1440)},
+                                            {QRect(2560, 0, 2560, 1440), QSize(2560, 1440)}};
+        const StreamSource desktop{QRect(0, 0, 5120, 1440), QSize(5120, 1440)};
+        QCOMPARE(resolveStreamRect(QSize(2560, 1440), screens, desktop,
+                                   QRect(2700, 200, 800, 500)),
+                 QRect(2560, 0, 2560, 1440));
+    }
+
+    void resolveStreamRectAmbiguousFallsBackToFirst()
+    {
+        const QVector<StreamSource> screens{{QRect(0, 0, 2560, 1440), QSize(2560, 1440)},
+                                            {QRect(2560, 0, 2560, 1440), QSize(2560, 1440)}};
+        const StreamSource desktop{QRect(0, 0, 5120, 1440), QSize(5120, 1440)};
+        QCOMPARE(resolveStreamRect(QSize(2560, 1440), screens, desktop,
+                                   QRect(-900, -900, 100, 100)),
+                 QRect(0, 0, 2560, 1440));
+    }
+
+    void resolveStreamRectHiDpi()
+    {
+        // 1.5x scaling: the caps match the pixel size, the answer is the logical rect.
+        const QVector<StreamSource> screens{{QRect(0, 0, 1707, 960), QSize(2560, 1440)}};
+        const StreamSource desktop{QRect(0, 0, 1707, 960), QSize(2560, 1440)};
+        QCOMPARE(resolveStreamRect(QSize(2560, 1440), screens, desktop, QRect(10, 10, 100, 100)),
+                 QRect(0, 0, 1707, 960));
+    }
+
+    void resolveStreamRectNoMatchUsesRegionScreen()
+    {
+        const QVector<StreamSource> screens{{QRect(0, 0, 2560, 1440), QSize(2560, 1440)},
+                                            {QRect(2560, 0, 1920, 1080), QSize(1920, 1080)}};
+        const StreamSource desktop{QRect(0, 0, 4480, 1440), QSize(4480, 1440)};
+        QCOMPARE(resolveStreamRect(QSize(1234, 777), screens, desktop, QRect(2700, 200, 80, 50)),
+                 QRect(2560, 0, 1920, 1080));
+
+        // Nothing matches and the region is nowhere: no guess left.
+        QVERIFY(resolveStreamRect(QSize(1234, 777), screens, desktop,
+                                  QRect(-900, -900, 10, 10)).isEmpty());
+    }
+
+    void portalCropOnWorkspaceShareIsUnscaled()
+    {
+        // End to end: workspace share of two 2560x1440 monitors, selection on the second.
+        const QVector<StreamSource> screens{{QRect(0, 0, 2560, 1440), QSize(2560, 1440)},
+                                            {QRect(2560, 0, 2560, 1440), QSize(2560, 1440)}};
+        const StreamSource desktop{QRect(0, 0, 5120, 1440), QSize(5120, 1440)};
+        const QRect region(2700, 200, 800, 500);
+
+        const QRect stream = resolveStreamRect(QSize(5120, 1440), screens, desktop, region);
+        const StreamCrop c = portalStreamCrop(region, stream, QSize(5120, 1440), true);
+        QVERIFY(c.valid);
+        QCOMPARE(c.cropPx, QRect(2700, 200, 800, 500));
+        QCOMPARE(c.outputPx, QSize(800, 500));
+    }
 };
 
 QTEST_MAIN(tst_RecordingGeometry)

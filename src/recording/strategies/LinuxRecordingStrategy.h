@@ -1,11 +1,13 @@
 #ifndef RECORDING_LINUXRECORDINGSTRATEGY_H
 #define RECORDING_LINUXRECORDINGSTRATEGY_H
 
+#include "recording/RecordingGeometry.h"
 #include "recording/RecordingStrategy.h"
 #include "recording/RecordTarget.h"
 
 #include <QRect>
 #include <QString>
+#include <QVector>
 
 #include <optional>
 
@@ -63,7 +65,9 @@ private:
 
     RecordTarget m_target;
     QString m_outputPath;
-    QRect m_streamRect;          // resolved on the GUI thread when the session is ready
+    QRect m_streamRect;          // null when the portal sends no stream geometry
+    QVector<StreamSource> m_screens;   // snapshot taken on the GUI thread, for the probe
+    StreamSource m_virtualDesktop;
     int m_pipewireFd = -1;
     quint64 m_generation = 0;
     bool m_starting = false;

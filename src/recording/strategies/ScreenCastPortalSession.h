@@ -47,7 +47,6 @@ private:
     void selectSources();
     void start();
     void openPipeWireRemote();
-    void failStart(const QString &error);
     void fail(const QString &error);
     void reset();
 
@@ -65,9 +64,7 @@ private:
     QString m_createRequestPath;
     QString m_selectRequestPath;
     QString m_startRequestPath;
-    QString m_sentRestoreToken;
     bool m_captureCursor = false;
-    bool m_restoreRetried = false;   // stale restore_token recovery runs at most once
     quint32 m_nodeId = 0;
     QRect m_streamRect;
 };

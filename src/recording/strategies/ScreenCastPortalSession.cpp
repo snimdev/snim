@@ -39,10 +39,9 @@ const char *const kClosedDetailsSlot = SLOT(handleSessionClosedWithDetails(QVari
 constexpr uint kSourceMonitor = 1;
 constexpr uint kCursorHidden = 1;
 constexpr uint kCursorEmbedded = 2;
-constexpr uint kPersistWhileRunning = 2;
 
 // The stream vardict carries position and size as (ii); a missing one leaves the rect
-// null and the caller substitutes screen geometry.
+// null and the caller infers the geometry from the stream's pixel size.
 QRect rectFromStream(const QVariantMap &properties)
 {
     const QVariant position = properties.value(QStringLiteral("position"));
@@ -95,6 +94,15 @@ bool ScreenCastPortalSession::isPortalAvailable()
 void ScreenCastPortalSession::open(bool captureCursor)
 {
     close();
+
+    // Older builds persisted the picked source, which silently pinned every later
+    // recording to it; drop the leftover token so the picker comes back.
+    static const bool tokenDropped = [] {
+        QSettings().remove(kRestoreTokenKey);
+        return true;
+    }();
+    Q_UNUSED(tokenDropped)
+
     m_captureCursor = captureCursor;
     createSession();
 }
@@ -102,7 +110,6 @@ void ScreenCastPortalSession::open(bool captureCursor)
 void ScreenCastPortalSession::close()
 {
     reset();
-    m_restoreRetried = false;
 }
 
 void ScreenCastPortalSession::createSession()
@@ -193,16 +200,6 @@ void ScreenCastPortalSession::selectSources()
     options.insert(QStringLiteral("multiple"), false);
     options.insert(QStringLiteral("cursor_mode"), cursorMode);
 
-    // Restore tokens landed in version 4; asking older portals for them is an error.
-    if (readUintProperty(QStringLiteral("version")) >= 4) {
-        options.insert(QStringLiteral("persist_mode"), kPersistWhileRunning);
-        const QString restoreToken = QSettings().value(kRestoreTokenKey).toString();
-        if (!restoreToken.isEmpty()) {
-            options.insert(QStringLiteral("restore_token"), restoreToken);
-            m_sentRestoreToken = restoreToken;
-        }
-    }
-
     QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kScreenCast,
                                                       QStringLiteral("SelectSources"));
     msg.setArguments({QVariant::fromValue(QDBusObjectPath(m_sessionPath)),
@@ -266,7 +263,7 @@ void ScreenCastPortalSession::start()
             return;
 
         qWarning() << "ScreenCast Start failed:" << reply.error().message();
-        failStart(tr("Screen sharing could not be started: %1").arg(reply.error().message()));
+        fail(tr("Screen sharing could not be started: %1").arg(reply.error().message()));
     });
 }
 
@@ -276,14 +273,10 @@ void ScreenCastPortalSession::handleStartResponse(uint response, const QVariantM
     m_startRequestPath.clear();
 
     if (response != 0) {
-        failStart(response == 1 ? tr("Screen sharing was cancelled.")
-                                : tr("The desktop refused to start screen sharing."));
+        fail(response == 1 ? tr("Screen sharing was cancelled.")
+                           : tr("The desktop refused to start screen sharing."));
         return;
     }
-
-    const QString restoreToken = results.value(QStringLiteral("restore_token")).toString();
-    if (!restoreToken.isEmpty())
-        QSettings().setValue(kRestoreTokenKey, restoreToken);
 
     // streams is a(ua{sv}), which QtDBus cannot hand over as a typed value, so walk it.
     const QVariant streams = results.value(QStringLiteral("streams"));
@@ -384,21 +377,6 @@ void ScreenCastPortalSession::handleSessionClosedWithDetails(const QVariantMap &
     handleSessionClosed();
 }
 
-void ScreenCastPortalSession::failStart(const QString &error)
-{
-    // A restore_token the portal no longer knows makes Start fail outright, so drop it
-    // and run the whole handshake once more without it.
-    if (!m_sentRestoreToken.isEmpty() && !m_restoreRetried) {
-        m_restoreRetried = true;
-        QSettings().remove(kRestoreTokenKey);
-        reset();
-        createSession();
-        return;
-    }
-
-    fail(error);
-}
-
 void ScreenCastPortalSession::fail(const QString &error)
 {
     close();
@@ -425,7 +403,6 @@ void ScreenCastPortalSession::reset()
         m_sessionPath.clear();
     }
 
-    m_sentRestoreToken.clear();
     m_nodeId = 0;
     m_streamRect = QRect();
 }
