@@ -12,6 +12,7 @@
 #include "capture/MacOverlay.h"
 #endif
 
+#include <QCursor>
 #include <QDir>
 #include <QDateTime>
 #include <QStandardPaths>
@@ -259,10 +260,20 @@ void RecordingController::presentSelection(bool windowPick)
             selectors->append(selector);
         }
 
-        // The inline options bar, floating above the overlays: camera/mic/audio/fps/
-        // scale write Settings directly (the commit handler re-reads them); record and
-        // cancel drive the selectors. Shown AFTER the overlays so it stacks on top.
+        // The inline options bar: camera/mic/audio/fps/scale write Settings directly
+        // (the commit handler re-reads them); record and cancel drive the selectors.
+        // Off macOS it is a CHILD of the overlay under the cursor, so the compositor
+        // cannot stack the overlay above it and move() works on Wayland.
+#ifdef Q_OS_MACOS
         auto *optionsBar = new RecordingOptionsBar();
+#else
+        Capture::AreaSelector *barParent = selectors->isEmpty() ? nullptr : selectors->first();
+        QScreen *cursorScreen = QGuiApplication::screenAt(QCursor::pos());
+        for (int i = 0; i < screens.size() && i < selectors->size(); ++i)
+            if (screens.at(i) == cursorScreen)
+                barParent = selectors->at(i);
+        auto *optionsBar = new RecordingOptionsBar(barParent);
+#endif
         optionsBar->setRecordVisible(!windowPick);   // in window-pick the click commits
         connect(optionsBar, &RecordingOptionsBar::cameraToggled, this, [this](bool on) {
             // Never fire a TCC prompt while the shielding overlays are up (it would

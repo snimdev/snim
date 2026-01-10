@@ -11,10 +11,12 @@
 #include <QLabel>
 #include <QMediaDevices>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QScreen>
 #include <QShowEvent>
 #include <QToolButton>
+#include <QWindow>
 
 #ifdef Q_OS_MACOS
 #include "capture/MacOverlay.h"
@@ -30,9 +32,14 @@ const QColor kIconDim(150, 150, 158);
 RecordingOptionsBar::RecordingOptionsBar(QWidget *parent)
     : QWidget(parent)
 {
-    setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setAttribute(Qt::WA_ShowWithoutActivating);   // keyboard stays on the overlay
+    // Window-only flags: as a child of the overlay these would force it back into a
+    // separate top-level, which is exactly the stacking bug they caused.
+    if (isWindow()) {
+        setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        setAttribute(Qt::WA_TranslucentBackground);
+        setAttribute(Qt::WA_ShowWithoutActivating);   // keyboard stays on the overlay
+    }
+    setFocusPolicy(Qt::NoFocus);
 
     auto *pill = new QWidget(this);
     pill->setObjectName("optionsPill");
@@ -212,19 +219,67 @@ void RecordingOptionsBar::rebuildMicMenu()
 void RecordingOptionsBar::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
+    adjustSize();
 
-    // Bottom-center of the screen under the cursor (where selection started).
-    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
-    if (!screen)
-        screen = QGuiApplication::primaryScreen();
-    if (screen) {
-        const QRect avail = screen->availableGeometry();
-        move(avail.center().x() - width() / 2, avail.bottom() - height() - 24);
+    if (isWindow()) {
+        // Bottom-center of the screen under the cursor (where selection started).
+        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+        if (!screen)
+            screen = QGuiApplication::primaryScreen();
+        if (screen && !m_userMoved) {
+            const QRect avail = screen->availableGeometry();
+            move(avail.center().x() - width() / 2, avail.bottom() - height() - 24);
+        }
+#ifdef Q_OS_MACOS
+        Capture::configureSelectionHud(this);   // above the shielding-level overlay
+#endif
+        return;
     }
 
-#ifdef Q_OS_MACOS
-    Capture::configureSelectionHud(this);   // above the shielding-level overlay
-#endif
+    // Child of the overlay: bottom-center of the parent.
+    QWidget *parent = parentWidget();
+    if (parent && !m_userMoved)
+        move((parent->width() - width()) / 2, parent->height() - height() - 24);
+}
+
+void RecordingOptionsBar::mousePressEvent(QMouseEvent *event)
+{
+    // Child buttons consume their own presses, so anything reaching us is pill
+    // background: start a move.
+    if (event->button() != Qt::LeftButton) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
+    if (isWindow()) {
+        if (QWindow *handle = windowHandle())
+            handle->startSystemMove();   // the only move that works on Wayland
+        event->accept();
+        return;
+    }
+    m_dragging = true;
+    m_dragOffset = mapFromGlobal(event->globalPosition().toPoint());
+    event->accept();
+}
+
+void RecordingOptionsBar::mouseMoveEvent(QMouseEvent *event)
+{
+    QWidget *parent = parentWidget();
+    if (!m_dragging || !parent) {
+        QWidget::mouseMoveEvent(event);
+        return;
+    }
+    QPoint pos = parent->mapFromGlobal(event->globalPosition().toPoint()) - m_dragOffset;
+    pos.setX(qBound(0, pos.x(), qMax(0, parent->width() - width())));
+    pos.setY(qBound(0, pos.y(), qMax(0, parent->height() - height())));
+    move(pos);
+    m_userMoved = true;
+    event->accept();
+}
+
+void RecordingOptionsBar::mouseReleaseEvent(QMouseEvent *event)
+{
+    m_dragging = false;
+    QWidget::mouseReleaseEvent(event);
 }
 
 } // namespace Recording
