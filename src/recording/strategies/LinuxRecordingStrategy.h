@@ -12,6 +12,7 @@
 #include <optional>
 
 typedef struct _GstElement GstElement;
+typedef struct _GstPad GstPad;
 
 class QTimer;
 
@@ -55,6 +56,7 @@ private:
     void handleSessionClosed();
 
     bool buildPipeline(quint32 nodeId, QString *error);
+    void setValvesDropping(bool drop);
     void teardown();
     void fail(const QString &error);
 
@@ -70,6 +72,12 @@ private:
     StreamSource m_virtualDesktop;
     int m_pipewireFd = -1;
     quint64 m_generation = 0;
+
+    QVector<GstElement *> m_valves;   // owned refs, all closed while paused
+    QVector<GstPad *> m_valvePads;    // owned refs, the valve src pads carrying the offset
+    quint64 m_pauseStartRt = 0;       // GstClockTime, kept gst-free for this header
+    quint64 m_pausedTotal = 0;
+
     bool m_starting = false;
     bool m_recording = false;
     bool m_stopping = false;

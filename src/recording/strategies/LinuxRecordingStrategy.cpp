@@ -14,6 +14,8 @@
 
 #include <unistd.h>
 
+#include <utility>
+
 namespace Recording {
 
 namespace {
@@ -320,7 +322,9 @@ LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent) : RecordingStrat
         gint64 position = 0;
         if (m_pipeline && gst_element_query_position(m_pipeline, GST_FORMAT_TIME, &position)
             && position >= 0) {
-            emit durationChanged(position / GST_MSECOND);
+            // The pipeline never stops, so the position includes every paused span.
+            const gint64 elapsed = qMax<gint64>(0, position - gint64(m_pausedTotal));
+            emit durationChanged(elapsed / GST_MSECOND);
         }
     });
 
@@ -351,6 +355,7 @@ bool LinuxRecordingStrategy::isAvailable() const
                   && hasFactory("videoscale")
                   && hasFactory("videoconvert")
                   && hasFactory("capsfilter")
+                  && hasFactory("valve")
                   && hasFactory("h264parse")
                   && hasFactory("mp4mux")
                   && hasAnyEncoder();
@@ -393,22 +398,20 @@ void LinuxRecordingStrategy::stop()
     if (!isRecording() || m_stopping)
         return;
 
-    m_stopping = true;
-
     if (!m_pipeline) {
         // The portal handshake never produced a stream, so there is nothing to finalize.
+        m_stopping = true;
         teardown();
         emit failed(tr("The recording was stopped before it started."));
         return;
     }
 
-    // EOS only drains through the muxer while data flows, so leave PAUSED first.
-    if (m_paused) {
-        gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
-        m_paused = false;
-        emit pausedChanged(false);
-    }
+    // EOS only drains through the muxer while buffers flow, so open the valves first.
+    // resume() bails out once m_stopping is set, hence the ordering here.
+    if (m_paused)
+        resume();
 
+    m_stopping = true;
     m_durationTimer->stop();
     gst_element_send_event(m_pipeline, gst_event_new_eos());
     m_eosTimer->start();
@@ -419,9 +422,11 @@ void LinuxRecordingStrategy::pause()
     if (!m_recording || m_paused || m_stopping || !m_pipeline)
         return;
 
-    // The pipeline saves the running time here and the live sources produce nothing while
-    // PAUSED, so the paused span never reaches the muxer or the position query.
-    gst_element_set_state(m_pipeline, GST_STATE_PAUSED);
+    // No state change: pipewiresrc stops consuming in PAUSED, the compositor suspends the
+    // ScreenCast stream and the way back to PLAYING never returns.
+    m_pauseStartRt = gst_element_get_current_running_time(m_pipeline);
+    setValvesDropping(true);
+
     m_durationTimer->stop();
     m_paused = true;
     emit pausedChanged(true);
@@ -432,11 +437,27 @@ void LinuxRecordingStrategy::resume()
     if (!m_recording || !m_paused || m_stopping || !m_pipeline)
         return;
 
-    // Redistributes base_time, so buffers continue at the running time the pause froze.
-    gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
+    const GstClockTime rt = gst_element_get_current_running_time(m_pipeline);
+    if (GST_CLOCK_TIME_IS_VALID(rt) && GST_CLOCK_TIME_IS_VALID(m_pauseStartRt)
+        && rt > m_pauseStartRt) {
+        m_pausedTotal += rt - m_pauseStartRt;
+    }
+
+    // The negative offset shifts post-resume buffers back, so the recorded timeline has no
+    // gap where the pause was.
+    for (GstPad *pad : std::as_const(m_valvePads))
+        gst_pad_set_offset(pad, -gint64(m_pausedTotal));
+    setValvesDropping(false);
+
     m_durationTimer->start();
     m_paused = false;
     emit pausedChanged(false);
+}
+
+void LinuxRecordingStrategy::setValvesDropping(bool drop)
+{
+    for (GstElement *valve : std::as_const(m_valves))
+        g_object_set(valve, "drop", drop ? TRUE : FALSE, nullptr);
 }
 
 void LinuxRecordingStrategy::handleSessionReady(quint32 nodeId, const QRect &streamRectLogical,
@@ -496,6 +517,7 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
 
     QString description =
         QStringLiteral("pipewiresrc name=src keepalive-time=1000 resend-last=true "
+                       "! valve name=videovalve drop=false "
                        "! videorate drop-only=true max-rate=%1 skip-to-first=true "
                        "! videocrop name=crop ! videoscale ! videoconvert "
                        "! capsfilter name=outcaps caps=video/x-raw,pixel-aspect-ratio=1/1 "
@@ -512,16 +534,19 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
             // An audiomixer even for a single source, so mic, system audio and both share
             // one code path.
             description += QStringLiteral(
-                " audiomixer name=amix ! audioconvert ! audioresample "
+                " audiomixer name=amix ! valve name=audiovalve drop=false "
+                "! audioconvert ! audioresample "
                 "! audio/x-raw,rate=48000,channels=2 ! %1 ! aacparse ! queue ! mux.").arg(aac);
             if (m_target.captureMic) {
                 description += QStringLiteral(
-                    " pulsesrc name=micsrc ! queue ! audioconvert ! audioresample ! amix.");
+                    " pulsesrc name=micsrc ! valve name=micvalve drop=false "
+                    "! queue ! audioconvert ! audioresample ! amix.");
             }
             if (m_target.captureSystemAudio) {
                 // @DEFAULT_MONITOR@ is a pipewire-pulse alias for the default sink's monitor.
                 description += QStringLiteral(
                     " pulsesrc name=syssrc device=@DEFAULT_MONITOR@ provide-clock=false "
+                    "! valve name=sysvalve drop=false "
                     "! queue ! audioconvert ! audioresample ! amix.");
             }
         }
@@ -586,6 +611,23 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         gst_object_unref(srcPad);
     }
 
+    // Pause closes every valve, but only the pads feeding the muxer carry the offset:
+    // audiomixer fills silence for a dropped input, so shifting its inputs excises nothing.
+    const auto collectValve = [this](const char *name, bool carriesOffset) {
+        GstElement *valve = gst_bin_get_by_name(GST_BIN(m_pipeline), name);
+        if (!valve)
+            return;
+        m_valves.append(valve);
+        if (!carriesOffset)
+            return;
+        if (GstPad *pad = gst_element_get_static_pad(valve, "src"))
+            m_valvePads.append(pad);
+    };
+    collectValve("videovalve", true);
+    collectValve("audiovalve", true);
+    collectValve("micvalve", false);
+    collectValve("sysvalve", false);
+
     // The first video buffer reaching the muxer is the moment capture is really live.
     if (GstPad *muxPad = videoSinkPad(muxer)) {
         auto *bufferCtx = new CallbackContext{this, m_generation};
@@ -647,6 +689,15 @@ void LinuxRecordingStrategy::teardown()
 
     m_durationTimer->stop();
     m_eosTimer->stop();
+
+    for (GstPad *pad : std::as_const(m_valvePads))
+        gst_object_unref(pad);
+    m_valvePads.clear();
+    for (GstElement *valve : std::as_const(m_valves))
+        gst_object_unref(valve);
+    m_valves.clear();
+    m_pauseStartRt = 0;
+    m_pausedTotal = 0;
 
     if (m_pipeline) {
         // Blocks until the streaming threads are joined, so no probe or bus callback can
