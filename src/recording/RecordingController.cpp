@@ -4,6 +4,7 @@
 #include "recording/RecordingStrategy.h"
 #include "recording/CameraBubble.h"
 #include "recording/RecordingFrameOverlay.h"
+#include "recording/LayerShellSupport.h"
 #include "recording/RecordingOptionsBar.h"
 #include "capture/AreaSelector.h"
 #include "capture/WindowEnumerator.h"
@@ -249,8 +250,14 @@ void RecordingController::presentSelection(bool windowPick)
             selector->setActionsEnabled(false);   // recording has no Edit/Copy/Save toolbar
             selector->setGeometry(screenGeometry);
             selector->winId();
-            if (QWindow *wh = selector->windowHandle())
+            if (QWindow *wh = selector->windowHandle()) {
                 wh->setScreen(screen);
+                // Without this the compositor shrinks the overlay to the work area,
+                // so the panel strip is unselectable. Exclusive keyboard keeps
+                // Enter/Esc working while the overlay is up.
+                attachOverlayLayerSurface(wh, OverlayAnchorAll, /*exclusiveZone=*/-1,
+                                          OverlayKeyboard::Exclusive);
+            }
             selector->show();
             selector->raise();
             selector->activateWindow();

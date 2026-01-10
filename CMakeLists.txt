@@ -336,6 +336,7 @@ add_library(niceshot_lib STATIC
         src/recording/RecordingControls.h
         src/recording/RecordingFrameOverlay.cpp
         src/recording/RecordingFrameOverlay.h
+        src/recording/LayerShellSupport.h
         src/recording/RecordingOptionsBar.cpp
         src/recording/RecordingOptionsBar.h
         src/recording/CameraBubble.cpp

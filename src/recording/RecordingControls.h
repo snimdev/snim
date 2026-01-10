@@ -21,6 +21,10 @@ class RecordingControls : public QWidget
 public:
     explicit RecordingControls(QWidget *parent = nullptr);
 
+    // The layer role must be set before the surface is committed, so the Wayland
+    // setup happens here rather than in showEvent().
+    void setVisible(bool visible) override;
+
 public slots:
     void setElapsed(qint64 ms);
     void setPaused(bool paused);   // updates the Pause/Resume button label
@@ -33,6 +37,7 @@ protected:
     void showEvent(QShowEvent *event) override;   // place top-center, float above Spaces (macOS)
 
 private:
+    bool m_layerSurface = false;   // true once the Wayland layer role is attached
     QLabel *m_time = nullptr;
     QPushButton *m_pauseButton = nullptr;
     QPushButton *m_stopButton = nullptr;

@@ -1,5 +1,6 @@
 #include "recording/RecordingFrameOverlay.h"
 #include "recording/RecordingGeometry.h"
+#include "recording/LayerShellSupport.h"
 
 #include <QGuiApplication>
 #include <QPainter>
@@ -8,10 +9,6 @@
 
 #ifdef Q_OS_MACOS
 #include "capture/MacOverlay.h"
-#endif
-
-#ifdef NICESHOT_HAVE_LAYER_SHELL
-#include <LayerShellQt/window.h>
 #endif
 
 namespace Recording {
@@ -74,29 +71,9 @@ void RecordingFrameOverlay::showForRegion(const QRect &regionVirtual)
 
 void RecordingFrameOverlay::applyLayerShell()
 {
-#ifdef NICESHOT_HAVE_LAYER_SHELL
-    if (QGuiApplication::platformName() != QLatin1String("wayland"))
-        return;
-    QWindow *wh = windowHandle();
-    if (!wh)
-        return;
-
-    // Idempotent: get() returns the object already attached to this QWindow.
-    LayerShellQt::Window *ls = LayerShellQt::Window::get(wh);
-    if (!ls)
-        return;
-
-    ls->setLayer(LayerShellQt::Window::LayerOverlay);
-    ls->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop
-                                                 | LayerShellQt::Window::AnchorBottom
-                                                 | LayerShellQt::Window::AnchorLeft
-                                                 | LayerShellQt::Window::AnchorRight));
-    // -1 covers panels too: the surface must be the whole screen, or the compositor
-    // shrinks it and m_hole (screen-local) no longer lands on the recorded region.
-    ls->setExclusiveZone(-1);
-    ls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
-    ls->setScreenConfiguration(LayerShellQt::Window::ScreenFromQWindow);
-#endif
+    // Zone -1 covers panels too: the surface must be the whole screen, or the
+    // compositor shrinks it and m_hole (screen-local) no longer lands on the region.
+    attachOverlayLayerSurface(windowHandle(), OverlayAnchorAll, -1, OverlayKeyboard::None);
 }
 
 void RecordingFrameOverlay::paintEvent(QPaintEvent *)

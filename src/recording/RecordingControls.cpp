@@ -1,5 +1,7 @@
 #include "recording/RecordingControls.h"
+#include "recording/LayerShellSupport.h"
 
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -7,6 +9,7 @@
 #include <QGuiApplication>
 #include <QShowEvent>
 #include <QTime>
+#include <QWindow>
 
 #ifdef Q_OS_MACOS
 #include "capture/MacOverlay.h"
@@ -37,7 +40,7 @@ RecordingControls::RecordingControls(QWidget *parent)
     dot->setStyleSheet("color: #e0392b; font-size: 14px;");
 
     m_time = new QLabel(QStringLiteral("00:00"), pill);
-    m_time->setMinimumWidth(44);
+    m_time->setAlignment(Qt::AlignCenter);
 
     m_pauseButton = new QPushButton(tr("Pause"), pill);
     m_pauseButton->setObjectName("pauseButton");
@@ -46,6 +49,18 @@ RecordingControls::RecordingControls(QWidget *parent)
     m_stopButton = new QPushButton(tr("Stop"), pill);
     m_stopButton->setObjectName("stopButton");
     connect(m_stopButton, &QPushButton::clicked, this, &RecordingControls::stopRequested);
+
+    // A Wayland layer surface keeps the size we ask for at map time, so the pill must
+    // never grow later: reserve the widest clock and the wider Pause/Resume label now.
+    // ensurePolished() first, so the stylesheet fonts are the ones being measured.
+    ensurePolished();
+    m_time->setMinimumWidth(QFontMetrics(m_time->font())
+                                .horizontalAdvance(QStringLiteral("00:00:00")) + 4);
+    const int pauseWidth = m_pauseButton->sizeHint().width();
+    m_pauseButton->setText(tr("Resume"));
+    const int resumeWidth = m_pauseButton->sizeHint().width();
+    m_pauseButton->setText(tr("Pause"));
+    m_pauseButton->setMinimumWidth(qMax(pauseWidth, resumeWidth));
 
     auto *row = new QHBoxLayout(pill);
     row->setContentsMargins(12, 6, 8, 6);
@@ -59,6 +74,26 @@ RecordingControls::RecordingControls(QWidget *parent)
     outer->setContentsMargins(0, 0, 0, 0);
     outer->addWidget(pill);
     adjustSize();
+}
+
+void RecordingControls::setVisible(bool visible)
+{
+    if (visible && !m_layerSurface && overlayLayerSurfacesAvailable()) {
+        // Anchored to the top edge only: the compositor then centers the surface
+        // along that edge, which replaces the move() the Wayland session ignores.
+        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+        if (!screen)
+            screen = QGuiApplication::primaryScreen();
+        if (screen)
+            setScreen(screen);   // a layer surface binds its output at creation
+        createWinId();
+        if (QWindow *wh = windowHandle(); wh && screen)
+            wh->setScreen(screen);
+        attachOverlayLayerSurface(windowHandle(), OverlayAnchorTop, /*exclusiveZone=*/0,
+                                  OverlayKeyboard::None, QMargins(0, 12, 0, 0), sizeHint());
+        m_layerSurface = true;
+    }
+    QWidget::setVisible(visible);
 }
 
 void RecordingControls::setElapsed(qint64 ms)
@@ -78,12 +113,15 @@ void RecordingControls::showEvent(QShowEvent *event)
     QWidget::showEvent(event);
 
     // Top-center of the screen under the cursor (falls back to the primary screen).
-    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
-    if (!screen)
-        screen = QGuiApplication::primaryScreen();
-    if (screen) {
-        const QRect avail = screen->availableGeometry();
-        move(avail.center().x() - width() / 2, avail.top() + 12);
+    // The layer surface places itself, and move() would be ignored there anyway.
+    if (!m_layerSurface) {
+        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+        if (!screen)
+            screen = QGuiApplication::primaryScreen();
+        if (screen) {
+            const QRect avail = screen->availableGeometry();
+            move(avail.center().x() - width() / 2, avail.top() + 12);
+        }
     }
 
 #ifdef Q_OS_MACOS
