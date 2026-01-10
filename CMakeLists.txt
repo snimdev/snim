@@ -169,6 +169,23 @@ if(NOT GSTREAMER_AVAILABLE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     message(STATUS "  Install with: sudo dnf install gstreamer1-devel")
 endif()
 
+# Optional LayerShellQt - lets the recording frame overlay become a Wayland layer
+# surface. Without it the overlay stays a plain toplevel, which the compositor sinks
+# below the windows the user is working in (it is never focused, by design).
+set(LAYER_SHELL_AVAILABLE FALSE)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(LayerShellQt CONFIG QUIET)
+    if(LayerShellQt_FOUND)
+        set(LAYER_SHELL_AVAILABLE TRUE)
+        message(STATUS "LayerShellQt found - the recording frame overlay will use a Wayland layer surface")
+        message(STATUS "  Version: ${LayerShellQt_VERSION}")
+    else()
+        message(STATUS "LayerShellQt not found - the recording frame overlay stays a plain Wayland toplevel")
+        message(STATUS "  Install with: sudo dnf install layer-shell-qt-devel")
+    endif()
+endif()
+
 # All cross-platform sources live in a static library so both the executable and
 # the test suite can link them. main.cpp + the .app bundle stay on the executable.
 add_library(niceshot_lib STATIC
@@ -460,6 +477,13 @@ if(GSTREAMER_AVAILABLE)
     # Activates the Linux branch of RecordingFactory + makes Auto pick the portal
     # recorder. PUBLIC because the tests check the macro.
     target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_LINUX_RECORDER)
+endif()
+
+# Wayland layer-shell path for the recording frame overlay. Attaching
+# LayerShellQt::Window per window is enough on Qt 6.5+, no global registration.
+if(LAYER_SHELL_AVAILABLE)
+    target_link_libraries(niceshot_lib PUBLIC LayerShellQt::Interface)
+    target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_LAYER_SHELL)
 endif()
 
 # Windows global hotkeys: RegisterHotKey + a WM_HOTKEY native event filter. The define

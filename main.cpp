@@ -5,7 +5,6 @@
 
 int main(int argc, char *argv[]) {
 
-
     QLoggingCategory::setFilterRules(
         "qt.*.debug=false\n"
         "Niceshot.debug=true\n"

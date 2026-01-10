@@ -10,6 +10,10 @@
 #include "capture/MacOverlay.h"
 #endif
 
+#ifdef NICESHOT_HAVE_LAYER_SHELL
+#include <LayerShellQt/window.h>
+#endif
+
 namespace Recording {
 
 namespace {
@@ -55,11 +59,44 @@ void RecordingFrameOverlay::showForRegion(const QRect &regionVirtual)
     if (m_hole.isEmpty())
         return;
 
+    // Before createWinId(): a layer surface binds its output when it is created.
+    setScreen(screen);
     setGeometry(screenGeo);
+    // The layer role has to be set before the surface is committed, so create the
+    // window handle here and configure it while the widget is still hidden.
+    createWinId();
     if (QWindow *wh = windowHandle())
         wh->setScreen(screen);
+    applyLayerShell();
     show();
     update();
+}
+
+void RecordingFrameOverlay::applyLayerShell()
+{
+#ifdef NICESHOT_HAVE_LAYER_SHELL
+    if (QGuiApplication::platformName() != QLatin1String("wayland"))
+        return;
+    QWindow *wh = windowHandle();
+    if (!wh)
+        return;
+
+    // Idempotent: get() returns the object already attached to this QWindow.
+    LayerShellQt::Window *ls = LayerShellQt::Window::get(wh);
+    if (!ls)
+        return;
+
+    ls->setLayer(LayerShellQt::Window::LayerOverlay);
+    ls->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop
+                                                 | LayerShellQt::Window::AnchorBottom
+                                                 | LayerShellQt::Window::AnchorLeft
+                                                 | LayerShellQt::Window::AnchorRight));
+    // -1 covers panels too: the surface must be the whole screen, or the compositor
+    // shrinks it and m_hole (screen-local) no longer lands on the recorded region.
+    ls->setExclusiveZone(-1);
+    ls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+    ls->setScreenConfiguration(LayerShellQt::Window::ScreenFromQWindow);
+#endif
 }
 
 void RecordingFrameOverlay::paintEvent(QPaintEvent *)
@@ -71,10 +108,18 @@ void RecordingFrameOverlay::paintEvent(QPaintEvent *)
     for (const QRect &strip : surroundingRects(rect(), m_hole))
         p.fillRect(strip, QColor(0, 0, 0, kDimAlpha));
 
-    // Accent border drawn just inside the hole edge (same style as the selector).
     p.setPen(QPen(kAccent, kBorderWidth));
     p.setBrush(Qt::NoBrush);
+#ifdef Q_OS_MACOS
+    // ScreenCaptureKit leaves our windows out of the capture, so the border can sit
+    // just inside the hole edge (same style as the selector).
     p.drawRect(m_hole.adjusted(0, 0, -1, -1));
+#else
+    // The portal stream captures our own windows, so no pixel may be painted inside
+    // the recorded region: this stroke covers exactly the kBorderWidth px outside it.
+    constexpr int kOut = kBorderWidth / 2;
+    p.drawRect(m_hole.adjusted(-kOut, -kOut, kOut, kOut));
+#endif
 }
 
 void RecordingFrameOverlay::showEvent(QShowEvent *event)
