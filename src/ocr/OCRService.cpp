@@ -2,7 +2,12 @@
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QBuffer>
+#include <QCoreApplication>
 #include <QDebug>
+#include <QMetaObject>
+#include <QPointer>
+#include <QtConcurrentRun>
+#include <utility>
 
 #ifdef HAVE_TESSERACT
 #include <tesseract/baseapi.h>
@@ -10,6 +15,18 @@
 #endif
 
 namespace OCR {
+
+namespace {
+
+// Every worker -> GUI hop goes through here; qApp is gone during shutdown, so dropping the post is correct.
+template <typename F>
+void postToGui(F &&fn)
+{
+    if (QCoreApplication *app = QCoreApplication::instance())
+        QMetaObject::invokeMethod(app, std::forward<F>(fn), Qt::QueuedConnection);
+}
+
+} // namespace
 
 #ifdef HAVE_TESSERACT
 /**
@@ -23,6 +40,8 @@ public:
             qWarning() << "Failed to initialize Tesseract API";
             delete m_api;
             m_api = nullptr;
+        } else {
+            m_language = "eng";
         }
     }
 
@@ -35,8 +54,24 @@ public:
 
     tesseract::TessBaseAPI* api() { return m_api; }
 
+    // Re-Inits only when the requested language differs from the loaded one.
+    bool ensureLanguage(const QString& lang) {
+        if (!m_api) {
+            return false;
+        }
+        if (lang == m_language) {
+            return true;
+        }
+        if (m_api->Init(nullptr, lang.toStdString().c_str()) != 0) {
+            return false;
+        }
+        m_language = lang;
+        return true;
+    }
+
 private:
     tesseract::TessBaseAPI* m_api;
+    QString m_language;
 };
 #endif
 
@@ -90,8 +125,15 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
     processedImage = convertToRGB888(processedImage);
 
     // Set language if different from current
+    if (!m_impl->ensureLanguage(language)) {
+        result.setSuccess(false);
+        result.setErrorMessage("Failed to initialize Tesseract for language: " + language);
+        emit ocrCompleted(result);
+        return result;
+    }
+
+    // Cleared per call, after any re-Init (Init resets Tesseract variables)
     m_impl->api()->SetVariable("tesseract_char_whitelist", "");
-    m_impl->api()->Init(nullptr, language.toStdString().c_str());
 
     // Convert QImage to Tesseract format
     const int width = processedImage.width();
@@ -154,6 +196,20 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
 
     emit ocrCompleted(result);
     return result;
+}
+
+void OCRService::performOCRAsync(const QImage& image, const QString& language,
+                                 QObject* context, std::function<void(const OCRResult&)> onDone) {
+    // Worker-local service: the Tesseract handle never leaves the pool thread that made it.
+    (void) QtConcurrent::run([image, language, self = QPointer<QObject>(context),
+                             onDone = std::move(onDone)] {
+        OCRService svc;
+        const OCRResult r = svc.performOCR(image, language);
+        postToGui([self, r, onDone] {
+            if (self)
+                onDone(r);
+        });
+    });
 }
 
 QImage OCRService::preprocessImage(const QImage& image) const {

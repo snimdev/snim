@@ -3,15 +3,9 @@
 
 #include <QObject>
 #include <QPixmap>
-#include <QRect>
 #include <memory>
 
-namespace OCR {
-class OCRService;
-}
-
 namespace Capture {
-class AreaSelector;
 class CaptureStrategy;
 }
 
@@ -59,14 +53,12 @@ signals:
     void errorOccurred(const QString &errorMessage);
 
 private slots:
-    void onAreaSelected(const QRect &area);
     void onScreenCaptured(const QPixmap &screenshot);
 
 private:
     void performOCR(const QPixmap &selectedRegion);
-    std::unique_ptr<OCR::OCRService> m_ocrService;
     std::unique_ptr<Capture::CaptureStrategy> m_captureStrategy;
-    QList<Capture::AreaSelector*> m_areaSelectors;
+    bool m_ocrInFlight = false;
 };
 
 } // namespace Core

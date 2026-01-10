@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QPixmap>
 #include <QImage>
+#include <functional>
 #include "OCRResult.h"
 
 namespace OCR {
@@ -43,6 +44,16 @@ public:
      * @return OCRResult containing the extracted text and metadata
      */
     [[nodiscard]] OCRResult performOCR(const QImage& image, const QString& language = "eng");
+
+    /**
+     * @brief Perform OCR on a QtConcurrent pool thread with a worker-local OCRService
+     * @param image The image to process (a QImage, so it can cross threads)
+     * @param language Language code (e.g. "eng")
+     * @param context Lifetime guard: onDone runs only if it is still alive
+     * @param onDone Callback invoked with the result on the GUI thread
+     */
+    static void performOCRAsync(const QImage& image, const QString& language,
+                                QObject* context, std::function<void(const OCRResult&)> onDone);
 
     /**
      * @brief Get list of available languages
