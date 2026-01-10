@@ -20,9 +20,13 @@ namespace Recording {
 RecordingControls::RecordingControls(QWidget *parent)
     : QWidget(parent)
 {
-    setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    // The layer surface replaces the toplevel hints, and KWin withholds input from
+    // layer surfaces carrying popup-like flags, so set these only off the layer path.
+    if (!overlayLayerSurfacesAvailable()) {
+        setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+    }
     setAttribute(Qt::WA_TranslucentBackground);
-    setAttribute(Qt::WA_ShowWithoutActivating);
 
     auto *pill = new QWidget(this);
     pill->setObjectName("recordingPill");
@@ -90,7 +94,7 @@ void RecordingControls::setVisible(bool visible)
         if (QWindow *wh = windowHandle(); wh && screen)
             wh->setScreen(screen);
         attachOverlayLayerSurface(windowHandle(), OverlayAnchorTop, /*exclusiveZone=*/0,
-                                  OverlayKeyboard::None, QMargins(0, 12, 0, 0), sizeHint());
+                                  OverlayKeyboard::OnDemand, QMargins(0, 12, 0, 0), sizeHint());
         m_layerSurface = true;
     }
     QWidget::setVisible(visible);

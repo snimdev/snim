@@ -30,7 +30,8 @@ enum OverlayAnchor {
 };
 
 enum class OverlayKeyboard {
-    None,        // clicks still work, focus is never stolen
+    None,        // no input at all: KWin also withholds POINTER from None surfaces
+    OnDemand,    // clickable, keyboard focus only when clicked (the controls pill)
     Exclusive,   // grabs the keyboard while shown (Enter/Esc driven overlays)
 };
 
@@ -73,9 +74,17 @@ inline void attachOverlayLayerSurface(QWindow *w, int anchors, int exclusiveZone
     ls->setLayer(LayerShellQt::Window::LayerOverlay);
     ls->setAnchors(lsAnchors);
     ls->setExclusiveZone(exclusiveZone);
-    ls->setKeyboardInteractivity(keyboard == OverlayKeyboard::Exclusive
-                                     ? LayerShellQt::Window::KeyboardInteractivityExclusive
-                                     : LayerShellQt::Window::KeyboardInteractivityNone);
+    switch (keyboard) {
+    case OverlayKeyboard::None:
+        ls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+        break;
+    case OverlayKeyboard::OnDemand:
+        ls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
+        break;
+    case OverlayKeyboard::Exclusive:
+        ls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityExclusive);
+        break;
+    }
     ls->setMargins(margins);
     if (desiredSize.isValid())
         ls->setDesiredSize(desiredSize);
