@@ -4,6 +4,9 @@
         <!-- System tray icon -->
         <file>icons/tray-icon.svg</file>
 
+        <!-- Full-color app icon master -->
+        <file>icons/app-icon.svg</file>
+
         <!-- Toolbar icons -->
         <file>icons/save.svg</file>
         <file>icons/play.svg</file>

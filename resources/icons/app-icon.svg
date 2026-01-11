@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="56" fill="#0F766E"/>
+  <!-- Viewfinder corner brackets -->
+  <path d="M64 108V90C64 75.6406 75.6406 64 90 64H108" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M148 64H166C180.359 64 192 75.6406 192 90V108" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M192 148V166C192 180.359 180.359 192 166 192H148" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M108 192H90C75.6406 192 64 180.359 64 166V148" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Capture dot -->
+  <circle cx="128" cy="128" r="32" fill="#FFFFFF"/>
+</svg>
