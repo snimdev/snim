@@ -60,11 +60,18 @@ private slots:
     void startUpload(const QString &localPath, const QString &suggestedName, bool deleteWhenDone,
                      const QString &profileId);
     void showSettings();
+    // KWin refused ScreenShot2: offer to install the desktop entry that authorizes it.
+    void onKWinAuthorizationDenied();
     static void showAbout();
     static void quit();
 
 private:
     void setupSystemTray();
+
+    // Writes the desktop entry and reports the outcome; shared by the prompt and the tray action.
+    void runDesktopIntegrationSetup();
+    void refreshDesktopIntegrationAction() const;
+
     static QIcon createThemedTrayIcon(const QString &iconPath);
 
     // The tray action a hotkey fires; every hotkey action has one.
@@ -86,7 +93,10 @@ private:
     QAction *m_recordWindowAction{};
     QAction *m_settingsAction{};
     QAction *m_aboutAction{};
+    QAction *m_desktopIntegrationAction{};   // Linux only, hidden once the entry is in place
     QAction *m_quitAction{};
+
+    bool m_kwinAuthPromptShown = false;      // the offer is made once per run
 
     std::unique_ptr<Capture::CaptureStrategy> m_captureStrategy;
     std::unique_ptr<Hotkeys::GlobalHotkeyManager> m_hotkeyManager;

@@ -42,6 +42,11 @@ public:
     /// Check if the KWin ScreenShot2 D-Bus service is registered
     static bool isKWinAvailable();
 
+signals:
+    /// KWin refused the call because no installed desktop entry authorizes this binary.
+    /// The capture itself still completes through the CaptureInteractive fallback.
+    void authorizationDenied();
+
 private:
     /// D-Bus method call with pipe-based data transfer
     void callScreenShotMethod(const QString &method, const QVariantList &args,

@@ -98,6 +98,11 @@ public:
     static QColor editorBackground();                   // default: transparent
     static void setEditorBackground(const QColor &c);
 
+    // Desktop integration (Linux/KDE): true once the user answered "Never ask again" to the
+    // prompt that offers to register Snim's desktop entry for KWin's fast capture path.
+    static bool desktopIntegrationPromptDismissed();    // default: false
+    static void setDesktopIntegrationPromptDismissed(bool on);
+
     // Backdrop preset store (BackdropPresets owns the JSON shape; this is raw I/O).
     static QString backdropPresetsJson();
     static void setBackdropPresetsJson(const QString &json);

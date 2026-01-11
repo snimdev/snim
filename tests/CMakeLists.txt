@@ -33,6 +33,7 @@ set(SNIM_TESTS
         tst_hotkeybindings
         tst_hotkeymapping
         tst_hotkeymanager
+        tst_desktopintegration
 )
 
 foreach(test_name ${SNIM_TESTS})
@@ -42,6 +43,9 @@ foreach(test_name ${SNIM_TESTS})
     set_tests_properties(${test_name} PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endforeach()
+
+# install() copies the app icon out of the qrc, so this one needs the resources too.
+target_sources(tst_desktopintegration PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
 
 # The ImageEditor smoke test also needs the qrc (it loads :/styles + themed
 # :/icons at construction), so it gets resources.qrc compiled into it directly.

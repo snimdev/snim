@@ -203,6 +203,9 @@ add_library(snim_lib STATIC
         src/core/SettingsDialog.cpp
         src/core/SettingsDialog.h
         src/core/KeychainStore.h
+        # KDE desktop-entry repair for KWin's ScreenShot2 authorization (no-op elsewhere).
+        src/core/DesktopIntegration.cpp
+        src/core/DesktopIntegration.h
 
         # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
         # macOS keychain backing is added in the APPLE block; a stub elsewhere. The

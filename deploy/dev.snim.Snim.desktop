@@ -6,5 +6,7 @@ Comment=Screenshot, screen recording, OCR and upload tool
 Exec=snim
 Icon=dev.snim.Snim
 Terminal=false
-Categories=Utility;Graphics;Qt;
+Categories=Utility;Qt;
 StartupWMClass=snim
+# KWin only authorizes ScreenShot2 for apps whose desktop entry declares it.
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2

@@ -182,6 +182,7 @@ void KWinCaptureStrategy::captureWorkspace(bool showSelector)
                 if (permFailed && results->isEmpty()) {
                     delete results;
                     qDebug() << "Permission denied, falling back to CaptureInteractive";
+                    emit authorizationDenied();
                     fallbackToInteractive(showSelector, 1);
                     return;
                 }
@@ -255,6 +256,7 @@ void KWinCaptureStrategy::handleReply(QDBusPendingCallWatcher *watcher, int read
             // Permission denied: fall back to CaptureInteractive
             if (errorName.contains("NoAuthorized") || errorName.contains("AccessDenied")) {
                 qDebug() << "Permission denied, falling back to CaptureInteractive";
+                emit authorizationDenied();
                 int kind = (method == "CaptureActiveWindow") ? 0 : 1;
                 fallbackToInteractive(showAreaSel, kind);
                 return;
@@ -408,7 +410,7 @@ QImage KWinCaptureStrategy::compositeScreenImages(const QList<QImage> &images)
 
 void KWinCaptureStrategy::fallbackToInteractive(bool showSelector, int kind)
 {
-    qDebug() << "Using CaptureInteractive (kind:" << kind << ") — no .desktop permissions needed";
+    qDebug() << "Using CaptureInteractive (kind:" << kind << "), no .desktop permissions needed";
 
     QVariantList args;
     args << quint32(kind) << QVariant::fromValue(buildOptions());

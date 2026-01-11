@@ -40,6 +40,7 @@ constexpr auto kHotkeyCaptureFullScreen = "Hotkeys/CaptureFullScreen";
 constexpr auto kHotkeyOcrTextSnip       = "Hotkeys/OcrTextSnip";
 constexpr auto kHotkeyRecordArea        = "Hotkeys/RecordArea";
 constexpr auto kHotkeyRecordWindow      = "Hotkeys/RecordWindow";
+constexpr auto kDesktopIntegrationDismissed = "DesktopIntegration/PromptDismissed";
 }
 
 QString Settings::screenshotFolder()
@@ -131,6 +132,15 @@ void Settings::setEditorForeground(const QColor &c) { QSettings().setValue(kFore
 
 QColor Settings::editorBackground() { return QSettings().value(kBackground, QColor(Qt::transparent)).value<QColor>(); }
 void Settings::setEditorBackground(const QColor &c) { QSettings().setValue(kBackground, c); }
+
+bool Settings::desktopIntegrationPromptDismissed()
+{
+    return QSettings().value(kDesktopIntegrationDismissed, false).toBool();
+}
+void Settings::setDesktopIntegrationPromptDismissed(bool on)
+{
+    QSettings().setValue(kDesktopIntegrationDismissed, on);
+}
 
 QString Settings::backdropPresetsJson() { return QSettings().value(kBackdropPresets).toString(); }
 void Settings::setBackdropPresetsJson(const QString &json) { QSettings().setValue(kBackdropPresets, json); }

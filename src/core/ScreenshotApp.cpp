@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QKeyEvent>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QDir>
 #include <QStyle>
 #include <QPalette>
@@ -16,7 +17,11 @@
 #include <QFileDialog>
 
 #include "core/Settings.h"
+#include "core/DesktopIntegration.h"
 #include "capture/AreaSelector.h"
+#ifdef Q_OS_LINUX
+#include "capture/strategies/KWinCaptureStrategy.h"
+#endif
 #include "hotkeys/GlobalHotkeyManager.h"
 #include "hotkeys/HotkeyBindings.h"
 #include "editor/image/ImageEditor.h"
@@ -52,6 +57,14 @@ namespace Core {
         connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotFailed, this, [](const QString &error) {
             QMessageBox::warning(nullptr, "Screenshot Failed", error);
         });
+
+#ifdef Q_OS_LINUX
+        // Queued: the prompt must not run inside the D-Bus reply handler that is about
+        // to start the interactive fallback for the capture that just failed.
+        if (auto *kwin = qobject_cast<Capture::KWinCaptureStrategy *>(m_captureStrategy.get()))
+            connect(kwin, &Capture::KWinCaptureStrategy::authorizationDenied,
+                    this, &ScreenshotApp::onKWinAuthorizationDenied, Qt::QueuedConnection);
+#endif
 
         // Initialize text snip capture
         m_textSnipCapture = std::make_unique<OCR::TextSnipCapture>(this);
@@ -177,6 +190,14 @@ namespace Core {
 
         connect(m_aboutAction, &QAction::triggered, this, &ScreenshotApp::showAbout);
 
+#ifdef Q_OS_LINUX
+        m_desktopIntegrationAction = new QAction("Set up desktop integration...", this);
+        m_desktopIntegrationAction->setToolTip(
+            "Register Snim's desktop entry so KDE allows instant, dialog-free captures");
+        connect(m_desktopIntegrationAction, &QAction::triggered,
+                this, &ScreenshotApp::runDesktopIntegrationSetup);
+#endif
+
         m_quitAction = new QAction("Quit", this);
         connect(m_quitAction, &QAction::triggered, this, &ScreenshotApp::quit);
 
@@ -190,6 +211,11 @@ namespace Core {
         m_trayMenu->addAction(m_textSnipAction);
         m_trayMenu->addSeparator();
         m_trayMenu->addAction(m_settingsAction);
+#ifdef Q_OS_LINUX
+        m_trayMenu->addAction(m_desktopIntegrationAction);
+        connect(m_trayMenu, &QMenu::aboutToShow, this, &ScreenshotApp::refreshDesktopIntegrationAction);
+        refreshDesktopIntegrationAction();
+#endif
         m_trayMenu->addAction(m_aboutAction);
         m_trayMenu->addSeparator();
         m_trayMenu->addAction(m_quitAction);
@@ -315,6 +341,55 @@ namespace Core {
         settingsDialog->exec();
     }
 
+    void ScreenshotApp::onKWinAuthorizationDenied() {
+        if (m_kwinAuthPromptShown)
+            return;
+        m_kwinAuthPromptShown = true;
+
+        if (Settings::desktopIntegrationPromptDismissed())
+            return;
+        // Entry already correct: the refusal has another cause, so offering a rewrite helps nobody.
+        if (DesktopIntegration::status() == DesktopIntegration::Status::Installed)
+            return;
+
+        QMessageBox box;
+        box.setIcon(QMessageBox::Information);
+        box.setWindowTitle(tr("Enable fast screenshots"));
+        box.setText(tr("KDE needs Snim's desktop entry to be registered before it allows "
+                       "instant, dialog-free captures."));
+        box.setInformativeText(tr("Without it every capture goes through the slower picker "
+                                  "dialog. Snim can set this up now; it only writes a desktop "
+                                  "entry and an icon into your local applications folder."));
+        QPushButton *setUp = box.addButton(tr("Set up now"), QMessageBox::AcceptRole);
+        box.addButton(tr("Not now"), QMessageBox::RejectRole);
+        QPushButton *never = box.addButton(tr("Never ask again"), QMessageBox::DestructiveRole);
+        box.setDefaultButton(setUp);
+        box.exec();
+
+        if (box.clickedButton() == setUp)
+            runDesktopIntegrationSetup();
+        else if (box.clickedButton() == never)
+            Settings::setDesktopIntegrationPromptDismissed(true);
+    }
+
+    void ScreenshotApp::runDesktopIntegrationSetup() {
+        QString error;
+        if (DesktopIntegration::install(&error)) {
+            QMessageBox::information(nullptr, tr("Desktop integration"),
+                                     tr("Done. The next capture uses the fast path."));
+        } else {
+            QMessageBox::warning(nullptr, tr("Desktop integration"),
+                                 tr("Could not set up the desktop entry:\n%1").arg(error));
+        }
+        refreshDesktopIntegrationAction();
+    }
+
+    void ScreenshotApp::refreshDesktopIntegrationAction() const {
+        if (!m_desktopIntegrationAction)
+            return;
+        m_desktopIntegrationAction->setVisible(
+            DesktopIntegration::status() != DesktopIntegration::Status::Installed);
+    }
 
     void ScreenshotApp::onScreenshotReady(const QPixmap &screenshot) {
         // Fullscreen shows no overlay, so this is its visible-endpoint; area/window already reported.
