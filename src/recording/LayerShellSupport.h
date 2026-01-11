@@ -6,7 +6,7 @@
 #include <QSize>
 #include <QWindow>
 
-#ifdef NICESHOT_HAVE_LAYER_SHELL
+#ifdef SNIM_HAVE_LAYER_SHELL
 #include <LayerShellQt/window.h>
 #endif
 
@@ -38,7 +38,7 @@ enum class OverlayKeyboard {
 /** True when attachOverlayLayerSurface() will actually do something. */
 inline bool overlayLayerSurfacesAvailable()
 {
-#ifdef NICESHOT_HAVE_LAYER_SHELL
+#ifdef SNIM_HAVE_LAYER_SHELL
     return QGuiApplication::platformName() == QLatin1String("wayland");
 #else
     return false;
@@ -56,7 +56,7 @@ inline void attachOverlayLayerSurface(QWindow *w, int anchors, int exclusiveZone
                                       const QMargins &margins = QMargins(),
                                       const QSize &desiredSize = QSize())
 {
-#ifdef NICESHOT_HAVE_LAYER_SHELL
+#ifdef SNIM_HAVE_LAYER_SHELL
     if (!w || QGuiApplication::platformName() != QLatin1String("wayland"))
         return;
 

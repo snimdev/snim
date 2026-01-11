@@ -17,12 +17,12 @@
 namespace Core::KeychainStore {
 
 // One service id per upload provider type; account = the profile id. (The type -> service
-// mapping is Upload::keychainServiceFor - Core must not know the Upload enums.) The S3 id
-// is unchanged from before profiles existed, so existing keychain items keep working; its
-// account was the access key id until the one-time profile migration re-keyed it.
-inline QString s3Service() { return QStringLiteral("com.darkog.niceshot.s3"); }
-inline QString sftpService() { return QStringLiteral("com.darkog.niceshot.sftp"); }
-inline QString ftpService() { return QStringLiteral("com.darkog.niceshot.ftp"); }
+// mapping is Upload::keychainServiceFor - Core must not know the Upload enums.) The ids
+// changed in the Snim rebrand: secrets stored under the old com.darkog.niceshot.* services
+// are not migrated and must be re-entered.
+inline QString s3Service() { return QStringLiteral("dev.snim.s3"); }
+inline QString sftpService() { return QStringLiteral("dev.snim.sftp"); }
+inline QString ftpService() { return QStringLiteral("dev.snim.ftp"); }
 
 bool store(const QString &service, const QString &account, const QString &secret);
 [[nodiscard]] std::optional<QString> retrieve(const QString &service, const QString &account);

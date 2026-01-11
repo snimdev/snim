@@ -671,7 +671,7 @@ void ImageEditor::doUpload(const QString &profileId)
     // Render to a temp PNG and hand it to the app's uploader (which outlives this
     // window and deletes the temp when the upload finishes).
     const QString tmp = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                        + QStringLiteral("/Niceshot_upload_")
+                        + QStringLiteral("/Snim_upload_")
                         + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss-zzz"))
                         + QStringLiteral(".png");
     if (!renderScene().save(tmp)) {

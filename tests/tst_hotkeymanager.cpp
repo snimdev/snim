@@ -52,7 +52,7 @@ class tst_HotkeyManager : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_hotkeymanager");
         QStandardPaths::setTestModeEnabled(true);
     }

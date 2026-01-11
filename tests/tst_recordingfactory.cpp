@@ -32,14 +32,14 @@ private slots:
     {
         QVERIFY(RecordingFactory::isStrategyAvailable(RecordingFactory::StrategyType::Auto));
         QVERIFY(RecordingFactory::isStrategyAvailable(RecordingFactory::StrategyType::Stub));
-#if defined(NICESHOT_HAVE_MAC_RECORDER)
+#if defined(SNIM_HAVE_MAC_RECORDER)
         QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Mac);
-#elif defined(NICESHOT_HAVE_LINUX_RECORDER)
+#elif defined(SNIM_HAVE_LINUX_RECORDER)
         QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Linux);
 #endif
     }
 
-#ifdef NICESHOT_HAVE_LINUX_RECORDER
+#ifdef SNIM_HAVE_LINUX_RECORDER
     void createsLinuxOrFallsBack()
     {
         auto s = RecordingFactory::createStrategy(RecordingFactory::StrategyType::Linux);

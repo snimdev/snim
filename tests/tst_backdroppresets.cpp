@@ -16,7 +16,7 @@ class tst_BackdropPresets : public QObject
 private slots:
     void init()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_backdroppresets");
         QStandardPaths::setTestModeEnabled(true);
         QSettings().clear();   // fresh store each test (no leftover user presets)

@@ -73,7 +73,7 @@ namespace Core {
         connect(m_recordingController.get(), &Recording::RecordingController::recordingWarning,
                 this, [this](const QString &message) {
                     if (m_trayIcon)
-                        m_trayIcon->showMessage(tr("Niceshot"), message, QSystemTrayIcon::Warning);
+                        m_trayIcon->showMessage(tr("Snim"), message, QSystemTrayIcon::Warning);
                 });
 
         setupSystemTray();
@@ -198,7 +198,7 @@ namespace Core {
         m_trayIcon = new QSystemTrayIcon(this);
         m_trayIcon->setContextMenu(m_trayMenu);
         m_trayIcon->setIcon(createThemedTrayIcon(":/icons/icons/tray-icon.svg"));
-        m_trayIcon->setToolTip("Niceshot - Screenshot App");
+        m_trayIcon->setToolTip("Snim - Screenshot App");
         m_trayIcon->show();
 
         // Connect tray icon activation
@@ -281,10 +281,10 @@ namespace Core {
 
     void ScreenshotApp::showAbout() {
         // Rich text so the website is a clickable link.
-        QString aboutText = "<b>Niceshot 1.0</b><br><br>"
+        QString aboutText = "<b>Snim 1.0</b><br><br>"
                            "A screenshot tool with editing capabilities.<br><br>"
                            "Darko Gjorgjijoski<br>"
-                           "<a href=\"https://dg.mk/niceshot\">dg.mk/niceshot</a><br><br>"
+                           "<a href=\"https://snim.dev\">snim.dev</a><br><br>"
                            "Shortcuts:";
 
         bool anyBound = false;
@@ -301,7 +301,7 @@ namespace Core {
         if (!anyBound)
             aboutText += "<br>• None configured";
 
-        QMessageBox::about(nullptr, "About Niceshot", aboutText);
+        QMessageBox::about(nullptr, "About Snim", aboutText);
     }
 
     void ScreenshotApp::showSettings() {

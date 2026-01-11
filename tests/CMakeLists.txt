@@ -4,7 +4,7 @@ find_package(Qt6 COMPONENTS Test REQUIRED)
 # library + Qt6::Test and run headless via the offscreen platform (set per-test
 # below; CI also exports QT_QPA_PLATFORM=offscreen as a belt-and-suspenders).
 # The list grows tier by tier as tests are added.
-set(NICESHOT_TESTS
+set(SNIM_TESTS
         tst_settings
         tst_layer
         tst_toolregistry
@@ -35,9 +35,9 @@ set(NICESHOT_TESTS
         tst_hotkeymanager
 )
 
-foreach(test_name ${NICESHOT_TESTS})
+foreach(test_name ${SNIM_TESTS})
     add_executable(${test_name} ${test_name}.cpp)
-    target_link_libraries(${test_name} PRIVATE niceshot_lib Qt6::Test)
+    target_link_libraries(${test_name} PRIVATE snim_lib Qt6::Test)
     add_test(NAME ${test_name} COMMAND ${test_name})
     set_tests_properties(${test_name} PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -47,7 +47,7 @@ endforeach()
 # :/icons at construction), so it gets resources.qrc compiled into it directly.
 add_executable(tst_imageeditor_smoke tst_imageeditor_smoke.cpp
         ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
-target_link_libraries(tst_imageeditor_smoke PRIVATE niceshot_lib Qt6::Test)
+target_link_libraries(tst_imageeditor_smoke PRIVATE snim_lib Qt6::Test)
 add_test(NAME tst_imageeditor_smoke COMMAND tst_imageeditor_smoke)
 set_tests_properties(tst_imageeditor_smoke PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -55,7 +55,7 @@ set_tests_properties(tst_imageeditor_smoke PROPERTIES
 # Same deal for the VideoEditor smoke test (themed toolbar icons at construction).
 add_executable(tst_videoeditor_smoke tst_videoeditor_smoke.cpp
         ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
-target_link_libraries(tst_videoeditor_smoke PRIVATE niceshot_lib Qt6::Test)
+target_link_libraries(tst_videoeditor_smoke PRIVATE snim_lib Qt6::Test)
 add_test(NAME tst_videoeditor_smoke COMMAND tst_videoeditor_smoke)
 set_tests_properties(tst_videoeditor_smoke PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -69,5 +69,5 @@ add_custom_target(check
         COMMAND "${CMAKE_CTEST_COMMAND}" --output-on-failure
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         USES_TERMINAL
-        COMMENT "Running all Niceshot tests")
-add_dependencies(check ${NICESHOT_TESTS} tst_imageeditor_smoke tst_videoeditor_smoke)
+        COMMENT "Running all Snim tests")
+add_dependencies(check ${SNIM_TESTS} tst_imageeditor_smoke tst_videoeditor_smoke)

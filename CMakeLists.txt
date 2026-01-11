@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.31)
-project(Niceshot)
+project(Snim)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_AUTOMOC ON)
@@ -188,7 +188,7 @@ endif()
 
 # All cross-platform sources live in a static library so both the executable and
 # the test suite can link them. main.cpp + the .app bundle stay on the executable.
-add_library(niceshot_lib STATIC
+add_library(snim_lib STATIC
         # Core application files
         src/core/ScreenshotApp.cpp
         src/core/ScreenshotApp.h
@@ -378,15 +378,20 @@ add_library(niceshot_lib STATIC
 # The executable: entry point + resources only. The qrc is kept on the exe (and
 # on the few tests that need it), NOT in the static lib, so AUTORCC's resource
 # initializer isn't stripped out of the archive.
-add_executable(Niceshot main.cpp resources/resources.qrc)
-target_link_libraries(Niceshot PRIVATE niceshot_lib)
+add_executable(Snim main.cpp resources/resources.qrc)
+target_link_libraries(Snim PRIVATE snim_lib)
+
+# Lowercase binary everywhere but macOS, where the bundle must stay Snim.app.
+if(NOT APPLE)
+    set_target_properties(Snim PROPERTIES OUTPUT_NAME "snim")
+endif()
 
 # Platform-specific window enumeration for the interactive window picker.
 # macOS uses CGWindowList (Objective-C++); other platforms get a stub that
 # returns no windows, so window-pick falls back to the screen under the cursor.
 if(APPLE)
     enable_language(OBJCXX)
-    target_sources(niceshot_lib PRIVATE
+    target_sources(snim_lib PRIVATE
             src/capture/WindowEnumerator_mac.mm
             src/capture/MacOverlay.h
             src/capture/MacOverlay.mm
@@ -411,10 +416,10 @@ if(APPLE)
             PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     # Activates the Mac branch of RecordingFactory + makes Auto pick ScreenCaptureKit,
     # and the Carbon branch of HotkeyBackendFactory.
-    target_compile_definitions(niceshot_lib PUBLIC
-            NICESHOT_HAVE_MAC_RECORDER
-            NICESHOT_HAVE_MAC_HOTKEYS)
-    target_link_libraries(niceshot_lib PUBLIC
+    target_compile_definitions(snim_lib PUBLIC
+            SNIM_HAVE_MAC_RECORDER
+            SNIM_HAVE_MAC_HOTKEYS)
+    target_link_libraries(snim_lib PUBLIC
             "-framework CoreGraphics"
             "-framework CoreFoundation"
             "-framework AppKit"
@@ -429,7 +434,7 @@ if(APPLE)
     # so they must be imported into the executable - otherwise the QPermission API has no
     # backend at runtime and QCamera reports "Could not find permission plugin for
     # QCameraPermission" even with the usage strings present in Info.plist.
-    qt_import_plugins(Niceshot INCLUDE
+    qt_import_plugins(Snim INCLUDE
             Qt6::QDarwinCameraPermissionPlugin
             Qt6::QDarwinMicrophonePermissionPlugin)
     # Each plugin archive keeps its requestPermission() implementation in a SEPARATE
@@ -441,11 +446,11 @@ if(APPLE)
     # back to a stub that logs "Could not request QCameraPermission..." and instantly
     # denies - the TCC prompt can never appear. The usage strings are guaranteed by
     # cmake/Info.plist.in, so assert the properties ourselves.
-    set_target_properties(Niceshot PROPERTIES
+    set_target_properties(Snim PROPERTIES
             _qt_has_QDarwinCameraPermissionPlugin_usage_description TRUE
             _qt_has_QDarwinMicrophonePermissionPlugin_usage_description TRUE)
 else()
-    target_sources(niceshot_lib PRIVATE
+    target_sources(snim_lib PRIVATE
             src/capture/WindowEnumerator_stub.cpp
             src/core/KeychainStore_stub.cpp)
 endif()
@@ -456,7 +461,7 @@ endif()
 # interface. On other platforms (e.g. macOS) the cross-platform Qt-based
 # NativeCaptureStrategy is used instead.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_sources(niceshot_lib PRIVATE
+    target_sources(snim_lib PRIVATE
             src/capture/strategies/WaylandCaptureStrategy.cpp
             src/capture/strategies/WaylandCaptureStrategy.h
             src/capture/strategies/KWinCaptureStrategy.cpp
@@ -474,45 +479,45 @@ endif()
 # Linux screen-recording backend - compiled only where GStreamer exists, like the
 # optional upload transports. Without it RecordingFactory keeps returning the stub.
 if(GSTREAMER_AVAILABLE)
-    target_sources(niceshot_lib PRIVATE
+    target_sources(snim_lib PRIVATE
             src/recording/strategies/LinuxRecordingStrategy.cpp
             src/recording/strategies/LinuxRecordingStrategy.h)
-    target_include_directories(niceshot_lib PRIVATE ${GSTREAMER_INCLUDE_DIRS})
+    target_include_directories(snim_lib PRIVATE ${GSTREAMER_INCLUDE_DIRS})
     # pkg-config reports plain library names; add its dirs so a non-default prefix links.
     if(GSTREAMER_LIBRARY_DIRS)
-        target_link_directories(niceshot_lib PUBLIC ${GSTREAMER_LIBRARY_DIRS})
+        target_link_directories(snim_lib PUBLIC ${GSTREAMER_LIBRARY_DIRS})
     endif()
-    target_link_libraries(niceshot_lib PUBLIC ${GSTREAMER_LIBRARIES})
+    target_link_libraries(snim_lib PUBLIC ${GSTREAMER_LIBRARIES})
     # Activates the Linux branch of RecordingFactory + makes Auto pick the portal
     # recorder. PUBLIC because the tests check the macro.
-    target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_LINUX_RECORDER)
+    target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_LINUX_RECORDER)
 endif()
 
 # Wayland layer-shell path for the recording frame overlay. Attaching
 # LayerShellQt::Window per window is enough on Qt 6.5+, no global registration.
 if(LAYER_SHELL_AVAILABLE)
-    target_link_libraries(niceshot_lib PUBLIC LayerShellQt::Interface)
-    target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_LAYER_SHELL)
+    target_link_libraries(snim_lib PUBLIC LayerShellQt::Interface)
+    target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_LAYER_SHELL)
 endif()
 
 # Windows global hotkeys: RegisterHotKey + a WM_HOTKEY native event filter. The define
 # activates the Windows branch of HotkeyBackendFactory (user32 needs no extra linking).
 if(WIN32)
-    target_sources(niceshot_lib PRIVATE
+    target_sources(snim_lib PRIVATE
             src/hotkeys/backends/WindowsHotkeyBackend.cpp
             src/hotkeys/backends/WindowsHotkeyBackend.h
     )
-    target_compile_definitions(niceshot_lib PUBLIC NICESHOT_HAVE_WIN_HOTKEYS)
+    target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_WIN_HOTKEYS)
 endif()
 
 # Set include directories for the organized structure. PUBLIC so the executable
 # and the tests inherit the `src/`-rooted include path every #include relies on.
-target_include_directories(niceshot_lib PUBLIC
+target_include_directories(snim_lib PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(niceshot_lib PUBLIC
+target_link_libraries(snim_lib PUBLIC
         Qt::Core
         Qt::Gui
         Qt::Widgets
@@ -532,13 +537,13 @@ target_link_libraries(niceshot_lib PUBLIC
 # Link Tesseract if available (PUBLIC link: OCRService.o references its symbols and
 # HAVE_TESSERACT is a global define, so consumers - exe and tests - must link it).
 if(TESSERACT_AVAILABLE)
-    target_include_directories(niceshot_lib PRIVATE ${TESSERACT_INCLUDE_DIRS})
+    target_include_directories(snim_lib PRIVATE ${TESSERACT_INCLUDE_DIRS})
     # pkg-config reports library names (-ltesseract ...) without their location;
     # add the reported library dirs so the linker can find them (needed on
     # macOS/Homebrew where they live under a non-default prefix). Empty for the
     # manual-detection fallback, which already uses absolute library paths.
-    target_link_directories(niceshot_lib PUBLIC ${TESSERACT_LIBRARY_DIRS})
-    target_link_libraries(niceshot_lib PUBLIC ${TESSERACT_LIBRARIES})
+    target_link_directories(snim_lib PUBLIC ${TESSERACT_LIBRARY_DIRS})
+    target_link_libraries(snim_lib PUBLIC ${TESSERACT_LIBRARIES})
 endif()
 
 # FTP/FTPS upload backend - compiled only where libcurl exists (like the Linux-only
@@ -546,16 +551,16 @@ endif()
 # rest of the upload feature is unaffected. PUBLIC link: HAVE_LIBCURL is a global define,
 # so consumers (the exe and the tests) must resolve FtpUploader's curl symbols too.
 if(LIBCURL_AVAILABLE)
-    target_sources(niceshot_lib PRIVATE
+    target_sources(snim_lib PRIVATE
             src/upload/strategies/FtpUploader.cpp
             src/upload/strategies/FtpUploader.h)
-    target_include_directories(niceshot_lib PRIVATE ${LIBCURL_INCLUDE_DIRS})
+    target_include_directories(snim_lib PRIVATE ${LIBCURL_INCLUDE_DIRS})
     # pkg-config reports plain library names; add its dirs so a non-default prefix
     # (Homebrew) still links. Empty for the find_package fallback (absolute paths).
     if(LIBCURL_LIBRARY_DIRS)
-        target_link_directories(niceshot_lib PUBLIC ${LIBCURL_LIBRARY_DIRS})
+        target_link_directories(snim_lib PUBLIC ${LIBCURL_LIBRARY_DIRS})
     endif()
-    target_link_libraries(niceshot_lib PUBLIC ${LIBCURL_LIBRARIES})
+    target_link_libraries(snim_lib PUBLIC ${LIBCURL_LIBRARIES})
 endif()
 
 # SFTP upload backend - compiled only where libssh2 exists, exactly like the FTP one
@@ -563,16 +568,16 @@ endif()
 # HAVE_LIBSSH2 is a global define, so consumers (the exe and the tests) must resolve
 # SftpUploader's libssh2 symbols too.
 if(LIBSSH2_AVAILABLE)
-    target_sources(niceshot_lib PRIVATE
+    target_sources(snim_lib PRIVATE
             src/upload/strategies/SftpUploader.cpp
             src/upload/strategies/SftpUploader.h)
-    target_include_directories(niceshot_lib PRIVATE ${LIBSSH2_INCLUDE_DIRS})
+    target_include_directories(snim_lib PRIVATE ${LIBSSH2_INCLUDE_DIRS})
     # pkg-config reports plain library names; add its dirs so a non-default prefix
     # (Homebrew) still links. Empty for the manual-detection fallback (absolute paths).
     if(LIBSSH2_LIBRARY_DIRS)
-        target_link_directories(niceshot_lib PUBLIC ${LIBSSH2_LIBRARY_DIRS})
+        target_link_directories(snim_lib PUBLIC ${LIBSSH2_LIBRARY_DIRS})
     endif()
-    target_link_libraries(niceshot_lib PUBLIC ${LIBSSH2_LIBRARIES})
+    target_link_libraries(snim_lib PUBLIC ${LIBSSH2_LIBRARIES})
 endif()
 
 # ---------------------------------------------------------------------------
@@ -581,13 +586,13 @@ endif()
 # Building as a .app bundle (rather than a bare executable) gives the app a
 # stable bundle identifier. The `deploy` target then runs macdeployqt to copy
 # the Qt frameworks (and other linked dylibs) into the bundle and ad-hoc
-# code-signs it, producing a self-contained, distributable Niceshot.app.
+# code-signs it, producing a self-contained, distributable Snim.app.
 if(APPLE)
-    set_target_properties(Niceshot PROPERTIES
+    set_target_properties(Snim PROPERTIES
             MACOSX_BUNDLE TRUE
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in"
-            MACOSX_BUNDLE_BUNDLE_NAME "Niceshot"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "com.darkog.niceshot"
+            MACOSX_BUNDLE_BUNDLE_NAME "Snim"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "dev.snim.Snim"
             MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
             MACOSX_BUNDLE_COPYRIGHT "Copyright © 2026 Darko Gjorgjijoski"
@@ -595,37 +600,37 @@ if(APPLE)
 
     # Optional custom app icon: drop an AppIcon.icns into resources/ and it gets
     # bundled automatically. Without it the bundle uses the default icon.
-    set(NICESHOT_APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/AppIcon.icns")
-    if(EXISTS "${NICESHOT_APP_ICON}")
-        target_sources(Niceshot PRIVATE "${NICESHOT_APP_ICON}")
-        set_source_files_properties("${NICESHOT_APP_ICON}" PROPERTIES
+    set(SNIM_APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/AppIcon.icns")
+    if(EXISTS "${SNIM_APP_ICON}")
+        target_sources(Snim PRIVATE "${SNIM_APP_ICON}")
+        set_source_files_properties("${SNIM_APP_ICON}" PROPERTIES
                 MACOSX_PACKAGE_LOCATION "Resources")
-        set_target_properties(Niceshot PROPERTIES MACOSX_BUNDLE_ICON_FILE "AppIcon.icns")
+        set_target_properties(Snim PROPERTIES MACOSX_BUNDLE_ICON_FILE "AppIcon.icns")
     endif()
 
     # Dev code signing. Without this the linker ad-hoc signs the binary, whose
     # identity is the binary's own hash - it changes on EVERY rebuild, so modern
     # macOS treats each build as a new app and re-prompts for (or silently breaks)
     # the Screen Recording / Camera / Microphone TCC grants, even though System
-    # Settings still shows Niceshot as enabled. Signing with a stable identity
-    # (a local self-signed "Niceshot Dev Signing" certificate) keeps the
+    # Settings still shows Snim as enabled. Signing with a stable identity
+    # (a local self-signed "Snim Dev Signing" certificate) keeps the
     # designated requirement identical across rebuilds, so grants persist.
     # Set to "" (or build on a machine without the cert) to fall back to ad-hoc.
-    set(NICESHOT_CODESIGN_IDENTITY "Niceshot Dev Signing" CACHE STRING
+    set(SNIM_CODESIGN_IDENTITY "Snim Dev Signing" CACHE STRING
             "Code-signing identity for the dev build (empty = linker ad-hoc signing)")
-    if(NICESHOT_CODESIGN_IDENTITY)
+    if(SNIM_CODESIGN_IDENTITY)
         # Only sign when the identity actually exists in the keychain, so fresh
         # clones / CI runners without the cert still build out of the box.
         execute_process(COMMAND security find-identity -v -p codesigning
-                OUTPUT_VARIABLE _niceshot_identities ERROR_QUIET)
-        string(FIND "${_niceshot_identities}" "${NICESHOT_CODESIGN_IDENTITY}" _niceshot_identity_found)
-        if(NOT _niceshot_identity_found EQUAL -1)
-            add_custom_command(TARGET Niceshot POST_BUILD
-                    COMMAND codesign --force --sign "${NICESHOT_CODESIGN_IDENTITY}"
-                            --timestamp=none "$<TARGET_BUNDLE_DIR:Niceshot>"
-                    COMMENT "Code-signing Niceshot.app with '${NICESHOT_CODESIGN_IDENTITY}' (stable TCC identity)")
+                OUTPUT_VARIABLE _snim_identities ERROR_QUIET)
+        string(FIND "${_snim_identities}" "${SNIM_CODESIGN_IDENTITY}" _snim_identity_found)
+        if(NOT _snim_identity_found EQUAL -1)
+            add_custom_command(TARGET Snim POST_BUILD
+                    COMMAND codesign --force --sign "${SNIM_CODESIGN_IDENTITY}"
+                            --timestamp=none "$<TARGET_BUNDLE_DIR:Snim>"
+                    COMMENT "Code-signing Snim.app with '${SNIM_CODESIGN_IDENTITY}' (stable TCC identity)")
         else()
-            message(STATUS "Code-signing identity '${NICESHOT_CODESIGN_IDENTITY}' not in keychain - leaving ad-hoc signature")
+            message(STATUS "Code-signing identity '${SNIM_CODESIGN_IDENTITY}' not in keychain - leaving ad-hoc signature")
         endif()
     endif()
 
@@ -642,20 +647,20 @@ if(APPLE)
         # qt.conf still loads the bundled Qt plugins -> two copies of Qt in one
         # process -> "Class ... implemented in both" and a SIGABRT on launch.
         # Keeping the dev bundle pristine (Homebrew Qt via rpath) avoids this;
-        # the self-contained build lives in dist/Niceshot.app.
-        set(NICESHOT_DIST_APP "${CMAKE_BINARY_DIR}/dist/Niceshot.app")
+        # the self-contained build lives in dist/Snim.app.
+        set(SNIM_DIST_APP "${CMAKE_BINARY_DIR}/dist/Snim.app")
         # macos_deploy.sh runs macdeployqt, strips the build-time Homebrew rpaths,
         # and ad-hoc signs. For real distribution, replace the ad-hoc `-` identity
         # in the script with a Developer ID and notarize the result.
         add_custom_target(deploy
-                COMMAND "${CMAKE_COMMAND}" -E rm -rf "${NICESHOT_DIST_APP}"
+                COMMAND "${CMAKE_COMMAND}" -E rm -rf "${SNIM_DIST_APP}"
                 COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/dist"
                 COMMAND "${CMAKE_COMMAND}" -E copy_directory
-                        "$<TARGET_BUNDLE_DIR:Niceshot>" "${NICESHOT_DIST_APP}"
+                        "$<TARGET_BUNDLE_DIR:Snim>" "${SNIM_DIST_APP}"
                 COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos_deploy.sh"
-                        "${NICESHOT_DIST_APP}" "${MACDEPLOYQT_EXECUTABLE}"
-                DEPENDS Niceshot
-                COMMENT "Creating self-contained dist/Niceshot.app (Qt bundled, rpaths fixed, signed)"
+                        "${SNIM_DIST_APP}" "${MACDEPLOYQT_EXECUTABLE}"
+                DEPENDS Snim
+                COMMENT "Creating self-contained dist/Snim.app (Qt bundled, rpaths fixed, signed)"
                 VERBATIM
         )
     else()
@@ -664,11 +669,11 @@ if(APPLE)
 endif()
 
 # ---------------------------------------------------------------------------
-# Tests (Qt Test + CTest). Configure with -DNICESHOT_BUILD_TESTS=OFF to skip.
+# Tests (Qt Test + CTest). Configure with -DSNIM_BUILD_TESTS=OFF to skip.
 # Run with: ctest --test-dir <build> --output-on-failure
 # ---------------------------------------------------------------------------
-option(NICESHOT_BUILD_TESTS "Build the Qt Test suite" ON)
-if(NICESHOT_BUILD_TESTS)
+option(SNIM_BUILD_TESTS "Build the Qt Test suite" ON)
+if(SNIM_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()

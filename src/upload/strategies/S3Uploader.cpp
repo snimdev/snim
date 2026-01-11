@@ -204,8 +204,8 @@ void S3Uploader::testConnection()
     // Same prefix + unique-name rules as a real upload, so this also proves the key
     // prefix is writable rather than just the bucket root.
     m_probeKey = cfg.keyPrefix
-                 + Util::uniqueRemoteName(QStringLiteral("niceshot-connection-test.txt"));
-    const QByteArray body = QByteArrayLiteral("Niceshot connection test");
+                 + Util::uniqueRemoteName(QStringLiteral("snim-connection-test.txt"));
+    const QByteArray body = QByteArrayLiteral("Snim connection test");
 
     QNetworkRequest req = signedRequest(cfg, QStringLiteral("PUT"), m_probeKey,
                                         QStringLiteral("text/plain"), SigV4::unsignedPayload());

@@ -1,9 +1,9 @@
 #include "recording/RecordingFactory.h"
 #include "recording/strategies/StubRecordingStrategy.h"
-#ifdef NICESHOT_HAVE_MAC_RECORDER
+#ifdef SNIM_HAVE_MAC_RECORDER
 #include "recording/strategies/MacRecordingStrategy.h"
 #endif
-#ifdef NICESHOT_HAVE_LINUX_RECORDER
+#ifdef SNIM_HAVE_LINUX_RECORDER
 #include "recording/strategies/LinuxRecordingStrategy.h"
 #endif
 
@@ -19,7 +19,7 @@ std::unique_ptr<RecordingStrategy> RecordingFactory::createStrategy(StrategyType
 
     switch (type) {
         case StrategyType::Mac: {
-#ifdef NICESHOT_HAVE_MAC_RECORDER
+#ifdef SNIM_HAVE_MAC_RECORDER
             auto strategy = std::make_unique<MacRecordingStrategy>(parent);
             if (strategy->isAvailable()) {
                 qDebug() << "Created ScreenCaptureKit recording strategy";
@@ -31,7 +31,7 @@ std::unique_ptr<RecordingStrategy> RecordingFactory::createStrategy(StrategyType
         [[fallthrough]];
 
         case StrategyType::Linux: {
-#ifdef NICESHOT_HAVE_LINUX_RECORDER
+#ifdef SNIM_HAVE_LINUX_RECORDER
             auto strategy = std::make_unique<LinuxRecordingStrategy>(parent);
             if (strategy->isAvailable()) {
                 qDebug() << "Created portal/GStreamer recording strategy";
@@ -51,9 +51,9 @@ std::unique_ptr<RecordingStrategy> RecordingFactory::createStrategy(StrategyType
 
 RecordingFactory::StrategyType RecordingFactory::getDefaultStrategyType()
 {
-#if defined(NICESHOT_HAVE_MAC_RECORDER)
+#if defined(SNIM_HAVE_MAC_RECORDER)
     return StrategyType::Mac;
-#elif defined(NICESHOT_HAVE_LINUX_RECORDER)
+#elif defined(SNIM_HAVE_LINUX_RECORDER)
     return StrategyType::Linux;
 #else
     return StrategyType::Stub;
@@ -64,7 +64,7 @@ bool RecordingFactory::isStrategyAvailable(StrategyType type)
 {
     switch (type) {
         case StrategyType::Mac: {
-#ifdef NICESHOT_HAVE_MAC_RECORDER
+#ifdef SNIM_HAVE_MAC_RECORDER
             auto strategy = std::make_unique<MacRecordingStrategy>();
             return strategy->isAvailable();
 #else
@@ -72,7 +72,7 @@ bool RecordingFactory::isStrategyAvailable(StrategyType type)
 #endif
         }
         case StrategyType::Linux: {
-#ifdef NICESHOT_HAVE_LINUX_RECORDER
+#ifdef SNIM_HAVE_LINUX_RECORDER
             auto strategy = std::make_unique<LinuxRecordingStrategy>();
             return strategy->isAvailable();
 #else

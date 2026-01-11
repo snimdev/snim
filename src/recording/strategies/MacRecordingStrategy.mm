@@ -20,9 +20,9 @@
 // Microphone capture needs ScreenCaptureKit's captureMicrophone (SDK 15+). Guarded so
 // the file still compiles against older SDKs (CI); @available gates it at runtime.
 #if defined(MAC_OS_VERSION_15_0) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_VERSION_15_0
-#define NICESHOT_SDK_HAS_SCK_MIC 1
+#define SNIM_SDK_HAS_SCK_MIC 1
 #else
-#define NICESHOT_SDK_HAS_SCK_MIC 0
+#define SNIM_SDK_HAS_SCK_MIC 0
 #endif
 
 using Recording::MacRecordingStrategy;
@@ -191,11 +191,11 @@ static void mixAudioSample(MacRecordingStrategy::Impl *impl, CMSampleBufferRef s
 // Receives ScreenCaptureKit sample buffers (on a serial queue) and stream-stop
 // callbacks, and feeds frames to the AVAssetWriter. All Qt signal emission hops
 // back to the owner's thread via QMetaObject::invokeMethod.
-@interface NiceshotStreamOutput : NSObject <SCStreamOutput, SCStreamDelegate>
+@interface SnimStreamOutput : NSObject <SCStreamOutput, SCStreamDelegate>
 @property (nonatomic, assign) MacRecordingStrategy::Impl *impl;
 @end
 
-@implementation NiceshotStreamOutput
+@implementation SnimStreamOutput
 
 - (void)stream:(SCStream *)stream
     didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
@@ -211,7 +211,7 @@ static void mixAudioSample(MacRecordingStrategy::Impl *impl, CMSampleBufferRef s
         [self handleVideoSample:sampleBuffer impl:impl];
         return;
     }
-#if NICESHOT_SDK_HAS_SCK_MIC
+#if SNIM_SDK_HAS_SCK_MIC
     if (@available(macOS 15.0, *)) {
         if (type == SCStreamOutputTypeMicrophone) {
             [self handleAudioSample:sampleBuffer impl:impl source:1];
@@ -358,7 +358,7 @@ MacRecordingStrategy::MacRecordingStrategy(QObject *parent)
     : RecordingStrategy(parent), d(std::make_unique<Impl>())
 {
     d->owner = this;
-    d->queue = dispatch_queue_create("com.darkog.niceshot.recording", DISPATCH_QUEUE_SERIAL);
+    d->queue = dispatch_queue_create("dev.snim.recording", DISPATCH_QUEUE_SERIAL);
 }
 
 MacRecordingStrategy::~MacRecordingStrategy()
@@ -410,7 +410,7 @@ void MacRecordingStrategy::start(const RecordTarget &target, const QString &outp
         [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
             if (error || !content) {
                 QString msg = error ? QString::fromNSString(error.localizedDescription)
-                    : QStringLiteral("Screen Recording permission is required. Enable Niceshot in "
+                    : QStringLiteral("Screen Recording permission is required. Enable Snim in "
                                      "System Settings > Privacy & Security > Screen Recording.");
                 QMetaObject::invokeMethod(self, [self, msg] { self->reportFailed(msg); }, Qt::QueuedConnection);
                 return;
@@ -546,7 +546,7 @@ void MacRecordingStrategy::start(const RecordTarget &target, const QString &outp
             // sample-buffer stream; on older systems the recording simply proceeds
             // without the mic. The first capture triggers the TCC microphone prompt.
             bool wantMic = false;
-#if NICESHOT_SDK_HAS_SCK_MIC
+#if SNIM_SDK_HAS_SCK_MIC
             if (captureMic) {
                 if (@available(macOS 15.0, *)) {
                     config.captureMicrophone = YES;
@@ -652,7 +652,7 @@ void MacRecordingStrategy::start(const RecordTarget &target, const QString &outp
             impl->pauseStartPts = kCMTimeInvalid;
             impl->pausedDuration = kCMTimeZero;
 
-            NiceshotStreamOutput *out = [[NiceshotStreamOutput alloc] init];
+            SnimStreamOutput *out = [[SnimStreamOutput alloc] init];
             out.impl = impl;
             impl->output = out;
 
@@ -678,7 +678,7 @@ void MacRecordingStrategy::start(const RecordTarget &target, const QString &outp
                     }
                 }
             }
-#if NICESHOT_SDK_HAS_SCK_MIC
+#if SNIM_SDK_HAS_SCK_MIC
             if (wantMic) {
                 if (@available(macOS 15.0, *)) {
                     // Also on the one serial queue: mic, system audio and video share

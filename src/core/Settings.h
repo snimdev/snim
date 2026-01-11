@@ -23,7 +23,7 @@ public:
     static void setImageFormat(const QString &fmt);
 
     // Recording
-    static QString recordingFolder();                  // default: <Movies>/Niceshot
+    static QString recordingFolder();                  // default: <Movies>/Snim
     static void setRecordingFolder(const QString &path);
     static QString recordingFormat();                  // default: "mp4"
     static void setRecordingFormat(const QString &fmt);

@@ -32,7 +32,7 @@ class tst_UploadProfiles : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_uploadprofiles");
         QStandardPaths::setTestModeEnabled(true);
     }
@@ -174,7 +174,7 @@ private slots:
         QVERIFY(s3 != ftp);
         QVERIFY(sftp != ftp);
         // Frozen for compatibility: existing keychain items were written under this id.
-        QCOMPARE(s3, QStringLiteral("com.darkog.niceshot.s3"));
+        QCOMPARE(s3, QStringLiteral("dev.snim.s3"));
         QCOMPARE(s3, Core::KeychainStore::s3Service());
         QCOMPARE(sftp, Core::KeychainStore::sftpService());
         QCOMPARE(ftp, Core::KeychainStore::ftpService());

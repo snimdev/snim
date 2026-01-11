@@ -3,9 +3,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/cmake-build-debug"
-BINARY="$BUILD_DIR/Niceshot"
-DESKTOP_TEMPLATE="$SCRIPT_DIR/deploy/org.niceshot.Niceshot.desktop"
-DESKTOP_DEST="$HOME/.local/share/applications/org.niceshot.Niceshot.desktop"
+BINARY="$BUILD_DIR/snim"
+DESKTOP_TEMPLATE="$SCRIPT_DIR/deploy/dev.snim.Snim.desktop"
+DESKTOP_DEST="$HOME/.local/share/applications/dev.snim.Snim.desktop"
 
 # Build
 cmake -B "$BUILD_DIR" -S "$SCRIPT_DIR"

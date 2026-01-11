@@ -345,7 +345,7 @@ void FtpUploader::testConnection()
         return;
     }
 
-    const QString remoteName = Util::uniqueRemoteName(QStringLiteral("niceshot-connection-test.txt"));
+    const QString remoteName = Util::uniqueRemoteName(QStringLiteral("snim-connection-test.txt"));
     const QString remotePath = Util::buildRemotePath(cfg.remoteDir, remoteName);
     const QString requestUrl = Util::buildFtpUrl(cfg, remotePath);
 
@@ -355,7 +355,7 @@ void FtpUploader::testConnection()
                               username = cfg.username, password = cfg.secretKey,
                               encryption = cfg.ftpEncryption] {
         QBuffer body;
-        body.setData(QByteArrayLiteral("Niceshot connection test"));
+        body.setData(QByteArrayLiteral("Snim connection test"));
         body.open(QIODevice::ReadOnly);
 
         ReadCtx readCtx{&body, cancel, false};

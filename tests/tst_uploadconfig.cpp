@@ -68,7 +68,7 @@ class tst_UploadConfig : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_uploadconfig");
         QStandardPaths::setTestModeEnabled(true);
     }

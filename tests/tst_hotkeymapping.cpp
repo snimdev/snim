@@ -17,7 +17,7 @@ class tst_HotkeyMapping : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_hotkeymapping");
         QStandardPaths::setTestModeEnabled(true);
     }

@@ -2,7 +2,7 @@
 
 #include <QElapsedTimer>
 
-Q_LOGGING_CATEGORY(lcPerf, "Niceshot.perf")
+Q_LOGGING_CATEGORY(lcPerf, "Snim.perf")
 
 namespace Core::Perf {
 

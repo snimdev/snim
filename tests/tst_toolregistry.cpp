@@ -27,7 +27,7 @@ private slots:
     void initTestCase()
     {
         // makeTemplate() reads the default color via Core::Settings; isolate it.
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_toolregistry");
         QStandardPaths::setTestModeEnabled(true);
     }

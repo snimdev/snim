@@ -176,7 +176,7 @@ bool RecordingController::resolveInputPermissions(const std::function<void()> &d
             return true;
         case Qt::PermissionStatus::Denied:
             // Record anyway — the bubble shows its own "no access" state.
-            emit recordingWarning(tr("Camera access is denied — enable Niceshot in "
+            emit recordingWarning(tr("Camera access is denied - enable Snim in "
                                      "System Settings > Privacy & Security > Camera."));
             break;
         case Qt::PermissionStatus::Granted:
@@ -195,7 +195,7 @@ bool RecordingController::resolveInputPermissions(const std::function<void()> &d
             return true;
         case Qt::PermissionStatus::Denied:
             emit recordingWarning(tr("Microphone access is denied — your narration won't "
-                                     "be recorded. Enable Niceshot in System Settings > "
+                                     "be recorded. Enable Snim in System Settings > "
                                      "Privacy & Security > Microphone."));
             break;
         case Qt::PermissionStatus::Granted:
@@ -448,7 +448,7 @@ QString RecordingController::makeOutputPath() const
     // moves it there. recordingFolder() is then just the save dialog's default dir.
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     const QString stamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
-    return dir + "/Niceshot_recording_" + stamp + "." + Core::Settings::recordingFormat();
+    return dir + "/Snim_recording_" + stamp + "." + Core::Settings::recordingFormat();
 }
 
 } // namespace Recording

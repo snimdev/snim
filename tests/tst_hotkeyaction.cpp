@@ -15,7 +15,7 @@ class tst_HotkeyAction : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_hotkeyaction");
         QStandardPaths::setTestModeEnabled(true);
     }

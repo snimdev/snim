@@ -64,7 +64,7 @@ private slots:
 
     void fileName()
     {
-        QCOMPARE(gifFileNameFor("Niceshot_recording_2026.mp4"), QStringLiteral("Niceshot_recording_2026.gif"));
+        QCOMPARE(gifFileNameFor("Snim_recording_2026.mp4"), QStringLiteral("Snim_recording_2026.gif"));
         QCOMPARE(gifFileNameFor("/tmp/clip.mov"), QStringLiteral("clip.gif"));
         QCOMPARE(gifFileNameFor(""), QStringLiteral("recording.gif"));
     }

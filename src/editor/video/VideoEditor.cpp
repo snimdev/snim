@@ -48,7 +48,7 @@ QString formatMs(qint64 ms)
 VideoEditor::VideoEditor(const QString &tempPath, QWidget *parent)
     : QMainWindow(parent), m_tempPath(tempPath)
 {
-    setWindowTitle(tr("Niceshot — Recording"));
+    setWindowTitle(tr("Snim - Recording"));
     resize(900, 620);
     setupUi();
 
@@ -290,7 +290,7 @@ void VideoEditor::keyPressEvent(QKeyEvent *event)
 QString VideoEditor::suggestedFileName() const
 {
     QString name = QFileInfo(m_tempPath).fileName();
-    name.replace(QStringLiteral("Niceshot_recording_"), QStringLiteral("Niceshot_"));
+    name.replace(QStringLiteral("Snim_recording_"), QStringLiteral("Snim_"));
     return name;
 }
 
@@ -376,7 +376,7 @@ void VideoEditor::onSave()
     m_pending = Pending::SaveMove;
     m_pendingDest = dest;
     m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                       + QStringLiteral("/Niceshot_trim_")
+                       + QStringLiteral("/Snim_trim_")
                        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
                        + QStringLiteral(".mp4");
     setBusy(true);
@@ -433,7 +433,7 @@ void VideoEditor::onExportGif()
     m_pending = Pending::ExportGif;
     m_pendingDest = dest;
     m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                       + QStringLiteral("/Niceshot_gif_")
+                       + QStringLiteral("/Snim_gif_")
                        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
                        + QStringLiteral(".gif");
     setBusy(true);
@@ -463,7 +463,7 @@ void VideoEditor::doUpload(const QString &profileId)
     m_pending = Pending::Upload;
     m_pendingUploadProfileId = profileId;
     m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                       + QStringLiteral("/Niceshot_upload_")
+                       + QStringLiteral("/Snim_upload_")
                        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
                        + QStringLiteral(".mp4");
     setBusy(true);

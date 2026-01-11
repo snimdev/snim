@@ -18,13 +18,13 @@
 
 // BindShortcuts takes a(sa{sv}), which QtDBus cannot marshal on its own. Global scope is
 // required: Q_DECLARE_METATYPE cannot sit in a namespace.
-using NiceshotPortalShortcut = QPair<QString, QVariantMap>;
-using NiceshotPortalShortcutList = QList<NiceshotPortalShortcut>;
+using SnimPortalShortcut = QPair<QString, QVariantMap>;
+using SnimPortalShortcutList = QList<SnimPortalShortcut>;
 
-Q_DECLARE_METATYPE(NiceshotPortalShortcut)
-Q_DECLARE_METATYPE(NiceshotPortalShortcutList)
+Q_DECLARE_METATYPE(SnimPortalShortcut)
+Q_DECLARE_METATYPE(SnimPortalShortcutList)
 
-QDBusArgument &operator<<(QDBusArgument &arg, const NiceshotPortalShortcut &shortcut)
+QDBusArgument &operator<<(QDBusArgument &arg, const SnimPortalShortcut &shortcut)
 {
     arg.beginStructure();
     arg << shortcut.first << shortcut.second;
@@ -32,7 +32,7 @@ QDBusArgument &operator<<(QDBusArgument &arg, const NiceshotPortalShortcut &shor
     return arg;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &arg, NiceshotPortalShortcut &shortcut)
+const QDBusArgument &operator>>(const QDBusArgument &arg, SnimPortalShortcut &shortcut)
 {
     arg.beginStructure();
     arg >> shortcut.first >> shortcut.second;
@@ -58,8 +58,8 @@ const char *const kBindSlot = SLOT(handleBindShortcutsResponse(uint,QVariantMap)
 
 PortalHotkeyBackend::PortalHotkeyBackend(QObject *parent) : HotkeyBackend(parent)
 {
-    qDBusRegisterMetaType<NiceshotPortalShortcut>();
-    qDBusRegisterMetaType<NiceshotPortalShortcutList>();
+    qDBusRegisterMetaType<SnimPortalShortcut>();
+    qDBusRegisterMetaType<SnimPortalShortcutList>();
 
     // Connected once for the object's life: Activated carries the session handle, so one
     // slot serves every session this backend creates.
@@ -234,7 +234,7 @@ void PortalHotkeyBackend::handleCreateSessionResponse(uint response, const QVari
 
 void PortalHotkeyBackend::bindShortcuts(const QList<HotkeyBinding> &bindings)
 {
-    NiceshotPortalShortcutList shortcuts;
+    SnimPortalShortcutList shortcuts;
     QList<HotkeyBinding> requested;
 
     for (const HotkeyBinding &binding : bindings) {

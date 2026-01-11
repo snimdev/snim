@@ -56,7 +56,7 @@ void Settings::setImageFormat(const QString &fmt) { QSettings().setValue(kImageF
 QString Settings::recordingFolder()
 {
     const QString def = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation)
-                        + "/Niceshot";
+                        + "/Snim";
     return QSettings().value(kRecordingFolder, def).toString();
 }
 void Settings::setRecordingFolder(const QString &path) { QSettings().setValue(kRecordingFolder, path); }

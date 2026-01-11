@@ -53,7 +53,7 @@ void configureRecordingHud(QWidget *widget)
                                  NSWindowCollectionBehaviorStationary |
                                  NSWindowCollectionBehaviorFullScreenAuxiliary |
                                  NSWindowCollectionBehaviorIgnoresCycle);
-    // Stay on screen when Niceshot is deactivated. This is the key difference from
+    // Stay on screen when Snim is deactivated. This is the key difference from
     // the selection overlay: while recording, the user clicks OTHER apps, which
     // deactivates us; without this the Tool window would hide and the Stop control
     // would vanish.

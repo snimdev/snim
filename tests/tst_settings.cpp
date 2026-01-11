@@ -16,7 +16,7 @@ class tst_Settings : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_settings");
         QStandardPaths::setTestModeEnabled(true);   // redirect QSettings to a throwaway store
         QSettings().clear();                          // start from a clean store
@@ -31,8 +31,8 @@ private slots:
 
     void screenshotFolder_roundtrip()
     {
-        Settings::setScreenshotFolder("/tmp/niceshot-shots");
-        QCOMPARE(Settings::screenshotFolder(), QStringLiteral("/tmp/niceshot-shots"));
+        Settings::setScreenshotFolder("/tmp/snim-shots");
+        QCOMPARE(Settings::screenshotFolder(), QStringLiteral("/tmp/snim-shots"));
     }
 
     void editorColors_default_then_roundtrip()
@@ -60,16 +60,16 @@ private slots:
         QCOMPARE(Settings::recordingFormat(), QStringLiteral("mp4"));   // default
         QCOMPARE(Settings::recordingFps(), 30);                        // default
         QVERIFY(Settings::recordingCaptureCursor());                   // default on
-        QVERIFY(Settings::recordingFolder().endsWith("Niceshot"));     // default <Movies>/Niceshot
+        QVERIFY(Settings::recordingFolder().endsWith("Snim"));     // default <Movies>/Snim
 
         Settings::setRecordingFormat("mov");
         Settings::setRecordingFps(60);
         Settings::setRecordingCaptureCursor(false);
-        Settings::setRecordingFolder("/tmp/niceshot-recordings");
+        Settings::setRecordingFolder("/tmp/snim-recordings");
         QCOMPARE(Settings::recordingFormat(), QStringLiteral("mov"));
         QCOMPARE(Settings::recordingFps(), 60);
         QVERIFY(!Settings::recordingCaptureCursor());
-        QCOMPARE(Settings::recordingFolder(), QStringLiteral("/tmp/niceshot-recordings"));
+        QCOMPARE(Settings::recordingFolder(), QStringLiteral("/tmp/snim-recordings"));
     }
 
     void recordingInputs_defaults_then_roundtrip()

@@ -18,7 +18,7 @@ class tst_HotkeyBindings : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_hotkeybindings");
         QStandardPaths::setTestModeEnabled(true);   // throwaway store, never the real prefs
     }

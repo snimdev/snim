@@ -20,7 +20,7 @@ class tst_ImageEditorSmoke : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_imageeditor_smoke");
         QStandardPaths::setTestModeEnabled(true);   // no real default-backdrop preset applied
     }

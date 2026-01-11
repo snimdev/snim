@@ -541,7 +541,7 @@ namespace Capture {
         // Generate a unique token for the portal request
         const quint64 timestamp = QDateTime::currentMSecsSinceEpoch();
         const quint32 random = QRandomGenerator::global()->generate();
-        return QString("niceshot_%1_%2").arg(timestamp).arg(random);
+        return QString("snim_%1_%2").arg(timestamp).arg(random);
     }
 
     void WaylandCaptureStrategy::cleanupTempFile() {

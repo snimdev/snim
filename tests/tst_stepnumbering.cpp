@@ -40,7 +40,7 @@ class tst_StepNumbering : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_stepnumbering");
         QStandardPaths::setTestModeEnabled(true);
     }

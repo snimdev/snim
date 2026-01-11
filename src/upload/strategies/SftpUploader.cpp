@@ -200,7 +200,7 @@ struct SessionParams {
     QString secret;                  // password or key passphrase
     SftpAuthMode authMode = SftpAuthMode::Password;
     QString keyPath;
-    std::optional<QString> pinned;   // Niceshot's pin for host:port, read on the GUI thread
+    std::optional<QString> pinned;   // Snim's pin for host:port, read on the GUI thread
 };
 
 // The outcome of establishSession(): either the session is up, or `error` says why in
@@ -290,7 +290,7 @@ SessionResult establishSession(SshResources &res, const SessionParams &p)
             out.error = SftpUploader::tr("The host key for %1 has changed - possible "
                                          "man-in-the-middle attack. Refusing to connect. If the "
                                          "server was reinstalled, remove its entry from "
-                                         "~/.ssh/known_hosts or Niceshot's remembered host "
+                                         "~/.ssh/known_hosts or Snim's remembered host "
                                          "keys.").arg(host);
             return out;
         }
@@ -643,7 +643,7 @@ void SftpUploader::testConnection()
     }
 
     const QString remotePath = Util::buildRemotePath(
-        cfg.remoteDir, Util::uniqueRemoteName(QStringLiteral("niceshot-connection-test.txt")));
+        cfg.remoteDir, Util::uniqueRemoteName(QStringLiteral("snim-connection-test.txt")));
     const SessionParams params = sessionParamsFor(cfg);
 
     // The worker captures value copies only - never `this`.
@@ -662,7 +662,7 @@ void SftpUploader::testConnection()
         }
         ensureRemoteDir(res.sftp, remotePath);
 
-        const QByteArray probe = QByteArrayLiteral("Niceshot connection test");
+        const QByteArray probe = QByteArrayLiteral("Snim connection test");
         const QByteArray remoteUtf8 = remotePath.toUtf8();
         res.handle = libssh2_sftp_open(res.sftp, remoteUtf8.constData(),
                                        LIBSSH2_FXF_WRITE | LIBSSH2_FXF_CREAT | LIBSSH2_FXF_TRUNC,

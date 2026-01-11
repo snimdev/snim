@@ -42,7 +42,7 @@ class tst_RecordingController : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_recordingcontroller");
         QStandardPaths::setTestModeEnabled(true);   // isolate the recordings folder
     }

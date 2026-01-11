@@ -26,7 +26,7 @@ namespace Upload {
  * uploaded()/failed().
  *
  * Host keys are verified before authentication, in three tiers: ~/.ssh/known_hosts, then
- * Niceshot's own pin store (Upload::KnownHosts), then trust-on-first-use - and a key that
+ * Snim's own pin store (Upload::KnownHosts), then trust-on-first-use - and a key that
  * *contradicts* either store is a hard failure, never a prompt-free overwrite.
  */
 class SftpUploader : public Uploader

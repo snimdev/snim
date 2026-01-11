@@ -20,7 +20,7 @@ class tst_VideoEditorSmoke : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_videoeditor_smoke");
         QStandardPaths::setTestModeEnabled(true);
     }
@@ -28,7 +28,7 @@ private slots:
     void constructsWithChromeOnErrorPath()
     {
         const QString missing = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                                + "/Niceshot_recording_does-not-exist.mp4";
+                                + "/Snim_recording_does-not-exist.mp4";
         auto *editor = new VideoEditor(missing);
 
         QVERIFY(editor->findChild<TrimTimeline *>() != nullptr);

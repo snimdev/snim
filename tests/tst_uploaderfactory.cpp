@@ -20,7 +20,7 @@ class tst_UploaderFactory : public QObject
 private slots:
     void initTestCase()
     {
-        QCoreApplication::setOrganizationName("NiceshotTest");
+        QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_uploaderfactory");
         QStandardPaths::setTestModeEnabled(true);   // isolated, empty settings -> not configured
     }
