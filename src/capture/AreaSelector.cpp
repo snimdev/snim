@@ -1,4 +1,5 @@
 #include "AreaSelector.h"
+#include "core/PerfLog.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QApplication>
@@ -799,6 +800,7 @@ void AreaSelector::showEvent(QShowEvent *event)
         updateHoverWindow();
     rebuildBackgroundCache();
     update();
+    Core::Perf::reportCaptureShown("overlay shown");
 }
 
 void AreaSelector::resizeEvent(QResizeEvent *event)

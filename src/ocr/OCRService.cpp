@@ -1,5 +1,7 @@
 #include "OCRService.h"
+#include "core/PerfLog.h"
 #include <QClipboard>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QBuffer>
 #include <QCoreApplication>
@@ -120,6 +122,10 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
         return result;
     }
 
+    // Times the whole Tesseract path; local timer only, so it is safe on the pool thread.
+    QElapsedTimer perfTimer;
+    perfTimer.start();
+
     // Preprocess the image
     QImage processedImage = preprocessImage(image);
     processedImage = convertToRGB888(processedImage);
@@ -188,6 +194,9 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
         result.setSuccess(false);
         result.setErrorMessage("Failed to extract text from image");
     }
+
+    Core::Perf::reportElapsed("ocr", perfTimer.elapsed(), Core::Perf::kBudgetOcrMs,
+                              QStringLiteral("%1x%2 px").arg(image.width()).arg(image.height()));
 
 #else
     result.setSuccess(false);

@@ -8,6 +8,7 @@ int main(int argc, char *argv[]) {
     QLoggingCategory::setFilterRules(
         "qt.*.debug=false\n"
         "Niceshot.debug=true\n"
+        "Niceshot.perf.debug=true\n"
         "default.debug=true"  // For qDebug() without category
     );
     // Static setters, set before construction: ScreenshotApp's constructor already

@@ -7,6 +7,7 @@
 #include "editor/ToolRegistry.h"
 #include "editor/commands/EditorCommands.h"
 #include "core/IconUtil.h"
+#include "core/PerfLog.h"
 #include "editor/tools/TextTool.h"
 #include "editor/tools/ArrowTool.h"
 #include "editor/tools/RectangleTool.h"
@@ -37,6 +38,7 @@
 #include <QTimer>
 #include <QStandardPaths>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include "upload/UploaderFactory.h"
 #include "upload/UploadConfig.h"
 #include "upload/UploadMenu.h"
@@ -661,6 +663,8 @@ QPixmap ImageEditor::renderScene()
     // The scene works in device-independent coordinates, so export at the capture's
     // native resolution by scaling the output up by the screenshot's devicePixelRatio
     // (otherwise a Retina capture would save at half resolution).
+    QElapsedTimer perfTimer;
+    perfTimer.start();
     const QRectF sceneRect = m_scene->sceneRect();
     const qreal dpr = m_originalScreenshot.devicePixelRatio();
     QPixmap pixmap((sceneRect.size() * dpr).toSize());
@@ -670,6 +674,8 @@ QPixmap ImageEditor::renderScene()
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
     // source = the whole scene (logical); target = the full device-pixel pixmap.
     m_scene->render(&painter, QRectF(QPointF(0, 0), pixmap.size()), sceneRect);
+    Core::Perf::reportElapsed("renderScene", perfTimer.elapsed(), Core::Perf::kBudgetRenderMs,
+                              QStringLiteral("%1x%2 @ dpr %3").arg(pixmap.width()).arg(pixmap.height()).arg(dpr));
     return pixmap;
 }
 

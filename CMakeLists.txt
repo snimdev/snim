@@ -196,6 +196,8 @@ add_library(niceshot_lib STATIC
         src/core/Settings.h
         src/core/IconUtil.cpp
         src/core/IconUtil.h
+        src/core/PerfLog.cpp
+        src/core/PerfLog.h
         src/core/ScreenshotDialog.cpp
         src/core/ScreenshotDialog.h
         src/core/SettingsDialog.cpp

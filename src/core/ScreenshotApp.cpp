@@ -2,6 +2,7 @@
 #include "SettingsDialog.h"
 #include "TextSnipCapture.h"
 #include "core/IconUtil.h"
+#include "core/PerfLog.h"
 #include "../capture/CaptureFactory.h"
 #include "../capture/strategies/CaptureStrategy.h"
 #include <QTimer>
@@ -211,6 +212,7 @@ namespace Core {
 
     void ScreenshotApp::captureArea() const {
         qDebug() << "Capture area using strategy:" << m_captureStrategy->name();
+        Perf::markCaptureStart("area");
 
         // Hide tray icon temporarily
         if (m_trayIcon) {
@@ -223,6 +225,7 @@ namespace Core {
 
     void ScreenshotApp::captureWindow() const {
         qDebug() << "Capture window using strategy:" << m_captureStrategy->name();
+        Perf::markCaptureStart("window");
 
         // Hide tray icon temporarily
         if (m_trayIcon) {
@@ -235,6 +238,7 @@ namespace Core {
 
     void ScreenshotApp::captureFullScreen() const {
         qDebug() << "Capture full screen using strategy:" << m_captureStrategy->name();
+        Perf::markCaptureStart("fullscreen");
 
         // The strategy emits screenshotReady, so this joins the normal editor flow.
         m_captureStrategy->captureFullScreen();
@@ -310,6 +314,8 @@ namespace Core {
 
 
     void ScreenshotApp::onScreenshotReady(const QPixmap &screenshot) {
+        // Fullscreen shows no overlay, so this is its visible-endpoint; area/window already reported.
+        Perf::reportCaptureShown("frame ready");
         qDebug() << "Screenshot ready, opening ImageEditor";
 
         // Create and show the ImageEditor with the captured screenshot
@@ -372,6 +378,7 @@ namespace Core {
             return;
         }
 
+        Perf::markCaptureStart("textsnip");
         m_textSnipCapture->startTextSnip();
     }
 
