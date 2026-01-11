@@ -31,6 +31,7 @@
 #include <QPainter>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QStatusBar>
 #include <QApplication>
 #include <QClipboard>
 #include <QStyle>
@@ -381,6 +382,9 @@ void ImageEditor::setupUI()
     // Clean default layout: hide the Layers/Properties panel; the "Panels" toolbar
     // toggle reveals it. (Auto-revealed when a tool needs its options; see below.)
     m_rightSplitter->setVisible(false);
+
+    // Non-blocking feedback for save/copy; auto-clearing.
+    statusBar()->setSizeGripEnabled(false);
 }
 
 QIcon ImageEditor::createThemedIcon(const QString &iconPath)
@@ -618,7 +622,7 @@ void ImageEditor::saveAs()
         if (result.save(fileName)) {
             m_dirty = false;
             if (m_undoStack) m_undoStack->setClean();   // mark this the saved point
-            QMessageBox::information(this, "Success", "Screenshot saved successfully!");
+            statusBar()->showMessage(tr("Screenshot saved to %1").arg(fileName), 4000);
         } else {
             QMessageBox::warning(this, "Error", "Failed to save screenshot.");
         }
@@ -632,7 +636,7 @@ void ImageEditor::copyToClipboard()
     clipboard->setPixmap(result);
     m_dirty = false;   // the result has been exported; closing won't lose work
     if (m_undoStack) m_undoStack->setClean();
-    QMessageBox::information(this, "Success", "Screenshot copied to clipboard!");
+    statusBar()->showMessage(tr("Copied to clipboard"), 3000);
 }
 
 void ImageEditor::doUpload(const QString &profileId)

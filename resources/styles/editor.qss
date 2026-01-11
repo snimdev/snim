@@ -247,3 +247,15 @@ QStackedWidget#propertiesStack {
     border-radius: 6px;
     padding: 4px;
 }
+
+/* Status bar: transient save/copy feedback. Inert in VideoEditor (no status bar). */
+QStatusBar {
+    border-top: 1px solid palette(mid);
+    background: palette(window);
+    color: palette(text);
+    padding: 2px 8px;
+}
+
+QStatusBar::item {
+    border: none;
+}

@@ -1,6 +1,7 @@
 #include <QtTest>
 #include <QStandardPaths>
 #include <QPixmap>
+#include <QStatusBar>
 
 #include "editor/image/ImageEditor.h"
 #include "editor/DrawingGraphicsView.h"
@@ -32,6 +33,19 @@ private slots:
         ImageEditorWindow editor(shot);   // not shown; just constructed
         QVERIFY(editor.findChild<Editor::DrawingGraphicsView*>() != nullptr);
         QVERIFY(editor.findChild<Editor::LayerManager*>() != nullptr);
+    }
+
+    // Export feedback goes to the status bar, so it must never block the window.
+    void copyToClipboardIsNonModal()
+    {
+        QPixmap shot(400, 300);
+        shot.fill(Qt::darkGray);
+
+        ImageEditorWindow editor(shot);
+        editor.copyToClipboard();   // public slot; must not open a dialog
+        QVERIFY(QApplication::activeModalWidget() == nullptr);
+        QVERIFY(editor.statusBar() != nullptr);
+        QVERIFY(!editor.statusBar()->currentMessage().isEmpty());
     }
 };
 
