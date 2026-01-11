@@ -11,6 +11,8 @@
 #include "editor/LayerManager.h"
 #include "editor/tools/RectangleTool.h"
 #include "editor/tools/EllipseTool.h"
+#include "editor/tools/StepTool.h"
+#include "editor/StepNumbering.h"
 
 using namespace Editor;
 using namespace Editor::Commands;
@@ -135,6 +137,30 @@ private slots:
         QVERIFY(manager->layers().contains(rl));
         QVERIFY(manager->layers().contains(el));
         QCOMPARE(manager->layers().size(), 3);
+    }
+
+    void stepBadges_sequence_respectsUndo()
+    {
+        addBackground();
+
+        // Each badge takes its number the way the editor's stamp lambda does.
+        for (int expected = 1; expected <= 3; ++expected) {
+            const int n = nextStepNumber(manager->layers());
+            QCOMPARE(n, expected);
+            auto *badge = new Tools::StepTool();
+            badge->setNumber(n);
+            badge->setPos(10 * n, 10 * n);
+            auto *sl = new Layer(QString("Step %1").arg(n), Layer::Step, owner);
+            sl->setItem(badge);
+            stack->push(new AddLayerCommand(scene, manager, sl, "Add Step"));
+        }
+        QCOMPARE(nextStepNumber(manager->layers()), 4);
+
+        stack->undo();   // the "3" badge leaves the manager, so the next one is a 3 again
+        QCOMPARE(nextStepNumber(manager->layers()), 3);
+
+        stack->redo();
+        QCOMPARE(nextStepNumber(manager->layers()), 4);
     }
 };
 

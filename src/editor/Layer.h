@@ -28,7 +28,8 @@ public:
         Ellipse,
         Freehand,
         Highlight,
-        Blur
+        Blur,
+        Step
     };
 
     explicit Layer(const QString &name, LayerType type, QObject *parent = nullptr);

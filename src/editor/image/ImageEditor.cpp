@@ -15,6 +15,8 @@
 #include "editor/tools/FreehandTool.h"
 #include "editor/tools/HighlightTool.h"
 #include "editor/tools/BlurTool.h"
+#include "editor/tools/StepTool.h"
+#include "editor/StepNumbering.h"
 #include "editor/image/BackdropItem.h"
 #include "editor/image/BackdropPresets.h"
 #include "editor/interactions/PointerToolInteraction.h"
@@ -25,6 +27,7 @@
 #include "editor/interactions/FreehandDrawingInteraction.h"
 #include "editor/interactions/HighlightDrawingInteraction.h"
 #include "editor/interactions/BlurDrawingInteraction.h"
+#include "editor/interactions/StepDrawingInteraction.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -592,6 +595,25 @@ void ImageEditor::setupStrategies()
             for (const QPointF &p : pts) it->addPoint(p);
             it->finishPath();
             commitDrawnItem(it, "blur");
+        });
+
+    if (auto *st = dynamic_cast<StepDrawingInteraction*>(m_strategies.value("step")))
+        connect(st, &StepDrawingInteraction::stepRequested, this, [this](const QPointF &pos) {
+            auto *tmpl = dynamic_cast<Tools::StepTool*>(m_templates.value("step"));
+            auto *it = new Tools::StepTool();
+            it->applyStyleFrom(tmpl);
+            int n = 0;
+            if (!tmpl || !tmpl->takePendingOverride(&n))
+                n = nextStepNumber(m_layerManager->layers());
+            it->setNumber(n);
+            it->setPos(pos);
+            commitDrawnItem(it, "step");
+            // Refresh the panel's "Next number" hint; stamp-time derivation stays authoritative.
+            if (tmpl) {
+                tmpl->setNumber(n + 1);
+                if (const ToolSpec *spec = ToolRegistry::find("step"))
+                    m_layerProperties->setTool(tmpl, spec->displayName);
+            }
         });
 
     activateTool("pointer");   // default tool

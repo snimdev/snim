@@ -8,6 +8,7 @@
 #include "tools/FreehandTool.h"
 #include "tools/HighlightTool.h"
 #include "tools/BlurTool.h"
+#include "tools/StepTool.h"
 
 #include "interactions/PointerToolInteraction.h"
 #include "interactions/ArrowDrawingInteraction.h"
@@ -17,6 +18,7 @@
 #include "interactions/FreehandDrawingInteraction.h"
 #include "interactions/HighlightDrawingInteraction.h"
 #include "interactions/BlurDrawingInteraction.h"
+#include "interactions/StepDrawingInteraction.h"
 #include "core/Settings.h"
 
 #include <QPen>
@@ -202,6 +204,26 @@ const QList<ToolSpec>& ToolRegistry::tools()
                 auto *si = dynamic_cast<BlurDrawingInteraction*>(strategy);
                 auto *bt = dynamic_cast<BlurTool*>(tmpl);
                 if (si && bt) { si->setBlurRadius(bt->blurRadius()); si->setBrushWidth(bt->brushWidth()); }
+            };
+            v.push_back(s);
+        }
+
+        // --- Step numbers (one badge per click) ---
+        {
+            ToolSpec s;
+            s.id = "step";
+            s.layerType = Layer::Step;
+            s.displayName = "Step Numbers";
+            s.namePrefix = "Step";
+            s.iconPath = ":/icons/icons/step.svg";
+            s.tooltip = "Step numbers";
+            // Stays armed after a stamp: numbering several steps in a row is the point.
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new StepDrawingInteraction(p); };
+            s.makeTemplate = []() -> ITool* {
+                auto *t = new StepTool(nullptr);
+                t->setColor(foregroundColor());
+                t->setTemplateMode(true);   // its "number" field is a one-shot override
+                return t;
             };
             v.push_back(s);
         }

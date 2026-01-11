@@ -11,6 +11,7 @@
 #include "editor/tools/HighlightTool.h"
 #include "editor/tools/BlurTool.h"
 #include "editor/tools/TextTool.h"
+#include "editor/tools/StepTool.h"
 
 using namespace Editor::Tools;
 
@@ -167,6 +168,64 @@ private slots:
         QCOMPARE(c->font().family(), QStringLiteral("Helvetica"));
         QVERIFY(c->font().bold());
         delete c;
+    }
+
+    void step_clone_copiesNumberAndStyle()
+    {
+        StepTool s;
+        s.setNumber(5);
+        s.setColor(QColor("#336699"));
+        s.setDiameter(40);
+
+        auto *c = dynamic_cast<StepTool*>(s.clone());
+        QVERIFY(c);
+        QCOMPARE(c->number(), 5);        // Ctrl+D keeps the number
+        QCOMPARE(c->color(), QColor("#336699"));
+        QCOMPARE(c->diameter(), 40.0);
+        delete c;
+    }
+
+    void step_applyStyleFrom_copiesStyleNotNumber()
+    {
+        StepTool src;
+        src.setNumber(7);
+        src.setColor(QColor("#ff8800"));
+        src.setDiameter(48);
+
+        StepTool dst;
+        dst.setNumber(2);
+        dst.applyStyleFrom(&src);
+
+        QCOMPARE(dst.color(), QColor("#ff8800"));
+        QCOMPARE(dst.diameter(), 48.0);
+        QCOMPARE(dst.number(), 2);       // number never travels with the style
+    }
+
+    void step_propertyRoundTrip()
+    {
+        StepTool s;
+        s.setProperty("color", QColor("#654321"));
+        s.setProperty("size", 36);
+        s.setProperty("number", 4);
+        QCOMPARE(propById(&s, "color").value.value<QColor>(), QColor("#654321"));
+        QCOMPARE(propById(&s, "size").value.toInt(), 36);
+        QCOMPARE(propById(&s, "number").value.toInt(), 4);
+        QCOMPARE(propById(&s, "number").name, QStringLiteral("Number"));
+
+        // A plain setNumber() never arms the override.
+        int out = 0;
+        QVERIFY(!s.takePendingOverride(&out));
+
+        // In template mode the number field is a one-shot override of the next stamp.
+        StepTool t;
+        t.setTemplateMode(true);
+        QCOMPARE(propById(&t, "number").name, QStringLiteral("Next number"));
+        t.setProperty("number", 9);
+        QVERIFY(t.takePendingOverride(&out));
+        QCOMPARE(out, 9);
+        QVERIFY(!t.takePendingOverride(&out));   // consumed
+        t.setNumber(12);
+        QVERIFY(!t.takePendingOverride(&out));
     }
 };
 

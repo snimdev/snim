@@ -244,6 +244,8 @@ add_library(niceshot_lib STATIC
         src/editor/EditorChrome.h
         src/editor/ToolRegistry.cpp
         src/editor/ToolRegistry.h
+        src/editor/StepNumbering.cpp
+        src/editor/StepNumbering.h
         src/editor/commands/EditorCommands.cpp
         src/editor/commands/EditorCommands.h
         src/editor/DrawingGraphicsView.cpp
@@ -268,6 +270,8 @@ add_library(niceshot_lib STATIC
         src/editor/tools/BlurTool.h
         src/editor/tools/TextTool.cpp
         src/editor/tools/TextTool.h
+        src/editor/tools/StepTool.cpp
+        src/editor/tools/StepTool.h
         src/editor/Layer.cpp
         src/editor/Layer.h
         src/editor/LayerManager.cpp
@@ -294,6 +298,8 @@ add_library(niceshot_lib STATIC
         src/editor/interactions/HighlightDrawingInteraction.h
         src/editor/interactions/BlurDrawingInteraction.cpp
         src/editor/interactions/BlurDrawingInteraction.h
+        src/editor/interactions/StepDrawingInteraction.cpp
+        src/editor/interactions/StepDrawingInteraction.h
 
         # Editor::Image: screenshot-specific (image editor window + beautify backdrop)
         src/editor/image/ImageEditor.cpp

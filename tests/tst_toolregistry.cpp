@@ -10,6 +10,7 @@
 #include "editor/tools/HighlightTool.h"
 #include "editor/tools/BlurTool.h"
 #include "editor/tools/TextTool.h"
+#include "editor/tools/StepTool.h"
 #include "editor/interactions/IDrawingInteraction.h"
 
 #include <QGraphicsItem>
@@ -33,9 +34,9 @@ private slots:
 
     void allExpectedToolsPresent()
     {
-        QVERIFY(ToolRegistry::tools().size() >= 8);
+        QVERIFY(ToolRegistry::tools().size() >= 9);
         for (const char *id : {"pointer", "arrow", "text", "rectangle",
-                               "ellipse", "freehand", "highlight", "blur"})
+                               "ellipse", "freehand", "highlight", "blur", "step"})
             QVERIFY2(ToolRegistry::find(id) != nullptr, id);
         QCOMPARE(ToolRegistry::find("does-not-exist"), nullptr);
     }
@@ -75,6 +76,7 @@ private slots:
         QVERIFY(dynamic_cast<Tools::HighlightTool*>(produces("highlight")));
         QVERIFY(dynamic_cast<Tools::BlurTool*>(produces("blur")));
         QVERIFY(dynamic_cast<Tools::TextTool*>(produces("text")));
+        QVERIFY(dynamic_cast<Tools::StepTool*>(produces("step")));
 
         // Templates are heap ITool* with no parent; free them (virtual ITool dtor).
         for (const ToolSpec &s : ToolRegistry::tools())

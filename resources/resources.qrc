@@ -25,6 +25,7 @@
         <file>icons/freehand.svg</file>
         <file>icons/highlight.svg</file>
         <file>icons/blur.svg</file>
+        <file>icons/step.svg</file>
 
         <!-- View controls -->
         <file>icons/fit.svg</file>

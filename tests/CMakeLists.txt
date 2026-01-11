@@ -9,6 +9,7 @@ set(NICESHOT_TESTS
         tst_layer
         tst_toolregistry
         tst_tools
+        tst_stepnumbering
         tst_editorcommands
         tst_backdroppresets
         tst_backdrop_memento

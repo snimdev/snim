@@ -15,6 +15,7 @@
 #include <QComboBox>
 #include <QVariant>
 #include <QSlider>
+#include <QSpinBox>
 #include <QIcon>
 #include <QPixmap>
 #include <QMargins>
@@ -225,6 +226,17 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
         sliderRow->addWidget(slider, 1);
         sliderRow->addWidget(valueLabel);
         propLayout->addLayout(sliderRow);
+
+    } else if (prop.controlType == "spinbox") {
+        auto *spin = new QSpinBox(parent);
+        spin->setMinimum(prop.options.value("min", 1).toInt());
+        spin->setMaximum(prop.options.value("max", 999).toInt());
+        spin->setValue(prop.value.toInt());
+        spin->setKeyboardTracking(false);   // one change per committed edit, not per keystroke
+        connect(spin, &QSpinBox::valueChanged, this, [this, tool, p = prop](int value) {
+            emit propertyChangeRequested(tool, p.id, value);
+        });
+        propLayout->addWidget(spin);
 
     } else if (prop.controlType == "dropdown") {
         auto *comboBox = new QComboBox(parent);
