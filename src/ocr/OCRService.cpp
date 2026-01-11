@@ -1,5 +1,5 @@
 #include "OCRService.h"
-#include "core/PerfLog.h"
+#include "core/Perf.h"
 #include <QClipboard>
 #include <QElapsedTimer>
 #include <QGuiApplication>

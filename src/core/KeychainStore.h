@@ -4,8 +4,6 @@
 #include <QString>
 #include <optional>
 
-namespace Core {
-
 /**
  * Tiny secrets vault: stores a secret string under (service, account) in the OS
  * keychain. macOS uses Security.framework (KeychainStore_mac.mm); other platforms get
@@ -16,7 +14,7 @@ namespace Core {
  * Only upload-destination secrets go here (the S3 secret access key, an SFTP/FTP
  * password or key passphrase); all non-secret config lives in Core::Settings.
  */
-namespace KeychainStore {
+namespace Core::KeychainStore {
 
 // One service id per upload provider type; account = the profile id. (The type -> service
 // mapping is Upload::keychainServiceFor - Core must not know the Upload enums.) The S3 id
@@ -30,8 +28,6 @@ bool store(const QString &service, const QString &account, const QString &secret
 [[nodiscard]] std::optional<QString> retrieve(const QString &service, const QString &account);
 bool erase(const QString &service, const QString &account);
 
-} // namespace KeychainStore
-
-} // namespace Core
+} // namespace Core::KeychainStore
 
 #endif // CORE_KEYCHAINSTORE_H

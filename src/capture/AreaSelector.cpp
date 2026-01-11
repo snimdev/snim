@@ -1,5 +1,5 @@
 #include "AreaSelector.h"
-#include "core/PerfLog.h"
+#include "core/Perf.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QApplication>

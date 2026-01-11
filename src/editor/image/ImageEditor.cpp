@@ -7,7 +7,7 @@
 #include "editor/ToolRegistry.h"
 #include "editor/commands/EditorCommands.h"
 #include "core/IconUtil.h"
-#include "core/PerfLog.h"
+#include "core/Perf.h"
 #include "editor/tools/TextTool.h"
 #include "editor/tools/ArrowTool.h"
 #include "editor/tools/RectangleTool.h"
@@ -72,8 +72,7 @@
 #include <QKeyEvent>
 #include <cmath>
 
-namespace Editor {
-namespace Image {
+namespace Editor::Image {
 
 ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     : QMainWindow(parent)
@@ -1392,5 +1391,4 @@ void ImageEditor::mouseReleaseEvent(QMouseEvent *event)
     QMainWindow::mouseReleaseEvent(event);
 }
 
-} // namespace Image
-} // namespace Editor
+} // namespace Editor::Image

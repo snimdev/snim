@@ -6,11 +6,7 @@
 #include <QList>
 #include <QPointF>
 
-namespace Editor {
-    namespace Tools {
-        class FreehandTool;
-    }
-}
+namespace Editor::Tools { class FreehandTool; }
 
 namespace Editor::Interactions {
 

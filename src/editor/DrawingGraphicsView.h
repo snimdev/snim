@@ -7,14 +7,8 @@
 #include <QGraphicsItem>
 #include <QRect>
 
-namespace Editor {
-    namespace Interactions {
-        class IDrawingInteraction;
-    }
-    namespace Tools {
-        class ITool;
-    }
-}
+namespace Editor::Interactions { class IDrawingInteraction; }
+namespace Editor::Tools { class ITool; }
 
 namespace Editor {
 

@@ -2,7 +2,7 @@
 #include "SettingsDialog.h"
 #include "TextSnipCapture.h"
 #include "core/IconUtil.h"
-#include "core/PerfLog.h"
+#include "core/Perf.h"
 #include "../capture/CaptureFactory.h"
 #include "../capture/strategies/CaptureStrategy.h"
 #include <QTimer>

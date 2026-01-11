@@ -6,7 +6,7 @@
 #include <QJsonObject>
 #include <algorithm>
 
-namespace Editor::Image {
+namespace Editor::Image::BackdropPresets {
 
 namespace {
     QVector<BackdropPreset> builtins()
@@ -50,14 +50,14 @@ namespace {
     }
 }
 
-QVector<BackdropPreset> BackdropPresets::all()
+QVector<BackdropPreset> all()
 {
     QVector<BackdropPreset> v = builtins();
     v += userPresets();
     return v;
 }
 
-void BackdropPresets::save(const QString &name, const QVariantMap &config)
+void save(const QString &name, const QVariantMap &config)
 {
     if (name.isEmpty() || isBuiltin(name))
         return; // don't overwrite built-ins
@@ -71,7 +71,7 @@ void BackdropPresets::save(const QString &name, const QVariantMap &config)
     writeUser(v);
 }
 
-void BackdropPresets::remove(const QString &name)
+void remove(const QString &name)
 {
     QVector<BackdropPreset> v = userPresets();
     v.erase(std::remove_if(v.begin(), v.end(),
@@ -81,34 +81,34 @@ void BackdropPresets::remove(const QString &name)
         setDefault(QString());
 }
 
-bool BackdropPresets::isBuiltin(const QString &name)
+bool isBuiltin(const QString &name)
 {
     for (const BackdropPreset &p : builtins())
         if (p.name == name) return true;
     return false;
 }
 
-QVariantMap BackdropPresets::configFor(const QString &name)
+QVariantMap configFor(const QString &name)
 {
     for (const BackdropPreset &p : all())
         if (p.name == name) return p.config;
     return {};
 }
 
-void BackdropPresets::setDefault(const QString &name)
+void setDefault(const QString &name)
 {
     Core::Settings::setBackdropDefaultName(name);
 }
 
-QString BackdropPresets::defaultName()
+QString defaultName()
 {
     return Core::Settings::backdropDefaultName();
 }
 
-QVariantMap BackdropPresets::defaultConfig()
+QVariantMap defaultConfig()
 {
     const QString n = defaultName();
     return n.isEmpty() ? QVariantMap{} : configFor(n);
 }
 
-} // namespace Editor::Image
+} // namespace Editor::Image::BackdropPresets

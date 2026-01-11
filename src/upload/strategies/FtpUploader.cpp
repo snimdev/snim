@@ -1,6 +1,6 @@
 #include "upload/strategies/FtpUploader.h"
 #include "upload/UploadConfig.h"
-#include "upload/UploadUtil.h"
+#include "upload/Util.h"
 
 #include <QBuffer>
 #include <QCoreApplication>

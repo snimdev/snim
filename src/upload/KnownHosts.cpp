@@ -5,7 +5,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
-namespace Upload {
+namespace Upload::KnownHosts {
 
 namespace {
 
@@ -21,7 +21,7 @@ QJsonObject read()
 
 } // namespace
 
-std::optional<QString> KnownHosts::lookup(const QString &host, int port)
+std::optional<QString> lookup(const QString &host, int port)
 {
     const QJsonValue v = read().value(pinKey(host, port));
     if (!v.isString())
@@ -29,7 +29,7 @@ std::optional<QString> KnownHosts::lookup(const QString &host, int port)
     return v.toString();
 }
 
-void KnownHosts::remember(const QString &host, int port, const QString &fingerprint)
+void remember(const QString &host, int port, const QString &fingerprint)
 {
     if (host.isEmpty() || fingerprint.isEmpty())
         return;
@@ -39,4 +39,4 @@ void KnownHosts::remember(const QString &host, int port, const QString &fingerpr
         QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact)));
 }
 
-} // namespace Upload
+} // namespace Upload::KnownHosts

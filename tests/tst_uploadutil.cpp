@@ -2,7 +2,7 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 
-#include "upload/UploadUtil.h"
+#include "upload/Util.h"
 #include "upload/UploadConfig.h"
 
 using namespace Upload;

@@ -6,11 +6,7 @@
 #include <QPointF>
 #include <QPixmap>
 
-namespace Editor {
-    namespace Tools {
-        class BlurTool;
-    }
-}
+namespace Editor::Tools { class BlurTool; }
 
 namespace Editor::Interactions {
 

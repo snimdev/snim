@@ -4,11 +4,7 @@
 #include "BaseDrawingInteraction.h"
 #include <QPen>
 
-namespace Editor {
-    namespace Tools {
-        class ArrowTool;
-    }
-}
+namespace Editor::Tools { class ArrowTool; }
 
 namespace Editor::Interactions {
 

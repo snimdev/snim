@@ -13,14 +13,6 @@ namespace Hotkeys {
 class GlobalHotkeyManager;
 } // namespace Hotkeys
 
-namespace Core {
-
-class ScreenshotDialog;
-class SettingsDialog;
-class TextSnipCapture;
-
-} // namespace Core
-
 namespace Capture {
 class CaptureStrategy;
 } // namespace Capture
@@ -35,6 +27,10 @@ class Uploader;
 } // namespace Upload
 
 namespace Core {
+
+class ScreenshotDialog;
+class SettingsDialog;
+class TextSnipCapture;
 
 class ScreenshotApp : public QApplication
 {

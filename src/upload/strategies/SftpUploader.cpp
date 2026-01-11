@@ -1,7 +1,7 @@
 #include "upload/strategies/SftpUploader.h"
 #include "upload/KnownHosts.h"
 #include "upload/UploadConfig.h"
-#include "upload/UploadUtil.h"
+#include "upload/Util.h"
 
 #include <QCoreApplication>
 #include <QDir>

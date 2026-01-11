@@ -6,11 +6,7 @@
 #include <QList>
 #include <QPointF>
 
-namespace Editor {
-    namespace Tools {
-        class HighlightTool;
-    }
-}
+namespace Editor::Tools { class HighlightTool; }
 
 namespace Editor::Interactions {
 

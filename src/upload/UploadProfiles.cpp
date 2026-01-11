@@ -75,6 +75,10 @@ QString keychainServiceFor(ProviderType t)
     return Core::KeychainStore::s3Service();
 }
 
+} // namespace Upload
+
+namespace Upload::UploadProfiles {
+
 namespace {
 
 UploadProfile fromJson(const QJsonObject &o)
@@ -142,7 +146,7 @@ QVector<UploadProfile> migrateLegacyIfNeeded()
         return {};
 
     UploadProfile p;
-    p.id = UploadProfiles::newId();
+    p.id = newId();
     p.name = QStringLiteral("Default");
     p.endpoint = Core::Settings::uploadEndpoint();
     p.region = Core::Settings::uploadRegion();
@@ -171,12 +175,12 @@ QVector<UploadProfile> migrateLegacyIfNeeded()
 
 } // namespace
 
-QString UploadProfiles::newId()
+QString newId()
 {
     return QUuid::createUuid().toString(QUuid::Id128);
 }
 
-QVector<UploadProfile> UploadProfiles::all()
+QVector<UploadProfile> all()
 {
     const QByteArray json = Core::Settings::uploadProfilesJson().toUtf8();
     const QJsonArray arr = QJsonDocument::fromJson(json).array();
@@ -190,7 +194,7 @@ QVector<UploadProfile> UploadProfiles::all()
     return v;
 }
 
-UploadProfile UploadProfiles::byId(const QString &id)
+UploadProfile byId(const QString &id)
 {
     if (id.isEmpty())
         return {};
@@ -200,7 +204,7 @@ UploadProfile UploadProfiles::byId(const QString &id)
     return {};
 }
 
-void UploadProfiles::save(const UploadProfile &p)
+void save(const UploadProfile &p)
 {
     if (p.id.isEmpty())
         return;
@@ -217,7 +221,7 @@ void UploadProfiles::save(const UploadProfile &p)
         setDefault(p.id);
 }
 
-void UploadProfiles::remove(const QString &id)
+void remove(const QString &id)
 {
     if (id.isEmpty())
         return;
@@ -235,7 +239,7 @@ void UploadProfiles::remove(const QString &id)
         setDefault(v.isEmpty() ? QString() : v.first().id);
 }
 
-void UploadProfiles::setAll(const QVector<UploadProfile> &profiles, const QString &defaultId)
+void setAll(const QVector<UploadProfile> &profiles, const QString &defaultId)
 {
     write(profiles);
     // Validate the default against the new list; fall back to the first (or none).
@@ -247,19 +251,19 @@ void UploadProfiles::setAll(const QVector<UploadProfile> &profiles, const QStrin
     setDefault(def);
 }
 
-QString UploadProfiles::defaultId()
+QString defaultId()
 {
     return Core::Settings::uploadDefaultProfileId();
 }
 
-void UploadProfiles::setDefault(const QString &id)
+void setDefault(const QString &id)
 {
     Core::Settings::setUploadDefaultProfileId(id);
 }
 
-UploadProfile UploadProfiles::defaultProfile()
+UploadProfile defaultProfile()
 {
     return byId(defaultId());
 }
 
-} // namespace Upload
+} // namespace Upload::UploadProfiles

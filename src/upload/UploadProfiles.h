@@ -56,6 +56,8 @@ struct UploadProfile {
     [[nodiscard]] bool isNull() const { return id.isEmpty(); }
 };
 
+} // namespace Upload
+
 /**
  * Persisted store of upload server profiles + which one is the default, kept as JSON in
  * QSettings (mirrors Editor::Image::BackdropPresets). Secrets are NOT here - each
@@ -64,7 +66,7 @@ struct UploadProfile {
  * A lazy, one-time migration converts a pre-existing single `Upload/...` config into
  * one "Default" profile the first time the store is read.
  */
-namespace UploadProfiles {
+namespace Upload::UploadProfiles {
 
 QVector<UploadProfile> all();
 UploadProfile          byId(const QString &id);        // null profile if not found
@@ -82,8 +84,6 @@ UploadProfile defaultProfile();                        // null if no/invalid def
 // Make a fresh, unused profile id (QUuid Id128).
 QString newId();
 
-} // namespace UploadProfiles
-
-} // namespace Upload
+} // namespace Upload::UploadProfiles
 
 #endif // UPLOAD_UPLOADPROFILES_H

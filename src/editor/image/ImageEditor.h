@@ -25,16 +25,12 @@ class LayerManager;
 class LayerProperties;
 class Layer;
 
-namespace Tools {
-    class ITool;
-    class TextTool;
-}
+} // namespace Editor
 
-namespace Interactions {
-    class IDrawingInteraction;
-}
+namespace Editor::Tools { class ITool; class TextTool; }
+namespace Editor::Interactions { class IDrawingInteraction; }
 
-namespace Image {
+namespace Editor::Image {
 
 class BackdropItem;
 
@@ -156,7 +152,6 @@ private:
     Tools::TextTool *m_pendingTextItem = nullptr;  // text box being created/edited inline (uncommitted)
 };
 
-} // namespace Image
-} // namespace Editor
+} // namespace Editor::Image
 
 #endif // IMAGEEDITOR_IMAGEEDITOR_H

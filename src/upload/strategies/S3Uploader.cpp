@@ -1,6 +1,6 @@
 #include "upload/strategies/S3Uploader.h"
 #include "upload/SigV4.h"
-#include "upload/UploadUtil.h"
+#include "upload/Util.h"
 
 #include <QBuffer>
 #include <QDateTime>

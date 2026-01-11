@@ -196,8 +196,8 @@ add_library(niceshot_lib STATIC
         src/core/Settings.h
         src/core/IconUtil.cpp
         src/core/IconUtil.h
-        src/core/PerfLog.cpp
-        src/core/PerfLog.h
+        src/core/Perf.cpp
+        src/core/Perf.h
         src/core/ScreenshotDialog.cpp
         src/core/ScreenshotDialog.h
         src/core/SettingsDialog.cpp
@@ -215,8 +215,8 @@ add_library(niceshot_lib STATIC
         src/upload/UploadConfig.h
         src/upload/UploadProfiles.cpp
         src/upload/UploadProfiles.h
-        src/upload/UploadUtil.cpp
-        src/upload/UploadUtil.h
+        src/upload/Util.cpp
+        src/upload/Util.h
         src/upload/KnownHosts.cpp
         src/upload/KnownHosts.h
         src/upload/SigV4.cpp

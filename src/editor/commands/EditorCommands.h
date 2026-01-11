@@ -16,10 +16,12 @@ class Layer;
 class LayerManager;
 class LayerProperties;
 
-namespace Tools { class ITool; }
-namespace Image { class BackdropItem; }
+} // namespace Editor
 
-namespace Commands {
+namespace Editor::Tools { class ITool; }
+namespace Editor::Image { class BackdropItem; }
+
+namespace Editor::Commands {
 
 // Unique merge ids (so a slider drag / key burst collapses to one step per id+target).
 enum CommandId { PropertyChangeId = 1, BackdropChangeId = 2, MoveLayerId = 3 };
@@ -172,7 +174,6 @@ private:
     Image::BackdropMemento m_before;   // opaque snapshot used by undo()
 };
 
-} // namespace Commands
-} // namespace Editor
+} // namespace Editor::Commands
 
 #endif // IMAGEEDITOR_EDITORCOMMANDS_H

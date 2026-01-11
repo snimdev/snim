@@ -1,4 +1,4 @@
-#include "core/PerfLog.h"
+#include "core/Perf.h"
 
 #include <QElapsedTimer>
 
