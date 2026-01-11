@@ -3,9 +3,9 @@
 #include <QGraphicsItem>
 #include <QGraphicsRectItem>
 
-#include "editor/StepNumbering.h"
-#include "editor/Layer.h"
-#include "editor/tools/StepTool.h"
+#include "editor/annotations/StepNumbering.h"
+#include "editor/annotations/Layer.h"
+#include "editor/annotations/tools/StepTool.h"
 
 using namespace Editor;
 

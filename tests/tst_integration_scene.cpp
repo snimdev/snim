@@ -6,13 +6,13 @@
 #include <QPainter>
 #include <QColor>
 
-#include "editor/commands/EditorCommands.h"
-#include "editor/Layer.h"
-#include "editor/LayerManager.h"
-#include "editor/tools/RectangleTool.h"
-#include "editor/tools/EllipseTool.h"
-#include "editor/tools/StepTool.h"
-#include "editor/StepNumbering.h"
+#include "editor/annotations/commands/EditorCommands.h"
+#include "editor/annotations/Layer.h"
+#include "editor/annotations/LayerManager.h"
+#include "editor/annotations/tools/RectangleTool.h"
+#include "editor/annotations/tools/EllipseTool.h"
+#include "editor/annotations/tools/StepTool.h"
+#include "editor/annotations/StepNumbering.h"
 
 using namespace Editor;
 using namespace Editor::Commands;

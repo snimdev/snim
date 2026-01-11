@@ -6,7 +6,7 @@
 #include <QPixmap>
 #include <QRectF>
 #include <functional>
-#include "editor/tools/ITool.h"
+#include "editor/annotations/tools/ITool.h"
 #include "BackdropMemento.h"
 
 namespace Editor::Image {

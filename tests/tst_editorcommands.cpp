@@ -3,10 +3,10 @@
 #include <QGraphicsRectItem>
 #include <QUndoStack>
 
-#include "editor/commands/EditorCommands.h"
-#include "editor/Layer.h"
-#include "editor/LayerManager.h"
-#include "editor/tools/ArrowTool.h"
+#include "editor/annotations/commands/EditorCommands.h"
+#include "editor/annotations/Layer.h"
+#include "editor/annotations/LayerManager.h"
+#include "editor/annotations/tools/ArrowTool.h"
 
 using namespace Editor;
 using namespace Editor::Commands;

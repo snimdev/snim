@@ -26,11 +26,14 @@ namespace Upload {
 class Uploader;
 } // namespace Upload
 
+namespace OCR {
+class TextSnipCapture;
+} // namespace OCR
+
 namespace Core {
 
 class ScreenshotDialog;
 class SettingsDialog;
-class TextSnipCapture;
 
 class ScreenshotApp : public QApplication
 {
@@ -87,7 +90,7 @@ private:
 
     std::unique_ptr<Capture::CaptureStrategy> m_captureStrategy;
     std::unique_ptr<Hotkeys::GlobalHotkeyManager> m_hotkeyManager;
-    std::unique_ptr<TextSnipCapture> m_textSnipCapture;
+    std::unique_ptr<OCR::TextSnipCapture> m_textSnipCapture;
     std::unique_ptr<Recording::RecordingController> m_recordingController;
     Recording::RecordingControls *m_recordingControls = nullptr;   // shown only while recording
     Upload::Uploader *m_uploader = nullptr;   // current upload (one at a time), parented to this

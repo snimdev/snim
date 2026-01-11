@@ -1,9 +1,9 @@
-#include "editor/commands/EditorCommands.h"
+#include "editor/annotations/commands/EditorCommands.h"
 
-#include "editor/Layer.h"
-#include "editor/LayerManager.h"
-#include "editor/LayerProperties.h"
-#include "editor/tools/ITool.h"
+#include "editor/annotations/Layer.h"
+#include "editor/annotations/LayerManager.h"
+#include "editor/annotations/LayerProperties.h"
+#include "editor/annotations/tools/ITool.h"
 #include "editor/image/BackdropItem.h"
 
 #include <QGraphicsScene>

@@ -202,8 +202,6 @@ add_library(niceshot_lib STATIC
         src/core/ScreenshotDialog.h
         src/core/SettingsDialog.cpp
         src/core/SettingsDialog.h
-        src/core/TextSnipCapture.cpp
-        src/core/TextSnipCapture.h
         src/core/KeychainStore.h
 
         # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
@@ -242,64 +240,64 @@ add_library(niceshot_lib STATIC
 
         # Editor: shared canvas, layers, tools, interactions, commands
         src/editor/EditorChrome.h
-        src/editor/ToolRegistry.cpp
-        src/editor/ToolRegistry.h
-        src/editor/StepNumbering.cpp
-        src/editor/StepNumbering.h
-        src/editor/commands/EditorCommands.cpp
-        src/editor/commands/EditorCommands.h
-        src/editor/DrawingGraphicsView.cpp
-        src/editor/DrawingGraphicsView.h
-        src/editor/tools/ArrowTool.cpp
-        src/editor/tools/ArrowTool.h
-        src/editor/tools/ArrowHandleTool.cpp
-        src/editor/tools/ArrowHandleTool.h
-        src/editor/tools/ShapeTool.cpp
-        src/editor/tools/ShapeTool.h
-        src/editor/tools/ShapeHandleTool.cpp
-        src/editor/tools/ShapeHandleTool.h
-        src/editor/tools/RectangleTool.cpp
-        src/editor/tools/RectangleTool.h
-        src/editor/tools/EllipseTool.cpp
-        src/editor/tools/EllipseTool.h
-        src/editor/tools/FreehandTool.cpp
-        src/editor/tools/FreehandTool.h
-        src/editor/tools/HighlightTool.cpp
-        src/editor/tools/HighlightTool.h
-        src/editor/tools/BlurTool.cpp
-        src/editor/tools/BlurTool.h
-        src/editor/tools/TextTool.cpp
-        src/editor/tools/TextTool.h
-        src/editor/tools/StepTool.cpp
-        src/editor/tools/StepTool.h
-        src/editor/Layer.cpp
-        src/editor/Layer.h
-        src/editor/LayerManager.cpp
-        src/editor/LayerManager.h
-        src/editor/LayerProperties.cpp
-        src/editor/LayerProperties.h
+        src/editor/annotations/ToolRegistry.cpp
+        src/editor/annotations/ToolRegistry.h
+        src/editor/annotations/StepNumbering.cpp
+        src/editor/annotations/StepNumbering.h
+        src/editor/annotations/commands/EditorCommands.cpp
+        src/editor/annotations/commands/EditorCommands.h
+        src/editor/annotations/DrawingGraphicsView.cpp
+        src/editor/annotations/DrawingGraphicsView.h
+        src/editor/annotations/tools/ArrowTool.cpp
+        src/editor/annotations/tools/ArrowTool.h
+        src/editor/annotations/tools/ArrowHandleTool.cpp
+        src/editor/annotations/tools/ArrowHandleTool.h
+        src/editor/annotations/tools/ShapeTool.cpp
+        src/editor/annotations/tools/ShapeTool.h
+        src/editor/annotations/tools/ShapeHandleTool.cpp
+        src/editor/annotations/tools/ShapeHandleTool.h
+        src/editor/annotations/tools/RectangleTool.cpp
+        src/editor/annotations/tools/RectangleTool.h
+        src/editor/annotations/tools/EllipseTool.cpp
+        src/editor/annotations/tools/EllipseTool.h
+        src/editor/annotations/tools/FreehandTool.cpp
+        src/editor/annotations/tools/FreehandTool.h
+        src/editor/annotations/tools/HighlightTool.cpp
+        src/editor/annotations/tools/HighlightTool.h
+        src/editor/annotations/tools/BlurTool.cpp
+        src/editor/annotations/tools/BlurTool.h
+        src/editor/annotations/tools/TextTool.cpp
+        src/editor/annotations/tools/TextTool.h
+        src/editor/annotations/tools/StepTool.cpp
+        src/editor/annotations/tools/StepTool.h
+        src/editor/annotations/Layer.cpp
+        src/editor/annotations/Layer.h
+        src/editor/annotations/LayerManager.cpp
+        src/editor/annotations/LayerManager.h
+        src/editor/annotations/LayerProperties.cpp
+        src/editor/annotations/LayerProperties.h
         # Drawing Interactions
-        src/editor/interactions/IDrawingInteraction.h
-        src/editor/interactions/BaseDrawingInteraction.cpp
-        src/editor/interactions/BaseDrawingInteraction.h
-        src/editor/interactions/PointerToolInteraction.cpp
-        src/editor/interactions/PointerToolInteraction.h
-        src/editor/interactions/ArrowDrawingInteraction.cpp
-        src/editor/interactions/ArrowDrawingInteraction.h
-        src/editor/interactions/TextDrawingInteraction.cpp
-        src/editor/interactions/TextDrawingInteraction.h
-        src/editor/interactions/RectangleDrawingInteraction.cpp
-        src/editor/interactions/RectangleDrawingInteraction.h
-        src/editor/interactions/EllipseDrawingInteraction.cpp
-        src/editor/interactions/EllipseDrawingInteraction.h
-        src/editor/interactions/FreehandDrawingInteraction.cpp
-        src/editor/interactions/FreehandDrawingInteraction.h
-        src/editor/interactions/HighlightDrawingInteraction.cpp
-        src/editor/interactions/HighlightDrawingInteraction.h
-        src/editor/interactions/BlurDrawingInteraction.cpp
-        src/editor/interactions/BlurDrawingInteraction.h
-        src/editor/interactions/StepDrawingInteraction.cpp
-        src/editor/interactions/StepDrawingInteraction.h
+        src/editor/annotations/interactions/IDrawingInteraction.h
+        src/editor/annotations/interactions/BaseDrawingInteraction.cpp
+        src/editor/annotations/interactions/BaseDrawingInteraction.h
+        src/editor/annotations/interactions/PointerToolInteraction.cpp
+        src/editor/annotations/interactions/PointerToolInteraction.h
+        src/editor/annotations/interactions/ArrowDrawingInteraction.cpp
+        src/editor/annotations/interactions/ArrowDrawingInteraction.h
+        src/editor/annotations/interactions/TextDrawingInteraction.cpp
+        src/editor/annotations/interactions/TextDrawingInteraction.h
+        src/editor/annotations/interactions/RectangleDrawingInteraction.cpp
+        src/editor/annotations/interactions/RectangleDrawingInteraction.h
+        src/editor/annotations/interactions/EllipseDrawingInteraction.cpp
+        src/editor/annotations/interactions/EllipseDrawingInteraction.h
+        src/editor/annotations/interactions/FreehandDrawingInteraction.cpp
+        src/editor/annotations/interactions/FreehandDrawingInteraction.h
+        src/editor/annotations/interactions/HighlightDrawingInteraction.cpp
+        src/editor/annotations/interactions/HighlightDrawingInteraction.h
+        src/editor/annotations/interactions/BlurDrawingInteraction.cpp
+        src/editor/annotations/interactions/BlurDrawingInteraction.h
+        src/editor/annotations/interactions/StepDrawingInteraction.cpp
+        src/editor/annotations/interactions/StepDrawingInteraction.h
 
         # Editor::Image: screenshot-specific (image editor window + beautify backdrop)
         src/editor/image/ImageEditor.cpp
@@ -314,6 +312,8 @@ add_library(niceshot_lib STATIC
         src/ocr/OCRService.cpp
         src/ocr/OCRService.h
         src/ocr/OCRResult.h
+        src/ocr/TextSnipCapture.cpp
+        src/ocr/TextSnipCapture.h
 
         # Editor::Video - post-recording trim editor (preview + cut + save). The
         # macOS AVAssetExportSession exporter is added in the APPLE block below;

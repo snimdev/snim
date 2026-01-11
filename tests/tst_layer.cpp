@@ -2,7 +2,7 @@
 #include <QGraphicsRectItem>
 #include <QSignalSpy>
 
-#include "editor/Layer.h"
+#include "editor/annotations/Layer.h"
 
 using namespace Editor;
 

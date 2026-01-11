@@ -1,5 +1,5 @@
-#ifndef CORE_TEXTSNIPCAPTURE_H
-#define CORE_TEXTSNIPCAPTURE_H
+#ifndef OCR_TEXTSNIPCAPTURE_H
+#define OCR_TEXTSNIPCAPTURE_H
 
 #include <QObject>
 #include <QPixmap>
@@ -9,7 +9,7 @@ namespace Capture {
 class CaptureStrategy;
 }
 
-namespace Core {
+namespace OCR {
 
 /**
  * @brief Handles text snipping functionality using OCR
@@ -61,6 +61,6 @@ private:
     bool m_ocrInFlight = false;
 };
 
-} // namespace Core
+} // namespace OCR
 
-#endif // CORE_TEXTSNIPCAPTURE_H
+#endif // OCR_TEXTSNIPCAPTURE_H

@@ -1,8 +1,8 @@
 #include <QtTest>
 #include <QSignalSpy>
 
-#include "editor/LayerManager.h"
-#include "editor/Layer.h"
+#include "editor/annotations/LayerManager.h"
+#include "editor/annotations/Layer.h"
 
 using namespace Editor;
 

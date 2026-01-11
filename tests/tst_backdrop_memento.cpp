@@ -4,7 +4,7 @@
 
 #include "editor/image/BackdropItem.h"
 #include "editor/image/BackdropMemento.h"
-#include "editor/commands/EditorCommands.h"
+#include "editor/annotations/commands/EditorCommands.h"
 
 using namespace Editor;
 using namespace Editor::Image;

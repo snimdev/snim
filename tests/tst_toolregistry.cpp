@@ -1,17 +1,17 @@
 #include <QtTest>
 #include <QStandardPaths>
 
-#include "editor/ToolRegistry.h"
-#include "editor/tools/ITool.h"
-#include "editor/tools/ArrowTool.h"
-#include "editor/tools/RectangleTool.h"
-#include "editor/tools/EllipseTool.h"
-#include "editor/tools/FreehandTool.h"
-#include "editor/tools/HighlightTool.h"
-#include "editor/tools/BlurTool.h"
-#include "editor/tools/TextTool.h"
-#include "editor/tools/StepTool.h"
-#include "editor/interactions/IDrawingInteraction.h"
+#include "editor/annotations/ToolRegistry.h"
+#include "editor/annotations/tools/ITool.h"
+#include "editor/annotations/tools/ArrowTool.h"
+#include "editor/annotations/tools/RectangleTool.h"
+#include "editor/annotations/tools/EllipseTool.h"
+#include "editor/annotations/tools/FreehandTool.h"
+#include "editor/annotations/tools/HighlightTool.h"
+#include "editor/annotations/tools/BlurTool.h"
+#include "editor/annotations/tools/TextTool.h"
+#include "editor/annotations/tools/StepTool.h"
+#include "editor/annotations/interactions/IDrawingInteraction.h"
 
 #include <QGraphicsItem>
 

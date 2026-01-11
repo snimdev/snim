@@ -4,8 +4,8 @@
 #include <QStatusBar>
 
 #include "editor/image/ImageEditor.h"
-#include "editor/DrawingGraphicsView.h"
-#include "editor/LayerManager.h"
+#include "editor/annotations/DrawingGraphicsView.h"
+#include "editor/annotations/LayerManager.h"
 
 // The editor window is Editor::Image::ImageEditor; alias it for brevity (a plain
 // `using namespace` would clash with the Editor namespace).

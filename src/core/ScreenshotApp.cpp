@@ -1,6 +1,6 @@
 #include "ScreenshotApp.h"
 #include "SettingsDialog.h"
-#include "TextSnipCapture.h"
+#include "ocr/TextSnipCapture.h"
 #include "core/IconUtil.h"
 #include "core/Perf.h"
 #include "../capture/CaptureFactory.h"
@@ -54,8 +54,8 @@ namespace Core {
         });
 
         // Initialize text snip capture
-        m_textSnipCapture = std::make_unique<TextSnipCapture>(this);
-        connect(m_textSnipCapture.get(), &TextSnipCapture::textExtracted,
+        m_textSnipCapture = std::make_unique<OCR::TextSnipCapture>(this);
+        connect(m_textSnipCapture.get(), &OCR::TextSnipCapture::textExtracted,
                 this, &ScreenshotApp::onTextExtracted);
 
         // Initialize screen recording. RecordingFactory picks the platform backend
@@ -142,7 +142,7 @@ namespace Core {
         connect(m_textSnipAction, &QAction::triggered, this, &ScreenshotApp::captureTextSnip);
 
         // Disable text snip if OCR is not available
-        if (!TextSnipCapture::isOCRAvailable()) {
+        if (!OCR::TextSnipCapture::isOCRAvailable()) {
             m_textSnipAction->setEnabled(false);
             m_textSnipAction->setText("Extract Text (OCR not available)");
             m_textSnipAction->setToolTip("Install tesseract-ocr to enable this feature");
@@ -289,7 +289,7 @@ namespace Core {
 
         bool anyBound = false;
         for (const Hotkeys::HotkeyAction action : Hotkeys::allHotkeyActions()) {
-            if (action == Hotkeys::HotkeyAction::OcrTextSnip && !TextSnipCapture::isOCRAvailable())
+            if (action == Hotkeys::HotkeyAction::OcrTextSnip && !OCR::TextSnipCapture::isOCRAvailable())
                 continue;
             const QKeySequence seq = Hotkeys::HotkeyBindings::sequence(action);
             if (seq.isEmpty())

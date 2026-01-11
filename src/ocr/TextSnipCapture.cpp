@@ -1,13 +1,13 @@
-#include "TextSnipCapture.h"
-#include "../capture/CaptureFactory.h"
-#include "../capture/strategies/CaptureStrategy.h"
-#include "../ocr/OCRService.h"
+#include "ocr/TextSnipCapture.h"
+#include "capture/CaptureFactory.h"
+#include "capture/strategies/CaptureStrategy.h"
+#include "ocr/OCRService.h"
 #include <QScreen>
 #include <QGuiApplication>
 #include <QClipboard>
 #include <QMessageBox>
 
-namespace Core {
+namespace OCR {
 
 TextSnipCapture::TextSnipCapture(QObject *parent)
     : QObject(parent)
@@ -38,7 +38,7 @@ TextSnipCapture::~TextSnipCapture() {
 }
 
 bool TextSnipCapture::isOCRAvailable() {
-    return OCR::OCRService::isAvailable();
+    return OCRService::isAvailable();
 }
 
 void TextSnipCapture::startTextSnip() {
@@ -91,7 +91,7 @@ void TextSnipCapture::performOCR(const QPixmap &selectedRegion) {
     // A QPixmap must not cross threads, so the worker gets a QImage
     const QImage image = selectedRegion.toImage();
 
-    OCR::OCRService::performOCRAsync(image, "eng", this, [this](const OCR::OCRResult &result) {
+    OCRService::performOCRAsync(image, "eng", this, [this](const OCRResult &result) {
         QGuiApplication::restoreOverrideCursor();
         m_ocrInFlight = false;
 
@@ -137,4 +137,4 @@ void TextSnipCapture::performOCR(const QPixmap &selectedRegion) {
     });
 }
 
-} // namespace Core
+} // namespace OCR
