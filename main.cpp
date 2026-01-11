@@ -1,6 +1,7 @@
 #include "src/core/ScreenshotApp.h"
 #include <QLoggingCategory>
 #include <QSettings>
+#include <QIcon>
 #include <QDebug>
 #include <iostream>
 
@@ -34,11 +35,15 @@ int main(int argc, char *argv[]) {
     Core::ScreenshotApp::setApplicationName("Snim");
     Core::ScreenshotApp::setApplicationVersion("1.0");
     Core::ScreenshotApp::setOrganizationName("darkog");
+    // Wayland matches windows to the installed desktop entry by this name.
+    Core::ScreenshotApp::setDesktopFileName(QStringLiteral("dev.snim.Snim"));
 
     // Must run before the app object exists: its ctor already reads settings.
     migrateLegacySettings();
 
     Core::ScreenshotApp app(argc, argv);
+
+    app.setWindowIcon(QIcon(QStringLiteral(":/icons/icons/app-icon.svg")));
 
     // Test debug output
     qDebug() << "Application starting...";

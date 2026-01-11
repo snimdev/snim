@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Snim
+GenericName=Screenshot Tool
+Comment=Screenshot, screen recording, OCR and upload tool
+Exec=snim
+Icon=dev.snim.Snim
+Terminal=false
+Categories=Utility;Graphics;Qt;
+StartupWMClass=snim
