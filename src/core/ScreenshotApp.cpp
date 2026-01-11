@@ -280,8 +280,11 @@ namespace Core {
     }
 
     void ScreenshotApp::showAbout() {
-        QString aboutText = "Screenshot App v1.0\n\n"
-                           "A simple screenshot tool with editing capabilities.\n\n"
+        // Rich text so the website is a clickable link.
+        QString aboutText = "<b>Niceshot 1.0</b><br><br>"
+                           "A screenshot tool with editing capabilities.<br><br>"
+                           "Darko Gjorgjijoski<br>"
+                           "<a href=\"https://dg.mk/niceshot\">dg.mk/niceshot</a><br><br>"
                            "Shortcuts:";
 
         bool anyBound = false;
@@ -291,14 +294,14 @@ namespace Core {
             const QKeySequence seq = Hotkeys::HotkeyBindings::sequence(action);
             if (seq.isEmpty())
                 continue;
-            aboutText += "\n• " + Hotkeys::hotkeyActionDescription(action) + ": "
-                         + seq.toString(QKeySequence::NativeText);
+            aboutText += "<br>• " + Hotkeys::hotkeyActionDescription(action).toHtmlEscaped() + ": "
+                         + seq.toString(QKeySequence::NativeText).toHtmlEscaped();
             anyBound = true;
         }
         if (!anyBound)
-            aboutText += "\n• None configured";
+            aboutText += "<br>• None configured";
 
-        QMessageBox::about(nullptr, "About Screenshot App", aboutText);
+        QMessageBox::about(nullptr, "About Niceshot", aboutText);
     }
 
     void ScreenshotApp::showSettings() {
