@@ -6,7 +6,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 COMPONENTS
+# 6.5 minimum: the permission API (QCameraPermission and friends) starts there.
+find_package(Qt6 6.5 COMPONENTS
         Core
         Gui
         Widgets

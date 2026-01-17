@@ -43,16 +43,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install dependencies
-        # qt6 + tesseract (OCR) + ninja. cmake is not installed from apt: the
-        # runner image ships a newer one that satisfies cmake_minimum_required.
+      - name: Install Qt
+        # Ubuntu 24.04's apt Qt is 6.4, below the project's 6.5 minimum
+        # (permission API), so Qt comes from the online archives instead.
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          modules: 'qtmultimedia'
+          cache: true
+
+      - name: Install system dependencies
+        # tesseract (OCR) + ninja + GL/GStreamer headers. cmake is not installed
+        # from apt: the runner image ships a newer one that satisfies
+        # cmake_minimum_required.
         run: >
           sudo apt-get update && sudo apt-get install -y
           ninja-build
-          qt6-base-dev
-          libqt6svg6-dev
-          qt6-multimedia-dev
-          qt6-tools-dev
           libgl1-mesa-dev
           libgstreamer1.0-dev
           tesseract-ocr
