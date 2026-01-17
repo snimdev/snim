@@ -151,6 +151,9 @@ jobs:
           UPDATE_INFORMATION: "gh-releases-zsync|snimdev|snim|latest|Snim-x86_64.AppImage.zsync"
         run: |
           export PATH="$PWD:$PATH"
+          # linuxdeploy resolves NEEDED libs via the linker path; the source-built
+          # LayerShellQt lives in the workspace prefix, not a system dir.
+          export LD_LIBRARY_PATH="${{ github.workspace }}/deps-prefix/lib:${{ github.workspace }}/deps-prefix/lib/x86_64-linux-gnu:$QT_ROOT_DIR/lib:${LD_LIBRARY_PATH:-}"
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --desktop-file AppDir/usr/share/applications/dev.snim.Snim.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/dev.snim.Snim.png \
