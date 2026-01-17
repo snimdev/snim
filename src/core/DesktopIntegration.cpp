@@ -33,6 +33,25 @@ QString canonical(const QString &path)
     return resolved.isEmpty() ? info.absoluteFilePath() : resolved;
 }
 
+// The AppImage runtime exports the outer .AppImage path; applicationFilePath() is the
+// per-launch /tmp/.mount_* path, which no longer exists on the next launch.
+QString effectiveExecutablePath()
+{
+    const QByteArray appImage = qgetenv("APPIMAGE");
+    if (!appImage.isEmpty()) {
+        const QString path = QFile::decodeName(appImage);
+        if (QFileInfo::exists(path))
+            return canonical(path);
+    }
+    return canonical(QCoreApplication::applicationFilePath());
+}
+
+// Desktop entry spec: an Exec argument containing spaces has to be quoted.
+QString quoteExec(const QString &path)
+{
+    return path.contains(u' ') ? u'"' + path + u'"' : path;
+}
+
 QString execTarget(const QString &contents)
 {
     const QStringList lines = contents.split(u'\n');
@@ -123,7 +142,7 @@ Status status()
         return Status::MissingAuthorizationKey;
 
     const QString target = execTarget(contents);
-    if (target.isEmpty() || canonical(target) != canonical(QCoreApplication::applicationFilePath()))
+    if (target.isEmpty() || canonical(target) != effectiveExecutablePath())
         return Status::ExecMismatch;
 
     return Status::Installed;
@@ -149,7 +168,7 @@ bool install(QString *errorOut)
     QSaveFile entry(desktopPath);
     if (!entry.open(QIODevice::WriteOnly | QIODevice::Text))
         return fail(QStringLiteral("Cannot write %1: %2").arg(desktopPath, entry.errorString()));
-    const QString contents = desktopEntryContents(canonical(QCoreApplication::applicationFilePath()));
+    const QString contents = desktopEntryContents(quoteExec(effectiveExecutablePath()));
     entry.write(contents.toUtf8());
     if (!entry.commit())
         return fail(QStringLiteral("Cannot write %1: %2").arg(desktopPath, entry.errorString()));

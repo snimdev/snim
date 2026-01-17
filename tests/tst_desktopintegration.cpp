@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QTemporaryDir>
 
 #include "core/DesktopIntegration.h"
 
@@ -34,18 +35,39 @@ class tst_DesktopIntegration : public QObject
         return file.write(contents.toUtf8()) == contents.toUtf8().size();
     }
 
+    // Stands in for the mounted .AppImage file the runtime points $APPIMAGE at.
+    QString makeFakeAppImage(const QString &name)
+    {
+        const QString path = m_appImageDir.filePath(name);
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly))
+            return {};
+        file.write("fake");
+        file.close();
+        return QFileInfo(path).canonicalFilePath();
+    }
+
+    QTemporaryDir m_appImageDir;
+
 private slots:
     void initTestCase()
     {
         QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_desktopintegration");
         QStandardPaths::setTestModeEnabled(true);   // redirect the data home to a throwaway tree
+        qunsetenv("APPIMAGE");                      // a real AppImage session must not skew the tests
+        QVERIFY(m_appImageDir.isValid());
     }
 
     void init()
     {
         QFile::remove(DesktopIntegration::desktopFilePath());
         QFile::remove(DesktopIntegration::iconFilePath());
+    }
+
+    void cleanup()
+    {
+        qunsetenv("APPIMAGE");
     }
 
     void cleanupTestCase()
@@ -171,6 +193,74 @@ private slots:
         const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
         QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents(appPath + " %U")));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
+#endif
+    }
+
+    void appImage_execIsTheOuterPath()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        const QString appImage = makeFakeAppImage("Snim-x86_64.AppImage");
+        QVERIFY(!appImage.isEmpty());
+        qputenv("APPIMAGE", appImage.toUtf8());
+
+        QVERIFY(DesktopIntegration::install(nullptr));
+        QVERIFY(readEntry().contains("Exec=" + appImage + "\n"));
+        // The per-launch mount path must not leak into the entry.
+        QVERIFY(!readEntry().contains(QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath()));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
+#endif
+    }
+
+    void appImage_execWithSpacesIsQuoted()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        const QString appImage = makeFakeAppImage("Snim Nightly x86_64.AppImage");
+        QVERIFY(!appImage.isEmpty());
+        QVERIFY(appImage.contains(' '));
+        qputenv("APPIMAGE", appImage.toUtf8());
+
+        QVERIFY(DesktopIntegration::install(nullptr));
+        QVERIFY(readEntry().contains("Exec=\"" + appImage + "\"\n"));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
+#endif
+    }
+
+    void appImage_missingPathFallsBackToTheAppPath()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        const QString gone = m_appImageDir.filePath("never-extracted.AppImage");
+        QVERIFY(!QFile::exists(gone));
+        qputenv("APPIMAGE", gone.toUtf8());
+
+        QVERIFY(DesktopIntegration::install(nullptr));
+        const QString expected = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
+        QVERIFY(readEntry().contains("Exec=" + expected + "\n"));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
+#endif
+    }
+
+    void appImage_statusMatchesAnEntryWrittenByAnEarlierRun()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        const QString appImage = makeFakeAppImage("Snim-stable.AppImage");
+        QVERIFY(!appImage.isEmpty());
+        qputenv("APPIMAGE", appImage.toUtf8());
+
+        // What a previous AppImage launch left behind; the mount path it ran from is long gone.
+        QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents(appImage + " %U")));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
+
+        // The stale mount path is what the old code wrote, and it must read as a mismatch.
+        QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents("/tmp/.mount_SnimAbc123/usr/bin/snim")));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::ExecMismatch);
 #endif
     }
 };

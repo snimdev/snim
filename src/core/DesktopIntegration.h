@@ -19,7 +19,7 @@
 namespace Core::DesktopIntegration {
 
 enum class Status {
-    Installed,                // entry present, authorization key set, Exec is this binary
+    Installed,                // entry present, authorization key set, Exec is this executable
     ExecMismatch,             // entry present but Exec points somewhere else
     MissingAuthorizationKey,  // entry present but does not declare the ScreenShot2 interface
     NotInstalled,             // no entry in the user's local applications folder
@@ -35,8 +35,11 @@ enum class Status {
 
 [[nodiscard]] Status status();
 
-// Writes the entry (Exec = this binary) plus the icon, then refreshes the desktop
-// caches best effort. Returns false and fills errorOut when the entry cannot be written.
+// Writes the entry (Exec = this executable, quoted when the path has spaces) plus the
+// icon, then refreshes the desktop caches best effort. Under an AppImage the Exec and the
+// status() comparison both use $APPIMAGE, since applicationFilePath() is a per-launch
+// mount path that is gone by the next run.
+// Returns false and fills errorOut when the entry cannot be written.
 bool install(QString *errorOut = nullptr);
 
 } // namespace Core::DesktopIntegration
