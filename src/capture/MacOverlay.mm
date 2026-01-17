@@ -3,6 +3,7 @@
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 
+#include <QGuiApplication>
 #include <QWidget>
 
 namespace Capture {
@@ -10,6 +11,9 @@ namespace Capture {
 void configureOverlayWindow(QWidget *widget)
 {
     if (!widget)
+        return;
+    // Offscreen and test platforms hand out fake winIds that are not NSViews.
+    if (QGuiApplication::platformName() != QLatin1String("cocoa"))
         return;
 
     // On macOS WId is the NSView*; its window is the backing NSWindow.
@@ -39,6 +43,9 @@ void configureOverlayWindow(QWidget *widget)
 void configureRecordingHud(QWidget *widget)
 {
     if (!widget)
+        return;
+    // Offscreen and test platforms hand out fake winIds that are not NSViews.
+    if (QGuiApplication::platformName() != QLatin1String("cocoa"))
         return;
 
     NSView *view = reinterpret_cast<NSView *>(widget->winId());
@@ -74,6 +81,9 @@ void configureRecordingHud(QWidget *widget)
 void configureSelectionHud(QWidget *widget)
 {
     if (!widget)
+        return;
+    // Offscreen and test platforms hand out fake winIds that are not NSViews.
+    if (QGuiApplication::platformName() != QLatin1String("cocoa"))
         return;
 
     NSView *view = reinterpret_cast<NSView *>(widget->winId());
