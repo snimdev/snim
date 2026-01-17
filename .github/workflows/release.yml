@@ -48,29 +48,33 @@ jobs:
           cache: true
 
       - name: Install system dependencies
-        run: >
-          sudo apt-get update && sudo apt-get install -y
-          ninja-build
-          libgl1-mesa-dev
-          libgstreamer1.0-dev
-          libgstreamer-plugins-base1.0-dev
-          tesseract-ocr
-          tesseract-ocr-eng
-          libtesseract-dev
-          libleptonica-dev
-          libcurl4-openssl-dev
-          libssh2-1-dev
-          extra-cmake-modules
-          libwayland-dev
-          wayland-protocols
-          libxcb-cursor0
-          libfuse2
-          gstreamer1.0-plugins-base
-          gstreamer1.0-plugins-good
-          gstreamer1.0-plugins-bad
-          gstreamer1.0-plugins-ugly
-          gstreamer1.0-pulseaudio
-          gstreamer1.0-pipewire
+        run: |
+          # The image's clang libunwind-14-dev conflicts with the libunwind-dev
+          # that libgstreamer1.0-dev depends on; apt refuses the mix.
+          sudo apt-get remove -y 'libunwind-*-dev' || true
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libgl1-mesa-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            tesseract-ocr \
+            tesseract-ocr-eng \
+            libtesseract-dev \
+            libleptonica-dev \
+            libcurl4-openssl-dev \
+            libssh2-1-dev \
+            extra-cmake-modules \
+            libwayland-dev \
+            wayland-protocols \
+            libxcb-cursor0 \
+            libfuse2 \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly \
+            gstreamer1.0-pulseaudio \
+            gstreamer1.0-pipewire
 
       - name: Build LayerShellQt
         # Not packaged for Qt 6 on Ubuntu 22.04, and without it the recording frame
