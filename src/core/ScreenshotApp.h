@@ -62,6 +62,7 @@ private slots:
     void showSettings();
     // KWin refused ScreenShot2: offer to install the desktop entry that authorizes it.
     void onKWinAuthorizationDenied();
+    void checkForUpdates();
     static void showAbout();
     static void quit();
 
@@ -93,6 +94,7 @@ private:
     QAction *m_recordWindowAction{};
     QAction *m_settingsAction{};
     QAction *m_aboutAction{};
+    QAction *m_checkUpdatesAction{};
     QAction *m_desktopIntegrationAction{};   // Linux only, hidden once the entry is in place
     QAction *m_quitAction{};
 

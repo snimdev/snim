@@ -1,0 +1,253 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (without the leading v)'
+        required: false
+        default: '0.0.0-test'
+
+permissions:
+  contents: write
+
+jobs:
+  linux-appimage:
+    name: AppImage (Linux x86_64)
+    # The oldest runner image still offered on purpose: an AppImage runs only on
+    # distributions whose glibc is at least as new as the one it was built against.
+    # When GitHub retires ubuntu-22.04, do NOT simply bump this to a newer image or
+    # the AppImage stops working on older systems; move the build into a container
+    # instead (`container: ubuntu:22.04` on the newest runner, plus sudo-less apt
+    # and a manual git/ca-certificates install).
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          modules: 'qtmultimedia'
+          cache: true
+
+      - name: Install system dependencies
+        run: >
+          sudo apt-get update && sudo apt-get install -y
+          ninja-build
+          libgl1-mesa-dev
+          libgstreamer1.0-dev
+          libgstreamer-plugins-base1.0-dev
+          tesseract-ocr
+          tesseract-ocr-eng
+          libtesseract-dev
+          libleptonica-dev
+          libcurl4-openssl-dev
+          libssh2-1-dev
+          extra-cmake-modules
+          libwayland-dev
+          wayland-protocols
+          libxcb-cursor0
+          libfuse2
+          gstreamer1.0-plugins-base
+          gstreamer1.0-plugins-good
+          gstreamer1.0-plugins-bad
+          gstreamer1.0-plugins-ugly
+          gstreamer1.0-pulseaudio
+          gstreamer1.0-pipewire
+
+      - name: Build LayerShellQt
+        # Not packaged for Qt 6 on Ubuntu 22.04, and without it the recording frame
+        # overlay sinks below other windows on Wayland. v6.4.6 is the newest release
+        # whose QT_MIN_VERSION is still 6.8; jammy's extra-cmake-modules is 5.92, far
+        # below the ECM 6.14 it wants, so ECM is built from source alongside it.
+        env:
+          PREFIX: ${{ github.workspace }}/deps-prefix
+        run: |
+          git clone --depth 1 --branch v6.14.0 https://invent.kde.org/frameworks/extra-cmake-modules.git ecm-src
+          cmake -S ecm-src -B ecm-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DBUILD_TESTING=OFF
+          cmake --install ecm-build
+          git clone --depth 1 --branch v6.4.6 https://invent.kde.org/plasma/layer-shell-qt.git lsq-src
+          cmake -S lsq-src -B lsq-build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR;$PREFIX" \
+            -DBUILD_TESTING=OFF
+          cmake --build lsq-build
+          cmake --install lsq-build
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DSNIM_VERSION=${{ steps.version.outputs.version }}
+          -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR;${{ github.workspace }}/deps-prefix"
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        working-directory: build
+        run: |
+          export QT_QPA_PLATFORM=offscreen
+          ctest --output-on-failure --timeout 120
+
+      - name: Install into AppDir
+        run: cmake --install build --prefix AppDir/usr
+
+      - name: Stage tessdata
+        # Tesseract finds no language pack inside an AppImage, so ship eng and point
+        # TESSDATA_PREFIX at it from an AppRun hook before the binary starts.
+        run: |
+          mkdir -p AppDir/usr/share/tessdata
+          cp /usr/share/tesseract-ocr/*/tessdata/eng.traineddata AppDir/usr/share/tessdata/
+          mkdir -p AppDir/apprun-hooks
+          cat > AppDir/apprun-hooks/tessdata.sh <<'HOOK'
+          export TESSDATA_PREFIX="$APPDIR/usr/share/tessdata"
+          HOOK
+
+      - name: Fetch linuxdeploy
+        # Pinned: linuxdeploy publishes rolling "continuous" builds, and an unpinned
+        # tool is a build that changes under us.
+        run: |
+          LD_TAG=1-alpha-20240109-1
+          GST_PLUGIN_SHA=2a2e67491c32995a3f279ad0ecbe77abd512b42a
+          curl -fsSLO "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LD_TAG/linuxdeploy-x86_64.AppImage"
+          curl -fsSLO "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/$LD_TAG/linuxdeploy-plugin-qt-x86_64.AppImage"
+          curl -fsSLO "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gstreamer/$GST_PLUGIN_SHA/linuxdeploy-plugin-gstreamer.sh"
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage linuxdeploy-plugin-gstreamer.sh
+
+      - name: Build AppImage
+        env:
+          QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
+          # Wayland sessions need these; the qt plugin deploys only the xcb platform by default.
+          EXTRA_PLATFORM_PLUGINS: "libqwayland-generic.so;libqwayland-egl.so"
+          VERSION: ${{ steps.version.outputs.version }}
+          OUTPUT: Snim-x86_64.AppImage
+          # Lets AppImageUpdate pull the next release without a reinstall.
+          UPDATE_INFORMATION: "gh-releases-zsync|snimdev|snim|latest|Snim-x86_64.AppImage.zsync"
+        run: |
+          export PATH="$PWD:$PATH"
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+            --desktop-file AppDir/usr/share/applications/dev.snim.Snim.desktop \
+            --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/dev.snim.Snim.png \
+            --plugin qt --plugin gstreamer --output appimage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          # Never renamed: the zsync file and UPDATE_INFORMATION both name this exact file.
+          path: |
+            Snim-x86_64.AppImage
+            Snim-x86_64.AppImage.zsync
+          if-no-files-found: error
+
+  macos-dmg:
+    name: DMG (macOS arm64)
+    runs-on: macos-14
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        run: brew install qt tesseract ninja cmake
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DSNIM_VERSION=${{ steps.version.outputs.version }}
+          -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        working-directory: build
+        run: |
+          export QT_QPA_PLATFORM=offscreen
+          export TESSDATA_PREFIX="$(brew --prefix)/share/tessdata"
+          ctest --output-on-failure --timeout 120
+
+      - name: Deploy the bundle
+        # macos_deploy.sh bundles Qt + tessdata, fixes rpaths and ad-hoc signs.
+        run: cmake --build build --target deploy
+
+      - name: Create DMG
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dmg-root
+          cp -R build/dist/Snim.app dmg-root/
+          ln -s /Applications dmg-root/Applications
+          hdiutil create -volname Snim -srcfolder dmg-root -ov -format UDZO "Snim-$VERSION-macos-arm64.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: Snim-*-macos-arm64.dmg
+          if-no-files-found: error
+
+  release:
+    name: Publish the GitHub release
+    needs: [linux-appimage, macos-dmg]
+    # workflow_dispatch builds the artifacts but never publishes a release.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Write release notes
+        run: bash scripts/changelog.sh "$GITHUB_REF_NAME" > notes.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Snim $VERSION" \
+            --notes-file notes.md \
+            "artifacts/Snim-x86_64.AppImage" \
+            "artifacts/Snim-x86_64.AppImage.zsync" \
+            "artifacts/Snim-$VERSION-macos-arm64.dmg"

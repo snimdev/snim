@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# macOS deployment helper for Niceshot.
+# macOS deployment helper for Snim.
 #
 # 1. Runs macdeployqt to copy the Qt frameworks and other linked dylibs
 #    (tesseract, leptonica, archive, ...) into the .app bundle.
@@ -8,9 +8,11 @@
 #    rpaths (/opt/homebrew, /usr/local) and ensures @executable_path/../Frameworks
 #    is present. Without this, plugins that load Qt via @rpath (e.g. the cocoa
 #    platform plugin) resolve through the leftover Homebrew rpath and load a
-#    SECOND copy of Qt — causing "Class ... implemented in both ..." warnings
+#    SECOND copy of Qt, causing "Class ... implemented in both ..." warnings
 #    and potential crashes.
-# 3. Ad-hoc code-signs the whole bundle so it launches and keeps a stable
+# 3. Copies Homebrew's English Tesseract language pack into Contents/Resources,
+#    since a user's Mac has no tessdata of its own.
+# 4. Ad-hoc code-signs the whole bundle so it launches and keeps a stable
 #    Designated Requirement.
 #
 # Usage: macos_deploy.sh <path-to-.app> <path-to-macdeployqt>
@@ -53,6 +55,19 @@ existing_rpaths="$(otool -l "$EXE" | awk '$1=="cmd" && $2=="LC_RPATH"{f=1} f && 
 if ! grep -Fxq "@executable_path/../Frameworks" <<<"$existing_rpaths"; then
     echo "    add rpath: @executable_path/../Frameworks"
     install_name_tool -add_rpath "@executable_path/../Frameworks" "$EXE"
+fi
+
+echo "==> Bundling tessdata"
+# OCR needs a language pack next to the binary; a user's Mac has no Homebrew tessdata.
+# Must happen before signing, or the added file invalidates the signature.
+BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
+TRAINEDDATA="${BREW_PREFIX:+$BREW_PREFIX/share/tessdata/eng.traineddata}"
+if [ -n "$TRAINEDDATA" ] && [ -f "$TRAINEDDATA" ]; then
+    mkdir -p "$APP/Contents/Resources/tessdata"
+    cp "$TRAINEDDATA" "$APP/Contents/Resources/tessdata/"
+    echo "    copied $TRAINEDDATA"
+else
+    echo "    skipped: no Homebrew eng.traineddata found (OCR will need a system install)"
 fi
 
 echo "==> ad-hoc codesigning $APP"

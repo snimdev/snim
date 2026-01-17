@@ -1,4 +1,5 @@
 #include "src/core/ScreenshotApp.h"
+#include "core/Version.h"
 #include <QLoggingCategory>
 #include <QSettings>
 #include <QIcon>
@@ -33,7 +34,7 @@ int main(int argc, char *argv[]) {
     // Static setters, set before construction: ScreenshotApp's constructor already
     // reads QSettings, which resolves its scope from these names.
     Core::ScreenshotApp::setApplicationName("Snim");
-    Core::ScreenshotApp::setApplicationVersion("1.0");
+    Core::ScreenshotApp::setApplicationVersion(QString::fromLatin1(Core::Version::kVersion));
     Core::ScreenshotApp::setOrganizationName("darkog");
     // Wayland matches windows to the installed desktop entry by this name.
     Core::ScreenshotApp::setDesktopFileName(QStringLiteral("dev.snim.Snim"));

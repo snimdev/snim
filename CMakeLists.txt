@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.31)
-project(Snim)
+
+# Must run before project(): it defines the version project(VERSION) is given.
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/SnimVersion.cmake")
+
+project(Snim VERSION ${SNIM_VERSION_NUMERIC})
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_AUTOMOC ON)
@@ -204,6 +208,9 @@ add_library(snim_lib STATIC
         src/core/SettingsDialog.cpp
         src/core/SettingsDialog.h
         src/core/KeychainStore.h
+        # GitHub releases lookup behind the tray's "Check for updates" action.
+        src/core/UpdateCheck.cpp
+        src/core/UpdateCheck.h
         # KDE desktop-entry repair for KWin's ScreenShot2 authorization (no-op elsewhere).
         src/core/DesktopIntegration.cpp
         src/core/DesktopIntegration.h
@@ -514,11 +521,17 @@ if(WIN32)
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_WIN_HOTKEYS)
 endif()
 
+# The version header is generated, not checked in, so `core/Version.h` resolves out
+# of the build tree for the library, the executable and the tests alike.
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.h.in"
+        "${CMAKE_BINARY_DIR}/generated/core/Version.h" @ONLY)
+
 # Set include directories for the organized structure. PUBLIC so the executable
 # and the tests inherit the `src/`-rooted include path every #include relies on.
 target_include_directories(snim_lib PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
 )
 
 target_link_libraries(snim_lib PUBLIC
@@ -597,8 +610,8 @@ if(APPLE)
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in"
             MACOSX_BUNDLE_BUNDLE_NAME "Snim"
             MACOSX_BUNDLE_GUI_IDENTIFIER "dev.snim.Snim"
-            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+            MACOSX_BUNDLE_BUNDLE_VERSION "${SNIM_VERSION_NUMERIC}"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "${SNIM_VERSION_NUMERIC}"
             MACOSX_BUNDLE_COPYRIGHT "Copyright © 2026 Darko Gjorgjijoski"
     )
 
@@ -670,6 +683,32 @@ if(APPLE)
     else()
         message(WARNING "macdeployqt not found - the `deploy` target will be unavailable")
     endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# Linux install rules
+# ---------------------------------------------------------------------------
+# `cmake --install` produces a normal FHS tree: the binary plus the desktop entry
+# and the hicolor icons every launcher indexes. The AppImage job installs into an
+# AppDir with the same rules, so the two layouts can never drift.
+if(UNIX AND NOT APPLE)
+    include(GNUInstallDirs)
+
+    install(TARGETS Snim RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/deploy/dev.snim.Snim.desktop"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app-icon.svg"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+            RENAME dev.snim.Snim.svg)
+
+    foreach(_snim_icon_size 16 32 48 64 128 256 512)
+        install(FILES
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/hicolor/${_snim_icon_size}x${_snim_icon_size}/apps/dev.snim.Snim.png"
+                DESTINATION
+                "${CMAKE_INSTALL_DATADIR}/icons/hicolor/${_snim_icon_size}x${_snim_icon_size}/apps")
+    endforeach()
 endif()
 
 # ---------------------------------------------------------------------------

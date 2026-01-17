@@ -6,6 +6,8 @@
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
 #include <QMetaObject>
 #include <QPointer>
 #include <QtConcurrentRun>
@@ -28,6 +30,24 @@ void postToGui(F &&fn)
         QMetaObject::invokeMethod(app, std::forward<F>(fn), Qt::QueuedConnection);
 }
 
+#ifdef HAVE_TESSERACT
+// The macOS bundle ships its own language packs, which Tesseract's built-in search
+// path never finds. Returns nullptr elsewhere, which means "use the default path".
+const char *bundledTessdataPath()
+{
+#ifdef Q_OS_MACOS
+    static const QByteArray path = [] {
+        const QString dir = QDir::cleanPath(QCoreApplication::applicationDirPath()
+                                            + QStringLiteral("/../Resources/tessdata"));
+        return QDir(dir).exists() ? QFile::encodeName(dir) : QByteArray();
+    }();
+    if (!path.isEmpty())
+        return path.constData();
+#endif
+    return nullptr;
+}
+#endif
+
 } // namespace
 
 #ifdef HAVE_TESSERACT
@@ -38,7 +58,7 @@ class OCRService::Impl {
 public:
     Impl() : m_api(new tesseract::TessBaseAPI()) {
         // Initialize Tesseract with English language by default
-        if (m_api->Init(nullptr, "eng") != 0) {
+        if (m_api->Init(bundledTessdataPath(), "eng") != 0) {
             qWarning() << "Failed to initialize Tesseract API";
             delete m_api;
             m_api = nullptr;
@@ -64,7 +84,7 @@ public:
         if (lang == m_language) {
             return true;
         }
-        if (m_api->Init(nullptr, lang.toStdString().c_str()) != 0) {
+        if (m_api->Init(bundledTessdataPath(), lang.toStdString().c_str()) != 0) {
             return false;
         }
         m_language = lang;

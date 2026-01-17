@@ -35,6 +35,7 @@ set(SNIM_TESTS
         tst_hotkeymapping
         tst_hotkeymanager
         tst_desktopintegration
+        tst_updatecheck
 )
 
 foreach(test_name ${SNIM_TESTS})

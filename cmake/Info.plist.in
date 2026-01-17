@@ -29,15 +29,15 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSScreenCaptureUsageDescription</key>
-    <string>Niceshot needs Screen Recording access to capture screenshots and record your screen.</string>
+    <string>Snim needs Screen Recording access to capture screenshots and record your screen.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Niceshot needs Camera access to show a webcam bubble in your recordings.</string>
+    <string>Snim needs Camera access to show a webcam bubble in your recordings.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Niceshot needs Microphone access to record your narration.</string>
+    <string>Snim needs Microphone access to record your narration.</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <!-- Menu-bar (agent) app: lives in the tray, no Dock icon. Set to false
-         (or remove) if you want Niceshot to appear in the Dock and app switcher. -->
+         (or remove) if you want Snim to appear in the Dock and app switcher. -->
     <key>LSUIElement</key>
     <true/>
 </dict>

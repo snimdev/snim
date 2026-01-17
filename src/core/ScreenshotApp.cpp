@@ -18,6 +18,8 @@
 
 #include "core/Settings.h"
 #include "core/DesktopIntegration.h"
+#include "core/UpdateCheck.h"
+#include "core/Version.h"
 #include "capture/AreaSelector.h"
 #ifdef Q_OS_LINUX
 #include "capture/strategies/KWinCaptureStrategy.h"
@@ -31,6 +33,7 @@
 #include "upload/Uploader.h"
 #include "upload/UploaderFactory.h"
 #include <QClipboard>
+#include <QDesktopServices>
 #include <QUrl>
 #include <algorithm>
 
@@ -185,10 +188,12 @@ namespace Core {
         }
 
         m_aboutAction = new QAction("About", this);
+        m_checkUpdatesAction = new QAction("Check for updates...", this);
         m_settingsAction = new QAction("Settings", this);
         connect(m_settingsAction, &QAction::triggered, this, &ScreenshotApp::showSettings);
 
         connect(m_aboutAction, &QAction::triggered, this, &ScreenshotApp::showAbout);
+        connect(m_checkUpdatesAction, &QAction::triggered, this, &ScreenshotApp::checkForUpdates);
 
 #ifdef Q_OS_LINUX
         m_desktopIntegrationAction = new QAction("Set up desktop integration...", this);
@@ -216,6 +221,7 @@ namespace Core {
         connect(m_trayMenu, &QMenu::aboutToShow, this, &ScreenshotApp::refreshDesktopIntegrationAction);
         refreshDesktopIntegrationAction();
 #endif
+        m_trayMenu->addAction(m_checkUpdatesAction);
         m_trayMenu->addAction(m_aboutAction);
         m_trayMenu->addSeparator();
         m_trayMenu->addAction(m_quitAction);
@@ -307,8 +313,9 @@ namespace Core {
 
     void ScreenshotApp::showAbout() {
         // Rich text so the website is a clickable link.
-        QString aboutText = "<b>Snim 1.0</b><br><br>"
-                           "A screenshot tool with editing capabilities.<br><br>"
+        QString aboutText = QStringLiteral("<b>Snim %1</b><br><br>")
+                                .arg(QString::fromLatin1(Core::Version::kVersion).toHtmlEscaped())
+                           + "A screenshot tool with editing capabilities.<br><br>"
                            "Darko Gjorgjijoski<br>"
                            "<a href=\"https://snim.dev\">snim.dev</a><br><br>"
                            "Shortcuts:";
@@ -328,6 +335,42 @@ namespace Core {
             aboutText += "<br>• None configured";
 
         QMessageBox::about(nullptr, "About Snim", aboutText);
+    }
+
+    void ScreenshotApp::checkForUpdates() {
+        const QString current = QString::fromLatin1(Version::kVersion);
+
+        // Disabled for the duration, so the action cannot queue a second query.
+        m_checkUpdatesAction->setEnabled(false);
+        UpdateCheck::checkLatest(this, [this, current](const UpdateCheck::Result &result) {
+            m_checkUpdatesAction->setEnabled(true);
+
+            if (!result.ok) {
+                QMessageBox::warning(nullptr, tr("Check for updates"),
+                                     tr("Could not check for updates.\n\n%1").arg(result.error));
+                return;
+            }
+
+            if (!result.newer) {
+                QMessageBox::information(nullptr, tr("Check for updates"),
+                                         result.error.isEmpty()
+                                             ? tr("Snim %1 is up to date.").arg(current)
+                                             : result.error);
+                return;
+            }
+
+            QMessageBox box;
+            box.setIcon(QMessageBox::Information);
+            box.setWindowTitle(tr("Check for updates"));
+            box.setText(tr("Snim %1 is available.").arg(result.latestTag));
+            box.setInformativeText(tr("You are running %1.").arg(current));
+            QPushButton *openPage = box.addButton(tr("Open release page"), QMessageBox::AcceptRole);
+            box.addButton(tr("Later"), QMessageBox::RejectRole);
+            box.exec();
+
+            if (box.clickedButton() == openPage && result.releaseUrl.isValid())
+                QDesktopServices::openUrl(result.releaseUrl);
+        });
     }
 
     void ScreenshotApp::showSettings() {
