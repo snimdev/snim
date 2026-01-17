@@ -19,7 +19,7 @@ inline QRect displayLocalRect(const QRect &regionVirtual, const QRect &screenGeo
 }
 
 /**
- * The (up to four) strips of `outer` not covered by `hole` — top and bottom bands at
+ * The (up to four) strips of `outer` not covered by `hole`: top and bottom bands at
  * full width, left and right bands between them. They tile exactly: no overlaps, and
  * their union is outer minus hole. The recording-frame overlay fills them with the
  * dim color so the recorded region itself stays untouched. Pure, so it's unit-tested.
@@ -141,6 +141,43 @@ inline QRect resolveStreamRect(const QSize &capsPx,
             return screen.rectLogical;
     }
     return {};
+}
+
+/**
+ * Keep the webcam bubble wholly inside @p bounds: clamp @p proposedTopLeft for a bubble
+ * of @p bubbleSize. Both are in the same coordinate space (screen-local on Wayland,
+ * where the bubble is a circle inside a full-screen layer surface). A bubble larger
+ * than the bounds pins to their top-left instead of taking a negative position.
+ * Pure, so it's unit-tested without a compositor.
+ */
+inline QPoint clampBubbleTopLeft(const QRect &bounds, const QPoint &proposedTopLeft,
+                                 const QSize &bubbleSize)
+{
+    QPoint p = proposedTopLeft;
+    p.setX(qBound(bounds.left(), p.x(),
+                  qMax(bounds.left(), bounds.left() + bounds.width() - bubbleSize.width())));
+    p.setY(qBound(bounds.top(), p.y(),
+                  qMax(bounds.top(), bounds.top() + bounds.height() - bubbleSize.height())));
+    return p;
+}
+
+/**
+ * Where the webcam bubble parks for a recorded region: the bottom-left corner inside
+ * the region, expressed in coordinates local to @p screenGeometry and clamped so the
+ * bubble stays wholly on that screen. Screen-local because a Wayland layer surface is
+ * positioned by margins against its own output, never in virtual-desktop coordinates.
+ * Pure, so it's unit-tested without a compositor.
+ */
+inline QPoint bubbleParkPos(const QRect &screenGeometry, const QRect &regionVirtual,
+                            const QSize &bubbleSize, int margin)
+{
+    // qMax keeps a region shorter than the bubble pinned to its own top edge rather
+    // than pushing the bubble out above it.
+    const int x = regionVirtual.left() + margin;
+    const int y = qMax(regionVirtual.top(),
+                       regionVirtual.bottom() - bubbleSize.height() - margin);
+    const QPoint local = QPoint(x, y) - screenGeometry.topLeft();
+    return clampBubbleTopLeft(QRect(QPoint(0, 0), screenGeometry.size()), local, bubbleSize);
 }
 
 } // namespace Recording

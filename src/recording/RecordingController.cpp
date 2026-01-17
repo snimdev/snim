@@ -44,7 +44,7 @@ RecordingController::~RecordingController()
     delete m_frameOverlay;
 }
 
-void RecordingController::ensureCameraBubble()
+void RecordingController::ensureCameraBubble(const QRect &regionVirtual)
 {
     if (!Core::Settings::cameraEnabled()) {
         destroyCameraBubble();
@@ -53,6 +53,10 @@ void RecordingController::ensureCameraBubble()
     if (!m_cameraBubble)
         m_cameraBubble = new CameraBubble();
     m_cameraBubble->setCameraDevice(Core::Settings::cameraDeviceId());
+    // Park before mapping: a Wayland layer surface binds its output at creation, so
+    // the recorded region has to pick the screen before the bubble is shown.
+    if (!regionVirtual.isEmpty())
+        m_cameraBubble->moveToRegionCorner(regionVirtual);
     m_cameraBubble->show();
     m_cameraBubble->raise();
     m_cameraBubble->startCamera();
@@ -69,7 +73,7 @@ void RecordingController::destroyCameraBubble()
 }
 
 // Recording frame: dim + border marking the recorded region for the whole recording.
-// One of our own windows, so the capture filter excludes it — never in the video.
+// One of our own windows, so the capture filter excludes it, never in the video.
 void RecordingController::showFrameOverlay()
 {
     if (m_activeRegion.isEmpty() || !Core::Settings::recordingFrameEnabled())
@@ -159,8 +163,8 @@ void RecordingController::recordWindow()
 
 bool RecordingController::resolveInputPermissions(const std::function<void()> &done)
 {
-    // The selection overlays sit at the macOS shielding window level — ABOVE system
-    // dialogs — so a TCC permission prompt fired while they are up opens underneath
+    // The selection overlays sit at the macOS shielding window level (ABOVE system
+    // dialogs), so a TCC permission prompt fired while they are up opens underneath
     // them where it can never be answered. This gate therefore runs only at the two
     // overlay-free moments: before the overlays appear, and after teardown at commit
     // (inputs may have been switched on via the options bar mid-selection). The
@@ -175,9 +179,9 @@ bool RecordingController::resolveInputPermissions(const std::function<void()> &d
                                     [done](const QPermission &) { done(); });
             return true;
         case Qt::PermissionStatus::Denied:
-            // Record anyway — the bubble shows its own "no access" state.
-            emit recordingWarning(tr("Camera access is denied - enable Snim in "
-                                     "System Settings > Privacy & Security > Camera."));
+            // Record anyway: the bubble shows its own "no access" state.
+            emit recordingWarning(tr("Camera access is denied. Grant Snim camera access "
+                                     "in your system privacy settings."));
             break;
         case Qt::PermissionStatus::Granted:
             break;
@@ -194,9 +198,9 @@ bool RecordingController::resolveInputPermissions(const std::function<void()> &d
                                     [done](const QPermission &) { done(); });
             return true;
         case Qt::PermissionStatus::Denied:
-            emit recordingWarning(tr("Microphone access is denied — your narration won't "
-                                     "be recorded. Enable Snim in System Settings > "
-                                     "Privacy & Security > Microphone."));
+            emit recordingWarning(tr("Microphone access is denied, so your narration "
+                                     "won't be recorded. Grant Snim microphone access "
+                                     "in your system privacy settings."));
             break;
         case Qt::PermissionStatus::Granted:
             break;
@@ -391,7 +395,7 @@ void RecordingController::beginRecordingForSelection(const QRect &area, quint64 
 
     // Re-evaluate the camera setting (bar toggles), get a fresh window id for the
     // capture filter, and park the bubble where the recording will actually be.
-    ensureCameraBubble();
+    ensureCameraBubble(area);
     if (m_cameraBubble)
         m_cameraBubble->moveToRegionCorner(area);
 

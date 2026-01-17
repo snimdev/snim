@@ -51,7 +51,11 @@ RecordingOptionsBar::RecordingOptionsBar(QWidget *parent)
         QToolButton { color: white; border: none; border-radius: 8px; padding: 5px; }
         QToolButton:checked { background-color: rgba(0,150,255,0.45); }
         QToolButton:hover { background-color: rgba(255,255,255,0.16); }
-        QToolButton::menu-button { border: none; width: 12px; }
+        QToolButton#cameraButton, QToolButton#micButton {
+            border-top-right-radius: 0; border-bottom-right-radius: 0; }
+        QToolButton#cameraArrow, QToolButton#micArrow {
+            border-top-left-radius: 0; border-bottom-left-radius: 0;
+            color: rgba(255,255,255,0.75); padding: 5px 3px; font-size: 10px; }
         QLabel { color: rgba(255,255,255,0.35); }
         QPushButton#recordButton { color: white; background-color: #e0392b;
                                    border: none; border-radius: 14px;
@@ -67,29 +71,30 @@ RecordingOptionsBar::RecordingOptionsBar(QWidget *parent)
     row->setContentsMargins(12, 7, 10, 7);
     row->setSpacing(6);
 
-    // Camera + mic: click toggles, the ▾ side opens the device menu. Menus are
-    // rebuilt on open so plugging a device in mid-selection just works.
+    // Camera + mic: the icon toggles, a separate slim ▾ button opens the device menu.
+    // A QToolButton::MenuButtonPopup split button is not usable here: QStyleSheetStyle
+    // puts the menu subcontrol over the right third of the centered icon, so clicking
+    // the glyph opens the menu instead of toggling. Menus are rebuilt on open so
+    // plugging a device in mid-selection just works.
     m_cameraButton = makeToggle(QStringLiteral(":/icons/icons/camera.svg"),
                                 tr("Record webcam bubble"), Core::Settings::cameraEnabled());
+    m_cameraButton->setObjectName(QStringLiteral("cameraButton"));
     m_cameraMenu = new QMenu(m_cameraButton);
-    m_cameraButton->setMenu(m_cameraMenu);
-    m_cameraButton->setPopupMode(QToolButton::MenuButtonPopup);
     connect(m_cameraMenu, &QMenu::aboutToShow, this, &RecordingOptionsBar::rebuildCameraMenu);
-    connect(m_cameraButton, &QToolButton::toggled, this, [this](bool on) {
-        Core::Settings::setCameraEnabled(on);
-        emit cameraToggled(on);
-    });
-    row->addWidget(m_cameraButton);
+    connect(m_cameraButton, &QToolButton::toggled, this,
+            [this](bool on) { applyCameraEnabled(on); });
+    row->addWidget(makeSplitGroup(m_cameraButton, m_cameraMenu,
+                                  QStringLiteral("cameraArrow"), tr("Choose a camera")));
 
     m_micButton = makeToggle(QStringLiteral(":/icons/icons/mic.svg"),
                              tr("Record microphone"), Core::Settings::micEnabled());
+    m_micButton->setObjectName(QStringLiteral("micButton"));
     m_micMenu = new QMenu(m_micButton);
-    m_micButton->setMenu(m_micMenu);
-    m_micButton->setPopupMode(QToolButton::MenuButtonPopup);
     connect(m_micMenu, &QMenu::aboutToShow, this, &RecordingOptionsBar::rebuildMicMenu);
     connect(m_micButton, &QToolButton::toggled, this,
-            [](bool on) { Core::Settings::setMicEnabled(on); });
-    row->addWidget(m_micButton);
+            [this](bool on) { applyMicEnabled(on); });
+    row->addWidget(makeSplitGroup(m_micButton, m_micMenu,
+                                  QStringLiteral("micArrow"), tr("Choose a microphone")));
 
     m_audioButton = makeToggle(QStringLiteral(":/icons/icons/speaker.svg"),
                                tr("Record system audio"), Core::Settings::systemAudioEnabled());
@@ -100,7 +105,7 @@ RecordingOptionsBar::RecordingOptionsBar(QWidget *parent)
     auto *sep = new QLabel(QStringLiteral("|"), pill);
     row->addWidget(sep);
 
-    // FPS menu (30/60) — text button showing the current value.
+    // FPS menu (30/60): text button showing the current value.
     m_fpsButton = new QToolButton(pill);
     m_fpsButton->setFocusPolicy(Qt::NoFocus);
     m_fpsButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -172,6 +177,51 @@ QToolButton *RecordingOptionsBar::makeToggle(const QString &iconPath, const QStr
     return button;
 }
 
+// The arrow deliberately carries no QMenu of its own: setMenu() would make the style
+// paint a second indicator next to the ▾ glyph.
+QWidget *RecordingOptionsBar::makeSplitGroup(QToolButton *toggle, QMenu *menu,
+                                             const QString &arrowName, const QString &tip)
+{
+    auto *group = new QWidget(this);
+    auto *arrow = new QToolButton(group);
+    arrow->setObjectName(arrowName);
+    arrow->setFocusPolicy(Qt::NoFocus);
+    arrow->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    arrow->setText(QStringLiteral("▾"));
+    arrow->setToolTip(tip);
+    connect(arrow, &QToolButton::clicked, this, [arrow, menu] {
+        menu->popup(arrow->mapToGlobal(QPoint(0, arrow->height())));
+    });
+
+    auto *box = new QHBoxLayout(group);
+    box->setContentsMargins(0, 0, 0, 0);
+    box->setSpacing(0);
+    box->addWidget(toggle);
+    box->addWidget(arrow);
+    return group;
+}
+
+// Single funnel for every camera state change (button, menu), so Settings, the button
+// and the signal never drift apart and cameraToggled fires exactly once.
+void RecordingOptionsBar::applyCameraEnabled(bool on)
+{
+    Core::Settings::setCameraEnabled(on);
+    if (m_cameraButton->isChecked() != on) {
+        const QSignalBlocker block(m_cameraButton);
+        m_cameraButton->setChecked(on);
+    }
+    emit cameraToggled(on);
+}
+
+void RecordingOptionsBar::applyMicEnabled(bool on)
+{
+    Core::Settings::setMicEnabled(on);
+    if (m_micButton->isChecked() != on) {
+        const QSignalBlocker block(m_micButton);
+        m_micButton->setChecked(on);
+    }
+}
+
 void RecordingOptionsBar::setRecordVisible(bool visible)
 {
     m_recordButton->setVisible(visible);
@@ -182,18 +232,29 @@ void RecordingOptionsBar::rebuildCameraMenu()
 {
     m_cameraMenu->clear();
     auto *group = new QActionGroup(m_cameraMenu);
+    const bool enabled = Core::Settings::cameraEnabled();
+
+    // "Off" leads the exclusive list, so the menu is the reliable way to turn the
+    // camera off even where the icon toggle is awkward to hit.
+    QAction *off = m_cameraMenu->addAction(tr("Camera off"));
+    off->setCheckable(true);
+    off->setChecked(!enabled);
+    group->addAction(off);
+    connect(off, &QAction::triggered, this, [this] { applyCameraEnabled(false); });
+    m_cameraMenu->addSeparator();
+
     const QByteArray current = Core::Settings::cameraDeviceId();
     const QList<QCameraDevice> cams = QMediaDevices::videoInputs();
     for (const QCameraDevice &cam : cams) {
         QAction *a = m_cameraMenu->addAction(cam.description());
         a->setCheckable(true);
-        a->setChecked(cam.id() == current || (current.isEmpty() && cam == cams.first()));
+        a->setChecked(enabled
+                      && (cam.id() == current || (current.isEmpty() && cam == cams.first())));
         group->addAction(a);
         const QByteArray id = cam.id();
         connect(a, &QAction::triggered, this, [this, id] {
             Core::Settings::setCameraDeviceId(id);
-            if (m_cameraButton->isChecked())
-                emit cameraToggled(true);   // re-ensure the bubble on the new device
+            applyCameraEnabled(true);   // re-ensures the bubble on the new device
         });
     }
     if (cams.isEmpty())
@@ -204,16 +265,28 @@ void RecordingOptionsBar::rebuildMicMenu()
 {
     m_micMenu->clear();
     auto *group = new QActionGroup(m_micMenu);
+    const bool enabled = Core::Settings::micEnabled();
+
+    QAction *off = m_micMenu->addAction(tr("Microphone off"));
+    off->setCheckable(true);
+    off->setChecked(!enabled);
+    group->addAction(off);
+    connect(off, &QAction::triggered, this, [this] { applyMicEnabled(false); });
+    m_micMenu->addSeparator();
+
     const QByteArray current = Core::Settings::micDeviceId();
     const QList<QAudioDevice> mics = QMediaDevices::audioInputs();
     for (const QAudioDevice &mic : mics) {
         QAction *a = m_micMenu->addAction(mic.description());
         a->setCheckable(true);
-        a->setChecked(mic.id() == current || (current.isEmpty() && mic.isDefault()));
+        a->setChecked(enabled
+                      && (mic.id() == current || (current.isEmpty() && mic.isDefault())));
         group->addAction(a);
         const QByteArray id = mic.id();
-        connect(a, &QAction::triggered, this,
-                [id] { Core::Settings::setMicDeviceId(id); });
+        connect(a, &QAction::triggered, this, [this, id] {
+            Core::Settings::setMicDeviceId(id);
+            applyMicEnabled(true);
+        });
     }
     if (mics.isEmpty())
         m_micMenu->addAction(tr("No microphone found"))->setEnabled(false);

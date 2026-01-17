@@ -21,6 +21,7 @@ set(SNIM_TESTS
         tst_recordtarget
         tst_recordinggeometry
         tst_recordingcontroller
+        tst_recordingoptionsbar
         tst_pcmmixbuffer
         tst_trimstate
         tst_gifparams
@@ -46,6 +47,9 @@ endforeach()
 
 # install() copies the app icon out of the qrc, so this one needs the resources too.
 target_sources(tst_desktopintegration PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+
+# The options bar themes :/icons/icons/*.svg at construction, so it needs the qrc too.
+target_sources(tst_recordingoptionsbar PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
 
 # The ImageEditor smoke test also needs the qrc (it loads :/styles + themed
 # :/icons at construction), so it gets resources.qrc compiled into it directly.

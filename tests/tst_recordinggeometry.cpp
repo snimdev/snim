@@ -156,6 +156,76 @@ private slots:
         QCOMPARE(c.cropPx, QRect(2700, 200, 800, 500));
         QCOMPARE(c.outputPx, QSize(800, 500));
     }
+
+    // The webcam bubble's park position. Screen-local because a Wayland layer surface
+    // is positioned by margins against its own output.
+    void bubbleParksInsideTheRegion()
+    {
+        const QRect screen(0, 0, 1920, 1080);
+        const QSize bubble(180, 180);
+        // Bottom-left inside the region, inset by the margin on both axes.
+        QCOMPARE(bubbleParkPos(screen, QRect(100, 100, 800, 600), bubble, 16),
+                 QPoint(116, 503));   // 699 - 180 - 16
+    }
+
+    void bubbleParkIsLocalToTheSecondaryScreen()
+    {
+        const QRect screen(1920, 0, 1920, 1080);
+        const QSize bubble(180, 180);
+        // Same region shape one screen over: the margins must not carry the 1920 offset.
+        QCOMPARE(bubbleParkPos(screen, QRect(2020, 100, 800, 600), bubble, 16),
+                 QPoint(116, 503));
+    }
+
+    void bubbleParkClampsToTheScreen()
+    {
+        const QRect screen(0, 0, 1920, 1080);
+        const QSize bubble(180, 180);
+        // Region straddling the right edge: the bubble is pulled back onto the screen.
+        QCOMPARE(bubbleParkPos(screen, QRect(1850, 900, 400, 300), bubble, 16),
+                 QPoint(1740, 900));   // x clamped to 1920-180, y to 1080-180
+        // A region hanging off the left: never a negative margin.
+        QCOMPARE(bubbleParkPos(screen, QRect(-300, -200, 400, 400), bubble, 16),
+                 QPoint(0, 3));   // x clamped from -284, y is the region's own inset
+    }
+
+    void bubbleParkPinsTinyRegionsToTheirTop()
+    {
+        const QRect screen(0, 0, 1920, 1080);
+        const QSize bubble(180, 180);
+        // Region shorter than the bubble: pinned to the region's own top edge.
+        QCOMPARE(bubbleParkPos(screen, QRect(400, 300, 300, 80), bubble, 16),
+                 QPoint(416, 300));
+    }
+
+    // Dragging the circle inside the full-screen layer surface: pure clamping, so the
+    // drag never needs the compositor to tell it where the surface ended up.
+    void bubbleDragStaysInsideTheScreen()
+    {
+        const QRect bounds(0, 0, 1920, 1080);
+        const QSize bubble(180, 180);
+        QCOMPARE(clampBubbleTopLeft(bounds, QPoint(700, 400), bubble), QPoint(700, 400));
+        QCOMPARE(clampBubbleTopLeft(bounds, QPoint(-50, -80), bubble), QPoint(0, 0));
+        QCOMPARE(clampBubbleTopLeft(bounds, QPoint(5000, 5000), bubble), QPoint(1740, 900));
+        // Exactly flush with the bottom-right edge is still inside.
+        QCOMPARE(clampBubbleTopLeft(bounds, QPoint(1740, 900), bubble), QPoint(1740, 900));
+    }
+
+    void bubbleDragClampsOversizedBubblesToTheOrigin()
+    {
+        // A circle bigger than the screen pins to the top-left instead of going negative.
+        QCOMPARE(clampBubbleTopLeft(QRect(0, 0, 160, 120), QPoint(40, 40), QSize(180, 180)),
+                 QPoint(0, 0));
+    }
+
+    void bubbleDragRespectsNonZeroBounds()
+    {
+        // Same math against bounds that do not start at the origin.
+        const QRect bounds(100, 50, 800, 600);
+        const QSize bubble(200, 200);
+        QCOMPARE(clampBubbleTopLeft(bounds, QPoint(0, 0), bubble), QPoint(100, 50));
+        QCOMPARE(clampBubbleTopLeft(bounds, QPoint(5000, 5000), bubble), QPoint(700, 450));
+    }
 };
 
 QTEST_MAIN(tst_RecordingGeometry)

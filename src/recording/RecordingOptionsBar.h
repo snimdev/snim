@@ -11,7 +11,8 @@ namespace Recording {
 
 /**
  * CleanShot-style floating options pill shown during recording selection: camera /
- * microphone (each with a device menu), system audio, FPS, capture scale, plus
+ * microphone (each an icon toggle plus a slim ▾ device menu), system audio, FPS,
+ * capture scale, plus
  * ● Record and ✕ Cancel. Every control writes Core::Settings immediately, so the
  * choices both apply to the imminent recording and persist as the new defaults.
  *
@@ -46,6 +47,10 @@ protected:
 private:
     [[nodiscard]] QToolButton *makeToggle(const QString &iconPath, const QString &tip,
                                           bool checked);
+    [[nodiscard]] QWidget *makeSplitGroup(QToolButton *toggle, QMenu *menu,
+                                          const QString &arrowName, const QString &tip);
+    void applyCameraEnabled(bool on);
+    void applyMicEnabled(bool on);
     void rebuildCameraMenu();
     void rebuildMicMenu();
     void repositionInParent();

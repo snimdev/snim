@@ -64,7 +64,7 @@ private:
     void presentSelection(bool windowPick);   // freeze screens + show per-screen AreaSelectors
 
     // If camera/mic permission is still Undetermined, fire the system prompt and
-    // return true — `done` runs once the user answers (callers bail out and re-enter
+    // return true: `done` runs once the user answers (callers bail out and re-enter
     // through it). False = nothing to ask, proceed synchronously. Runs only while no
     // shielding overlay is up (the prompt would open underneath it).
     bool resolveInputPermissions(const std::function<void()> &done);
@@ -74,7 +74,9 @@ private:
     // region corner, build the RecordTarget, and start the strategy.
     void beginRecordingForSelection(const QRect &area, quint64 windowId, bool isWindow);
 
-    void ensureCameraBubble();                 // show the webcam overlay if enabled in Settings
+    // Show the webcam overlay if enabled in Settings; a region parks it first, which
+    // also picks the screen its Wayland layer surface binds to.
+    void ensureCameraBubble(const QRect &regionVirtual = QRect());
     void destroyCameraBubble();
     void showFrameOverlay();                   // border + dim around the recorded region
     void destroyFrameOverlay();
@@ -93,8 +95,8 @@ private:
     Capture::FrozenFrameGrabber m_frameGrabber;
 
     // Permission requests fired for the current selection attempt. Guarantees the
-    // pre-selection TCC gate asks each permission at most ONCE per attempt — even if
-    // the answer leaves the status unchanged — so it can never request in a loop.
+    // pre-selection TCC gate asks each permission at most ONCE per attempt, even if
+    // the answer leaves the status unchanged, so it can never request in a loop.
     bool m_askedCameraPermission = false;
     bool m_askedMicPermission = false;
 };
