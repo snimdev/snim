@@ -35,6 +35,10 @@ ctest --test-dir build -R tst_recordinggeometry --output-on-failure
 
 For Homebrew Qt, add `-DCMAKE_PREFIX_PATH="$(brew --prefix qt)"` when configuring. Optional dependencies (Tesseract, GStreamer, LayerShellQt, libcurl, libssh2) are auto-detected; missing ones disable features but never break the build.
 
+## License
+
+Snim is free software released under the GNU General Public License version 3 (see [LICENSE](LICENSE)).
+
 ## Links
 
 - Website: https://snim.dev
