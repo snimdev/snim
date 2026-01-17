@@ -9,6 +9,8 @@
 #include <QAction>
 #include <memory>
 
+class QTimer;
+
 namespace Hotkeys {
 class GlobalHotkeyManager;
 } // namespace Hotkeys
@@ -43,6 +45,10 @@ public:
     explicit ScreenshotApp(int &argc, char **argv);
     ~ScreenshotApp() override;
 
+    // Would a modal prompt land under the capture overlay? Pure so it can be tested
+    // without a live capture; the callers supply the two live facts.
+    [[nodiscard]] static bool shouldDeferPrompt(bool selectorVisible, bool recording);
+
 private slots:
     void captureArea() const;
     void captureWindow() const;
@@ -68,6 +74,11 @@ private slots:
 
 private:
     void setupSystemTray();
+
+    // The deferred half of onKWinAuthorizationDenied: the modal box itself.
+    void showKWinAuthorizationPrompt();
+    // Is any capture UI up right now (selection overlay or a running recording)?
+    [[nodiscard]] bool captureUiIsUp() const;
 
     // Writes the desktop entry and reports the outcome; shared by the prompt and the tray action.
     void runDesktopIntegrationSetup();
@@ -99,6 +110,7 @@ private:
     QAction *m_quitAction{};
 
     bool m_kwinAuthPromptShown = false;      // the offer is made once per run
+    QTimer *m_kwinPromptTimer = nullptr;     // re-checks until the capture overlay is gone
 
     std::unique_ptr<Capture::CaptureStrategy> m_captureStrategy;
     std::unique_ptr<Hotkeys::GlobalHotkeyManager> m_hotkeyManager;

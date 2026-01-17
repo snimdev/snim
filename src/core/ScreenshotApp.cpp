@@ -38,6 +38,20 @@
 #include <algorithm>
 
 namespace Core {
+    namespace {
+        // How often the deferred KWin prompt re-checks whether the capture UI is gone.
+        constexpr int kKWinPromptRecheckMs = 500;
+
+        bool selectionOverlayVisible() {
+            // A stateless widget scan on purpose, not a latch: the overlay's Esc-cancel
+            // path emits no completion signal, so a flag would stay stuck.
+            const auto widgets = QApplication::topLevelWidgets();
+            return std::any_of(widgets.cbegin(), widgets.cend(), [](const QWidget *w) {
+                return w->isVisible() && qobject_cast<const Capture::AreaSelector *>(w) != nullptr;
+            });
+        }
+    } // namespace
+
     ScreenshotApp::ScreenshotApp(int &argc, char **argv)
         : QApplication(argc, argv)
           , m_trayIcon(nullptr)
@@ -289,13 +303,7 @@ namespace Core {
     }
 
     bool ScreenshotApp::hotkeyBlockedBySelection(const Hotkeys::HotkeyAction action) const {
-        // A stateless widget scan on purpose, not a latch: the overlay's Esc-cancel
-        // path emits no completion signal, so a flag would stay stuck.
-        const auto widgets = QApplication::topLevelWidgets();
-        const bool selecting = std::any_of(widgets.cbegin(), widgets.cend(), [](const QWidget *w) {
-            return w->isVisible() && qobject_cast<const Capture::AreaSelector *>(w) != nullptr;
-        });
-        if (!selecting)
+        if (!selectionOverlayVisible())
             return false;
 
         // Record Area doubles as Stop, so it still passes while a recording runs.
@@ -384,6 +392,15 @@ namespace Core {
         settingsDialog->exec();
     }
 
+    bool ScreenshotApp::shouldDeferPrompt(const bool selectorVisible, const bool recording) {
+        return selectorVisible || recording;
+    }
+
+    bool ScreenshotApp::captureUiIsUp() const {
+        return shouldDeferPrompt(selectionOverlayVisible(),
+                                 m_recordingController && m_recordingController->isRecording());
+    }
+
     void ScreenshotApp::onKWinAuthorizationDenied() {
         if (m_kwinAuthPromptShown)
             return;
@@ -395,6 +412,27 @@ namespace Core {
         if (DesktopIntegration::status() == DesktopIntegration::Status::Installed)
             return;
 
+        // The denial arrives while the interactive fallback is opening its fullscreen
+        // overlay, which takes exclusive keyboard focus: a modal box would be stranded
+        // underneath it. Poll until the capture flow is over, then ask.
+        if (!captureUiIsUp()) {
+            showKWinAuthorizationPrompt();
+            return;
+        }
+        if (!m_kwinPromptTimer) {
+            m_kwinPromptTimer = new QTimer(this);
+            m_kwinPromptTimer->setInterval(kKWinPromptRecheckMs);
+            connect(m_kwinPromptTimer, &QTimer::timeout, this, [this] {
+                if (captureUiIsUp())
+                    return;
+                m_kwinPromptTimer->stop();
+                showKWinAuthorizationPrompt();
+            });
+        }
+        m_kwinPromptTimer->start();
+    }
+
+    void ScreenshotApp::showKWinAuthorizationPrompt() {
         QMessageBox box;
         box.setIcon(QMessageBox::Information);
         box.setWindowTitle(tr("Enable fast screenshots"));
@@ -407,6 +445,10 @@ namespace Core {
         box.addButton(tr("Not now"), QMessageBox::RejectRole);
         QPushButton *never = box.addButton(tr("Never ask again"), QMessageBox::DestructiveRole);
         box.setDefaultButton(setUp);
+        // Shown after a capture, so nudge it to the front instead of behind the editor.
+        box.show();
+        box.raise();
+        box.activateWindow();
         box.exec();
 
         if (box.clickedButton() == setUp)
