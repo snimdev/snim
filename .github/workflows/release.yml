@@ -166,7 +166,7 @@ jobs:
           # Belt and braces: drop any copies a plugin hook still smuggled in.
           rm -f AppDir/usr/lib/libpipewire-0.3.so* AppDir/usr/lib/libspa-0.2.so*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: appimage
           # Never renamed: the zsync file and UPDATE_INFORMATION both name this exact file.
@@ -227,7 +227,7 @@ jobs:
           ln -s /Applications dmg-root/Applications
           hdiutil create -volname Snim -srcfolder dmg-root -ov -format UDZO "Snim-$VERSION-macos-arm64.dmg"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: dmg
           path: Snim-*-macos-arm64.dmg
@@ -246,7 +246,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: artifacts
           merge-multiple: true
