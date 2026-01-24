@@ -3,9 +3,11 @@
 #include "core/Version.h"
 
 #include <QCoreApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QJsonValue>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -21,7 +23,9 @@ namespace {
 
 constexpr int kTimeoutMs = 10000;
 
-const char kLatestReleaseUrl[] = "https://api.github.com/repos/snimdev/snim/releases/latest";
+// The list endpoint, not /releases/latest: that one hides every prerelease, so an alpha
+// tester would never be told about the next alpha.
+const char kReleasesUrl[] = "https://api.github.com/repos/snimdev/snim/releases?per_page=20";
 
 struct Triple {
     int major = 0;
@@ -32,6 +36,7 @@ struct Triple {
 struct Parsed {
     Triple triple;
     QStringView prerelease;   // empty for a plain release, "alpha.1" for v1.0.0-alpha.1
+    bool complete = false;    // all three of X.Y.Z were actually there
 };
 
 bool isHexDigit(QChar c)
@@ -96,6 +101,7 @@ Parsed parseVersion(QStringView version)
         }
         break;
     }
+    out.complete = field == 3;
 
     if (i < version.size() && version.at(i) == u'-') {
         const QStringView tail = version.sliced(i + 1);
@@ -167,28 +173,50 @@ bool isNewer(QStringView candidate, QStringView current)
     return compareVersions(candidate, current) > 0;
 }
 
-Result parseLatestRelease(const QByteArray &json)
+Result selectRelease(const QByteArray &json, QStringView currentVersion)
 {
     Result result;
 
     QJsonParseError parseError{};
     const QJsonDocument doc = QJsonDocument::fromJson(json, &parseError);
-    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+    if (parseError.error != QJsonParseError::NoError || !doc.isArray()) {
         result.error = translated("GitHub returned a response Snim could not read.");
         return result;
     }
 
-    const QJsonObject object = doc.object();
-    const QString tag = object.value(QStringLiteral("tag_name")).toString();
-    if (tag.isEmpty()) {
-        result.error = translated("GitHub's response contained no release tag.");
-        return result;
+    // An alpha build stays on the alpha channel; a stable one is never offered a prerelease.
+    const bool prereleasesEligible = !parseVersion(currentVersion).prerelease.isEmpty();
+
+    const QJsonArray releases = doc.array();
+    QString bestTag;
+    QString bestUrl;
+    for (const QJsonValue &entry : releases) {
+        const QJsonObject release = entry.toObject();
+        if (release.value(QStringLiteral("draft")).toBool())
+            continue;
+        if (!prereleasesEligible && release.value(QStringLiteral("prerelease")).toBool())
+            continue;
+
+        const QString tag = release.value(QStringLiteral("tag_name")).toString();
+        if (!parseVersion(tag).complete)
+            continue;
+        // GitHub orders the array by publication, which is not version order.
+        if (!bestTag.isEmpty() && compareVersions(tag, bestTag) <= 0)
+            continue;
+
+        bestTag = tag;
+        bestUrl = release.value(QStringLiteral("html_url")).toString();
     }
 
     result.ok = true;
-    result.latestTag = tag;
-    result.releaseUrl = QUrl(object.value(QStringLiteral("html_url")).toString());
-    result.newer = isNewer(tag, QString::fromLatin1(Version::kVersion));
+    if (bestTag.isEmpty()) {
+        result.error = translated("Snim has no published releases yet.");
+        return result;
+    }
+
+    result.latestTag = bestTag;
+    result.releaseUrl = QUrl(bestUrl);
+    result.newer = isNewer(bestTag, currentVersion);
     return result;
 }
 
@@ -197,7 +225,7 @@ void checkLatest(QObject *context, std::function<void(Result)> onDone)
     // One manager per check: the action is rare and this keeps no state around.
     auto *manager = new QNetworkAccessManager;
 
-    QNetworkRequest request{QUrl(QString::fromLatin1(kLatestReleaseUrl))};
+    QNetworkRequest request{QUrl(QString::fromLatin1(kReleasesUrl))};
     request.setRawHeader("Accept", "application/vnd.github+json");
     // GitHub rejects API requests that carry no User-Agent.
     request.setRawHeader("User-Agent", QByteArrayLiteral("Snim/") + Version::kVersion);
@@ -214,7 +242,8 @@ void checkLatest(QObject *context, std::function<void(Result)> onDone)
 
                          Result result;
                          if (reply->error() == QNetworkReply::NoError) {
-                             result = parseLatestRelease(reply->readAll());
+                             const QString current = QString::fromLatin1(Version::kVersion);
+                             result = selectRelease(reply->readAll(), current);
                          } else if (status == 404) {
                              // The repo simply has no published release yet.
                              result.ok = true;

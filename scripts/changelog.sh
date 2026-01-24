@@ -18,7 +18,8 @@ REPO_URL="https://github.com/snimdev/snim"
 
 PREV="${SNIM_CHANGELOG_PREV-}"
 if [ -z "$PREV" ]; then
-    PREV="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)"
+    # --match keeps the rolling `alpha` release tag out of the diff base.
+    PREV="$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)"
 fi
 
 emit_footer() {
@@ -45,7 +46,12 @@ EOF
 
     # A hyphen in the tag means a prerelease (v1.0.0-alpha.1), never a plain release.
     case "$TAG" in
-        *-*) printf '\nThis is a prerelease, published for early testing: expect rough edges.\n' ;;
+        *-*)
+            printf '\nThis is a prerelease, published for early testing: expect rough edges.\n'
+            printf 'AppImage builds from the alpha channel update themselves through '
+            printf 'AppImageUpdate, pulling each new alpha as it lands; installing a stable '
+            printf 'release later switches the app to the stable channel.\n'
+            ;;
     esac
 }
 

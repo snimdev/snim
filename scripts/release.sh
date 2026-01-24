@@ -24,6 +24,7 @@ case "$BUMP" in
 esac
 
 # Prereleases must sort below their release, which git only does when the suffix is known.
+# The 'v*' glob also keeps the rolling `alpha` channel tag out of the candidates.
 latest_release_tag() {
     if [ -n "${SNIM_RELEASE_LATEST_TAG-}" ]; then
         printf '%s\n' "$SNIM_RELEASE_LATEST_TAG"

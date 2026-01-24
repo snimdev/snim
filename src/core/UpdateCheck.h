@@ -28,9 +28,13 @@ struct Result {
     bool newer = false;   // latestTag is newer than the running build
 };
 
-// Reads tag_name + html_url out of a GitHub "latest release" payload and compares the
-// tag against this build. Garbage in gives ok = false, never a crash.
-[[nodiscard]] Result parseLatestRelease(const QByteArray &json);
+// Picks the release this build should be offered out of a GitHub "list releases" array,
+// and compares its tag against currentVersion. Drafts and tags without a parsable X.Y.Z
+// are skipped, as are prereleases unless the running build is itself a prerelease, which
+// is what keeps an alpha build on the alpha channel and a stable build off it. The highest
+// remaining version wins, whatever order GitHub returned. An array with nothing eligible
+// still counts as a success, with a note and no tag; garbage in gives ok = false.
+[[nodiscard]] Result selectRelease(const QByteArray &json, QStringView currentVersion);
 
 // -1, 0 or +1 for left older than, equal to, or newer than right. Tolerates a leading v,
 // and a git describe tail (-4-gabc1234, with or without -dirty) compares as the tag it
@@ -40,7 +44,7 @@ struct Result {
 
 [[nodiscard]] bool isNewer(QStringView candidate, QStringView current);
 
-// GETs the latest release and delivers the outcome to onDone on the GUI thread.
+// GETs the published releases and delivers the selected one to onDone on the GUI thread.
 void checkLatest(QObject *context, std::function<void(Result)> onDone);
 
 } // namespace Core::UpdateCheck
