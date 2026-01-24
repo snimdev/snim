@@ -17,9 +17,12 @@
 #include <QFutureWatcher>
 #include <QGuiApplication>
 #include <QPainter>
+#include <QPointer>
 #include <QScreen>
+#include <QTimer>
 #include <QWindow>
 #include <QtConcurrentRun>
+#include <utility>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -59,6 +62,34 @@ bool KWinCaptureStrategy::isKWinAvailable()
 bool KWinCaptureStrategy::isAvailable() const
 {
     return isKWinAvailable() && m_apiVersion > 0;
+}
+
+// --- Authorization gate ---
+
+void KWinCaptureStrategy::setAuthorizationGate(AuthorizationGate gate)
+{
+    m_authGate = std::move(gate);
+}
+
+bool KWinCaptureStrategy::requestAuthorization(AuthorizationResume resume)
+{
+    if (!m_authGate || m_gateConsumed) {
+        return false;
+    }
+    m_gateConsumed = true;
+
+    QPointer<KWinCaptureStrategy> alive(this);
+    AuthorizationResume guarded = [alive, resume = std::move(resume)](bool retryFast) {
+        if (alive) {
+            resume(retryFast);
+        }
+    };
+
+    // Queued: the gate opens a modal dialog, which must not run inside the D-Bus reply handler.
+    QTimer::singleShot(0, this, [this, guarded = std::move(guarded)]() mutable {
+        m_authGate(std::move(guarded));
+    });
+    return true;
 }
 
 // --- Options builder ---
@@ -181,8 +212,19 @@ void KWinCaptureStrategy::captureWorkspace(bool showSelector)
 
                 if (permFailed && results->isEmpty()) {
                     delete results;
+
+                    if (requestAuthorization([this, showSelector](bool retryFast) {
+                            if (retryFast) {
+                                captureWorkspace(showSelector);
+                            } else {
+                                fallbackToInteractive(showSelector, 1);
+                            }
+                        })) {
+                        qDebug() << "Permission denied, asking before any fallback";
+                        return;
+                    }
+
                     qDebug() << "Permission denied, falling back to CaptureInteractive";
-                    emit authorizationDenied();
                     fallbackToInteractive(showSelector, 1);
                     return;
                 }
@@ -235,16 +277,17 @@ void KWinCaptureStrategy::callScreenShotMethod(const QString &method, const QVar
     ::close(pipeFds[1]);
 
     auto *watcher = new QDBusPendingCallWatcher(pending, this);
-    handleReply(watcher, pipeFds[0], showAreaSel, method);
+    handleReply(watcher, pipeFds[0], showAreaSel, method, args, timeout);
 }
 
 // --- Async reply handler ---
 
 void KWinCaptureStrategy::handleReply(QDBusPendingCallWatcher *watcher, int readFd,
-                                       bool showAreaSel, const QString &method)
+                                       bool showAreaSel, const QString &method,
+                                       const QVariantList &args, int timeout)
 {
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this, readFd, showAreaSel, method](QDBusPendingCallWatcher *w) {
+            [this, readFd, showAreaSel, method, args, timeout](QDBusPendingCallWatcher *w) {
         w->deleteLater();
         const QDBusPendingReply<QVariantMap> reply = *w;
 
@@ -253,11 +296,22 @@ void KWinCaptureStrategy::handleReply(QDBusPendingCallWatcher *watcher, int read
             const QString errorName = reply.error().name();
             qDebug() << "KWin" << method << "error:" << errorName << reply.error().message();
 
-            // Permission denied: fall back to CaptureInteractive
+            // Permission denied: ask the gate first, else fall back to CaptureInteractive
             if (errorName.contains("NoAuthorized") || errorName.contains("AccessDenied")) {
+                const int kind = (method == "CaptureActiveWindow") ? 0 : 1;
+
+                if (requestAuthorization([this, method, args, showAreaSel, timeout, kind](bool retryFast) {
+                        if (retryFast) {
+                            callScreenShotMethod(method, args, showAreaSel, timeout);
+                        } else {
+                            fallbackToInteractive(showAreaSel, kind);
+                        }
+                    })) {
+                    qDebug() << "Permission denied, asking before any fallback";
+                    return;
+                }
+
                 qDebug() << "Permission denied, falling back to CaptureInteractive";
-                emit authorizationDenied();
-                int kind = (method == "CaptureActiveWindow") ? 0 : 1;
                 fallbackToInteractive(showAreaSel, kind);
                 return;
             }

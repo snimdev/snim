@@ -7,6 +7,7 @@
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QDBusPendingCallWatcher>
 #include <QVariantMap>
+#include <functional>
 
 namespace Capture {
 
@@ -22,7 +23,8 @@ class AreaSelector;
  * - Most methods require the app's .desktop file to declare
  *   X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
  * - CaptureInteractive requires no permissions (user click = consent)
- * - On permission error, automatically falls back to CaptureInteractive
+ * - On permission error, falls back to CaptureInteractive, unless an authorization
+ *   gate is installed: then the gate's answer decides between a retry and the fallback
  */
 class KWinCaptureStrategy : public CaptureStrategy
 {
@@ -42,19 +44,29 @@ public:
     /// Check if the KWin ScreenShot2 D-Bus service is registered
     static bool isKWinAvailable();
 
-signals:
-    /// KWin refused the call because no installed desktop entry authorizes this binary.
-    /// The capture itself still completes through the CaptureInteractive fallback.
-    void authorizationDenied();
+    /// Called by the gate once it has an answer: true retries the same capture, false
+    /// takes the CaptureInteractive fallback.
+    using AuthorizationResume = std::function<void(bool retryFast)>;
+    /// Asked once per run when KWin refuses for lack of an authorizing desktop entry.
+    /// While a gate is installed the strategy launches no fallback on its own: it hands
+    /// the pending capture to the gate and waits for the resume callback.
+    using AuthorizationGate = std::function<void(AuthorizationResume)>;
+    void setAuthorizationGate(AuthorizationGate gate);
 
 private:
     /// D-Bus method call with pipe-based data transfer
     void callScreenShotMethod(const QString &method, const QVariantList &args,
                               bool showAreaSelector, int timeout = 4000);
 
-    /// Handle the async D-Bus reply and read image from pipe
+    /// Handle the async D-Bus reply and read image from pipe. Keeps the request's own
+    /// arguments so a denied call can be re-issued identically after the gate answers.
     void handleReply(QDBusPendingCallWatcher *watcher, int readFd,
-                     bool showAreaSelector, const QString &method);
+                     bool showAreaSelector, const QString &method,
+                     const QVariantList &args, int timeout);
+
+    /// Hand a denied capture to the gate. Returns false when there is no gate left to
+    /// consult, meaning the caller must fall back itself.
+    bool requestAuthorization(AuthorizationResume resume);
 
     /// Read raw image data from pipe FD using metadata from D-Bus reply
     static QImage readImageFromPipe(int fd, const QVariantMap &metadata);
@@ -75,6 +87,8 @@ private:
     void fallbackToInteractive(bool showSelector, int kind = 1);
 
     quint32 m_apiVersion = 0;
+    AuthorizationGate m_authGate;
+    bool m_gateConsumed = false;   // the gate is asked once per run, never per capture
 };
 
 } // namespace Capture

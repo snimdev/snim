@@ -39,9 +39,6 @@
 
 namespace Core {
     namespace {
-        // How often the deferred KWin prompt re-checks whether the capture UI is gone.
-        constexpr int kKWinPromptRecheckMs = 500;
-
         bool selectionOverlayVisible() {
             // A stateless widget scan on purpose, not a latch: the overlay's Esc-cancel
             // path emits no completion signal, so a flag would stay stuck.
@@ -76,11 +73,12 @@ namespace Core {
         });
 
 #ifdef Q_OS_LINUX
-        // Queued: the prompt must not run inside the D-Bus reply handler that is about
-        // to start the interactive fallback for the capture that just failed.
+        // The strategy launches no fallback while this gate is installed: the answer
+        // decides, so the prompt never competes with the portal's fullscreen picker.
         if (auto *kwin = qobject_cast<Capture::KWinCaptureStrategy *>(m_captureStrategy.get()))
-            connect(kwin, &Capture::KWinCaptureStrategy::authorizationDenied,
-                    this, &ScreenshotApp::onKWinAuthorizationDenied, Qt::QueuedConnection);
+            kwin->setAuthorizationGate([this](const std::function<void(bool)> &resume) {
+                askForKWinAuthorization(resume);
+            });
 #endif
 
         // Initialize text snip capture
@@ -392,47 +390,25 @@ namespace Core {
         settingsDialog->exec();
     }
 
-    bool ScreenshotApp::shouldDeferPrompt(const bool selectorVisible, const bool recording) {
-        return selectorVisible || recording;
+    bool ScreenshotApp::kwinPromptApplicable(const bool dismissed,
+                                             const DesktopIntegration::Status status,
+                                             const bool alreadyShown) {
+        if (dismissed)
+            return false;
+        // Entry already correct: the refusal has another cause, so offering a rewrite helps nobody.
+        if (status == DesktopIntegration::Status::Installed)
+            return false;
+        return !alreadyShown;
     }
 
-    bool ScreenshotApp::captureUiIsUp() const {
-        return shouldDeferPrompt(selectionOverlayVisible(),
-                                 m_recordingController && m_recordingController->isRecording());
-    }
-
-    void ScreenshotApp::onKWinAuthorizationDenied() {
-        if (m_kwinAuthPromptShown)
+    void ScreenshotApp::askForKWinAuthorization(const std::function<void(bool)> &resume) {
+        if (!kwinPromptApplicable(Settings::desktopIntegrationPromptDismissed(),
+                                  DesktopIntegration::status(), m_kwinAuthPromptShown)) {
+            resume(false);
             return;
+        }
         m_kwinAuthPromptShown = true;
 
-        if (Settings::desktopIntegrationPromptDismissed())
-            return;
-        // Entry already correct: the refusal has another cause, so offering a rewrite helps nobody.
-        if (DesktopIntegration::status() == DesktopIntegration::Status::Installed)
-            return;
-
-        // The denial arrives while the interactive fallback is opening its fullscreen
-        // overlay, which takes exclusive keyboard focus: a modal box would be stranded
-        // underneath it. Poll until the capture flow is over, then ask.
-        if (!captureUiIsUp()) {
-            showKWinAuthorizationPrompt();
-            return;
-        }
-        if (!m_kwinPromptTimer) {
-            m_kwinPromptTimer = new QTimer(this);
-            m_kwinPromptTimer->setInterval(kKWinPromptRecheckMs);
-            connect(m_kwinPromptTimer, &QTimer::timeout, this, [this] {
-                if (captureUiIsUp())
-                    return;
-                m_kwinPromptTimer->stop();
-                showKWinAuthorizationPrompt();
-            });
-        }
-        m_kwinPromptTimer->start();
-    }
-
-    void ScreenshotApp::showKWinAuthorizationPrompt() {
         QMessageBox box;
         box.setIcon(QMessageBox::Information);
         box.setWindowTitle(tr("Enable fast screenshots"));
@@ -440,21 +416,34 @@ namespace Core {
                        "instant, dialog-free captures."));
         box.setInformativeText(tr("Without it every capture goes through the slower picker "
                                   "dialog. Snim can set this up now; it only writes a desktop "
-                                  "entry and an icon into your local applications folder."));
+                                  "entry and an icon into your local applications folder. "
+                                  "Set up now and this capture will retry instantly."));
         QPushButton *setUp = box.addButton(tr("Set up now"), QMessageBox::AcceptRole);
         box.addButton(tr("Not now"), QMessageBox::RejectRole);
         QPushButton *never = box.addButton(tr("Never ask again"), QMessageBox::DestructiveRole);
         box.setDefaultButton(setUp);
-        // Shown after a capture, so nudge it to the front instead of behind the editor.
+        // The capture is still pending behind this box, so nudge it to the front.
         box.show();
         box.raise();
         box.activateWindow();
         box.exec();
 
-        if (box.clickedButton() == setUp)
-            runDesktopIntegrationSetup();
-        else if (box.clickedButton() == never)
+        if (box.clickedButton() == setUp) {
+            QString error;
+            const bool installed = DesktopIntegration::install(&error);
+            refreshDesktopIntegrationAction();
+            if (!installed) {
+                QMessageBox::warning(nullptr, tr("Desktop integration"),
+                                     tr("Could not set up the desktop entry:\n%1").arg(error));
+            }
+            // No confirmation box on success: the retried capture is the confirmation.
+            resume(installed);
+            return;
+        }
+
+        if (box.clickedButton() == never)
             Settings::setDesktopIntegrationPromptDismissed(true);
+        resume(false);
     }
 
     void ScreenshotApp::runDesktopIntegrationSetup() {

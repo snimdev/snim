@@ -1,15 +1,15 @@
 #ifndef CORE_SCREENSHOTAPP_H
 #define CORE_SCREENSHOTAPP_H
 
+#include "core/DesktopIntegration.h"
 #include "hotkeys/HotkeyAction.h"
 
 #include <QApplication>
 #include <QSystemTrayIcon>
 #include <QMenu>
 #include <QAction>
+#include <functional>
 #include <memory>
-
-class QTimer;
 
 namespace Hotkeys {
 class GlobalHotkeyManager;
@@ -45,9 +45,10 @@ public:
     explicit ScreenshotApp(int &argc, char **argv);
     ~ScreenshotApp() override;
 
-    // Would a modal prompt land under the capture overlay? Pure so it can be tested
-    // without a live capture; the callers supply the two live facts.
-    [[nodiscard]] static bool shouldDeferPrompt(bool selectorVisible, bool recording);
+    // Is the KWin authorization offer worth making at all? Pure so it can be tested
+    // without a live capture; the caller supplies the three live facts.
+    [[nodiscard]] static bool kwinPromptApplicable(bool dismissed, DesktopIntegration::Status status,
+                                                   bool alreadyShown);
 
 private slots:
     void captureArea() const;
@@ -66,8 +67,6 @@ private slots:
     void startUpload(const QString &localPath, const QString &suggestedName, bool deleteWhenDone,
                      const QString &profileId);
     void showSettings();
-    // KWin refused ScreenShot2: offer to install the desktop entry that authorizes it.
-    void onKWinAuthorizationDenied();
     void checkForUpdates();
     static void showAbout();
     static void quit();
@@ -75,10 +74,9 @@ private slots:
 private:
     void setupSystemTray();
 
-    // The deferred half of onKWinAuthorizationDenied: the modal box itself.
-    void showKWinAuthorizationPrompt();
-    // Is any capture UI up right now (selection overlay or a running recording)?
-    [[nodiscard]] bool captureUiIsUp() const;
+    // KWin refused ScreenShot2: offer to install the desktop entry that authorizes it,
+    // then resume the pending capture (true retries it, false takes the slow fallback).
+    void askForKWinAuthorization(const std::function<void(bool)> &resume);
 
     // Writes the desktop entry and reports the outcome; shared by the prompt and the tray action.
     void runDesktopIntegrationSetup();
@@ -110,7 +108,6 @@ private:
     QAction *m_quitAction{};
 
     bool m_kwinAuthPromptShown = false;      // the offer is made once per run
-    QTimer *m_kwinPromptTimer = nullptr;     // re-checks until the capture overlay is gone
 
     std::unique_ptr<Capture::CaptureStrategy> m_captureStrategy;
     std::unique_ptr<Hotkeys::GlobalHotkeyManager> m_hotkeyManager;

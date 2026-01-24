@@ -1,5 +1,6 @@
 #include <QtTest>
 
+#include "core/DesktopIntegration.h"
 #include "core/ScreenshotApp.h"
 
 using namespace Core;
@@ -11,23 +12,32 @@ class tst_ScreenshotApp : public QObject
     Q_OBJECT
 
 private slots:
-    void deferPrompt_whileTheSelectionOverlayIsUp()
+    void promptApplicable_neverAfterDismissal()
     {
-        // The overlay is a layer surface with exclusive keyboard focus, so a modal
-        // box opened behind it cannot be reached.
-        QVERIFY(ScreenshotApp::shouldDeferPrompt(true, false));
+        // "Never ask again" outranks every other fact, including a broken entry.
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(true, DesktopIntegration::Status::NotInstalled, false));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(true, DesktopIntegration::Status::ExecMismatch, false));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(true, DesktopIntegration::Status::Installed, true));
     }
 
-    void deferPrompt_whileRecording()
+    void promptApplicable_neverWhenTheEntryIsInstalled()
     {
-        QVERIFY(ScreenshotApp::shouldDeferPrompt(false, true));
-        QVERIFY(ScreenshotApp::shouldDeferPrompt(true, true));
+        // The refusal has another cause, so offering to rewrite the entry helps nobody.
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::Installed, false));
     }
 
-    void deferPrompt_notWhenTheCaptureFlowIsOver()
+    void promptApplicable_onlyOncePerRun()
     {
-        // An open editor is ordinary stacking, not a trap, so nothing defers here.
-        QVERIFY(!ScreenshotApp::shouldDeferPrompt(false, false));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled, true));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch, true));
+    }
+
+    void promptApplicable_whenTheEntryCannotAuthorize()
+    {
+        QVERIFY(ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled, false));
+        QVERIFY(ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch, false));
+        QVERIFY(ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::MissingAuthorizationKey,
+                                                    false));
     }
 };
 
