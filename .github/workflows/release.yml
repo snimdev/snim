@@ -156,15 +156,19 @@ jobs:
           export LD_LIBRARY_PATH="${{ github.workspace }}/deps-prefix/lib:${{ github.workspace }}/deps-prefix/lib/x86_64-linux-gnu:$QT_ROOT_DIR/lib:${LD_LIBRARY_PATH:-}"
           # The PipeWire client library must stay host-provided: it dlopens SPA
           # modules from its own install prefix, which a bundle cannot satisfy
-          # (bundled copy = pw_loop_new fails and pipewiresrc segfaults).
+          # (bundled copy = pw_loop_new fails and pipewiresrc segfaults). Deploy
+          # and package are separate passes so the scrub lands before squashing.
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --desktop-file AppDir/usr/share/applications/dev.snim.Snim.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/dev.snim.Snim.png \
             --exclude-library "libpipewire-0.3.so*" \
-            --exclude-library "libspa-0.2.so*" \
-            --plugin qt --plugin gstreamer --output appimage
-          # Belt and braces: drop any copies a plugin hook still smuggled in.
-          rm -f AppDir/usr/lib/libpipewire-0.3.so* AppDir/usr/lib/libspa-0.2.so*
+            --plugin qt --plugin gstreamer
+          rm -f AppDir/usr/lib/libpipewire-0.3.so*
+          rm -rf AppDir/usr/lib/spa-0.2
+          test ! -e AppDir/usr/lib/libpipewire-0.3.so.0
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+            --exclude-library "libpipewire-0.3.so*" \
+            --output appimage
 
       - uses: actions/upload-artifact@v5
         with:
