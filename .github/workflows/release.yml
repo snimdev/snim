@@ -263,9 +263,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" \
-            --title "Snim $VERSION" \
-            --notes-file notes.md \
+          FLAGS=(--title "Snim $VERSION" --notes-file notes.md)
+          # A hyphen in the version means a prerelease tag (v1.0.0-alpha.1), so flag it as one.
+          case "$VERSION" in
+            *-*) FLAGS+=(--prerelease) ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" "${FLAGS[@]}" \
             "artifacts/Snim-x86_64.AppImage" \
             "artifacts/Snim-x86_64.AppImage.zsync" \
             "artifacts/Snim-$VERSION-macos-arm64.dmg"

@@ -42,6 +42,11 @@ pulls the next release from the embedded zsync info, no reinstall needed.
 Screen recording on Linux goes through the desktop portal, so it needs PipeWire and
 `xdg-desktop-portal` (plus your compositor's backend) installed and running.
 EOF
+
+    # A hyphen in the tag means a prerelease (v1.0.0-alpha.1), never a plain release.
+    case "$TAG" in
+        *-*) printf '\nThis is a prerelease, published for early testing: expect rough edges.\n' ;;
+    esac
 }
 
 if [ -z "$PREV" ]; then

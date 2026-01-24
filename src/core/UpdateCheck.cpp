@@ -9,8 +9,10 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QList>
 #include <QPointer>
 
+#include <algorithm>
 #include <utility>
 
 namespace Core::UpdateCheck {
@@ -27,15 +29,54 @@ struct Triple {
     int patch = 0;
 };
 
-// Reads the leading X.Y.Z and stops at the first character that is not part of it, so
-// a describe suffix or an -rc marker is simply ignored.
-Triple parseTriple(QStringView version)
+struct Parsed {
+    Triple triple;
+    QStringView prerelease;   // empty for a plain release, "alpha.1" for v1.0.0-alpha.1
+};
+
+bool isHexDigit(QChar c)
+{
+    return (c >= u'0' && c <= u'9') || (c >= u'a' && c <= u'f') || (c >= u'A' && c <= u'F');
+}
+
+// git describe appends -<commits>-g<hash>, plus -dirty for a modified tree, to the tag it
+// counts from. That tail names a build, not a version, so it is dropped before comparing.
+QStringView stripDescribeSuffix(QStringView version)
+{
+    QStringView head = version;
+    if (head.endsWith(QLatin1String("-dirty")))
+        head = head.first(head.size() - 6);
+
+    const qsizetype hash = head.lastIndexOf(u'-');
+    if (hash < 0 || head.size() - hash < 3 || head.at(hash + 1) != u'g')
+        return version;
+    for (qsizetype i = hash + 2; i < head.size(); ++i) {
+        if (!isHexDigit(head.at(i)))
+            return version;
+    }
+
+    const QStringView counted = head.first(hash);
+    const qsizetype dash = counted.lastIndexOf(u'-');
+    if (dash < 0 || dash + 1 == counted.size())
+        return version;
+    for (qsizetype i = dash + 1; i < counted.size(); ++i) {
+        if (!counted.at(i).isDigit())
+            return version;
+    }
+
+    return counted.first(dash);
+}
+
+// Reads the leading X.Y.Z plus the prerelease behind it; anything else (build metadata,
+// a fourth component, plain garbage) is ignored, so an unparsable head is 0.0.0.
+Parsed parseVersion(QStringView version)
 {
     if (!version.isEmpty() && (version.front() == u'v' || version.front() == u'V'))
         version = version.sliced(1);
+    version = stripDescribeSuffix(version);
 
-    Triple out;
-    int *fields[] = { &out.major, &out.minor, &out.patch };
+    Parsed out;
+    int *fields[] = { &out.triple.major, &out.triple.minor, &out.triple.patch };
     int field = 0;
     qsizetype i = 0;
 
@@ -56,7 +97,48 @@ Triple parseTriple(QStringView version)
         break;
     }
 
+    if (i < version.size() && version.at(i) == u'-') {
+        const QStringView tail = version.sliced(i + 1);
+        // Build metadata (+sha) carries no precedence, so it never reaches the comparison.
+        const qsizetype plus = tail.indexOf(u'+');
+        out.prerelease = plus < 0 ? tail : tail.first(plus);
+    }
+
     return out;
+}
+
+// Semver precedence for the tail: a release outranks every prerelease of the same X.Y.Z,
+// and two prereleases compare identifier by identifier, numeric pairs numerically.
+int comparePrerelease(QStringView left, QStringView right)
+{
+    if (left.isEmpty() || right.isEmpty()) {
+        if (left.isEmpty() && right.isEmpty())
+            return 0;
+        return left.isEmpty() ? 1 : -1;
+    }
+
+    const QList<QStringView> a = left.split(u'.');
+    const QList<QStringView> b = right.split(u'.');
+
+    for (qsizetype i = 0; i < std::min(a.size(), b.size()); ++i) {
+        bool leftNumeric = false;
+        bool rightNumeric = false;
+        const qulonglong leftValue = a.at(i).toULongLong(&leftNumeric);
+        const qulonglong rightValue = b.at(i).toULongLong(&rightNumeric);
+
+        if (leftNumeric && rightNumeric) {
+            if (leftValue != rightValue)
+                return leftValue < rightValue ? -1 : 1;
+            continue;
+        }
+        if (a.at(i) != b.at(i))
+            return a.at(i) < b.at(i) ? -1 : 1;
+    }
+
+    // Equal as far as the shorter one goes: the longer identifier list is the later one.
+    if (a.size() != b.size())
+        return a.size() < b.size() ? -1 : 1;
+    return 0;
 }
 
 QString translated(const char *text)
@@ -68,16 +150,16 @@ QString translated(const char *text)
 
 int compareVersions(QStringView left, QStringView right)
 {
-    const Triple a = parseTriple(left);
-    const Triple b = parseTriple(right);
+    const Parsed a = parseVersion(left);
+    const Parsed b = parseVersion(right);
 
-    if (a.major != b.major)
-        return a.major < b.major ? -1 : 1;
-    if (a.minor != b.minor)
-        return a.minor < b.minor ? -1 : 1;
-    if (a.patch != b.patch)
-        return a.patch < b.patch ? -1 : 1;
-    return 0;
+    if (a.triple.major != b.triple.major)
+        return a.triple.major < b.triple.major ? -1 : 1;
+    if (a.triple.minor != b.triple.minor)
+        return a.triple.minor < b.triple.minor ? -1 : 1;
+    if (a.triple.patch != b.triple.patch)
+        return a.triple.patch < b.triple.patch ? -1 : 1;
+    return comparePrerelease(a.prerelease, b.prerelease);
 }
 
 bool isNewer(QStringView candidate, QStringView current)

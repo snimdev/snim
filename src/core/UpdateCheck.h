@@ -32,8 +32,10 @@ struct Result {
 // tag against this build. Garbage in gives ok = false, never a crash.
 [[nodiscard]] Result parseLatestRelease(const QByteArray &json);
 
-// -1, 0 or +1 for left older than, equal to, or newer than right. Tolerates a leading
-// v and any suffix (-dev, -4-gabc1234, -rc1); an unparsable head compares as 0.0.0.
+// -1, 0 or +1 for left older than, equal to, or newer than right. Tolerates a leading v,
+// and a git describe tail (-4-gabc1234, with or without -dirty) compares as the tag it
+// counts from; an unparsable head compares as 0.0.0. Prereleases follow semver precedence:
+// 1.0.0-alpha.2 < 1.0.0-alpha.10 < 1.0.0-beta.1 < 1.0.0.
 [[nodiscard]] int compareVersions(QStringView left, QStringView right);
 
 [[nodiscard]] bool isNewer(QStringView candidate, QStringView current);

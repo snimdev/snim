@@ -16,6 +16,7 @@ private slots:
     void comparesEqualVersions();
     void comparesPatchMinorMajor();
     void toleratesPrefixesAndSuffixes();
+    void ordersPrereleases();
     void treatsMalformedInputAsZero();
     void parsesLatestRelease();
     void rejectsGarbagePayloads();
@@ -52,10 +53,34 @@ void tst_UpdateCheck::toleratesPrefixesAndSuffixes()
     QCOMPARE(UpdateCheck::compareVersions(u"0.0.0-dev", u"1.0.0"), -1);
     QVERIFY(UpdateCheck::isNewer(u"v1.0.0", u"0.0.0-dev"));
 
-    // git describe between tags, and a prerelease marker: the X.Y.Z head decides.
+    // git describe between tags: the tail names a build, so it compares as its base tag.
     QCOMPARE(UpdateCheck::compareVersions(u"1.2.3-4-gabc1234", u"1.2.3"), 0);
     QCOMPARE(UpdateCheck::compareVersions(u"1.2.3-4-gabc1234-dirty", u"1.2.2"), 1);
-    QCOMPARE(UpdateCheck::compareVersions(u"1.2.3-rc1", u"1.2.3"), 0);
+    QCOMPARE(UpdateCheck::compareVersions(u"1.0.0-3-gabc123", u"1.0.0"), 0);
+    // A prerelease marker is not a build tail: it ranks below the release itself.
+    QCOMPARE(UpdateCheck::compareVersions(u"1.2.3-rc1", u"1.2.3"), -1);
+}
+
+void tst_UpdateCheck::ordersPrereleases()
+{
+    // The alpha line the first public tags follow: v1.0.0-alpha.1, .2, ... then v1.0.0.
+    QCOMPARE(UpdateCheck::compareVersions(u"1.0.0-alpha.1", u"1.0.0-alpha.2"), -1);
+    QCOMPARE(UpdateCheck::compareVersions(u"1.0.0-alpha.2", u"1.0.0-alpha.1"), 1);
+    // Numeric identifiers compare as numbers, so .10 is not "less than" .2.
+    QCOMPARE(UpdateCheck::compareVersions(u"1.0.0-alpha.2", u"1.0.0-alpha.10"), -1);
+    QCOMPARE(UpdateCheck::compareVersions(u"1.0.0-alpha.10", u"1.0.0-beta.1"), -1);
+    QCOMPARE(UpdateCheck::compareVersions(u"1.0.0-beta.1", u"1.0.0"), -1);
+    QCOMPARE(UpdateCheck::compareVersions(u"1.0.0", u"1.0.0-beta.1"), 1);
+
+    // Same version, one spelled as a release tag.
+    QCOMPARE(UpdateCheck::compareVersions(u"v1.0.0-alpha.1", u"1.0.0-alpha.1"), 0);
+    // Equal prefixes: the longer identifier list is the later prerelease.
+    QCOMPARE(UpdateCheck::compareVersions(u"1.0.0-alpha", u"1.0.0-alpha.1"), -1);
+
+    // The tray only offers an update when the release is genuinely newer.
+    QVERIFY(UpdateCheck::isNewer(u"v1.0.0-alpha.2", u"1.0.0-alpha.1"));
+    QVERIFY(UpdateCheck::isNewer(u"v1.0.0", u"1.0.0-alpha.9"));
+    QVERIFY(!UpdateCheck::isNewer(u"v1.0.0-alpha.1", u"1.0.0"));
 }
 
 void tst_UpdateCheck::treatsMalformedInputAsZero()

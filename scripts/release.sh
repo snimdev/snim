@@ -3,19 +3,93 @@
 # Cuts a release by tagging main and pushing the tag; the release workflow does
 # everything else (build, AppImage, DMG, notes, GitHub release).
 #
-# Usage: scripts/release.sh major|minor|patch
+# Usage: scripts/release.sh alpha|stable|major|minor|patch
+#   alpha   next prerelease: v1.0.0-alpha.1 -> v1.0.0-alpha.2, v1.0.0 -> v1.0.1-alpha.1
+#   stable  promotes the current alpha as is: v1.0.0-alpha.3 -> v1.0.0
+#   major|minor|patch  bumps the latest tag with any -alpha.N stripped first
+#
+#   SNIM_RELEASE_LATEST_TAG=<tag>  overrides the detected latest tag (for testing).
+#   SNIM_RELEASE_DRY_RUN=1         prints "<latest> -> <next>" and exits, touching nothing.
 
 set -euo pipefail
 
-BUMP="${1:?usage: release.sh major|minor|patch}"
+BUMP="${1:?usage: release.sh alpha|stable|major|minor|patch}"
 
 case "$BUMP" in
-    major|minor|patch) ;;
+    alpha|stable|major|minor|patch) ;;
     *)
-        echo "error: expected major, minor or patch (got '$BUMP')" >&2
+        echo "error: expected alpha, stable, major, minor or patch (got '$BUMP')" >&2
         exit 1
         ;;
 esac
+
+# Prereleases must sort below their release, which git only does when the suffix is known.
+latest_release_tag() {
+    if [ -n "${SNIM_RELEASE_LATEST_TAG-}" ]; then
+        printf '%s\n' "$SNIM_RELEASE_LATEST_TAG"
+        return
+    fi
+    git -c versionsort.suffix=-alpha tag --list 'v*' --sort=-v:refname | head -n1
+}
+
+# next_tag <mode> <latest tag, empty when the repo has none>
+next_tag() {
+    local MODE="$1"
+    local LATEST="${2-}"
+    local VERSION BASE PRE MAJOR MINOR PATCH
+
+    VERSION="${LATEST#v}"
+    BASE="${VERSION%%-*}"
+    PRE=""
+    case "$VERSION" in
+        *-alpha.*) PRE="${VERSION#*-alpha.}" ;;
+    esac
+    if [ -n "$PRE" ]; then
+        case "$PRE" in
+            ''|*[!0-9]*)
+                echo "error: cannot count on from the prerelease in '$LATEST'" >&2
+                return 1
+                ;;
+        esac
+    fi
+
+    IFS='.' read -r MAJOR MINOR PATCH <<<"${BASE:-0.0.0}"
+    : "${MAJOR:=0}" "${MINOR:=0}" "${PATCH:=0}"
+
+    case "$MODE" in
+        alpha)
+            if [ -n "$PRE" ]; then
+                printf 'v%s.%s.%s-alpha.%s\n' "$MAJOR" "$MINOR" "$PATCH" "$((PRE + 1))"
+            elif [ -z "$LATEST" ]; then
+                printf 'v1.0.0-alpha.1\n'
+            else
+                printf 'v%s.%s.%s-alpha.1\n' "$MAJOR" "$MINOR" "$((PATCH + 1))"
+            fi
+            ;;
+        stable)
+            if [ -z "$PRE" ]; then
+                if [ -z "$LATEST" ]; then
+                    echo "error: there is no prerelease to promote; use major, minor or patch" >&2
+                else
+                    echo "error: $LATEST is not a prerelease; use major, minor or patch" >&2
+                fi
+                return 1
+            fi
+            # Promotion only: the alpha was built from this very tree.
+            printf 'v%s.%s.%s\n' "$MAJOR" "$MINOR" "$PATCH"
+            ;;
+        major) printf 'v%s.0.0\n' "$((MAJOR + 1))" ;;
+        minor) printf 'v%s.%s.0\n' "$MAJOR" "$((MINOR + 1))" ;;
+        patch) printf 'v%s.%s.%s\n' "$MAJOR" "$MINOR" "$((PATCH + 1))" ;;
+    esac
+}
+
+if [ -n "${SNIM_RELEASE_DRY_RUN-}" ]; then
+    DRY_LATEST="$(latest_release_tag)"
+    DRY_NEXT="$(next_tag "$BUMP" "$DRY_LATEST")"
+    printf '%s -> %s\n' "${DRY_LATEST:-(no tags)}" "$DRY_NEXT"
+    exit 0
+fi
 
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$BRANCH" != "main" ]; then
@@ -59,22 +133,14 @@ done <<EOF
 $CI_RUNS
 EOF
 
-LATEST_TAG="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
-: "${LATEST_TAG:=v0.0.0}"
-
-IFS='.' read -r MAJOR MINOR PATCH <<<"${LATEST_TAG#v}"
-case "$BUMP" in
-    major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
-    minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
-    patch) PATCH=$((PATCH + 1)) ;;
-esac
-NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-NEW_TAG="v$NEW_VERSION"
+LATEST_TAG="$(latest_release_tag)"
+NEW_TAG="$(next_tag "$BUMP" "$LATEST_TAG")"
+NEW_VERSION="${NEW_TAG#v}"
 
 echo
-echo "  $LATEST_TAG -> $NEW_TAG"
+echo "  ${LATEST_TAG:-(no tags)} -> $NEW_TAG"
 echo
-if [ "$LATEST_TAG" = "v0.0.0" ]; then
+if [ -z "$LATEST_TAG" ]; then
     echo "  (first release)"
 else
     echo "  Commits since $LATEST_TAG:"
