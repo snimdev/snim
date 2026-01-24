@@ -37,6 +37,7 @@ set(SNIM_TESTS
         tst_desktopintegration
         tst_screenshotapp
         tst_updatecheck
+        tst_appscope
 )
 
 foreach(test_name ${SNIM_TESTS})

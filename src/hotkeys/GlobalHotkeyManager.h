@@ -6,6 +6,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 
 #include <memory>
 
@@ -39,12 +40,19 @@ public:
 
 signals:
     void actionTriggered(Hotkeys::HotkeyAction action);
-    void registrationFailed(const QString &message);   // ready to show, one per binding
+    // Ready to show: one per failed binding, or a single consolidated line when a whole
+    // pass failed (no hotkey works at all, so N identical balloons help nobody).
+    void registrationFailed(const QString &message);
 
 private:
     void wireBackend();
+    void scheduleFailureFlush();
+    void flushFailures();
 
     std::unique_ptr<HotkeyBackend> m_backend;
+    QStringList m_pendingFailures;
+    qsizetype m_requestedBindings = 0;
+    bool m_flushScheduled = false;
 };
 
 } // namespace Hotkeys

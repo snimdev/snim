@@ -214,6 +214,9 @@ add_library(snim_lib STATIC
         # KDE desktop-entry repair for KWin's ScreenShot2 authorization (no-op elsewhere).
         src/core/DesktopIntegration.cpp
         src/core/DesktopIntegration.h
+        # Transient systemd scope so the portals can read an app id off our cgroup (Linux).
+        src/core/AppScope.cpp
+        src/core/AppScope.h
 
         # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
         # macOS keychain backing is added in the APPLE block; a stub elsewhere. The

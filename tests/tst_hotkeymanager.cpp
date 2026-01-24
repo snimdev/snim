@@ -23,6 +23,11 @@ public:
     {
         lastRegistered = bindings;
         ++registerCount;
+        if (failEvery) {
+            for (const HotkeyBinding &binding : bindings)
+                emit registrationFailed(binding.action, QStringLiteral("no app id"));
+            return;
+        }
         if (failNext && !bindings.isEmpty()) {
             failNext = false;
             emit registrationFailed(bindings.first().action, QStringLiteral("already in use"));
@@ -43,6 +48,7 @@ public:
     int unregisterCount = 0;
     bool available = true;
     bool failNext = false;
+    bool failEvery = false;
 };
 
 class tst_HotkeyManager : public QObject
@@ -125,7 +131,8 @@ private slots:
 
         QSignalSpy spy(&mgr, &GlobalHotkeyManager::registrationFailed);
         mgr.applyBindings();
-        QCOMPARE(spy.count(), 1);
+        // Reported one turn later: a pass is judged as a whole before anything is shown.
+        QTRY_COMPARE(spy.count(), 1);
 
         const QString msg = spy.at(0).at(0).toString();
         QVERIFY(msg.contains(hotkeyActionDescription(HotkeyAction::CaptureArea)));
@@ -133,6 +140,25 @@ private slots:
         // Native spelling: the user is being told which keys failed, and on macOS that
         // is the Command symbol, not "Ctrl".
         QVERIFY(msg.contains(QKeySequence("Ctrl+Shift+A").toString(QKeySequence::NativeText)));
+    }
+
+    void aWhollyFailedPassIsOneConsolidatedMessage()
+    {
+        auto fake = std::make_unique<FakeHotkeyBackend>();
+        FakeHotkeyBackend *f = fake.get();
+        f->failEvery = true;
+        GlobalHotkeyManager mgr(std::move(fake));
+
+        QSignalSpy spy(&mgr, &GlobalHotkeyManager::registrationFailed);
+        mgr.applyBindings();
+        QVERIFY(f->lastRegistered.size() > 1);   // several bindings, one message
+
+        QTRY_COMPARE(spy.count(), 1);
+        const QString msg = spy.at(0).at(0).toString();
+        QVERIFY(msg.contains(QStringLiteral("Global hotkeys are unavailable")));
+        QVERIFY(msg.contains(QStringLiteral("application menu")));
+        // The per-binding wording is gone: it said nothing the user could act on.
+        QVERIFY(!msg.contains(QStringLiteral("no app id")));
     }
 
     void unavailableBackendRegistersNothing()

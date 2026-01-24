@@ -3,6 +3,10 @@
 #include "hotkeys/HotkeyBackendFactory.h"
 #include "hotkeys/HotkeyBindings.h"
 
+#include <QTimer>
+
+#include <utility>
+
 namespace Hotkeys {
 
 GlobalHotkeyManager::GlobalHotkeyManager(QObject *parent)
@@ -29,9 +33,10 @@ void GlobalHotkeyManager::wireBackend()
                 // NativeText so the user sees Cmd, not Ctrl, on macOS.
                 const QString keys =
                     HotkeyBindings::sequence(action).toString(QKeySequence::NativeText);
-                emit registrationFailed(
+                m_pendingFailures.append(
                     tr("Global hotkey %1 for %2 could not be registered (%3)")
                         .arg(keys, hotkeyActionDescription(action), reason));
+                scheduleFailureFlush();
             });
 }
 
@@ -41,8 +46,41 @@ void GlobalHotkeyManager::applyBindings()
     if (!isAvailable())
         return;
 
+    const QList<HotkeyBinding> bindings = HotkeyBindings::activeBindings();
+    m_requestedBindings = bindings.size();
+    m_pendingFailures.clear();
+
     m_backend->unregisterAll();
-    m_backend->registerAll(HotkeyBindings::activeBindings());
+    m_backend->registerAll(bindings);
+}
+
+void GlobalHotkeyManager::scheduleFailureFlush()
+{
+    if (m_flushScheduled)
+        return;
+    m_flushScheduled = true;
+    // Deferred one turn: a failing pass reports every binding in one burst, and the
+    // "nothing registered" case has to come out as a single message.
+    QTimer::singleShot(0, this, &GlobalHotkeyManager::flushFailures);
+}
+
+void GlobalHotkeyManager::flushFailures()
+{
+    m_flushScheduled = false;
+    const QStringList failures = std::exchange(m_pendingFailures, {});
+    if (failures.isEmpty())
+        return;
+
+    if (m_requestedBindings > 0 && failures.size() >= m_requestedBindings) {
+        // Not one hotkey survived: on Linux that is the portal refusing a caller with no
+        // app id, which a launcher start (an app-scoped systemd unit) gives it.
+        emit registrationFailed(tr("Global hotkeys are unavailable; starting Snim from "
+                                   "the application menu can fix this."));
+        return;
+    }
+
+    for (const QString &message : failures)
+        emit registrationFailed(message);
 }
 
 bool GlobalHotkeyManager::isAvailable() const

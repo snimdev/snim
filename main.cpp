@@ -1,4 +1,5 @@
 #include "src/core/ScreenshotApp.h"
+#include "core/AppScope.h"
 #include "core/Version.h"
 #include <QLoggingCategory>
 #include <QSettings>
@@ -43,6 +44,18 @@ int main(int argc, char *argv[]) {
     migrateLegacySettings();
 
     Core::ScreenshotApp app(argc, argv);
+
+#ifdef Q_OS_LINUX
+    // Earliest point that works: the session bus wants a QCoreApplication, and the portals
+    // read our app id off the cgroup on their first request, which cannot arrive before exec().
+    if (!Core::AppScope::inAppScope()) {
+        QString scopeError;
+        if (Core::AppScope::adoptAppScope(&scopeError))
+            qInfo() << "[AppScope] adopted app scope for portal identity";
+        else
+            qInfo() << "[AppScope] running without app scope:" << scopeError;
+    }
+#endif
 
     app.setWindowIcon(QIcon(QStringLiteral(":/icons/icons/app-icon.svg")));
 
