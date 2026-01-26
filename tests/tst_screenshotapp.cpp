@@ -15,29 +15,49 @@ private slots:
     void promptApplicable_neverAfterDismissal()
     {
         // "Never ask again" outranks every other fact, including a broken entry.
-        QVERIFY(!ScreenshotApp::kwinPromptApplicable(true, DesktopIntegration::Status::NotInstalled, false));
-        QVERIFY(!ScreenshotApp::kwinPromptApplicable(true, DesktopIntegration::Status::ExecMismatch, false));
-        QVERIFY(!ScreenshotApp::kwinPromptApplicable(true, DesktopIntegration::Status::Installed, true));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(true, DesktopIntegration::Status::NotInstalled,
+                                                     false, false));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(true, DesktopIntegration::Status::ExecMismatch,
+                                                     false, false));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(true, DesktopIntegration::Status::Installed,
+                                                     true, false));
     }
 
     void promptApplicable_neverWhenTheEntryIsInstalled()
     {
         // The refusal has another cause, so offering to rewrite the entry helps nobody.
-        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::Installed, false));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::Installed,
+                                                     false, false));
     }
 
     void promptApplicable_onlyOncePerRun()
     {
-        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled, true));
-        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch, true));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled,
+                                                     true, false));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch,
+                                                     true, false));
+    }
+
+    void promptApplicable_neverUnderAnAppImage()
+    {
+        // KWin resolves the caller's /proc/PID/exe, which an AppImage remounts somewhere
+        // new every launch, so no desktop entry can ever match it.
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled,
+                                                     false, true));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch,
+                                                     false, true));
+        QVERIFY(!ScreenshotApp::kwinPromptApplicable(
+            false, DesktopIntegration::Status::MissingAuthorizationKey, false, true));
     }
 
     void promptApplicable_whenTheEntryCannotAuthorize()
     {
-        QVERIFY(ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled, false));
-        QVERIFY(ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch, false));
-        QVERIFY(ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::MissingAuthorizationKey,
-                                                    false));
+        QVERIFY(ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled,
+                                                    false, false));
+        QVERIFY(ScreenshotApp::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch,
+                                                    false, false));
+        QVERIFY(ScreenshotApp::kwinPromptApplicable(
+            false, DesktopIntegration::Status::MissingAuthorizationKey, false, false));
     }
 };
 

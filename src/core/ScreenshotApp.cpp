@@ -39,6 +39,11 @@
 
 namespace Core {
     namespace {
+        // The AppImage runtime exports this; an extracted install never has it.
+        bool runningFromAppImage() {
+            return qEnvironmentVariableIsSet("APPIMAGE");
+        }
+
         bool selectionOverlayVisible() {
             // A stateless widget scan on purpose, not a latch: the overlay's Esc-cancel
             // path emits no completion signal, so a flag would stay stuck.
@@ -208,9 +213,16 @@ namespace Core {
         connect(m_checkUpdatesAction, &QAction::triggered, this, &ScreenshotApp::checkForUpdates);
 
 #ifdef Q_OS_LINUX
-        m_desktopIntegrationAction = new QAction("Set up desktop integration...", this);
-        m_desktopIntegrationAction->setToolTip(
-            "Register Snim's desktop entry so KDE allows instant, dialog-free captures");
+        // An AppImage gets the menu entry but never the KWin fast path, so it promises only that.
+        if (runningFromAppImage()) {
+            m_desktopIntegrationAction = new QAction("Add Snim to the application menu...", this);
+            m_desktopIntegrationAction->setToolTip(
+                "Write Snim's desktop entry so it appears in the application menu");
+        } else {
+            m_desktopIntegrationAction = new QAction("Set up desktop integration...", this);
+            m_desktopIntegrationAction->setToolTip(
+                "Register Snim's desktop entry so KDE allows instant, dialog-free captures");
+        }
         connect(m_desktopIntegrationAction, &QAction::triggered,
                 this, &ScreenshotApp::runDesktopIntegrationSetup);
 #endif
@@ -392,8 +404,12 @@ namespace Core {
 
     bool ScreenshotApp::kwinPromptApplicable(const bool dismissed,
                                              const DesktopIntegration::Status status,
-                                             const bool alreadyShown) {
+                                             const bool alreadyShown,
+                                             const bool fromAppImage) {
         if (dismissed)
+            return false;
+        // No desktop entry can point at a mount path that is gone by the next launch.
+        if (fromAppImage)
             return false;
         // Entry already correct: the refusal has another cause, so offering a rewrite helps nobody.
         if (status == DesktopIntegration::Status::Installed)
@@ -402,8 +418,17 @@ namespace Core {
     }
 
     void ScreenshotApp::askForKWinAuthorization(const std::function<void(bool)> &resume) {
+        const bool fromAppImage = runningFromAppImage();
         if (!kwinPromptApplicable(Settings::desktopIntegrationPromptDismissed(),
-                                  DesktopIntegration::status(), m_kwinAuthPromptShown)) {
+                                  DesktopIntegration::status(), m_kwinAuthPromptShown,
+                                  fromAppImage)) {
+            // Only when the AppImage is the reason, and only once: there is nothing to offer.
+            if (fromAppImage && !m_kwinAuthPromptShown) {
+                m_kwinAuthPromptShown = true;
+                qInfo() << "KWin matches the caller's real executable path, which an AppImage "
+                           "remounts at a new path every launch, so the fast path needs the "
+                           "extracted install";
+            }
             resume(false);
             return;
         }
@@ -450,7 +475,9 @@ namespace Core {
         QString error;
         if (DesktopIntegration::install(&error)) {
             QMessageBox::information(nullptr, tr("Desktop integration"),
-                                     tr("Done. The next capture uses the fast path."));
+                                     runningFromAppImage()
+                                         ? tr("Done. Snim is in the application menu.")
+                                         : tr("Done. The next capture uses the fast path."));
         } else {
             QMessageBox::warning(nullptr, tr("Desktop integration"),
                                  tr("Could not set up the desktop entry:\n%1").arg(error));
