@@ -6,6 +6,7 @@
 #include <QIcon>
 #include <QDebug>
 #include <iostream>
+#include <string_view>
 
 // Carry settings over from the pre-rebrand scope, once, if Snim has none yet.
 static void migrateLegacySettings()
@@ -25,6 +26,23 @@ static void migrateLegacySettings()
 }
 
 int main(int argc, char *argv[]) {
+
+    // Scanned before the app object exists: ScreenshotApp is a QApplication and raises a
+    // tray icon in its constructor, which no version query should do.
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg(argv[i]);
+        if (arg == "--version" || arg == "-v") {
+            std::cout << "Snim " << Core::Version::kVersion << '\n';
+            return 0;
+        }
+        if (arg == "--help" || arg == "-h") {
+            std::cout << "Usage: snim [--version] [--help]\n"
+                         "  --version   Print the version and exit.\n"
+                         "Snim runs in the system tray; everything else is configured from "
+                         "its tray menu.\n";
+            return 0;
+        }
+    }
 
     QLoggingCategory::setFilterRules(
         "qt.*.debug=false\n"
