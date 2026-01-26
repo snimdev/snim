@@ -98,7 +98,8 @@ if [ "$BRANCH" != "main" ]; then
     exit 1
 fi
 
-if [ -n "$(git status --porcelain)" ]; then
+# Untracked files cannot reach a tag, and this repo keeps some on purpose.
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "error: working tree is not clean" >&2
     exit 1
 fi
