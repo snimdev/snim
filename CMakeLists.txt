@@ -217,6 +217,9 @@ add_library(snim_lib STATIC
         # Transient systemd scope so the portals can read an app id off our cgroup (Linux).
         src/core/AppScope.cpp
         src/core/AppScope.h
+        # Points GStreamer and Tesseract at the resources beside a relocated binary.
+        src/core/BundledPaths.cpp
+        src/core/BundledPaths.h
 
         # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
         # macOS keychain backing is added in the APPLE block; a stub elsewhere. The

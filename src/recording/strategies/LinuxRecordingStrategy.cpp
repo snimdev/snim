@@ -1,5 +1,6 @@
 #include "recording/strategies/LinuxRecordingStrategy.h"
 
+#include "core/BundledPaths.h"
 #include "recording/RecordingGeometry.h"
 #include "recording/strategies/ScreenCastPortalSession.h"
 
@@ -26,6 +27,8 @@ constexpr int kEosTimeoutMs = 5000;
 bool ensureGstInitialized()
 {
     static const bool ok = [] {
+        // Must precede gst_init: it reads the plugin path once, when it builds its registry.
+        Core::BundledPaths::applyForThisExecutable();
         GError *error = nullptr;
         const gboolean initialized = gst_init_check(nullptr, nullptr, &error);
         if (error) {
