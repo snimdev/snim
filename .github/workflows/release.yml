@@ -251,11 +251,14 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           EXPECTED="Snim ${{ needs.linux-appimage.outputs.version }}"
-          if ! ACTUAL="$(/opt/snim-test/usr/bin/snim --version 2>&1)"; then
+          # Only stdout carries the version; Qt logs probe warnings to stderr, and a
+          # bare container has no PipeWire for Qt Multimedia to find.
+          if ! ACTUAL="$(/opt/snim-test/usr/bin/snim --version 2>/tmp/snim-stderr.log)"; then
             echo "::error title=Startup failed on ${{ matrix.image }}::snim --version exited non-zero"
-            echo "$ACTUAL"
+            cat /tmp/snim-stderr.log
             exit 1
           fi
+          cat /tmp/snim-stderr.log
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "::error title=Wrong version on ${{ matrix.image }}::expected '$EXPECTED', got '$ACTUAL'"
             exit 1
