@@ -26,6 +26,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 90
 
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
     steps:
       - uses: actions/checkout@v5
         with:
@@ -179,6 +182,11 @@ jobs:
             --exclude-library "libpipewire-0.3.so*" \
             --output appimage
 
+      - name: Pack the portable tarball
+        # The same AppDir, unsquashed: an extracted install lives at a stable path, which
+        # is the only thing KWin's ScreenShot2 authorization can match against.
+        run: tar -czf Snim-x86_64.tar.gz -C AppDir .
+
       - uses: actions/upload-artifact@v5
         with:
           name: appimage
@@ -186,7 +194,73 @@ jobs:
           path: |
             Snim-x86_64.AppImage
             Snim-x86_64.AppImage.zsync
+            Snim-x86_64.tar.gz
           if-no-files-found: error
+
+  portability:
+    name: Portable tarball (${{ matrix.image }})
+    needs: [linux-appimage]
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Exactly the libraries the AppImage excludelist leaves to the host (linuxdeploy
+          # bundles everything else), so this list is the whole contract a target must meet:
+          # GLVND, fontconfig, harfbuzz and libwayland-client. The base images already carry
+          # the rest of the excludelist (libstdc++, libz, libexpat, libcom_err, libgmp, ...).
+          - image: ubuntu:22.04
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0
+          - image: ubuntu:24.04
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0
+          - image: debian:12
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0
+          - image: fedora:latest
+            setup: dnf install -y libglvnd-glx libglvnd-egl libglvnd-opengl fontconfig libwayland-client
+
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: appimage
+
+      - name: Install the host libraries
+        run: ${{ matrix.setup }}
+
+      - name: Extract the tarball
+        run: |
+          mkdir -p /opt/snim-test
+          tar -xzf Snim-x86_64.tar.gz -C /opt/snim-test
+
+      - name: Every library resolves
+        run: |
+          ldd /opt/snim-test/usr/bin/snim > ldd.txt 2>&1 || true
+          echo "--- ldd /opt/snim-test/usr/bin/snim (${{ matrix.image }}) ---"
+          cat ldd.txt
+          if grep -q 'not found' ldd.txt; then
+            echo "::error title=Missing libraries on ${{ matrix.image }}::the bundle needs $(grep -c 'not found' ldd.txt) library/libraries this system does not have"
+            grep 'not found' ldd.txt
+            exit 1
+          fi
+          echo "All libraries resolved on ${{ matrix.image }}."
+
+      - name: It starts and reports its version
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          EXPECTED="Snim ${{ needs.linux-appimage.outputs.version }}"
+          if ! ACTUAL="$(/opt/snim-test/usr/bin/snim --version 2>&1)"; then
+            echo "::error title=Startup failed on ${{ matrix.image }}::snim --version exited non-zero"
+            echo "$ACTUAL"
+            exit 1
+          fi
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error title=Wrong version on ${{ matrix.image }}::expected '$EXPECTED', got '$ACTUAL'"
+            exit 1
+          fi
+          echo "$ACTUAL started on ${{ matrix.image }}."
 
   macos-dmg:
     name: DMG (macOS arm64)
@@ -248,7 +322,7 @@ jobs:
 
   release:
     name: Publish the GitHub release
-    needs: [linux-appimage, macos-dmg]
+    needs: [linux-appimage, macos-dmg, portability]
     # workflow_dispatch builds the artifacts but never publishes a release.
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -285,6 +359,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" "${FLAGS[@]}" \
             "artifacts/Snim-x86_64.AppImage" \
             "artifacts/Snim-x86_64.AppImage.zsync" \
+            "artifacts/Snim-x86_64.tar.gz" \
             "artifacts/Snim-$VERSION-macos-arm64.dmg" \
             "artifacts/sha256sums.txt"
 
