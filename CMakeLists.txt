@@ -486,28 +486,59 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             # Global hotkeys via the xdg-desktop-portal GlobalShortcuts session
             src/hotkeys/backends/PortalHotkeyBackend.cpp
             src/hotkeys/backends/PortalHotkeyBackend.h
-            # Screen recording handshake via the xdg-desktop-portal ScreenCast session.
-            # Needs only QtDBus, so it is not gated on the GStreamer recorder.
-            src/recording/strategies/ScreenCastPortalSession.cpp
-            src/recording/strategies/ScreenCastPortalSession.h
     )
 endif()
 
-# Linux screen-recording backend - compiled only where GStreamer exists, like the
-# optional upload transports. Without it RecordingFactory keeps returning the stub.
+# Linux screen recording - compiled only where GStreamer exists, like the optional
+# upload transports. The backend is dlopened, never linked: GStreamer must be the
+# distribution's own (a pipewiresrc frozen at build time cannot track an evolving
+# PipeWire daemon), so neither snim_lib nor the executable may link it. snim_lib gets
+# the loader, the module gets everything that touches gst_*. Without the module, or
+# without GStreamer on the host, RecordingFactory keeps returning the stub.
 if(GSTREAMER_AVAILABLE)
     target_sources(snim_lib PRIVATE
-            src/recording/strategies/LinuxRecordingStrategy.cpp
-            src/recording/strategies/LinuxRecordingStrategy.h)
-    target_include_directories(snim_lib PRIVATE ${GSTREAMER_INCLUDE_DIRS})
-    # pkg-config reports plain library names; add its dirs so a non-default prefix links.
-    if(GSTREAMER_LIBRARY_DIRS)
-        target_link_directories(snim_lib PUBLIC ${GSTREAMER_LIBRARY_DIRS})
-    endif()
-    target_link_libraries(snim_lib PUBLIC ${GSTREAMER_LIBRARIES})
+            src/recording/strategies/LinuxRecorderModule.cpp
+            src/recording/strategies/LinuxRecorderModule.h)
     # Activates the Linux branch of RecordingFactory + makes Auto pick the portal
     # recorder. PUBLIC because the tests check the macro.
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_LINUX_RECORDER)
+
+    add_library(snim_recorder_linux MODULE
+            src/recording/strategies/LinuxRecordingStrategy.cpp
+            src/recording/strategies/LinuxRecordingStrategy.h
+            # The portal handshake and the self-location helper are implementation
+            # details of the recorder, so the module carries its own copies: a static
+            # library hands an object out only when something else already pulled it
+            # into the binary doing the loading.
+            src/recording/strategies/ScreenCastPortalSession.cpp
+            src/recording/strategies/ScreenCastPortalSession.h
+            src/core/BundledPaths.cpp
+            src/core/BundledPaths.h)
+    set_target_properties(snim_recorder_linux PROPERTIES
+            OUTPUT_NAME "snim-recorder-linux"
+            # Beside the built binary, the first place the loader looks, so ./build/snim
+            # records without an install step.
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+            # Installed into <prefix>/lib beside the bundled Qt, and the portable tarball
+            # has no AppRun to set LD_LIBRARY_PATH for it.
+            INSTALL_RPATH "$ORIGIN")
+    target_include_directories(snim_recorder_linux PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${GSTREAMER_INCLUDE_DIRS})
+    # pkg-config reports plain library names; add its dirs so a non-default prefix links.
+    if(GSTREAMER_LIBRARY_DIRS)
+        target_link_directories(snim_recorder_linux PRIVATE ${GSTREAMER_LIBRARY_DIRS})
+    endif()
+    target_link_libraries(snim_recorder_linux PRIVATE
+            Qt::Core
+            Qt::Gui
+            Qt::DBus
+            ${GSTREAMER_LIBRARIES})
+    # RecordingStrategy stays undefined in the module and binds to the loading binary at
+    # dlopen time, which needs that binary's own symbols in its dynamic table.
+    set_target_properties(Snim PROPERTIES ENABLE_EXPORTS ON)
+    add_dependencies(Snim snim_recorder_linux)
 endif()
 
 # Wayland layer-shell path for the recording frame overlay. Attaching
@@ -701,6 +732,13 @@ if(UNIX AND NOT APPLE)
     include(GNUInstallDirs)
 
     install(TARGETS Snim RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+    # The recorder module is dlopened, not linked, so no deployment tool finds it by
+    # walking the binary: it needs an install rule of its own for the AppImage and the
+    # portable tarball to carry it (the loader looks in ../lib next to the binary).
+    if(TARGET snim_recorder_linux)
+        install(TARGETS snim_recorder_linux LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    endif()
 
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/deploy/dev.snim.Snim.desktop"
             DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)

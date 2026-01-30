@@ -2,6 +2,7 @@
 
 #include "core/BundledPaths.h"
 #include "recording/RecordingGeometry.h"
+#include "recording/strategies/LinuxRecorderModule.h"
 #include "recording/strategies/ScreenCastPortalSession.h"
 
 #include <gst/gst.h>
@@ -725,3 +726,9 @@ void LinuxRecordingStrategy::teardown()
 }
 
 } // namespace Recording
+
+// The one symbol RecordingFactory resolves out of this module.
+extern "C" Recording::RecordingStrategy *snimCreateLinuxRecorder(QObject *parent)
+{
+    return new Recording::LinuxRecordingStrategy(parent);
+}

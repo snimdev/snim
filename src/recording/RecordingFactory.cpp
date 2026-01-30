@@ -4,7 +4,7 @@
 #include "recording/strategies/MacRecordingStrategy.h"
 #endif
 #ifdef SNIM_HAVE_LINUX_RECORDER
-#include "recording/strategies/LinuxRecordingStrategy.h"
+#include "recording/strategies/LinuxRecorderModule.h"
 #endif
 
 #include <QtGlobal>
@@ -32,13 +32,15 @@ std::unique_ptr<RecordingStrategy> RecordingFactory::createStrategy(StrategyType
 
         case StrategyType::Linux: {
 #ifdef SNIM_HAVE_LINUX_RECORDER
-            auto strategy = std::make_unique<LinuxRecordingStrategy>(parent);
-            if (strategy->isAvailable()) {
+            // The backend lives in a dlopened module, so a host without GStreamer (or
+            // without the module) degrades here exactly like an unavailable backend.
+            std::unique_ptr<RecordingStrategy> strategy(LinuxRecorderModule::create(parent));
+            if (strategy && strategy->isAvailable()) {
                 qDebug() << "Created portal/GStreamer recording strategy";
                 return strategy;
             }
-            qWarning() << "Portal/GStreamer recorder unavailable (needs the ScreenCast portal "
-                          "and an H.264 encoder), using stub";
+            qWarning() << "Portal/GStreamer recorder unavailable (needs the ScreenCast portal, "
+                          "the distribution's GStreamer and an H.264 encoder), using stub";
 #endif
         }
         [[fallthrough]];
@@ -73,8 +75,9 @@ bool RecordingFactory::isStrategyAvailable(StrategyType type)
         }
         case StrategyType::Linux: {
 #ifdef SNIM_HAVE_LINUX_RECORDER
-            auto strategy = std::make_unique<LinuxRecordingStrategy>();
-            return strategy->isAvailable();
+            // Built with Linux recording support is not the same as usable here: the
+            // module still has to load and find its portal, plugins and encoder.
+            return LinuxRecorderModule::isAvailable();
 #else
             return false;
 #endif

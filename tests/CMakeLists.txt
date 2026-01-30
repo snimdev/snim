@@ -41,6 +41,11 @@ set(SNIM_TESTS
         tst_bundledpaths
 )
 
+# The dlopened Linux recorder module only exists where it is built.
+if(GSTREAMER_AVAILABLE)
+    list(APPEND SNIM_TESTS tst_linuxrecordermodule)
+endif()
+
 foreach(test_name ${SNIM_TESTS})
     add_executable(${test_name} ${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE snim_lib Qt6::Test)
@@ -48,6 +53,23 @@ foreach(test_name ${SNIM_TESTS})
     set_tests_properties(${test_name} PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endforeach()
+
+# The Linux recorder is dlopened, so the tests that reach it need the module built, a
+# path to it in the build tree, and (like the app) their own symbols exported: that is
+# what the module's RecordingStrategy references bind to at dlopen time.
+if(GSTREAMER_AVAILABLE)
+    add_dependencies(tst_linuxrecordermodule snim_recorder_linux)
+    target_compile_definitions(tst_linuxrecordermodule PRIVATE
+            SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
+    set_target_properties(tst_linuxrecordermodule PROPERTIES ENABLE_EXPORTS ON)
+
+    # Keeps tst_recordingfactory reaching the real backend, as it did when the strategy
+    # was linked in: without the override it would only ever see the stub.
+    add_dependencies(tst_recordingfactory snim_recorder_linux)
+    set_target_properties(tst_recordingfactory PROPERTIES ENABLE_EXPORTS ON)
+    set_tests_properties(tst_recordingfactory PROPERTIES ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;SNIM_RECORDER_MODULE=$<TARGET_FILE:snim_recorder_linux>")
+endif()
 
 # install() copies the app icon out of the qrc, so this one needs the resources too.
 target_sources(tst_desktopintegration PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
