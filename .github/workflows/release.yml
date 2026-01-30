@@ -198,6 +198,20 @@ jobs:
             ls -R AppDir/usr/plugins || true
             exit 1
           fi
+          # The recorder module leaves its RecordingStrategy base class undefined on
+          # purpose and binds it to snim at dlopen time. Nothing fails at build time if
+          # the binary stops exporting those, recording just degrades to the stub on
+          # every machine, so check the seam: whatever the module borrows, snim exports.
+          module=$(find AppDir/usr -name 'libsnim-recorder-linux.so' -print -quit)
+          test -n "$module" || { echo "::error title=No recorder module::libsnim-recorder-linux.so was not installed into the AppDir"; exit 1; }
+          nm -D --defined-only AppDir/usr/bin/snim | awk '{print $NF}' | sort -u > exported.txt
+          ldd -r "$module" 2>&1 | awk '/^undefined symbol:/ {print $3}' | sort -u > borrowed.txt
+          comm -23 borrowed.txt exported.txt > unresolved.txt
+          if [ -s unresolved.txt ]; then
+            echo "::error title=The recorder module will not dlopen::snim exports none of the symbols below, so recording would fall back to the stub"
+            cat unresolved.txt
+            exit 1
+          fi
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --exclude-library "libgst*" \
             --exclude-library "libglib-2.0.so*" \
@@ -263,15 +277,27 @@ jobs:
           tar -xzf Snim-x86_64.tar.gz -C /opt/snim-test
 
       - name: Every library resolves
+        # The recorder module too: it is dlopened at runtime, so a NEEDED library it
+        # misses would only surface when the user hits record.
         run: |
-          ldd /opt/snim-test/usr/bin/snim > ldd.txt 2>&1 || true
-          echo "--- ldd /opt/snim-test/usr/bin/snim (${{ matrix.image }}) ---"
-          cat ldd.txt
-          if grep -q 'not found' ldd.txt; then
-            echo "::error title=Missing libraries on ${{ matrix.image }}::the bundle needs $(grep -c 'not found' ldd.txt) library/libraries this system does not have"
-            grep 'not found' ldd.txt
-            exit 1
-          fi
+          module=$(find /opt/snim-test/usr -name 'libsnim-recorder-linux.so' -print -quit)
+          test -n "$module" || { echo "::error title=No recorder module::libsnim-recorder-linux.so is not in the tarball"; exit 1; }
+          for binary in /opt/snim-test/usr/bin/snim "$module"; do
+            # -r resolves symbols too: a bundled library that is too old for a host
+            # one shows up as an undefined symbol, never as "not found".
+            ldd -r "$binary" > ldd.txt 2>&1 || true
+            echo "--- ldd -r $binary (${{ matrix.image }}) ---"
+            cat ldd.txt
+            # The module leaves Recording::RecordingStrategy undefined on purpose: those
+            # bind to snim at dlopen time, and the build job proves that seam holds.
+            grep -E 'not found|undefined symbol' ldd.txt \
+              | grep -v 'Recording17RecordingStrategy' > unresolved.txt || true
+            if [ -s unresolved.txt ]; then
+              echo "::error title=Unresolved libraries or symbols on ${{ matrix.image }}::$binary does not fully resolve against this system"
+              cat unresolved.txt
+              exit 1
+            fi
+          done
           echo "All libraries resolved on ${{ matrix.image }}."
 
       - name: It starts and reports its version
