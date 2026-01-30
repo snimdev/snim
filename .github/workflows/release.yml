@@ -251,17 +251,19 @@ jobs:
           # bundles everything else), so this list is the whole contract a target must meet:
           # GLVND, fontconfig, harfbuzz and libwayland-client. The base images already carry
           # the rest of the excludelist (libstdc++, libz, libexpat, libcom_err, libgmp, ...).
-          # GStreamer is on that contract too: the recorder module is dlopened against the
-          # host's copy, so the core library must resolve and the pipeline's elements
-          # (videocrop, videoconvert, capsfilter, valve) live in plugins-base.
+          # glib and GStreamer joined that contract when the bundle stopped carrying them:
+          # Qt needs glib, and the dlopened recorder needs the host's own GStreamer, whose
+          # pipeline elements (videocrop, videoconvert, capsfilter, valve) live in
+          # plugins-base. glib is listed even though GStreamer pulls it in, because the
+          # app must still start on a machine that has no GStreamer at all.
           - image: ubuntu:22.04
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libgstreamer1.0-0 gstreamer1.0-plugins-base
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
           - image: ubuntu:24.04
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libgstreamer1.0-0 gstreamer1.0-plugins-base
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
           - image: debian:12
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libgstreamer1.0-0 gstreamer1.0-plugins-base
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
           - image: fedora:latest
-            setup: dnf install -y libglvnd-glx libglvnd-egl libglvnd-opengl fontconfig libwayland-client gstreamer1 gstreamer1-plugins-base
+            setup: dnf install -y libglvnd-glx libglvnd-egl libglvnd-opengl fontconfig libwayland-client glib2 gstreamer1 gstreamer1-plugins-base
 
     steps:
       - uses: actions/download-artifact@v5
