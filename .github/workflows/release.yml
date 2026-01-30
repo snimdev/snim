@@ -155,6 +155,10 @@ jobs:
           QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
           # Wayland sessions need these; the qt plugin deploys only the xcb platform by default.
           EXTRA_PLATFORM_PLUGINS: "libqwayland-generic.so;libqwayland-egl.so"
+          # The wayland platform plugin refuses to load without a shell integration, so
+          # without these Qt silently falls back to XWayland and layer-shell (the camera
+          # bubble, the recording overlay) disappears with it.
+          EXTRA_QT_PLUGINS: "wayland-shell-integration;wayland-decoration-client;wayland-graphics-integration-client;platformthemes"
           VERSION: ${{ steps.version.outputs.version }}
           OUTPUT: Snim-x86_64.AppImage
           # Lets AppImageUpdate pull the next release without a reinstall. The channel is
@@ -178,6 +182,14 @@ jobs:
           rm -f AppDir/usr/lib/libpipewire-0.3.so*
           rm -rf AppDir/usr/lib/spa-0.2
           test ! -e AppDir/usr/lib/libpipewire-0.3.so.0
+          # A bundle without the xdg-shell integration is exactly what alpha.2 shipped:
+          # the wayland plugin fails to load, the app runs under XWayland, and nothing
+          # says so but a debug line.
+          if [ ! -e AppDir/usr/plugins/wayland-shell-integration/libxdg-shell.so ]; then
+            echo "::error title=No Wayland shell integration::AppDir/usr/plugins/wayland-shell-integration/libxdg-shell.so is missing, so the AppImage would silently run under XWayland"
+            ls -R AppDir/usr/plugins || true
+            exit 1
+          fi
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --exclude-library "libpipewire-0.3.so*" \
             --output appimage
