@@ -42,6 +42,11 @@ pulls the next release from the embedded zsync info, no reinstall needed.
 
 Screen recording on Linux goes through the desktop portal, so it needs PipeWire and
 `xdg-desktop-portal` (plus your compositor's backend) installed and running.
+
+Recording uses your distribution's own GStreamer, so it also needs
+`gstreamer1.0-plugins-good`, `gstreamer1.0-plugins-bad` and `gstreamer1.0-pipewire`
+(Debian, Ubuntu) or `gstreamer1-plugins-good`, `gstreamer1-plugins-bad-free` and
+`pipewire-gstreamer` (Fedora).
 EOF
 
     # A hyphen in the tag means a prerelease (v1.0.0-alpha.1), never a plain release.

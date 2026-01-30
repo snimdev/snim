@@ -63,6 +63,8 @@ jobs:
           # that libgstreamer1.0-dev depends on; apt refuses the mix.
           sudo apt-get remove -y 'libunwind-*-dev' || true
           sudo apt-get update
+          # The GStreamer runtime plugins below are for the test run only: nothing is
+          # bundled any more, the recorder module is dlopened against the user's own.
           sudo apt-get install -y \
             ninja-build \
             libgl1-mesa-dev \
@@ -144,11 +146,9 @@ jobs:
         # tool is a build that changes under us.
         run: |
           LD_TAG=1-alpha-20240109-1
-          GST_PLUGIN_SHA=2a2e67491c32995a3f279ad0ecbe77abd512b42a
           curl -fsSLO "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LD_TAG/linuxdeploy-x86_64.AppImage"
           curl -fsSLO "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/$LD_TAG/linuxdeploy-plugin-qt-x86_64.AppImage"
-          curl -fsSLO "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gstreamer/$GST_PLUGIN_SHA/linuxdeploy-plugin-gstreamer.sh"
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage linuxdeploy-plugin-gstreamer.sh
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
 
       - name: Build AppImage
         env:
@@ -170,18 +170,26 @@ jobs:
           # linuxdeploy resolves NEEDED libs via the linker path; the source-built
           # LayerShellQt lives in the workspace prefix, not a system dir.
           export LD_LIBRARY_PATH="${{ github.workspace }}/deps-prefix/lib:${{ github.workspace }}/deps-prefix/lib/x86_64-linux-gnu:$QT_ROOT_DIR/lib:${LD_LIBRARY_PATH:-}"
-          # The PipeWire client library must stay host-provided: it dlopens SPA
-          # modules from its own install prefix, which a bundle cannot satisfy
-          # (bundled copy = pw_loop_new fails and pipewiresrc segfaults). Deploy
-          # and package are separate passes so the scrub lands before squashing.
+          # GStreamer stays host-provided, core libraries and plugins alike: a
+          # pipewiresrc frozen at build time cannot track an evolving PipeWire daemon
+          # (a 1.20 build fails on a 1.6 daemon with "error alloc buffers"). Only the
+          # dlopened recorder module links it, so nothing here needs it at all. glib
+          # goes with it: GStreamer is all glib, and a bundled 2.72 cannot satisfy a
+          # host libgstreamer built against 2.88. The PipeWire client library stays
+          # host-provided for the same reason, plus it dlopens SPA modules from its own
+          # install prefix (a bundled copy means pw_loop_new fails and pipewiresrc
+          # segfaults). Deploy and package are separate passes so the checks below land
+          # before squashing.
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --desktop-file AppDir/usr/share/applications/dev.snim.Snim.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/dev.snim.Snim.png \
+            --exclude-library "libgst*" \
+            --exclude-library "libglib-2.0.so*" \
+            --exclude-library "libgobject-2.0.so*" \
+            --exclude-library "libgmodule-2.0.so*" \
+            --exclude-library "libgio-2.0.so*" \
             --exclude-library "libpipewire-0.3.so*" \
-            --plugin qt --plugin gstreamer
-          rm -f AppDir/usr/lib/libpipewire-0.3.so*
-          rm -rf AppDir/usr/lib/spa-0.2
-          test ! -e AppDir/usr/lib/libpipewire-0.3.so.0
+            --plugin qt
           # A bundle without the xdg-shell integration is exactly what alpha.2 shipped:
           # the wayland plugin fails to load, the app runs under XWayland, and nothing
           # says so but a debug line.
@@ -191,6 +199,11 @@ jobs:
             exit 1
           fi
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+            --exclude-library "libgst*" \
+            --exclude-library "libglib-2.0.so*" \
+            --exclude-library "libgobject-2.0.so*" \
+            --exclude-library "libgmodule-2.0.so*" \
+            --exclude-library "libgio-2.0.so*" \
             --exclude-library "libpipewire-0.3.so*" \
             --output appimage
 
@@ -224,14 +237,17 @@ jobs:
           # bundles everything else), so this list is the whole contract a target must meet:
           # GLVND, fontconfig, harfbuzz and libwayland-client. The base images already carry
           # the rest of the excludelist (libstdc++, libz, libexpat, libcom_err, libgmp, ...).
+          # GStreamer is on that contract too: the recorder module is dlopened against the
+          # host's copy, so the core library must resolve and the pipeline's elements
+          # (videocrop, videoconvert, capsfilter, valve) live in plugins-base.
           - image: ubuntu:22.04
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libgstreamer1.0-0 gstreamer1.0-plugins-base
           - image: ubuntu:24.04
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libgstreamer1.0-0 gstreamer1.0-plugins-base
           - image: debian:12
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libgstreamer1.0-0 gstreamer1.0-plugins-base
           - image: fedora:latest
-            setup: dnf install -y libglvnd-glx libglvnd-egl libglvnd-opengl fontconfig libwayland-client
+            setup: dnf install -y libglvnd-glx libglvnd-egl libglvnd-opengl fontconfig libwayland-client gstreamer1 gstreamer1-plugins-base
 
     steps:
       - uses: actions/download-artifact@v5
