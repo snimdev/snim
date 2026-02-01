@@ -229,7 +229,7 @@ jobs:
           ldd -r "$module" 2>&1 | awk '/^undefined symbol:/ {print $3}' | sort -u > borrowed.txt
           comm -23 borrowed.txt exported.txt > unresolved.txt
           if [ -s unresolved.txt ]; then
-            echo "::error title=The recorder module will not dlopen::snim exports none of the symbols below, so recording would fall back to the stub"
+            echo "::error title=The recorder module will not dlopen::snim does not export the symbols below, so recording would fall back to the stub"
             cat unresolved.txt
             exit 1
           fi
