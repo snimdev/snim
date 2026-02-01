@@ -201,6 +201,7 @@ jobs:
             --exclude-library "libgobject-2.0.so*" \
             --exclude-library "libgmodule-2.0.so*" \
             --exclude-library "libgio-2.0.so*" \
+            --exclude-library "libwayland-*.so*" \
             --exclude-library "libpipewire-0.3.so*" \
             --plugin qt
           # The qt plugin deploys Qt's own dependencies without honoring
@@ -211,6 +212,13 @@ jobs:
           rm -f AppDir/usr/lib/libglib-2.0.so* AppDir/usr/lib/libgthread-2.0.so*
           test ! -e AppDir/usr/lib/libglib-2.0.so.0
           test ! -e AppDir/usr/lib/libgthread-2.0.so.0
+          # libwayland goes the same way, and for a sharper reason: its interface tables
+          # are the wire protocol. Qt 6.8 binds wl_compositor at version 6, so a modern
+          # compositor sends wl_surface event 2 (preferred_buffer_scale, Wayland 1.22),
+          # and a bundled 1.20 client has no such event: "interface 'wl_surface' has no
+          # event 2" and the connection dies. The client has to be the host's.
+          rm -f AppDir/usr/lib/libwayland-*.so*
+          test ! -e AppDir/usr/lib/libwayland-client.so.0
           # A bundle without the xdg-shell integration is exactly what alpha.2 shipped:
           # the wayland plugin fails to load, the app runs under XWayland, and nothing
           # says so but a debug line.
@@ -240,10 +248,12 @@ jobs:
             --exclude-library "libgobject-2.0.so*" \
             --exclude-library "libgmodule-2.0.so*" \
             --exclude-library "libgio-2.0.so*" \
+            --exclude-library "libwayland-*.so*" \
             --exclude-library "libpipewire-0.3.so*" \
             --output appimage
-          # Nothing may have put glib back while packaging: the tarball is this AppDir.
+          # Nothing may have put them back while packaging: the tarball is this AppDir.
           test ! -e AppDir/usr/lib/libglib-2.0.so.0
+          test ! -e AppDir/usr/lib/libwayland-client.so.0
 
       - name: Pack the portable tarball
         # The same AppDir, unsquashed: an extracted install lives at a stable path, which
@@ -275,19 +285,21 @@ jobs:
           # bundles everything else), so this list is the whole contract a target must meet:
           # GLVND, fontconfig, harfbuzz and libwayland-client. The base images already carry
           # the rest of the excludelist (libstdc++, libz, libexpat, libcom_err, libgmp, ...).
-          # glib and GStreamer joined that contract when the bundle stopped carrying them:
-          # Qt needs glib, and the dlopened recorder needs the host's own GStreamer, whose
-          # pipeline elements (videocrop, videoconvert, capsfilter, valve) live in
-          # plugins-base. glib is listed even though GStreamer pulls it in, because the
-          # app must still start on a machine that has no GStreamer at all.
+          # glib, Wayland and GStreamer joined that contract when the bundle stopped
+          # carrying them: Qt needs glib, the wayland platform plugin needs a libwayland
+          # that matches the compositor's protocol version, and the dlopened recorder
+          # needs the host's own GStreamer, whose pipeline elements (videocrop,
+          # videoconvert, capsfilter, valve) live in plugins-base. glib is listed even
+          # though GStreamer pulls it in, because the app must still start on a machine
+          # that has no GStreamer at all.
           - image: ubuntu:22.04
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libwayland-cursor0 libwayland-egl1 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
           - image: ubuntu:24.04
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libwayland-cursor0 libwayland-egl1 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
           - image: debian:12
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
+            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libwayland-cursor0 libwayland-egl1 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
           - image: fedora:latest
-            setup: dnf install -y libglvnd-glx libglvnd-egl libglvnd-opengl fontconfig libwayland-client glib2 gstreamer1 gstreamer1-plugins-base
+            setup: dnf install -y libglvnd-glx libglvnd-egl libglvnd-opengl fontconfig libwayland-client libwayland-cursor libwayland-egl glib2 gstreamer1 gstreamer1-plugins-base
 
     steps:
       - uses: actions/download-artifact@v5
@@ -312,7 +324,12 @@ jobs:
           # bundle's own rpath carries it. Without it Qt drops to XWayland in silence.
           shell_integration=/opt/snim-test/usr/plugins/wayland-shell-integration/libxdg-shell.so
           test -e "$shell_integration" || { echo "::error title=No Wayland shell integration::$shell_integration is not in the tarball"; exit 1; }
-          for binary in /opt/snim-test/usr/bin/snim "$module" "$shell_integration"; do
+          # The platform plugin too: it is what binds wl_compositor, so its libwayland
+          # has to be the host's or the connection dies on the first surface event a
+          # newer compositor sends.
+          wayland_platform=/opt/snim-test/usr/plugins/platforms/libqwayland-generic.so
+          test -e "$wayland_platform" || { echo "::error title=No Wayland platform plugin::$wayland_platform is not in the tarball"; exit 1; }
+          for binary in /opt/snim-test/usr/bin/snim "$module" "$shell_integration" "$wayland_platform"; do
             # -r resolves symbols too: a bundled library that is too old for a host
             # one shows up as an undefined symbol, never as "not found".
             ldd -r "$binary" > ldd.txt 2>&1 || true
