@@ -105,7 +105,9 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 fi
 
 echo "==> Fetching origin"
-git fetch --quiet --tags origin
+# --force because the `alpha` channel tag is rolling: every release deletes and recreates
+# it, and a plain fetch refuses to clobber the stale local copy.
+git fetch --quiet --tags --force origin
 
 HEAD_SHA="$(git rev-parse HEAD)"
 if [ "$HEAD_SHA" != "$(git rev-parse origin/main)" ]; then
