@@ -155,10 +155,6 @@ jobs:
           QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
           # Wayland sessions need these; the qt plugin deploys only the xcb platform by default.
           EXTRA_PLATFORM_PLUGINS: "libqwayland-generic.so;libqwayland-egl.so"
-          # The wayland platform plugin refuses to load without a shell integration, so
-          # without these Qt silently falls back to XWayland and layer-shell (the camera
-          # bubble, the recording overlay) disappears with it.
-          EXTRA_QT_PLUGINS: "wayland-shell-integration;wayland-decoration-client;wayland-graphics-integration-client;platformthemes"
           VERSION: ${{ steps.version.outputs.version }}
           OUTPUT: Snim-x86_64.AppImage
           # Lets AppImageUpdate pull the next release without a reinstall. The channel is
@@ -180,9 +176,25 @@ jobs:
           # install prefix (a bundled copy means pw_loop_new fails and pipewiresrc
           # segfaults). Deploy and package are separate passes so the checks below land
           # before squashing.
+          #
+          # The wayland platform plugin refuses to load without a shell integration, and
+          # the pinned qt plugin deploys neither it nor the decorations, so they are
+          # copied in by hand: --deploy-deps-only then pulls their libraries and fixes
+          # their rpath without copying them again.
+          for plugins in wayland-shell-integration wayland-decoration-client wayland-graphics-integration-client; do
+            if [ ! -d "$QT_ROOT_DIR/plugins/$plugins" ]; then
+              echo "::error title=Qt has no $plugins::$QT_ROOT_DIR/plugins/$plugins is missing, so the bundle could only ever run under XWayland"
+              exit 1
+            fi
+            mkdir -p "AppDir/usr/plugins/$plugins"
+            cp -a "$QT_ROOT_DIR/plugins/$plugins/." "AppDir/usr/plugins/$plugins/"
+          done
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --desktop-file AppDir/usr/share/applications/dev.snim.Snim.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/dev.snim.Snim.png \
+            --deploy-deps-only AppDir/usr/plugins/wayland-shell-integration \
+            --deploy-deps-only AppDir/usr/plugins/wayland-decoration-client \
+            --deploy-deps-only AppDir/usr/plugins/wayland-graphics-integration-client \
             --exclude-library "libgst*" \
             --exclude-library "libglib-2.0.so*" \
             --exclude-library "libgobject-2.0.so*" \
@@ -284,7 +296,11 @@ jobs:
         run: |
           module=$(find /opt/snim-test/usr -name 'libsnim-recorder-linux.so' -print -quit)
           test -n "$module" || { echo "::error title=No recorder module::libsnim-recorder-linux.so is not in the tarball"; exit 1; }
-          for binary in /opt/snim-test/usr/bin/snim "$module"; do
+          # No Qt on these images, so the shell integration resolving at all proves the
+          # bundle's own rpath carries it. Without it Qt drops to XWayland in silence.
+          shell_integration=/opt/snim-test/usr/plugins/wayland-shell-integration/libxdg-shell.so
+          test -e "$shell_integration" || { echo "::error title=No Wayland shell integration::$shell_integration is not in the tarball"; exit 1; }
+          for binary in /opt/snim-test/usr/bin/snim "$module" "$shell_integration"; do
             # -r resolves symbols too: a bundled library that is too old for a host
             # one shows up as an undefined symbol, never as "not found".
             ldd -r "$binary" > ldd.txt 2>&1 || true
