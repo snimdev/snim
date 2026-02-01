@@ -23,7 +23,7 @@ jobs:
     # the AppImage stops working on older systems; move the build into a container
     # instead (`container: ubuntu:22.04` on the newest runner, plus sudo-less apt
     # and a manual git/ca-certificates install).
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     timeout-minutes: 90
 
     outputs:
@@ -263,7 +263,7 @@ jobs:
   portability:
     name: Portable tarball (${{ matrix.image }})
     needs: [linux-appimage]
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     container: ${{ matrix.image }}
     timeout-minutes: 20
 
@@ -351,7 +351,7 @@ jobs:
 
   macos-dmg:
     name: DMG (macOS arm64)
-    runs-on: macos-14
+    runs-on: blacksmith-6vcpu-macos-15
     timeout-minutes: 90
 
     steps:
@@ -412,7 +412,7 @@ jobs:
     needs: [linux-appimage, macos-dmg, portability]
     # workflow_dispatch builds the artifacts but never publishes a release.
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
 
     steps:
