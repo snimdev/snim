@@ -420,6 +420,9 @@ if(APPLE)
             src/editor/video/MacVideoExporter.mm
             # macOS keychain backing for the S3 secret access key (Security.framework)
             src/core/KeychainStore_mac.mm
+            # macOS tray crash workaround: neutralises Qt's menu-tracking callback
+            src/core/MacTrayWorkaround.h
+            src/core/MacTrayWorkaround.mm
             # macOS global hotkeys (Carbon RegisterEventHotKey); the header is listed
             # so AUTOMOC sees its Q_OBJECT, as with the .mm-backed classes above
             src/hotkeys/backends/MacHotkeyBackend.h

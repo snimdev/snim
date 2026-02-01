@@ -24,6 +24,9 @@
 #ifdef Q_OS_LINUX
 #include "capture/strategies/KWinCaptureStrategy.h"
 #endif
+#ifdef Q_OS_MACOS
+#include "core/MacTrayWorkaround.h"
+#endif
 #include "hotkeys/GlobalHotkeyManager.h"
 #include "hotkeys/HotkeyBindings.h"
 #include "editor/image/ImageEditor.h"
@@ -251,6 +254,10 @@ namespace Core {
         m_trayMenu->addAction(m_quitAction);
 
         // Create tray icon
+#ifdef Q_OS_MACOS
+        // Before the status item exists: Qt's menu-tracking callback aborts on macOS 27.
+        applyTrayMenuTrackingWorkaround();
+#endif
         m_trayIcon = new QSystemTrayIcon(this);
         m_trayIcon->setContextMenu(m_trayMenu);
         m_trayIcon->setIcon(createThemedTrayIcon(":/icons/icons/tray-icon.svg"));
