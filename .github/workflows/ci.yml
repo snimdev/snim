@@ -7,7 +7,7 @@ on:
 jobs:
   build-and-test:
     name: Build & test (macOS)
-    runs-on: macos-14   # Apple Silicon, matches the /opt/homebrew dev environment
+    runs-on: blacksmith-6vcpu-macos-15   # Apple Silicon, matches the /opt/homebrew dev environment
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
 
     steps:
@@ -37,7 +37,7 @@ jobs:
 
   linux:
     name: Build & test (Linux)
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
 
     steps:
