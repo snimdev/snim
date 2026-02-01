@@ -197,11 +197,20 @@ jobs:
             --deploy-deps-only AppDir/usr/plugins/wayland-graphics-integration-client \
             --exclude-library "libgst*" \
             --exclude-library "libglib-2.0.so*" \
+            --exclude-library "libgthread-2.0.so*" \
             --exclude-library "libgobject-2.0.so*" \
             --exclude-library "libgmodule-2.0.so*" \
             --exclude-library "libgio-2.0.so*" \
             --exclude-library "libpipewire-0.3.so*" \
             --plugin qt
+          # The qt plugin deploys Qt's own dependencies without honoring
+          # --exclude-library, so glib comes back in through Qt6Core every time. It has
+          # to go: the host's libgstreamer binds to whatever libglib is already loaded,
+          # and a bundled 2.72 leaves a Fedora 2.88 libgstreamer full of undefined
+          # symbols, which is a recorder module that will not dlopen.
+          rm -f AppDir/usr/lib/libglib-2.0.so* AppDir/usr/lib/libgthread-2.0.so*
+          test ! -e AppDir/usr/lib/libglib-2.0.so.0
+          test ! -e AppDir/usr/lib/libgthread-2.0.so.0
           # A bundle without the xdg-shell integration is exactly what alpha.2 shipped:
           # the wayland plugin fails to load, the app runs under XWayland, and nothing
           # says so but a debug line.
@@ -227,11 +236,14 @@ jobs:
           ./linuxdeploy-x86_64.AppImage --appdir AppDir \
             --exclude-library "libgst*" \
             --exclude-library "libglib-2.0.so*" \
+            --exclude-library "libgthread-2.0.so*" \
             --exclude-library "libgobject-2.0.so*" \
             --exclude-library "libgmodule-2.0.so*" \
             --exclude-library "libgio-2.0.so*" \
             --exclude-library "libpipewire-0.3.so*" \
             --output appimage
+          # Nothing may have put glib back while packaging: the tarball is this AppDir.
+          test ! -e AppDir/usr/lib/libglib-2.0.so.0
 
       - name: Pack the portable tarball
         # The same AppDir, unsquashed: an extracted install lives at a stable path, which
