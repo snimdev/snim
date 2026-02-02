@@ -52,10 +52,11 @@ jobs:
       - name: Install Qt
         # Ubuntu 24.04's apt Qt is 6.4, below the project's 6.5 minimum
         # (permission API), so Qt comes from the online archives instead.
+        # qtimageformats ships the Qt WebP reader the tests read their output back with.
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.*'
-          modules: 'qtmultimedia'
+          modules: 'qtmultimedia qtimageformats'
           cache: true
 
       - name: Install system dependencies
