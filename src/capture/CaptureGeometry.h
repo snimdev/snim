@@ -1,0 +1,55 @@
+#ifndef CAPTURE_CAPTUREGEOMETRY_H
+#define CAPTURE_CAPTUREGEOMETRY_H
+
+#include <QPixmap>
+#include <QRect>
+#include <QSize>
+
+namespace Capture {
+
+/**
+ * The one copy of the virtual-desktop crop math shared by every capture strategy.
+ * Header-only and widget-free (no platform code, no QWidget) so the macOS/X11
+ * native path, the portal-Wayland path, the KWin path and the headless unit tests
+ * all agree on the riskiest arithmetic: AreaSelector reports the selection in
+ * VIRTUAL-DESKTOP LOGICAL coordinates, while the frozen frame is a physical-pixel
+ * pixmap whose origin is the virtual desktop's top-left.
+ */
+
+// Pure: the physical pixmap rect for a virtual-desktop logical selection.
+inline QRect physicalCropRect(const QRect &area, const QRect &virtualGeometry,
+                              qreal dpr, const QSize &pixmapSize)
+{
+    if (area.isEmpty())
+        return QRect();
+
+    QRect physicalArea(
+        (area.x() - virtualGeometry.x()) * dpr,
+        (area.y() - virtualGeometry.y()) * dpr,
+        area.width()  * dpr,
+        area.height() * dpr);
+    return physicalArea.intersected(QRect(QPoint(0, 0), pixmapSize));
+}
+
+// Crops and restores the DPR on the result.
+inline QPixmap cropVirtualArea(const QPixmap &shot, const QRect &virtualGeometry,
+                               const QRect &area)
+{
+    if (shot.isNull() || area.isEmpty())
+        return QPixmap();
+
+    const qreal dpr = shot.devicePixelRatio();
+    const QRect physical = physicalCropRect(area, virtualGeometry, dpr, shot.size());
+    // copy() reads a null rect as "the whole pixmap", so a selection that clamps away
+    // to nothing has to be rejected here or it silently returns the entire desktop.
+    if (physical.isEmpty())
+        return QPixmap();
+
+    QPixmap cropped = shot.copy(physical);
+    cropped.setDevicePixelRatio(dpr);
+    return cropped;
+}
+
+} // namespace Capture
+
+#endif // CAPTURE_CAPTUREGEOMETRY_H

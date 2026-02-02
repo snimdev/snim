@@ -1,5 +1,6 @@
 #include "NativeCaptureStrategy.h"
 #include "../AreaSelector.h"
+#include "../CaptureGeometry.h"
 #include "../WindowEnumerator.h"
 #ifdef Q_OS_MACOS
 #include "../MacOverlay.h"
@@ -12,9 +13,6 @@
 #include <QWindow>
 #include <QPainter>
 #include <QGuiApplication>
-#include <QClipboard>
-#include <QFileDialog>
-#include <QStandardPaths>
 #include <algorithm>
 
 namespace Capture {
@@ -80,20 +78,12 @@ QPixmap NativeCaptureStrategy::cropSelection(const QRect &area) const
         return QPixmap();
 
     // area is in virtual-desktop logical coords; map to physical pixmap coords.
-    const qreal dpr = m_fullScreenshot.devicePixelRatio();
-    QRect physicalArea(
-        (area.x() - m_virtualGeometry.x()) * dpr,
-        (area.y() - m_virtualGeometry.y()) * dpr,
-        area.width()  * dpr,
-        area.height() * dpr);
-    physicalArea = physicalArea.intersected(m_fullScreenshot.rect());
-
     qDebug() << "Selected area (logical):" << area
-             << "Physical area:" << physicalArea;
+             << "Physical area:" << physicalCropRect(area, m_virtualGeometry,
+                                                     m_fullScreenshot.devicePixelRatio(),
+                                                     m_fullScreenshot.size());
 
-    QPixmap finalScreenshot = m_fullScreenshot.copy(physicalArea);
-    finalScreenshot.setDevicePixelRatio(dpr);
-    return finalScreenshot;
+    return cropVirtualArea(m_fullScreenshot, m_virtualGeometry, area);
 }
 
 void NativeCaptureStrategy::onAreaSelected(const QRect &area)
@@ -116,30 +106,19 @@ void NativeCaptureStrategy::onAreaSelected(const QRect &area)
 
 void NativeCaptureStrategy::onCopyRequested(const QRect &area)
 {
-    const QPixmap cropped = cropSelection(area);
-    if (!cropped.isNull()) {
-        QGuiApplication::clipboard()->setPixmap(cropped);
-        qDebug() << "Selection copied to clipboard:" << cropped.size();
-    }
+    copyAreaToClipboard(m_fullScreenshot, m_virtualGeometry, area);
     m_fullScreenshot = QPixmap();
     m_virtualGeometry = QRect();
 }
 
 void NativeCaptureStrategy::onSaveRequested(const QRect &area)
 {
-    const QPixmap cropped = cropSelection(area);
+    // Drop the stored frame before the modal dialog runs, as the old inline save did.
+    const QPixmap shot = m_fullScreenshot;
+    const QRect virtualGeometry = m_virtualGeometry;
     m_fullScreenshot = QPixmap();
     m_virtualGeometry = QRect();
-    if (cropped.isNull())
-        return;
-
-    // The overlay is already torn down, so this dialog isn't hidden behind it.
-    const QString fileName = QFileDialog::getSaveFileName(
-        nullptr, "Save Screenshot",
-        QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/screenshot.png",
-        "Image Files (*.png *.jpg *.bmp)");
-    if (!fileName.isEmpty())
-        cropped.save(fileName);
+    saveAreaToFile(shot, virtualGeometry, area);
 }
 
 QPixmap NativeCaptureStrategy::captureScreen()

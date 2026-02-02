@@ -1,5 +1,6 @@
 #include "KWinCaptureStrategy.h"
 #include "../AreaSelector.h"
+#include "../CaptureGeometry.h"
 
 #include <QApplication>
 #include <QDBusConnection>
@@ -473,6 +474,19 @@ void KWinCaptureStrategy::fallbackToInteractive(bool showSelector, int kind)
 
 // --- Area selector (reused from WaylandCaptureStrategy pattern) ---
 
+// Every terminal action (accept, cancel, copy, save) tears down ALL per-screen
+// overlays first, so nothing is left covering the screen or the save dialog.
+static void tearDownSelectors(QList<AreaSelector*> *selectors)
+{
+    for (auto *sel : *selectors) {
+        sel->blockSignals(true);
+        sel->close();
+        sel->deleteLater();
+    }
+    selectors->clear();
+    delete selectors;
+}
+
 void KWinCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry)
 {
     qDebug() << "Showing area selector, virtual geometry:" << virtualGeometry
@@ -487,10 +501,13 @@ void KWinCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRec
         selector->setScreenshot(screenshot);
         selector->setVirtualGeometry(virtualGeometry);
         selector->setScreenOffset(screenGeometry.topLeft());
+        selector->setActionsEnabled(quickActionsEnabled());
 
         selector->setGeometry(screenGeometry);
         selector->setWindowState(Qt::WindowFullScreen);
-        selector->windowHandle()->setScreen(screen);
+        selector->winId(); // ensure the native window exists before placing it
+        if (QWindow *wh = selector->windowHandle())
+            wh->setScreen(screen);
         selector->showFullScreen();
 
         selectors->append(selector);
@@ -499,32 +516,26 @@ void KWinCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRec
     for (auto *selector : *selectors) {
         connect(selector, &AreaSelector::areaSelected,
                 this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
-            for (auto *sel : *selectors) {
-                sel->blockSignals(true);
-                sel->close();
-                sel->deleteLater();
-            }
-            selectors->clear();
-            delete selectors;
+            tearDownSelectors(selectors);
 
             if (area.isEmpty()) {
                 qDebug() << "Area selection cancelled";
                 return;
             }
 
-            qreal dpr = screenshot.devicePixelRatio();
-            QRect physicalArea(
-                (area.x() - virtualGeometry.x()) * dpr,
-                (area.y() - virtualGeometry.y()) * dpr,
-                area.width() * dpr,
-                area.height() * dpr
-            );
-            physicalArea = physicalArea.intersected(screenshot.rect());
-
-            QPixmap finalScreenshot = screenshot.copy(physicalArea);
-            finalScreenshot.setDevicePixelRatio(dpr);
-
-            emit screenshotReady(finalScreenshot);
+            // area is in virtual-desktop logical coords; map to physical pixmap coords.
+            emit screenshotReady(cropVirtualArea(screenshot, virtualGeometry, area));
+        });
+        connect(selector, &AreaSelector::copyRequested,
+                this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
+            tearDownSelectors(selectors);
+            copyAreaToClipboard(screenshot, virtualGeometry, area);
+        });
+        connect(selector, &AreaSelector::saveRequested,
+                this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
+            // Teardown first, or the save dialog opens behind the overlay.
+            tearDownSelectors(selectors);
+            saveAreaToFile(screenshot, virtualGeometry, area);
         });
     }
 }

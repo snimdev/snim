@@ -15,6 +15,7 @@ set(SNIM_TESTS
         tst_backdrop_memento
         tst_layermanager
         tst_capturefactory
+        tst_capturegeometry
         tst_ocrservice
         tst_integration_scene
         tst_recordingfactory
