@@ -1,7 +1,7 @@
 #ifndef EDITOR_VIDEO_VIDEOEXPORTER_H
 #define EDITOR_VIDEO_VIDEOEXPORTER_H
 
-#include "editor/video/GifParams.h"
+#include "editor/video/AnimationParams.h"
 
 #include <QObject>
 #include <QString>
@@ -12,7 +12,7 @@ namespace Editor::Video {
 /**
  * Platform seam for cutting a recording down to a time range. The macOS
  * implementation remuxes with AVAssetExportSession (no re-encode); other
- * platforms get a stub that reports trimming as unavailable — untrimmed saves
+ * platforms get a stub that reports trimming as unavailable, since untrimmed saves
  * are a plain file move and never touch this interface.
  */
 class VideoExporter : public QObject
@@ -21,6 +21,7 @@ class VideoExporter : public QObject
 
 public:
     explicit VideoExporter(QObject *parent = nullptr) : QObject(parent) {}
+    ~VideoExporter() override;
 
     // Asynchronously write [inMs, outMs] of input to output (overwriting it).
     // Exactly one of finished()/failed() fires later, on this object's thread.
@@ -31,9 +32,11 @@ public:
     // (overwriting it), per `params`. Same finished()/failed() contract as trim();
     // emits progress() per frame. The stub reports it as unavailable.
     virtual void toGif(const QString &input, const QString &output,
-                       qint64 inMs, qint64 outMs, const GifParams &params) = 0;
+                       qint64 inMs, qint64 outMs, const AnimationParams &params) = 0;
 
-    virtual void cancel() {}                       // best-effort
+    // Best-effort stop of a running trim/GIF. Silent, so no finished()/failed() follows.
+    virtual void cancel() {}
+
     [[nodiscard]] virtual bool isAvailable() const = 0;
 
     // Platform pick, mirroring RecordingFactory's stub-is-universal layout.
@@ -42,7 +45,7 @@ public:
 signals:
     void finished(const QString &outputPath);
     void failed(const QString &error);
-    void progress(int done, int total);           // GIF encode, per frame
+    void progress(int done, int total);           // per frame, GIF
 };
 
 } // namespace Editor::Video

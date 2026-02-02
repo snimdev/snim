@@ -155,6 +155,48 @@ else()
     message(STATUS "  Install with: brew install libssh2 / sudo apt install libssh2-1-dev")
 endif()
 
+# Required libwebp - animated WebP export in the trim editor (a silent short loop at a
+# fraction of the GIF's size). Unlike the upload transports this is not optional: every
+# build ships the feature, so a missing dev package fails the configure step below.
+set(LIBWEBP_AVAILABLE FALSE)
+
+if(PkgConfig_FOUND)
+    pkg_check_modules(LIBWEBP libwebp)
+    pkg_check_modules(LIBWEBPMUX libwebpmux)
+    if(LIBWEBP_FOUND AND LIBWEBPMUX_FOUND)
+        set(LIBWEBP_AVAILABLE TRUE)
+        message(STATUS "libwebp found via pkg-config - animated WebP export")
+        message(STATUS "  Version: ${LIBWEBP_VERSION}")
+        message(STATUS "  Include: ${LIBWEBP_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${LIBWEBPMUX_LIBRARIES} ${LIBWEBP_LIBRARIES}")
+    endif()
+endif()
+
+# The animated encoder needs both libraries, so a partial find is not usable.
+if(NOT LIBWEBP_AVAILABLE)
+    find_path(WebP_INCLUDE_DIR webp/encode.h
+        PATHS /usr/include /usr/local/include /opt/homebrew/include)
+    find_library(WebP_LIBRARY webp
+        PATHS /usr/lib64 /usr/lib /usr/local/lib /opt/homebrew/lib)
+    find_library(WebPMux_LIBRARY webpmux
+        PATHS /usr/lib64 /usr/lib /usr/local/lib /opt/homebrew/lib)
+
+    if(WebP_INCLUDE_DIR AND WebP_LIBRARY AND WebPMux_LIBRARY)
+        set(LIBWEBP_AVAILABLE TRUE)
+        set(LIBWEBP_INCLUDE_DIRS ${WebP_INCLUDE_DIR})
+        set(LIBWEBP_LIBRARIES ${WebPMux_LIBRARY} ${WebP_LIBRARY})
+        message(STATUS "libwebp found (manual detection) - animated WebP export")
+        message(STATUS "  Include: ${LIBWEBP_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${LIBWEBP_LIBRARIES}")
+    endif()
+endif()
+
+if(NOT LIBWEBP_AVAILABLE)
+    message(FATAL_ERROR
+            "libwebp is required but was not found.\n"
+            "  Install with: sudo apt install libwebp-dev / sudo dnf install libwebp-devel / brew install webp")
+endif()
+
 # Optional GStreamer - Linux screen recording (portal ScreenCast stream -> H.264 file)
 set(GSTREAMER_AVAILABLE FALSE)
 
@@ -342,9 +384,17 @@ add_library(snim_lib STATIC
         src/editor/video/VideoEditor.cpp
         src/editor/video/VideoEditor.h
         src/editor/video/VideoExporter.h
-        src/editor/video/GifParams.h
+        src/editor/video/VideoExporter.cpp
+        src/editor/video/AnimationParams.h
+        src/editor/video/VideoFrameGrabber.h
+        src/editor/video/MediaFrameGrabber.cpp
+        src/editor/video/MediaFrameGrabber.h
         src/editor/video/StubVideoExporter.cpp
         src/editor/video/StubVideoExporter.h
+        src/editor/video/WebpEncoder.cpp
+        src/editor/video/WebpEncoder.h
+        src/editor/video/WebpExporter.cpp
+        src/editor/video/WebpExporter.h
 
         # Recording: platform-agnostic Strategy + Factory (the macOS ScreenCaptureKit
         # backend is added in the APPLE block below). The stub is the universal fallback.
@@ -636,6 +686,27 @@ if(LIBSSH2_AVAILABLE)
     endif()
     target_link_libraries(snim_lib PUBLIC ${LIBSSH2_LIBRARIES})
 endif()
+
+# Animated WebP export (shared, not macOS-only). PUBLIC link so the tests resolve the
+# same symbols.
+# libwebp's pkg-config reports <prefix>/include/webp, so add the parent of each
+# reported dir to let the canonical <webp/encode.h> resolve too (as the Tesseract
+# block does for leptonica).
+set(_webp_inc ${LIBWEBP_INCLUDE_DIRS})
+foreach(_d ${LIBWEBP_INCLUDE_DIRS})
+    get_filename_component(_p "${_d}" DIRECTORY)
+    if(_p)
+        list(APPEND _webp_inc "${_p}")
+    endif()
+endforeach()
+list(REMOVE_DUPLICATES _webp_inc)
+target_include_directories(snim_lib PRIVATE ${_webp_inc})
+# pkg-config reports plain library names; add its dirs so a non-default prefix
+# (Homebrew) still links. Empty for the manual-detection fallback (absolute paths).
+if(LIBWEBP_LIBRARY_DIRS)
+    target_link_directories(snim_lib PUBLIC ${LIBWEBP_LIBRARY_DIRS})
+endif()
+target_link_libraries(snim_lib PUBLIC ${LIBWEBPMUX_LIBRARIES} ${LIBWEBP_LIBRARIES})
 
 # ---------------------------------------------------------------------------
 # macOS application bundle + deployment

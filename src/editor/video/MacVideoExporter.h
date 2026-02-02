@@ -24,7 +24,7 @@ public:
     void trim(const QString &input, const QString &output,
               qint64 inMs, qint64 outMs) override;
     void toGif(const QString &input, const QString &output,
-               qint64 inMs, qint64 outMs, const GifParams &params) override;
+               qint64 inMs, qint64 outMs, const AnimationParams &params) override;
     void cancel() override;
     [[nodiscard]] bool isAvailable() const override { return true; }
 

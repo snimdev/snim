@@ -57,6 +57,28 @@ if ! grep -Fxq "@executable_path/../Frameworks" <<<"$existing_rpaths"; then
     install_name_tool -add_rpath "@executable_path/../Frameworks" "$EXE"
 fi
 
+echo "==> Verifying bundled dependencies"
+# libwebp is required, so a build that does not link it is broken, not a variant.
+if ! otool -L "$EXE" | grep -qi "libwebp"; then
+    echo "error: $EXE does not link libwebp" >&2
+    exit 1
+fi
+
+# Any absolute Homebrew path left anywhere in the bundle means the DMG would fail to
+# launch on a Mac without Homebrew. Scanned across every Mach-O macdeployqt touched
+# rather than a hand-listed set: libwebp alone pulls in libsharpyuv transitively, and
+# tesseract, leptonica and archive were never covered by a list at all.
+leaked="$(find "$APP" -type f \( -name '*.dylib' -o -name '*.so' -o -perm -100 \) -print0 \
+    | xargs -0 otool -L 2>/dev/null \
+    | grep -E '^[[:space:]]+(/opt/homebrew|/usr/local)' \
+    | sort -u || true)"
+if [ -n "$leaked" ]; then
+    echo "error: $APP still references libraries outside the bundle:" >&2
+    echo "$leaked" >&2
+    exit 1
+fi
+echo "    no Homebrew or /usr/local references left in the bundle"
+
 echo "==> Bundling tessdata"
 # OCR needs a language pack next to the binary; a user's Mac has no Homebrew tessdata.
 # Must happen before signing, or the added file invalidates the signature.

@@ -21,6 +21,7 @@ QString contentTypeFor(const QString &keyHint)
     if (ext == "png")  return QStringLiteral("image/png");
     if (ext == "jpg" || ext == "jpeg") return QStringLiteral("image/jpeg");
     if (ext == "gif")  return QStringLiteral("image/gif");
+    if (ext == "webp") return QStringLiteral("image/webp");
     if (ext == "mp4" || ext == "mov")  return QStringLiteral("video/mp4");
     return QStringLiteral("application/octet-stream");
 }

@@ -1,6 +1,8 @@
 #ifndef EDITOR_VIDEO_VIDEOEDITOR_H
 #define EDITOR_VIDEO_VIDEOEDITOR_H
 
+#include "editor/video/AnimationParams.h"
+
 #include <QMainWindow>
 #include <QMediaPlayer>
 #include <memory>
@@ -14,6 +16,7 @@ namespace Editor::Video {
 
 class TrimTimeline;
 class VideoExporter;
+class WebpExporter;
 
 /**
  * The post-recording window: a finished recording opens here (instead of a bare
@@ -47,7 +50,6 @@ protected:
 private slots:
     void onSave();
     void onCopy();
-    void onExportGif();
     void doUpload(const QString &profileId);   // empty id = default destination
     void togglePlayPause();
     void onDurationChanged(qint64 durationMs);
@@ -58,26 +60,28 @@ private slots:
     void onExportProgress(int done, int total);
 
 private:
-    enum class Pending { None, SaveMove, Copy, ExportGif, Upload };
+    enum class Pending { None, SaveMove, Copy, ExportAnimation, Upload };
 
     void setupUi();
+    void exportAnimation(AnimationFormat format);
     void previewFailed();
     void setBusy(bool busy);
     void updateTimeLabel();
     void updatePlayPauseIcon();
     [[nodiscard]] QIcon themedIcon(const QString &svgPath) const;
     [[nodiscard]] QString suggestedFileName() const;
-    [[nodiscard]] QString suggestedGifFileName() const;
     [[nodiscard]] QString recordingsDir() const;     // ensured to exist
     bool moveFileTo(const QString &source, const QString &dest);
     void finishSaved(const QString &finalPath);      // mark saved, notify, close
     VideoExporter *exporter();                       // lazily created + wired
+    WebpExporter *webpExporter();                    // the same, for animated WebP
     static void putOnClipboard(const QString &path);
 
     QString m_tempPath;            // the recording, owned by this editor
     QString m_exportTempPath;      // trim output while a SaveMove export runs
     QString m_pendingDest;         // chosen destination awaiting export completion
     Pending m_pending = Pending::None;
+    AnimationFormat m_animationFormat = AnimationFormat::Gif;
     bool m_previewOk = true;
     bool m_saved = false;          // suppresses the discard prompt on close
 
@@ -92,10 +96,12 @@ private:
     QAction *m_saveAction = nullptr;
     QAction *m_copyAction = nullptr;
     QAction *m_gifAction = nullptr;
+    QAction *m_webpAction = nullptr;
     QAction *m_uploadAction = nullptr;
     QAction *m_discardAction = nullptr;
     QString m_pendingUploadProfileId;   // carries the chosen profile across a trimmed export
     std::unique_ptr<VideoExporter> m_exporter;
+    std::unique_ptr<WebpExporter> m_webpExporter;
 };
 
 } // namespace Editor::Video

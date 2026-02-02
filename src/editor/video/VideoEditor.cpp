@@ -2,7 +2,8 @@
 #include "editor/EditorChrome.h"
 #include "editor/video/TrimTimeline.h"
 #include "editor/video/VideoExporter.h"
-#include "editor/video/GifParams.h"
+#include "editor/video/WebpExporter.h"
+#include "editor/video/AnimationParams.h"
 #include "upload/UploaderFactory.h"
 #include "upload/UploadConfig.h"
 #include "upload/UploadMenu.h"
@@ -42,6 +43,27 @@ QString formatMs(qint64 ms)
     const qint64 totalSec = ms / 1000;
     return QStringLiteral("%1:%2").arg(totalSec / 60)
                                   .arg(totalSec % 60, 2, 10, QLatin1Char('0'));
+}
+
+// Everything the animation export path reads off the chosen format.
+struct AnimationFormatInfo {
+    QString extension;     // also the saved file's and the temp file's suffix
+    QString dialogTitle;
+    QString nameFilter;
+    QString tempPrefix;
+    QString label;         // the format's name in status and error text
+};
+
+// A function, not a static table: tr() must not run before QApplication exists.
+AnimationFormatInfo animationFormatInfo(AnimationFormat format)
+{
+    if (format == AnimationFormat::WebP)
+        return {QStringLiteral("webp"), VideoEditor::tr("Export WebP"),
+                VideoEditor::tr("WebP (*.webp)"), QStringLiteral("Snim_webp_"),
+                VideoEditor::tr("WebP")};
+    return {QStringLiteral("gif"), VideoEditor::tr("Export GIF"),
+            VideoEditor::tr("GIF (*.gif)"), QStringLiteral("Snim_gif_"),
+            VideoEditor::tr("GIF")};
 }
 } // namespace
 
@@ -113,7 +135,13 @@ void VideoEditor::setupUi()
 
     m_gifAction = m_toolbar->addAction(themedIcon(":/icons/icons/export-gif.svg"), QString());
     m_gifAction->setToolTip(tr("Export the trimmed range as an animated GIF"));
-    connect(m_gifAction, &QAction::triggered, this, &VideoEditor::onExportGif);
+    connect(m_gifAction, &QAction::triggered, this,
+            [this] { exportAnimation(AnimationFormat::Gif); });
+
+    m_webpAction = m_toolbar->addAction(themedIcon(":/icons/icons/export-webp.svg"), QString());
+    m_webpAction->setToolTip(tr("Export the trimmed range as an animated WebP"));
+    connect(m_webpAction, &QAction::triggered, this,
+            [this] { exportAnimation(AnimationFormat::WebP); });
 
     // Upload as a split button: click = default destination; ▾ = pick a saved server.
     m_uploadAction = new QAction(themedIcon(":/icons/icons/upload.svg"), QString(), this);
@@ -294,11 +322,6 @@ QString VideoEditor::suggestedFileName() const
     return name;
 }
 
-QString VideoEditor::suggestedGifFileName() const
-{
-    return gifFileNameFor(suggestedFileName());   // swap the extension for .gif
-}
-
 QString VideoEditor::recordingsDir() const
 {
     const QString dir = Core::Settings::recordingFolder();
@@ -334,11 +357,26 @@ VideoExporter *VideoEditor::exporter()
     return m_exporter.get();
 }
 
+WebpExporter *VideoEditor::webpExporter()
+{
+    if (!m_webpExporter) {
+        m_webpExporter = std::make_unique<WebpExporter>(this);
+        connect(m_webpExporter.get(), &WebpExporter::finished,
+                this, &VideoEditor::onExporterFinished);
+        connect(m_webpExporter.get(), &WebpExporter::failed,
+                this, &VideoEditor::onExporterFailed);
+        connect(m_webpExporter.get(), &WebpExporter::progress,
+                this, &VideoEditor::onExportProgress);
+    }
+    return m_webpExporter.get();
+}
+
 void VideoEditor::setBusy(bool busy)
 {
     m_saveAction->setEnabled(!busy);
     m_copyAction->setEnabled(!busy);
     m_gifAction->setEnabled(!busy && m_previewOk);   // GIF needs a decodable source
+    m_webpAction->setEnabled(!busy && m_previewOk);   // WebP needs a decodable source
     m_uploadAction->setEnabled(!busy);
     m_discardAction->setEnabled(!busy);
     m_playPauseAction->setEnabled(!busy && m_previewOk);
@@ -409,36 +447,43 @@ void VideoEditor::onCopy()
     exporter()->trim(m_tempPath, dest, state.inMs(), state.outMs());   // straight to dest
 }
 
-void VideoEditor::onExportGif()
+void VideoEditor::exportAnimation(AnimationFormat format)
 {
     if (!m_previewOk)
         return;
-    const QString dest = QFileDialog::getSaveFileName(
-        this, tr("Export GIF"), recordingsDir() + "/" + suggestedGifFileName(),
-        tr("GIF (*.gif)"));
-    if (dest.isEmpty())
-        return;                                   // cancelled: keep editing
 
-    if (!exporter()->isAvailable()) {
+    const AnimationFormatInfo info = animationFormatInfo(format);
+    if (format == AnimationFormat::Gif && !exporter()->isAvailable()) {
         QMessageBox::warning(this, tr("GIF Unavailable"),
                              tr("Exporting to GIF is not supported on this platform."));
         return;
     }
 
-    // GIF always re-encodes (no fast-path move): export the full clip when untrimmed.
+    const QString dest = QFileDialog::getSaveFileName(
+        this, info.dialogTitle,
+        recordingsDir() + "/" + animationFileNameFor(suggestedFileName(), info.extension),
+        info.nameFilter);
+    if (dest.isEmpty())
+        return;                                   // cancelled: keep editing
+
+    // Both formats always re-encode (no fast-path move): use the whole clip untrimmed.
     const TrimState &state = m_timeline->state();
     const qint64 in = state.isTrimmed() ? state.inMs() : 0;
     const qint64 out = state.isTrimmed() ? state.outMs() : state.durationMs();
 
-    m_pending = Pending::ExportGif;
+    m_animationFormat = format;
+    m_pending = Pending::ExportAnimation;
     m_pendingDest = dest;
     m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                       + QStringLiteral("/Snim_gif_")
+                       + QStringLiteral("/") + info.tempPrefix
                        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
-                       + QStringLiteral(".gif");
+                       + QStringLiteral(".") + info.extension;
     setBusy(true);
     m_player->pause();
-    exporter()->toGif(m_tempPath, m_exportTempPath, in, out, GifParams{});
+    if (format == AnimationFormat::WebP)
+        webpExporter()->start(m_tempPath, m_exportTempPath, in, out, AnimationParams{});
+    else
+        exporter()->toGif(m_tempPath, m_exportTempPath, in, out, AnimationParams{});
 }
 
 void VideoEditor::doUpload(const QString &profileId)
@@ -508,10 +553,11 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
         emit uploadRequested(exportedPath, QStringLiteral("recording.mp4"), /*deleteWhenDone=*/true,
                              m_pendingUploadProfileId);
         close();
-    } else if (pending == Pending::ExportGif) {
-        // Mirror SaveMove exactly: move the GIF temp to the destination, drop the
-        // source MP4 temp, clear m_exportTempPath on BOTH the success and failure
-        // branches so a later close()/discard never re-removes a stale path.
+    } else if (pending == Pending::ExportAnimation) {
+        // Mirror SaveMove exactly: move the temp to the destination, drop the source MP4
+        // temp, clear m_exportTempPath on BOTH the success and failure branches so a later
+        // close()/discard never re-removes a stale path.
+        const QString label = animationFormatInfo(m_animationFormat).label;
         if (moveFileTo(exportedPath, m_pendingDest)) {
             QFile::remove(m_tempPath);
             m_exportTempPath.clear();
@@ -520,7 +566,7 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
             QFile::remove(exportedPath);
             m_exportTempPath.clear();
             QMessageBox::warning(this, tr("Export Failed"),
-                                 tr("Could not save the GIF to %1").arg(m_pendingDest));
+                                 tr("Could not save the %1 to %2").arg(label, m_pendingDest));
         }
     }
 }
@@ -544,8 +590,11 @@ void VideoEditor::onExporterFailed(const QString &error)
 
 void VideoEditor::onExportProgress(int done, int total)
 {
-    if (m_pending == Pending::ExportGif && total > 0)
-        m_statusLabel->setText(tr("Encoding GIF… %1/%2").arg(done).arg(total));
+    if (m_pending != Pending::ExportAnimation || total <= 0)
+        return;
+    m_statusLabel->setText(tr("Encoding %1… %2/%3")
+                               .arg(animationFormatInfo(m_animationFormat).label)
+                               .arg(done).arg(total));
 }
 
 void VideoEditor::closeEvent(QCloseEvent *event)
@@ -561,6 +610,8 @@ void VideoEditor::closeEvent(QCloseEvent *event)
     if (m_pending != Pending::None) {
         if (m_exporter)
             m_exporter->cancel();
+        if (m_webpExporter)
+            m_webpExporter->cancel();
         m_pending = Pending::None;
     }
 

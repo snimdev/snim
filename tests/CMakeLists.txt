@@ -24,7 +24,10 @@ set(SNIM_TESTS
         tst_recordingoptionsbar
         tst_pcmmixbuffer
         tst_trimstate
-        tst_gifparams
+        tst_animationparams
+        tst_webpencoder
+        tst_webpexporter
+        tst_videoframegrabber
         tst_sigv4
         tst_uploaderfactory
         tst_uploadprofiles

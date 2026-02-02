@@ -112,7 +112,7 @@ void MacVideoExporter::trim(const QString &input, const QString &output,
 }
 
 void MacVideoExporter::toGif(const QString &input, const QString &output,
-                             qint64 inMs, qint64 outMs, const GifParams &paramsIn)
+                             qint64 inMs, qint64 outMs, const AnimationParams &paramsIn)
 {
     bool expected = false;
     if (!d->running.compare_exchange_strong(expected, true)) {
@@ -120,8 +120,8 @@ void MacVideoExporter::toGif(const QString &input, const QString &output,
         return;
     }
 
-    const GifParams params = paramsIn.clamped();
-    const QVector<qint64> frameTimesMs = planGifFrames(inMs, outMs, params.fps);
+    const AnimationParams params = paramsIn.clamped();
+    const QVector<qint64> frameTimesMs = planAnimationFrames(inMs, outMs, params.fps);
     const int total = int(frameTimesMs.size());
     if (total <= 0) {
         d->running.store(false);
@@ -167,7 +167,7 @@ void MacVideoExporter::toGif(const QString &input, const QString &output,
     CGImageDestinationSetProperties(dest, (__bridge CFDictionaryRef)fileProps);
     NSDictionary *frameProps = @{ (id)kCGImagePropertyGIFDictionary :
                                       @{ (id)kCGImagePropertyGIFUnclampedDelayTime :
-                                             @(gifFrameDelaySec(params.fps)) } };
+                                             @(animationFrameDelaySec(params.fps)) } };
 
     QPointer<MacVideoExporter> weak(this);
     const QString outPath = output;
