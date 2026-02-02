@@ -1,8 +1,17 @@
 name: CI
 
 on:
+  # Branches are covered by their pull request; an unfiltered push: would run the
+  # whole matrix a second time for every PR commit.
   push:
+    branches: [main]
   pull_request:
+
+# One run per ref: a new push supersedes the one still going. Never cancel on main,
+# where each run is the record for a merged commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   build-and-test:
