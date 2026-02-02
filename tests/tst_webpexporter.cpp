@@ -14,6 +14,8 @@
 #include "editor/video/VideoFrameGrabber.h"
 #include "editor/video/WebpExporter.h"
 
+#include "VideoBackendProbe.h"
+
 using namespace Editor::Video;
 
 namespace {
@@ -393,6 +395,9 @@ private slots:
 
     void exportsARealClipEndToEnd()
     {
+        if (!TestSupport::videoFramesAvailable())
+            QSKIP("this platform delivers no video frames, so the real clip cannot be decoded");
+
         // The only test that joins the real decoder to the real encoder through the real
         // exporter. Everything else here fakes one end, so a canvas or timing mismatch
         // between the two halves would otherwise only show up in a user's hands.

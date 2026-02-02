@@ -9,6 +9,8 @@
 #include "editor/video/AnimationParams.h"
 #include "editor/video/VideoFrameGrabber.h"
 
+#include "VideoBackendProbe.h"
+
 using namespace Editor::Video;
 
 namespace {
@@ -65,6 +67,12 @@ class tst_VideoFrameGrabber : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase()
+    {
+        if (!TestSupport::videoFramesAvailable())
+            QSKIP("this platform delivers no video frames, so the grabber cannot be exercised");
+    }
+
     void deliversOneFramePerSample()
     {
         const QString clip = clipPath();
