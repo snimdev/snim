@@ -19,6 +19,13 @@ jobs:
     runs-on: blacksmith-6vcpu-macos-15   # Apple Silicon, matches the /opt/homebrew dev environment
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
 
+    # brew install runs a full brew update first unless told not to, which is most
+    # of this job's dependency step.
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+      HOMEBREW_NO_ANALYTICS: 1
+
     steps:
       - uses: actions/checkout@v5
 
