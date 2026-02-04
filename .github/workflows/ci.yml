@@ -79,6 +79,12 @@ jobs:
         # tesseract (OCR) + webp (animated WebP export) + ninja + GL/GStreamer headers.
         # cmake is not installed from apt: the runner image ships a newer one that
         # satisfies cmake_minimum_required.
+        #
+        # tst_videoframegrabber decodes a real clip through Qt Multimedia, which uses
+        # either the FFmpeg or the GStreamer backend depending on how Qt was built.
+        # Both sets are installed so the test exercises the grabber instead of skipping
+        # it for want of a decoder. Nothing here is a runtime dependency of the app: the
+        # same backends ship with Qt in the released bundles.
         run: >
           sudo apt-get update && sudo apt-get install -y
           ninja-build
@@ -88,15 +94,6 @@ jobs:
           libtesseract-dev
           libleptonica-dev
           libwebp-dev
-
-      - name: Install video decoding dependencies
-        # tst_videoframegrabber decodes a real clip through Qt Multimedia, which uses
-        # either the FFmpeg or the GStreamer backend depending on how Qt was built.
-        # Both sets are installed so the test exercises the grabber instead of skipping
-        # it for want of a decoder. Nothing here is a runtime dependency of the app: the
-        # same backends ship with Qt in the released bundles.
-        run: >
-          sudo apt-get install -y
           libavcodec-dev
           libavformat-dev
           libswscale-dev
