@@ -25,6 +25,9 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_INSTALL_CLEANUP: 1
       HOMEBREW_NO_ANALYTICS: 1
+      # Set explicitly: ccache's default cache location differs between versions.
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 500M
 
     steps:
       - uses: actions/checkout@v5
@@ -32,16 +35,29 @@ jobs:
       - name: Install dependencies
         # qt6 + tesseract (OCR) + webp (animated WebP export) + ninja/cmake. cmake is
         # pinned via brew so it satisfies the project's cmake_minimum_required.
-        run: brew install qt tesseract webp ninja cmake
+        run: brew install qt tesseract webp ninja cmake ccache
+
+      - name: Restore the ccache
+        # Compilation only: linking the test binaries is never cached.
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: ccache-${{ runner.os }}-
 
       - name: Configure
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build
+
+      - name: ccache stats
+        run: ccache -s
 
       - name: Test
         working-directory: build
@@ -62,6 +78,11 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
 
+    env:
+      # Set explicitly: ccache's default cache location differs between versions.
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 500M
+
     steps:
       - uses: actions/checkout@v5
 
@@ -76,7 +97,7 @@ jobs:
           cache: true
 
       - name: Install system dependencies
-        # tesseract (OCR) + webp (animated WebP export) + ninja + GL/GStreamer headers.
+        # tesseract (OCR) + webp (animated WebP export) + ninja + ccache + GL/GStreamer headers.
         # cmake is not installed from apt: the runner image ships a newer one that
         # satisfies cmake_minimum_required.
         #
@@ -88,6 +109,7 @@ jobs:
         run: >
           sudo apt-get update && sudo apt-get install -y
           ninja-build
+          ccache
           libgl1-mesa-dev
           libgstreamer1.0-dev
           tesseract-ocr
@@ -101,13 +123,26 @@ jobs:
           gstreamer1.0-plugins-bad
           gstreamer1.0-libav
 
+      - name: Restore the ccache
+        # Compilation only: linking the test binaries is never cached.
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: ccache-${{ runner.os }}-
+
       - name: Configure
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: cmake --build build
+
+      - name: ccache stats
+        run: ccache -s
 
       - name: Test
         working-directory: build
