@@ -22,6 +22,11 @@ set -euo pipefail
 APP="${1:?usage: macos_deploy.sh <app> <macdeployqt>}"
 MACDEPLOYQT="${2:?usage: macos_deploy.sh <app> <macdeployqt>}"
 
+# Every Mach-O in the bundle: dylibs, loadable plugins and any helper binary.
+list_machos() {
+    find "$APP" -type f \( -name '*.dylib' -o -name '*.so' -o -perm -100 \)
+}
+
 EXE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist" 2>/dev/null || true)"
 if [ -z "$EXE_NAME" ]; then
     # Fall back to the single binary in Contents/MacOS if the plist key is absent.
@@ -68,10 +73,11 @@ fi
 # launch on a Mac without Homebrew. Scanned across every Mach-O macdeployqt touched
 # rather than a hand-listed set: libwebp alone pulls in libsharpyuv transitively, and
 # tesseract, leptonica and archive were never covered by a list at all.
-leaked="$(find "$APP" -type f \( -name '*.dylib' -o -name '*.so' -o -perm -100 \) -print0 \
-    | xargs -0 otool -L 2>/dev/null \
-    | grep -E '^[[:space:]]+(/opt/homebrew|/usr/local)' \
-    | sort -u || true)"
+leaked="$(list_machos | while read -r macho; do
+        otool -L "$macho" 2>/dev/null \
+            | grep -E '^[[:space:]]+(/opt/homebrew|/usr/local)' \
+            | awk -v f="${macho#"$APP"/}" '{print f " -> " $1}' || true
+    done | sort -u)"
 if [ -n "$leaked" ]; then
     echo "error: $APP still references libraries outside the bundle:" >&2
     echo "$leaked" >&2
