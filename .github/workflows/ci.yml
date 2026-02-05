@@ -38,11 +38,13 @@ jobs:
         run: brew install qt tesseract webp ninja cmake ccache
 
       - name: Restore the ccache
-        # Compilation only: linking the test binaries is never cached.
-        uses: actions/cache@v4
+        # Compilation only: linking the test binaries is never cached. Restore here but
+        # save only on main (below), so a pull request downloads the cache and never
+        # spends time uploading a near-identical copy of it.
+        uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/.ccache
-          key: ccache-${{ runner.os }}-${{ github.sha }}
+          key: ccache-${{ runner.os }}-
           restore-keys: ccache-${{ runner.os }}-
 
       - name: Configure
@@ -58,6 +60,14 @@ jobs:
 
       - name: ccache stats
         run: ccache -s
+
+      - name: Save the ccache
+        # Only main refreshes it, so pull requests stay download-only.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
 
       - name: Test
         working-directory: build
@@ -124,11 +134,13 @@ jobs:
           gstreamer1.0-libav
 
       - name: Restore the ccache
-        # Compilation only: linking the test binaries is never cached.
-        uses: actions/cache@v4
+        # Compilation only: linking the test binaries is never cached. Restore here but
+        # save only on main (below), so a pull request downloads the cache and never
+        # spends time uploading a near-identical copy of it.
+        uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/.ccache
-          key: ccache-${{ runner.os }}-${{ github.sha }}
+          key: ccache-${{ runner.os }}-
           restore-keys: ccache-${{ runner.os }}-
 
       - name: Configure
@@ -143,6 +155,14 @@ jobs:
 
       - name: ccache stats
         run: ccache -s
+
+      - name: Save the ccache
+        # Only main refreshes it, so pull requests stay download-only.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ runner.os }}-${{ github.run_id }}
 
       - name: Test
         working-directory: build
