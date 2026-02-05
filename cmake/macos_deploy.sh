@@ -10,9 +10,12 @@
 #    platform plugin) resolve through the leftover Homebrew rpath and load a
 #    SECOND copy of Qt, causing "Class ... implemented in both ..." warnings
 #    and potential crashes.
-# 3. Copies Homebrew's English Tesseract language pack into Contents/Resources,
+# 3. Copies in whatever macdeployqt missed: it resolves direct dependencies only,
+#    so transitive ones (brotli, reached through Qt or libarchive) stay pointed at
+#    a Homebrew prefix that does not exist on a user's Mac.
+# 4. Copies Homebrew's English Tesseract language pack into Contents/Resources,
 #    since a user's Mac has no tessdata of its own.
-# 4. Ad-hoc code-signs the whole bundle so it launches and keeps a stable
+# 5. Ad-hoc code-signs the whole bundle so it launches and keeps a stable
 #    Designated Requirement.
 #
 # Usage: macos_deploy.sh <path-to-.app> <path-to-macdeployqt>
@@ -61,6 +64,50 @@ if ! grep -Fxq "@executable_path/../Frameworks" <<<"$existing_rpaths"; then
     echo "    add rpath: @executable_path/../Frameworks"
     install_name_tool -add_rpath "@executable_path/../Frameworks" "$EXE"
 fi
+
+echo "==> Bundling what macdeployqt left behind"
+# Runs before the verification below so that scan stays a safety net rather than the
+# mechanism, and before codesigning because install_name_tool invalidates signatures.
+FRAMEWORKS="$APP/Contents/Frameworks"
+mkdir -p "$FRAMEWORKS"
+pass=1
+while : ; do
+    strays="$(list_machos | while read -r macho; do
+            otool -L "$macho" 2>/dev/null \
+                | grep -E '^[[:space:]]+(/opt/homebrew|/usr/local)' \
+                | awk '{print $1}' || true
+        done | sort -u)"
+    [ -n "$strays" ] || break
+    if [ "$pass" -gt 8 ]; then
+        echo "error: Homebrew references still unresolved after 8 passes:" >&2
+        echo "$strays" >&2
+        exit 1
+    fi
+    while read -r ref; do
+        base="$(basename "$ref")"
+        case "$ref" in
+            # Flattening a framework binary into Frameworks/ would give Qt a second copy.
+            *.framework/*)
+                echo "error: macdeployqt left a framework reference behind: $ref" >&2
+                exit 1
+                ;;
+        esac
+        dest="$FRAMEWORKS/$base"
+        if [ ! -f "$dest" ]; then
+            cp "$ref" "$dest"
+            echo "    bundled $ref"
+        fi
+        chmod u+w "$dest"  # Homebrew dylibs are read-only, and the copy has to be rewritten.
+        install_name_tool -id "@rpath/$base" "$dest"
+        # Lets one bundled dylib resolve an @rpath reference to a sibling.
+        install_name_tool -add_rpath "@loader_path" "$dest" 2>/dev/null || true
+        list_machos | while read -r macho; do
+            install_name_tool -change "$ref" "@rpath/$base" "$macho" 2>/dev/null || true
+        done
+    done <<<"$strays"
+    # A dylib copied in this pass can itself pull in further Homebrew dylibs.
+    pass=$((pass + 1))
+done
 
 echo "==> Verifying bundled dependencies"
 # libwebp is required, so a build that does not link it is broken, not a variant.
