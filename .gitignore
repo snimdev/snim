@@ -1,5 +1,5 @@
 # ============================================
-# Niceshot .gitignore
+# Snim .gitignore
 # ============================================
 
 # ============================================
@@ -34,6 +34,8 @@ ui_*.h
 # CLion
 .idea/
 cmake-build-*/
+# Per-machine CMake profiles (local toolchain/dependency paths)
+CMakeUserPresets.json
 
 # VSCode
 .vscode/
