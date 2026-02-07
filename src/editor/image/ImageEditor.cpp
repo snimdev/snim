@@ -11,25 +11,11 @@
 #include "core/IconUtil.h"
 #include "core/Perf.h"
 #include "editor/annotations/tools/TextTool.h"
-#include "editor/annotations/tools/ArrowTool.h"
-#include "editor/annotations/tools/RectangleTool.h"
-#include "editor/annotations/tools/EllipseTool.h"
-#include "editor/annotations/tools/FreehandTool.h"
-#include "editor/annotations/tools/HighlightTool.h"
-#include "editor/annotations/tools/BlurTool.h"
-#include "editor/annotations/tools/StepTool.h"
 #include "editor/annotations/StepNumbering.h"
 #include "editor/image/BackdropItem.h"
 #include "editor/image/BackdropPresets.h"
 #include "editor/annotations/interactions/PointerToolInteraction.h"
-#include "editor/annotations/interactions/ArrowDrawingInteraction.h"
 #include "editor/annotations/interactions/TextDrawingInteraction.h"
-#include "editor/annotations/interactions/RectangleDrawingInteraction.h"
-#include "editor/annotations/interactions/EllipseDrawingInteraction.h"
-#include "editor/annotations/interactions/FreehandDrawingInteraction.h"
-#include "editor/annotations/interactions/HighlightDrawingInteraction.h"
-#include "editor/annotations/interactions/BlurDrawingInteraction.h"
-#include "editor/annotations/interactions/StepDrawingInteraction.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -524,21 +510,10 @@ void ImageEditor::setupStrategies()
     m_builder = new AnnotationBuilder(m_scene, m_layerSink.get(), this);
     m_builder->setImageBounds(m_pixmapItem->boundingRect().toRect());   // device-independent
     m_builder->setSourcePixmap(m_originalScreenshot);
+    m_builder->setStepNumberProvider([this] { return nextStepNumber(m_layerManager->layers()); });
 
-    // Each interaction's (type-specific) completion signal funnels into the single
-    // commitDrawnItem() choke point. The freshly-drawn item is styled from the
-    // active tool template before it becomes a layer.
     if (auto *p = dynamic_cast<PointerToolInteraction*>(m_builder->interaction("pointer")))
         connect(p, &PointerToolInteraction::itemClicked, this, &ImageEditor::onItemClicked);
-
-    if (auto *a = dynamic_cast<ArrowDrawingInteraction*>(m_builder->interaction("arrow")))
-        connect(a, &ArrowDrawingInteraction::arrowDrawn, this, [this](const QPoint &s, const QPoint &e) {
-            const double dx = e.x() - s.x(), dy = e.y() - s.y();
-            if (std::sqrt(dx * dx + dy * dy) < 10.0) return;   // too short to be meaningful
-            auto *it = new Tools::ArrowTool(s, e);
-            it->applyStyleFrom(m_builder->templateFor("arrow"));
-            m_layerSink->commit(it, "arrow");
-        });
 
     if (auto *t = dynamic_cast<TextDrawingInteraction*>(m_builder->interaction("text")))
         connect(t, &TextDrawingInteraction::textRequested, this, [this](const QPoint &position) {
@@ -554,68 +529,6 @@ void ImageEditor::setupStrategies()
             });
             activateTool("pointer");         // so the click that ends editing doesn't place another box
             item->startEditing();            // caret appears at the click point; type directly
-        });
-
-    if (auto *r = dynamic_cast<RectangleDrawingInteraction*>(m_builder->interaction("rectangle")))
-        connect(r, &RectangleDrawingInteraction::rectangleDrawn, this, [this](const QRect &rect) {
-            auto *it = new Tools::RectangleTool(rect);
-            it->applyStyleFrom(m_builder->templateFor("rectangle"));
-            m_layerSink->commit(it, "rectangle");
-        });
-
-    if (auto *e = dynamic_cast<EllipseDrawingInteraction*>(m_builder->interaction("ellipse")))
-        connect(e, &EllipseDrawingInteraction::ellipseDrawn, this, [this](const QRect &rect) {
-            auto *it = new Tools::EllipseTool(rect);
-            it->applyStyleFrom(m_builder->templateFor("ellipse"));
-            m_layerSink->commit(it, "ellipse");
-        });
-
-    if (auto *f = dynamic_cast<FreehandDrawingInteraction*>(m_builder->interaction("freehand")))
-        connect(f, &FreehandDrawingInteraction::freehandDrawn, this, [this](const QList<QPointF> &pts) {
-            if (pts.isEmpty()) return;
-            auto *it = new Tools::FreehandTool();
-            it->applyStyleFrom(m_builder->templateFor("freehand"));
-            for (const QPointF &p : pts) it->addPoint(p);
-            it->finishPath();
-            m_layerSink->commit(it, "freehand");
-        });
-
-    if (auto *h = dynamic_cast<HighlightDrawingInteraction*>(m_builder->interaction("highlight")))
-        connect(h, &HighlightDrawingInteraction::highlightDrawn, this,
-                [this](const QList<QPointF> &pts, const QColor &, qreal) {
-            if (pts.isEmpty()) return;
-            auto *it = new Tools::HighlightTool();
-            it->applyStyleFrom(m_builder->templateFor("highlight"));   // color/width carried by the template
-            for (const QPointF &p : pts) it->addPoint(p);
-            it->finishPath();
-            m_layerSink->commit(it, "highlight");
-        });
-
-    if (auto *b = dynamic_cast<BlurDrawingInteraction*>(m_builder->interaction("blur")))
-        connect(b, &BlurDrawingInteraction::blurDrawn, this, [this](const QList<QPointF> &pts) {
-            if (pts.isEmpty()) return;
-            auto *it = new Tools::BlurTool();
-            it->setSourcePixmap(m_originalScreenshot);
-            it->applyStyleFrom(m_builder->templateFor("blur"));
-            for (const QPointF &p : pts) it->addPoint(p);
-            it->finishPath();
-            m_layerSink->commit(it, "blur");
-        });
-
-    if (auto *st = dynamic_cast<StepDrawingInteraction*>(m_builder->interaction("step")))
-        connect(st, &StepDrawingInteraction::stepRequested, this, [this](const QPointF &pos) {
-            auto *tmpl = dynamic_cast<Tools::StepTool*>(m_builder->templateFor("step"));
-            auto *it = new Tools::StepTool();
-            it->applyStyleFrom(tmpl);
-            int n = 0;
-            if (!tmpl || !tmpl->takePendingOverride(&n))
-                n = nextStepNumber(m_layerManager->layers());
-            it->setNumber(n);
-            it->setPos(pos);
-            // Advance first so the sink's panel refresh shows the next number.
-            if (tmpl)
-                tmpl->setNumber(n + 1);
-            m_layerSink->commit(it, "step");
         });
 
     activateTool("pointer");   // default tool

@@ -6,6 +6,7 @@
 #include <QPixmap>
 #include <QRect>
 #include <QString>
+#include <functional>
 
 class QGraphicsItem;
 class QGraphicsScene;
@@ -36,15 +37,24 @@ public:
     void setImageBounds(const QRect &bounds);
     void setSourcePixmap(const QPixmap &pixmap);
 
+    // Step badges number themselves from this unless the panel set an override.
+    void setStepNumberProvider(std::function<int()> provider);
+
     // "Remember last settings": the next item of this tool starts from item's style.
     void rememberStyle(QGraphicsItem *item, const QString &toolId);
 
 private:
+    void registerFactories();
+    // factory(template, signal args...) returns a styled item for the sink, or null to reject.
+    template <typename Factory, typename Interaction, typename... Args>
+    void connectFactory(const QString &id, void (Interaction::*signal)(Args...), Factory factory);
+
     QGraphicsScene *m_scene;
     IAnnotationSink *m_sink;
     QHash<QString, Interactions::IDrawingInteraction*> m_interactions;
     QHash<QString, Tools::ITool*> m_templates;   // not QObjects, deleted by hand
     QPixmap m_sourcePixmap;
+    std::function<int()> m_stepNumberProvider;
 };
 
 } // namespace Editor

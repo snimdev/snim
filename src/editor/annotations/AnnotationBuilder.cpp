@@ -1,9 +1,25 @@
 #include "AnnotationBuilder.h"
 
+#include "IAnnotationSink.h"
 #include "ToolRegistry.h"
 #include "tools/ITool.h"
+#include "tools/ArrowTool.h"
+#include "tools/RectangleTool.h"
+#include "tools/EllipseTool.h"
+#include "tools/FreehandTool.h"
+#include "tools/HighlightTool.h"
+#include "tools/BlurTool.h"
+#include "tools/StepTool.h"
 #include "interactions/BaseDrawingInteraction.h"
+#include "interactions/ArrowDrawingInteraction.h"
+#include "interactions/RectangleDrawingInteraction.h"
+#include "interactions/EllipseDrawingInteraction.h"
+#include "interactions/FreehandDrawingInteraction.h"
+#include "interactions/HighlightDrawingInteraction.h"
 #include "interactions/BlurDrawingInteraction.h"
+#include "interactions/StepDrawingInteraction.h"
+
+#include <cmath>
 
 namespace Editor {
 
@@ -22,6 +38,7 @@ AnnotationBuilder::AnnotationBuilder(QGraphicsScene *scene, IAnnotationSink *sin
         if (spec.makeTemplate)
             m_templates.insert(spec.id, spec.makeTemplate());
     }
+    registerFactories();
 }
 
 AnnotationBuilder::~AnnotationBuilder()
@@ -54,11 +71,105 @@ void AnnotationBuilder::setSourcePixmap(const QPixmap &pixmap)
         blur->setSourcePixmap(pixmap);
 }
 
+void AnnotationBuilder::setStepNumberProvider(std::function<int()> provider)
+{
+    m_stepNumberProvider = std::move(provider);
+}
+
 void AnnotationBuilder::rememberStyle(QGraphicsItem *item, const QString &toolId)
 {
     if (Tools::ITool *tmpl = templateFor(toolId))
         if (auto *asTool = dynamic_cast<Tools::ITool*>(item))
             tmpl->applyStyleFrom(asTool);
+}
+
+template <typename Factory, typename Interaction, typename... Args>
+void AnnotationBuilder::connectFactory(const QString &id, void (Interaction::*signal)(Args...),
+                                       Factory factory)
+{
+    if (auto *i = dynamic_cast<Interaction*>(interaction(id)))
+        connect(i, signal, this, [this, id, factory](Args... args) {
+            if (QGraphicsItem *item = factory(templateFor(id), args...))
+                m_sink->commit(item, id);
+        });
+}
+
+void AnnotationBuilder::registerFactories()
+{
+    using namespace Tools;
+
+    // Each interaction's (type-specific) completion signal funnels into the sink. The
+    // freshly-drawn item is styled from the tool template first.
+
+    connectFactory("arrow", &ArrowDrawingInteraction::arrowDrawn,
+                   [](ITool *tmpl, const QPoint &s, const QPoint &e) -> QGraphicsItem* {
+        const double dx = e.x() - s.x(), dy = e.y() - s.y();
+        if (std::sqrt(dx * dx + dy * dy) < 10.0) return nullptr;   // too short to be meaningful
+        auto *it = new ArrowTool(s, e);
+        it->applyStyleFrom(tmpl);
+        return it;
+    });
+
+    connectFactory("rectangle", &RectangleDrawingInteraction::rectangleDrawn,
+                   [](ITool *tmpl, const QRect &rect) -> QGraphicsItem* {
+        auto *it = new RectangleTool(rect);
+        it->applyStyleFrom(tmpl);
+        return it;
+    });
+
+    connectFactory("ellipse", &EllipseDrawingInteraction::ellipseDrawn,
+                   [](ITool *tmpl, const QRect &rect) -> QGraphicsItem* {
+        auto *it = new EllipseTool(rect);
+        it->applyStyleFrom(tmpl);
+        return it;
+    });
+
+    connectFactory("freehand", &FreehandDrawingInteraction::freehandDrawn,
+                   [](ITool *tmpl, const QList<QPointF> &pts) -> QGraphicsItem* {
+        if (pts.isEmpty()) return nullptr;
+        auto *it = new FreehandTool();
+        it->applyStyleFrom(tmpl);
+        for (const QPointF &p : pts) it->addPoint(p);
+        it->finishPath();
+        return it;
+    });
+
+    connectFactory("highlight", &HighlightDrawingInteraction::highlightDrawn,
+                   [](ITool *tmpl, const QList<QPointF> &pts, const QColor &, qreal) -> QGraphicsItem* {
+        if (pts.isEmpty()) return nullptr;
+        auto *it = new HighlightTool();
+        it->applyStyleFrom(tmpl);   // color/width carried by the template
+        for (const QPointF &p : pts) it->addPoint(p);
+        it->finishPath();
+        return it;
+    });
+
+    connectFactory("blur", &BlurDrawingInteraction::blurDrawn,
+                   [this](ITool *tmpl, const QList<QPointF> &pts) -> QGraphicsItem* {
+        if (pts.isEmpty()) return nullptr;
+        auto *it = new BlurTool();
+        it->setSourcePixmap(m_sourcePixmap);
+        it->applyStyleFrom(tmpl);
+        for (const QPointF &p : pts) it->addPoint(p);
+        it->finishPath();
+        return it;
+    });
+
+    connectFactory("step", &StepDrawingInteraction::stepRequested,
+                   [this](ITool *t, const QPointF &pos) -> QGraphicsItem* {
+        auto *tmpl = dynamic_cast<StepTool*>(t);
+        auto *it = new StepTool();
+        it->applyStyleFrom(tmpl);
+        int n = 0;
+        if (!tmpl || !tmpl->takePendingOverride(&n))
+            n = m_stepNumberProvider ? m_stepNumberProvider() : 1;
+        it->setNumber(n);
+        it->setPos(pos);
+        // Advance before the commit so a sink refreshing its panel shows the next number.
+        if (tmpl)
+            tmpl->setNumber(n + 1);
+        return it;
+    });
 }
 
 } // namespace Editor
