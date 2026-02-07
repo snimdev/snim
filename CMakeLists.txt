@@ -302,6 +302,8 @@ add_library(snim_lib STATIC
         src/editor/EditorChrome.h
         src/editor/annotations/ToolRegistry.cpp
         src/editor/annotations/ToolRegistry.h
+        src/editor/annotations/AnnotationBuilder.cpp
+        src/editor/annotations/AnnotationBuilder.h
         src/editor/annotations/StepNumbering.cpp
         src/editor/annotations/StepNumbering.h
         src/editor/annotations/commands/EditorCommands.cpp

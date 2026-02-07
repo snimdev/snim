@@ -5,6 +5,7 @@
 #include "editor/annotations/LayerProperties.h"
 #include "editor/annotations/Layer.h"
 #include "editor/annotations/ToolRegistry.h"
+#include "editor/annotations/AnnotationBuilder.h"
 #include "editor/annotations/commands/EditorCommands.h"
 #include "core/IconUtil.h"
 #include "core/Perf.h"
@@ -114,10 +115,6 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     setupStrategies();
     qDebug() << "setupStrategies() completed successfully";
 
-    qDebug() << "About to call setupToolTemplates()...";
-    setupToolTemplates();
-    qDebug() << "setupToolTemplates() completed successfully";
-
     // Create background layer and add to layer manager
     qDebug() << "About to create background layer...";
     m_backgroundLayer = createBackgroundLayer();
@@ -213,12 +210,6 @@ ImageEditor::~ImageEditor()
     // racing the QObject child-destruction order). See EditorCommands ownership notes.
     if (m_undoStack)
         m_undoStack->clear();
-
-    // The tool templates are heap ITool* with no QObject parent (they're never
-    // added to the scene); free them explicitly.
-    for (Tools::ITool *tmpl : m_templates)
-        delete tmpl;
-    m_templates.clear();
 }
 
 void ImageEditor::showEvent(QShowEvent *event)
@@ -507,39 +498,32 @@ void ImageEditor::setupStrategies()
 {
     using namespace Interactions;
 
-    // Build every interaction from the registry. Bounds are
-    // needed by all gesture tools (all derive BaseDrawingInteraction); set them
-    // generically. Blur additionally needs the source image to compute its effect.
-    for (const ToolSpec &spec : ToolRegistry::tools()) {
-        IDrawingInteraction *s = spec.makeInteraction(this);
-        if (auto *b = dynamic_cast<BaseDrawingInteraction*>(s))
-            b->setImageBounds(m_pixmapItem->boundingRect().toRect());   // device-independent
-        m_strategies.insert(spec.id, s);
-    }
-    if (auto *blur = dynamic_cast<BlurDrawingInteraction*>(m_strategies.value("blur")))
-        blur->setSourcePixmap(m_originalScreenshot);
+    // Created after the view, so the view (holding a non-owned interaction) dies first.
+    m_builder = new AnnotationBuilder(this);
+    m_builder->setImageBounds(m_pixmapItem->boundingRect().toRect());   // device-independent
+    m_builder->setSourcePixmap(m_originalScreenshot);
 
     // Each interaction's (type-specific) completion signal funnels into the single
     // commitDrawnItem() choke point. The freshly-drawn item is styled from the
     // active tool template before it becomes a layer.
-    if (auto *p = dynamic_cast<PointerToolInteraction*>(m_strategies.value("pointer")))
+    if (auto *p = dynamic_cast<PointerToolInteraction*>(m_builder->interaction("pointer")))
         connect(p, &PointerToolInteraction::itemClicked, this, &ImageEditor::onItemClicked);
 
-    if (auto *a = dynamic_cast<ArrowDrawingInteraction*>(m_strategies.value("arrow")))
+    if (auto *a = dynamic_cast<ArrowDrawingInteraction*>(m_builder->interaction("arrow")))
         connect(a, &ArrowDrawingInteraction::arrowDrawn, this, [this](const QPoint &s, const QPoint &e) {
             const double dx = e.x() - s.x(), dy = e.y() - s.y();
             if (std::sqrt(dx * dx + dy * dy) < 10.0) return;   // too short to be meaningful
             auto *it = new Tools::ArrowTool(s, e);
-            it->applyStyleFrom(m_templates.value("arrow"));
+            it->applyStyleFrom(m_builder->templateFor("arrow"));
             commitDrawnItem(it, "arrow");
         });
 
-    if (auto *t = dynamic_cast<TextDrawingInteraction*>(m_strategies.value("text")))
+    if (auto *t = dynamic_cast<TextDrawingInteraction*>(m_builder->interaction("text")))
         connect(t, &TextDrawingInteraction::textRequested, this, [this](const QPoint &position) {
             // Inline creation: drop an empty text box and edit it live (no popup).
             auto *item = new Tools::TextTool("");
             item->setPos(position);
-            item->applyStyleFrom(m_templates.value("text"));
+            item->applyStyleFrom(m_builder->templateFor("text"));
             m_scene->addItem(item);          // must be in the scene to take edit focus
             m_pendingTextItem = item;
             connect(item, &Tools::TextTool::editingFinished, this, [this, item]() {
@@ -550,55 +534,55 @@ void ImageEditor::setupStrategies()
             item->startEditing();            // caret appears at the click point; type directly
         });
 
-    if (auto *r = dynamic_cast<RectangleDrawingInteraction*>(m_strategies.value("rectangle")))
+    if (auto *r = dynamic_cast<RectangleDrawingInteraction*>(m_builder->interaction("rectangle")))
         connect(r, &RectangleDrawingInteraction::rectangleDrawn, this, [this](const QRect &rect) {
             auto *it = new Tools::RectangleTool(rect);
-            it->applyStyleFrom(m_templates.value("rectangle"));
+            it->applyStyleFrom(m_builder->templateFor("rectangle"));
             commitDrawnItem(it, "rectangle");
         });
 
-    if (auto *e = dynamic_cast<EllipseDrawingInteraction*>(m_strategies.value("ellipse")))
+    if (auto *e = dynamic_cast<EllipseDrawingInteraction*>(m_builder->interaction("ellipse")))
         connect(e, &EllipseDrawingInteraction::ellipseDrawn, this, [this](const QRect &rect) {
             auto *it = new Tools::EllipseTool(rect);
-            it->applyStyleFrom(m_templates.value("ellipse"));
+            it->applyStyleFrom(m_builder->templateFor("ellipse"));
             commitDrawnItem(it, "ellipse");
         });
 
-    if (auto *f = dynamic_cast<FreehandDrawingInteraction*>(m_strategies.value("freehand")))
+    if (auto *f = dynamic_cast<FreehandDrawingInteraction*>(m_builder->interaction("freehand")))
         connect(f, &FreehandDrawingInteraction::freehandDrawn, this, [this](const QList<QPointF> &pts) {
             if (pts.isEmpty()) return;
             auto *it = new Tools::FreehandTool();
-            it->applyStyleFrom(m_templates.value("freehand"));
+            it->applyStyleFrom(m_builder->templateFor("freehand"));
             for (const QPointF &p : pts) it->addPoint(p);
             it->finishPath();
             commitDrawnItem(it, "freehand");
         });
 
-    if (auto *h = dynamic_cast<HighlightDrawingInteraction*>(m_strategies.value("highlight")))
+    if (auto *h = dynamic_cast<HighlightDrawingInteraction*>(m_builder->interaction("highlight")))
         connect(h, &HighlightDrawingInteraction::highlightDrawn, this,
                 [this](const QList<QPointF> &pts, const QColor &, qreal) {
             if (pts.isEmpty()) return;
             auto *it = new Tools::HighlightTool();
-            it->applyStyleFrom(m_templates.value("highlight"));   // color/width carried by the template
+            it->applyStyleFrom(m_builder->templateFor("highlight"));   // color/width carried by the template
             for (const QPointF &p : pts) it->addPoint(p);
             it->finishPath();
             commitDrawnItem(it, "highlight");
         });
 
-    if (auto *b = dynamic_cast<BlurDrawingInteraction*>(m_strategies.value("blur")))
+    if (auto *b = dynamic_cast<BlurDrawingInteraction*>(m_builder->interaction("blur")))
         connect(b, &BlurDrawingInteraction::blurDrawn, this, [this](const QList<QPointF> &pts) {
             if (pts.isEmpty()) return;
             auto *it = new Tools::BlurTool();
             it->setSourcePixmap(m_originalScreenshot);
-            it->applyStyleFrom(m_templates.value("blur"));
+            it->applyStyleFrom(m_builder->templateFor("blur"));
             for (const QPointF &p : pts) it->addPoint(p);
             it->finishPath();
             commitDrawnItem(it, "blur");
         });
 
-    if (auto *st = dynamic_cast<StepDrawingInteraction*>(m_strategies.value("step")))
+    if (auto *st = dynamic_cast<StepDrawingInteraction*>(m_builder->interaction("step")))
         connect(st, &StepDrawingInteraction::stepRequested, this, [this](const QPointF &pos) {
-            auto *tmpl = dynamic_cast<Tools::StepTool*>(m_templates.value("step"));
+            auto *tmpl = dynamic_cast<Tools::StepTool*>(m_builder->templateFor("step"));
             auto *it = new Tools::StepTool();
             it->applyStyleFrom(tmpl);
             int n = 0;
@@ -616,17 +600,6 @@ void ImageEditor::setupStrategies()
         });
 
     activateTool("pointer");   // default tool
-}
-
-void ImageEditor::setupToolTemplates()
-{
-    // One template per drawing tool, used both to drive the Properties panel and to
-    // style freshly-drawn items. Not added to the scene.
-    // Each tool's default styling lives in its ToolSpec::makeTemplate closure.
-    for (const ToolSpec &spec : ToolRegistry::tools()) {
-        if (spec.makeTemplate)
-            m_templates.insert(spec.id, spec.makeTemplate());
-    }
 }
 
 void ImageEditor::saveAs()
@@ -710,8 +683,8 @@ void ImageEditor::activateTool(const QString &toolId)
     if (!spec)
         return;
 
-    Interactions::IDrawingInteraction *strategy = m_strategies.value(toolId);
-    Tools::ITool *tmpl = m_templates.value(toolId);
+    Interactions::IDrawingInteraction *strategy = m_builder->interaction(toolId);
+    Tools::ITool *tmpl = m_builder->templateFor(toolId);
 
     // Sync the interaction's live-preview style from the template (freehand /
     // highlight / blur) so what's drawn matches what will be committed.
@@ -754,9 +727,7 @@ void ImageEditor::commitDrawnItem(QGraphicsItem *item, const QString &toolId)
 
     // "Remember last settings": copy this item's style back into the tool template
     // so the next stroke/shape starts from the same look.
-    if (Tools::ITool *tmpl = m_templates.value(toolId))
-        if (auto *asTool = dynamic_cast<Tools::ITool*>(item))
-            tmpl->applyStyleFrom(asTool);
+    m_builder->rememberStyle(item, toolId);
 
     // Text layers keep their name in sync with their (editable) content.
     if (textItem) {

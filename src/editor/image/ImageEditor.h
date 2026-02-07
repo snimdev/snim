@@ -20,6 +20,7 @@ class QUndoStack;
 
 namespace Editor {
 
+class AnnotationBuilder;
 class DrawingGraphicsView;
 class LayerManager;
 class LayerProperties;
@@ -72,7 +73,6 @@ private:
     void setupUI();
     void setupToolbar();
     void setupStrategies();
-    void setupToolTemplates();
     QPixmap renderScene();
     // Tool registry driven: select a tool by id, and turn a freshly-drawn item
     // into a layer (the single commit point all drawing tools funnel through).
@@ -120,11 +120,10 @@ private:
     QAction *m_backgroundAction;   // toggle the CleanShot-style beautify backdrop
 
     // - Toolbar :: Tools. Registry-driven: one exclusive action group plus the
-    //   id-keyed maps below (actions, strategies, templates), all keyed by tool id.
+    //   id-keyed actions; interactions and templates live in the builder.
     QActionGroup *m_toolGroup = nullptr;
     QHash<QString, QAction*> m_actions;
-    QHash<QString, Interactions::IDrawingInteraction*> m_strategies;
-    QHash<QString, Tools::ITool*> m_templates;
+    AnnotationBuilder *m_builder = nullptr;
     QHash<QString, int> m_counters;   // per-tool layer-name counter
 
     // Undo/redo. Add/delete/property/visibility edits are pushed as
