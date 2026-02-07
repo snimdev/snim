@@ -29,9 +29,6 @@ class Layer;
 
 } // namespace Editor
 
-namespace Editor::Tools { class ITool; class TextTool; }
-namespace Editor::Interactions { class IDrawingInteraction; }
-
 namespace Editor::Image {
 
 class BackdropItem;
@@ -81,13 +78,9 @@ private:
     // into a layer (the single commit point all drawing tools funnel through).
     void activateTool(const QString &toolId);
     void commitDrawnItem(QGraphicsItem *item, const QString &toolId);
-    // Inline text: a freshly-placed text box is edited live; on focus-out it is
-    // either committed (non-empty) or discarded (empty). See setupStrategies.
-    void finalizePendingText(Tools::TextTool *item);
     // Keyboard-shortcut helpers (all document mutations go through QUndoCommands).
     void duplicateSelectedLayer();                 // ⌘/Ctrl+D: clone() + AddLayerCommand
     void nudgeSelectedLayer(qreal dx, qreal dy);   // arrows: MoveLayerCommand
-    [[nodiscard]] bool isEditingText() const;      // a text item currently in inline-edit mode?
     Layer* createBackgroundLayer();
     void setBackdropEnabled(bool on);
     void onBackgroundButtonClicked();
@@ -152,7 +145,6 @@ private:
     QWidget *m_backdropPopover = nullptr;   // floating quick-actions popover
     QWidget *m_presetGrid = nullptr;        // preset-tiles container inside the popover
     Layer *m_selectedLayer = nullptr;       // current side-panel selection
-    Tools::TextTool *m_pendingTextItem = nullptr;  // text box being created/edited inline (uncommitted)
 };
 
 } // namespace Editor::Image

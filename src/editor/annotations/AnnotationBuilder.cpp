@@ -18,7 +18,10 @@
 #include "interactions/HighlightDrawingInteraction.h"
 #include "interactions/BlurDrawingInteraction.h"
 #include "interactions/StepDrawingInteraction.h"
+#include "interactions/TextDrawingInteraction.h"
 
+#include <QGraphicsScene>
+#include <QTimer>
 #include <cmath>
 
 namespace Editor {
@@ -83,6 +86,41 @@ void AnnotationBuilder::rememberStyle(QGraphicsItem *item, const QString &toolId
             tmpl->applyStyleFrom(asTool);
 }
 
+bool AnnotationBuilder::isEditingText() const
+{
+    if (!m_scene)
+        return false;
+    auto *t = dynamic_cast<Tools::TextTool*>(m_scene->focusItem());
+    return t && t->textInteractionFlags() != Qt::NoTextInteraction;
+}
+
+void AnnotationBuilder::commitPendingText()
+{
+    if (Tools::TextTool *item = m_pendingTextItem) {
+        item->clearFocus();
+        finalizePendingText(item);   // the deferred focus-out call then finds nothing pending
+    }
+}
+
+void AnnotationBuilder::finalizePendingText(Tools::TextTool *item)
+{
+    // Runs once per pending text box (guard against a double-scheduled deferral).
+    if (!item || item != m_pendingTextItem)
+        return;
+    m_pendingTextItem = nullptr;
+    disconnect(item, &Tools::TextTool::editingFinished, this, nullptr);
+
+    // It's currently a bare scene item; take it off so the sink can add it back
+    // through its own (undoable) path.
+    m_scene->removeItem(item);
+
+    if (item->toPlainText().trimmed().isEmpty()) {
+        delete item;                 // empty -> create nothing (no layer, no undo entry)
+        return;
+    }
+    m_sink->commit(item, "text");   // e.g. an undoable "Add Text" layer, named from its content
+}
+
 template <typename Factory, typename Interaction, typename... Args>
 void AnnotationBuilder::connectFactory(const QString &id, void (Interaction::*signal)(Args...),
                                        Factory factory)
@@ -109,6 +147,22 @@ void AnnotationBuilder::registerFactories()
         it->applyStyleFrom(tmpl);
         return it;
     });
+
+    if (auto *t = dynamic_cast<TextDrawingInteraction*>(interaction("text")))
+        connect(t, &TextDrawingInteraction::textRequested, this, [this](const QPoint &position) {
+            // Inline creation: drop an empty text box and edit it live (no popup).
+            auto *item = new TextTool("");
+            item->setPos(position);
+            item->applyStyleFrom(templateFor("text"));
+            m_scene->addItem(item);          // must be in the scene to take edit focus
+            m_pendingTextItem = item;
+            connect(item, &TextTool::editingFinished, this, [this, item]() {
+                // editingFinished fires inside focusOutEvent, so defer commit/discard a tick.
+                QTimer::singleShot(0, this, [this, item] { finalizePendingText(item); });
+            });
+            emit textPlaced(item);
+            item->startEditing();            // caret appears at the click point; type directly
+        });
 
     connectFactory("rectangle", &RectangleDrawingInteraction::rectangleDrawn,
                    [](ITool *tmpl, const QRect &rect) -> QGraphicsItem* {

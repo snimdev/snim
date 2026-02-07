@@ -15,7 +15,6 @@
 #include "editor/image/BackdropItem.h"
 #include "editor/image/BackdropPresets.h"
 #include "editor/annotations/interactions/PointerToolInteraction.h"
-#include "editor/annotations/interactions/TextDrawingInteraction.h"
 #include <QGraphicsPixmapItem>
 #include <QGraphicsLineItem>
 #include <QInputDialog>
@@ -515,21 +514,8 @@ void ImageEditor::setupStrategies()
     if (auto *p = dynamic_cast<PointerToolInteraction*>(m_builder->interaction("pointer")))
         connect(p, &PointerToolInteraction::itemClicked, this, &ImageEditor::onItemClicked);
 
-    if (auto *t = dynamic_cast<TextDrawingInteraction*>(m_builder->interaction("text")))
-        connect(t, &TextDrawingInteraction::textRequested, this, [this](const QPoint &position) {
-            // Inline creation: drop an empty text box and edit it live (no popup).
-            auto *item = new Tools::TextTool("");
-            item->setPos(position);
-            item->applyStyleFrom(m_builder->templateFor("text"));
-            m_scene->addItem(item);          // must be in the scene to take edit focus
-            m_pendingTextItem = item;
-            connect(item, &Tools::TextTool::editingFinished, this, [this, item]() {
-                // editingFinished fires inside focusOutEvent, so defer commit/discard a tick.
-                QTimer::singleShot(0, this, [this, item] { finalizePendingText(item); });
-            });
-            activateTool("pointer");         // so the click that ends editing doesn't place another box
-            item->startEditing();            // caret appears at the click point; type directly
-        });
+    // So the click that ends editing doesn't place another box.
+    connect(m_builder, &AnnotationBuilder::textPlaced, this, [this] { activateTool("pointer"); });
 
     activateTool("pointer");   // default tool
 }
@@ -685,39 +671,12 @@ void ImageEditor::commitDrawnItem(QGraphicsItem *item, const QString &toolId)
     }
 }
 
-void ImageEditor::finalizePendingText(Tools::TextTool *item)
-{
-    // Runs once per pending text box (guard against a double-scheduled deferral).
-    if (!item || item != m_pendingTextItem)
-        return;
-    m_pendingTextItem = nullptr;
-    disconnect(item, &Tools::TextTool::editingFinished, this, nullptr);
-
-    // It's currently a bare scene item; take it off so commitDrawnItem's AddLayerCommand
-    // can add it back through the normal (undoable) path.
-    m_scene->removeItem(item);
-
-    if (item->toPlainText().trimmed().isEmpty()) {
-        delete item;                 // empty -> create nothing (no layer, no undo entry)
-        return;
-    }
-    m_layerSink->commit(item, "text");   // undoable "Add Text" layer, named from its content
-}
-
-bool ImageEditor::isEditingText() const
-{
-    if (!m_scene)
-        return false;
-    auto *t = dynamic_cast<Tools::TextTool*>(m_scene->focusItem());
-    return t && t->textInteractionFlags() != Qt::NoTextInteraction;
-}
-
 void ImageEditor::keyPressEvent(QKeyEvent *event)
 {
     // Handling shortcuts here (rather than QAction::setShortcut) means a text item in
     // inline-edit mode consumes the keys first, so these never fire mid-typing.
     if (event->key() == Qt::Key_Escape) {
-        if (isEditingText()) {
+        if (m_builder->isEditingText()) {
             m_scene->focusItem()->clearFocus();   // commit/discard the text box
         } else {
             m_layerManager->selectLayer(nullptr);
@@ -727,7 +686,7 @@ void ImageEditor::keyPressEvent(QKeyEvent *event)
         return;
     }
 
-    if (isEditingText()) {                 // let the inline editor keep every other key
+    if (m_builder->isEditingText()) {      // let the inline editor keep every other key
         QMainWindow::keyPressEvent(event);
         return;
     }
