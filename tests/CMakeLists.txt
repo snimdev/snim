@@ -9,6 +9,7 @@ set(SNIM_TESTS
         tst_layer
         tst_toolregistry
         tst_tools
+        tst_annotationbuilder
         tst_stepnumbering
         tst_editorcommands
         tst_backdroppresets
