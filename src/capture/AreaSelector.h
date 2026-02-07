@@ -112,6 +112,8 @@ namespace Capture {
 
         // Floating action toolbar (Edit/Copy/Save/Cancel) shown during Adjusting.
         enum ToolButton { BtnEdit = 0, BtnCopy, BtnSave, BtnCancel, BtnCount };
+        // No anchor test, so the keyboard path works on whichever overlay has focus.
+        bool   actionsAvailable() const;
         bool   toolbarVisible() const;
         QRect  toolbarRect() const;
         QRect  toolbarButtonRect(int index) const;

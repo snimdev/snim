@@ -6,6 +6,7 @@
 #include <QScreen>
 #include <QCursor>
 #include <QFontMetrics>
+#include <QKeySequence>
 #include <QShowEvent>
 #include <QResizeEvent>
 #include <QEvent>
@@ -19,6 +20,11 @@ namespace {
     constexpr int kBtnSize = 38;              // action toolbar button size
     constexpr int kBtnPad  = 6;               // padding around toolbar buttons
     constexpr int kClickThreshold = 4;        // px before an interior press becomes a drag
+
+    QString keyText(QKeySequence::StandardKey k)
+    {
+        return QKeySequence(k).toString(QKeySequence::NativeText);
+    }
 }
 
 AreaSelector::AreaSelector(QWidget *parent)
@@ -125,10 +131,15 @@ void AreaSelector::updateHoverWindow()
 
 // ---- action toolbar --------------------------------------------------------
 
+bool AreaSelector::actionsAvailable() const
+{
+    return m_actionsEnabled && m_mode == Mode::AreaSelect &&
+           m_phase == Phase::Adjusting && !m_selectionVirt.isEmpty();
+}
+
 bool AreaSelector::toolbarVisible() const
 {
-    if (!(m_actionsEnabled && m_mode == Mode::AreaSelect &&
-          m_phase == Phase::Adjusting && !m_selectionVirt.isEmpty()))
+    if (!actionsAvailable())
         return false;
     // Draw (and hit-test) the toolbar on exactly one overlay: the screen that
     // contains its anchor (the selection's bottom-center), so a spanning
@@ -254,10 +265,10 @@ void AreaSelector::paintToolbar(QPainter &p)
     if (m_hoveredButton >= 0 && m_hoveredButton < BtnCount) {
         QString label;
         switch (m_hoveredButton) {
-            case BtnEdit:   label = QStringLiteral("Open in editor"); break;
-            case BtnCopy:   label = QStringLiteral("Copy to clipboard"); break;
-            case BtnSave:   label = QStringLiteral("Save to file…"); break;
-            case BtnCancel: label = QStringLiteral("Cancel"); break;
+            case BtnEdit:   label = QStringLiteral("Open in editor (Enter)"); break;
+            case BtnCopy:   label = QStringLiteral("Copy to clipboard (%1)").arg(keyText(QKeySequence::Copy)); break;
+            case BtnSave:   label = QStringLiteral("Save to file… (%1)").arg(keyText(QKeySequence::Save)); break;
+            case BtnCancel: label = QStringLiteral("Cancel (Esc)"); break;
             default: break;
         }
         if (!label.isEmpty()) {
@@ -467,6 +478,16 @@ void AreaSelector::keyPressEvent(QKeyEvent *event)
             return;
         default:
             break;
+    }
+
+    // matches() wants the exact platform chord (Cmd on macOS), so a bare C or S never lands here.
+    if (event->matches(QKeySequence::Copy) && actionsAvailable()) {
+        triggerToolbarButton(BtnCopy);
+        return;
+    }
+    if (event->matches(QKeySequence::Save) && actionsAvailable()) {
+        triggerToolbarButton(BtnSave);
+        return;
     }
 
     if (m_phase == Phase::Adjusting && !m_selectionVirt.isEmpty()) {
@@ -730,7 +751,12 @@ void AreaSelector::paintInstructions(QPainter &p)
         switch (m_phase) {
             case Phase::Idle:      text = QStringLiteral("Drag to select  ·  Esc to cancel"); break;
             case Phase::Dragging:  text = QStringLiteral("Release to adjust"); break;
-            case Phase::Adjusting: text = QStringLiteral("Click inside or ✓ to capture  ·  drag handles to adjust  ·  Esc to cancel"); break;
+            case Phase::Adjusting:
+                text = m_actionsEnabled
+                       ? QStringLiteral("Click inside or ✓ to capture  ·  %1 to copy  ·  %2 to save  ·  Esc to cancel")
+                             .arg(keyText(QKeySequence::Copy), keyText(QKeySequence::Save))
+                       : QStringLiteral("Click inside or ✓ to capture  ·  drag handles to adjust  ·  Esc to cancel");
+                break;
         }
     }
     p.setRenderHint(QPainter::Antialiasing, true);
