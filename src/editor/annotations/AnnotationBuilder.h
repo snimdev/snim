@@ -8,8 +8,11 @@
 #include <QString>
 
 class QGraphicsItem;
+class QGraphicsScene;
 
 namespace Editor {
+
+class IAnnotationSink;
 
 namespace Interactions { class IDrawingInteraction; }
 namespace Tools { class ITool; }
@@ -23,7 +26,8 @@ class AnnotationBuilder : public QObject
     Q_OBJECT
 
 public:
-    explicit AnnotationBuilder(QObject *parent = nullptr);
+    // Neither scene nor sink is owned; both must stay valid while gestures arrive.
+    AnnotationBuilder(QGraphicsScene *scene, IAnnotationSink *sink, QObject *parent = nullptr);
     ~AnnotationBuilder() override;
 
     [[nodiscard]] Interactions::IDrawingInteraction *interaction(const QString &id) const;
@@ -36,6 +40,8 @@ public:
     void rememberStyle(QGraphicsItem *item, const QString &toolId);
 
 private:
+    QGraphicsScene *m_scene;
+    IAnnotationSink *m_sink;
     QHash<QString, Interactions::IDrawingInteraction*> m_interactions;
     QHash<QString, Tools::ITool*> m_templates;   // not QObjects, deleted by hand
     QPixmap m_sourcePixmap;

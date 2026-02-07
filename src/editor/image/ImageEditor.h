@@ -14,6 +14,7 @@
 #include <QPen>
 #include <QHash>
 #include <QString>
+#include <memory>
 
 class QActionGroup;
 class QUndoStack;
@@ -70,6 +71,8 @@ private slots:
     void onItemClicked(QGraphicsItem *item);
 
 private:
+    class LayerSink;
+
     void setupUI();
     void setupToolbar();
     void setupStrategies();
@@ -123,6 +126,7 @@ private:
     //   id-keyed actions; interactions and templates live in the builder.
     QActionGroup *m_toolGroup = nullptr;
     QHash<QString, QAction*> m_actions;
+    std::unique_ptr<LayerSink> m_layerSink;   // builder's commit target
     AnnotationBuilder *m_builder = nullptr;
     QHash<QString, int> m_counters;   // per-tool layer-name counter
 

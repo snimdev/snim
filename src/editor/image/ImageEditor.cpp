@@ -6,6 +6,7 @@
 #include "editor/annotations/Layer.h"
 #include "editor/annotations/ToolRegistry.h"
 #include "editor/annotations/AnnotationBuilder.h"
+#include "editor/annotations/IAnnotationSink.h"
 #include "editor/annotations/commands/EditorCommands.h"
 #include "core/IconUtil.h"
 #include "core/Perf.h"
@@ -74,6 +75,26 @@
 #include <cmath>
 
 namespace Editor::Image {
+
+// Drawn items become undoable layers.
+class ImageEditor::LayerSink final : public IAnnotationSink
+{
+public:
+    explicit LayerSink(ImageEditor *editor) : m_editor(editor) {}
+
+    void commit(QGraphicsItem *item, const QString &toolId) override
+    {
+        m_editor->commitDrawnItem(item, toolId);
+        // Refresh the panel's "Next number" hint; stamp-time derivation stays authoritative.
+        if (toolId == QLatin1String("step"))
+            if (Tools::ITool *tmpl = m_editor->m_builder->templateFor(toolId))
+                if (const ToolSpec *spec = ToolRegistry::find(toolId))
+                    m_editor->m_layerProperties->setTool(tmpl, spec->displayName);
+    }
+
+private:
+    ImageEditor *m_editor;
+};
 
 ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     : QMainWindow(parent)
@@ -499,7 +520,8 @@ void ImageEditor::setupStrategies()
     using namespace Interactions;
 
     // Created after the view, so the view (holding a non-owned interaction) dies first.
-    m_builder = new AnnotationBuilder(this);
+    m_layerSink = std::make_unique<LayerSink>(this);
+    m_builder = new AnnotationBuilder(m_scene, m_layerSink.get(), this);
     m_builder->setImageBounds(m_pixmapItem->boundingRect().toRect());   // device-independent
     m_builder->setSourcePixmap(m_originalScreenshot);
 
@@ -515,7 +537,7 @@ void ImageEditor::setupStrategies()
             if (std::sqrt(dx * dx + dy * dy) < 10.0) return;   // too short to be meaningful
             auto *it = new Tools::ArrowTool(s, e);
             it->applyStyleFrom(m_builder->templateFor("arrow"));
-            commitDrawnItem(it, "arrow");
+            m_layerSink->commit(it, "arrow");
         });
 
     if (auto *t = dynamic_cast<TextDrawingInteraction*>(m_builder->interaction("text")))
@@ -538,14 +560,14 @@ void ImageEditor::setupStrategies()
         connect(r, &RectangleDrawingInteraction::rectangleDrawn, this, [this](const QRect &rect) {
             auto *it = new Tools::RectangleTool(rect);
             it->applyStyleFrom(m_builder->templateFor("rectangle"));
-            commitDrawnItem(it, "rectangle");
+            m_layerSink->commit(it, "rectangle");
         });
 
     if (auto *e = dynamic_cast<EllipseDrawingInteraction*>(m_builder->interaction("ellipse")))
         connect(e, &EllipseDrawingInteraction::ellipseDrawn, this, [this](const QRect &rect) {
             auto *it = new Tools::EllipseTool(rect);
             it->applyStyleFrom(m_builder->templateFor("ellipse"));
-            commitDrawnItem(it, "ellipse");
+            m_layerSink->commit(it, "ellipse");
         });
 
     if (auto *f = dynamic_cast<FreehandDrawingInteraction*>(m_builder->interaction("freehand")))
@@ -555,7 +577,7 @@ void ImageEditor::setupStrategies()
             it->applyStyleFrom(m_builder->templateFor("freehand"));
             for (const QPointF &p : pts) it->addPoint(p);
             it->finishPath();
-            commitDrawnItem(it, "freehand");
+            m_layerSink->commit(it, "freehand");
         });
 
     if (auto *h = dynamic_cast<HighlightDrawingInteraction*>(m_builder->interaction("highlight")))
@@ -566,7 +588,7 @@ void ImageEditor::setupStrategies()
             it->applyStyleFrom(m_builder->templateFor("highlight"));   // color/width carried by the template
             for (const QPointF &p : pts) it->addPoint(p);
             it->finishPath();
-            commitDrawnItem(it, "highlight");
+            m_layerSink->commit(it, "highlight");
         });
 
     if (auto *b = dynamic_cast<BlurDrawingInteraction*>(m_builder->interaction("blur")))
@@ -577,7 +599,7 @@ void ImageEditor::setupStrategies()
             it->applyStyleFrom(m_builder->templateFor("blur"));
             for (const QPointF &p : pts) it->addPoint(p);
             it->finishPath();
-            commitDrawnItem(it, "blur");
+            m_layerSink->commit(it, "blur");
         });
 
     if (auto *st = dynamic_cast<StepDrawingInteraction*>(m_builder->interaction("step")))
@@ -590,13 +612,10 @@ void ImageEditor::setupStrategies()
                 n = nextStepNumber(m_layerManager->layers());
             it->setNumber(n);
             it->setPos(pos);
-            commitDrawnItem(it, "step");
-            // Refresh the panel's "Next number" hint; stamp-time derivation stays authoritative.
-            if (tmpl) {
+            // Advance first so the sink's panel refresh shows the next number.
+            if (tmpl)
                 tmpl->setNumber(n + 1);
-                if (const ToolSpec *spec = ToolRegistry::find("step"))
-                    m_layerProperties->setTool(tmpl, spec->displayName);
-            }
+            m_layerSink->commit(it, "step");
         });
 
     activateTool("pointer");   // default tool
@@ -769,7 +788,7 @@ void ImageEditor::finalizePendingText(Tools::TextTool *item)
         delete item;                 // empty -> create nothing (no layer, no undo entry)
         return;
     }
-    commitDrawnItem(item, "text");   // undoable "Add Text" layer, named from its content
+    m_layerSink->commit(item, "text");   // undoable "Add Text" layer, named from its content
 }
 
 bool ImageEditor::isEditingText() const

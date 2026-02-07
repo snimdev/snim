@@ -9,8 +9,10 @@ namespace Editor {
 
 using namespace Interactions;
 
-AnnotationBuilder::AnnotationBuilder(QObject *parent)
+AnnotationBuilder::AnnotationBuilder(QGraphicsScene *scene, IAnnotationSink *sink, QObject *parent)
     : QObject(parent)
+    , m_scene(scene)
+    , m_sink(sink)
 {
     // One interaction per tool, plus one template per drawing tool, used both to drive
     // the Properties panel and to style freshly-drawn items. Templates are never added
