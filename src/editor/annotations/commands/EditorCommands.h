@@ -50,6 +50,28 @@ private:
     bool m_itemOffScene = true;   // true => this command owns the (off-scene) item
 };
 
+/**
+ * Add a bare item (no Layer record) to the scene, undoably. Same ownership rule as
+ * AddLayerCommand: the command owns the item only while it is off the scene.
+ */
+class AddItemCommand : public QUndoCommand {
+public:
+    AddItemCommand(QGraphicsScene *scene, QGraphicsItem *item, const QString &toolId,
+                   const QString &text, QUndoCommand *parent = nullptr);
+    ~AddItemCommand() override;
+    void redo() override;
+    void undo() override;
+
+    [[nodiscard]] QGraphicsItem *item() const { return m_item; }
+    [[nodiscard]] const QString &toolId() const { return m_toolId; }
+
+private:
+    QGraphicsScene *m_scene;
+    QGraphicsItem *m_item;
+    QString m_toolId;
+    bool m_itemOffScene = true;   // true => this command owns the (off-scene) item
+};
+
 /** Remove a layer, undoably. The inverse lifecycle of Add. */
 class RemoveLayerCommand : public QUndoCommand {
 public:

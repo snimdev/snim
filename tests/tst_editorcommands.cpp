@@ -1,6 +1,8 @@
 #include <QtTest>
 #include <QGraphicsScene>
 #include <QGraphicsRectItem>
+#include <QGraphicsTextItem>
+#include <QPointer>
 #include <QUndoStack>
 
 #include "editor/annotations/commands/EditorCommands.h"
@@ -78,6 +80,43 @@ private slots:
         stack->undo();
         QVERIFY(scene->items().contains(l->item()));
         QVERIFY(manager->layers().contains(l));
+    }
+
+    void addItem_redoAddsUndoRemoves()
+    {
+        auto *item = new QGraphicsRectItem(0, 0, 10, 10);
+        auto *cmd = new AddItemCommand(scene, item, "rectangle", "Add Rectangle");
+        QCOMPARE(cmd->item(), item);
+        QCOMPARE(cmd->toolId(), QStringLiteral("rectangle"));
+        stack->push(cmd);
+        QCOMPARE(item->scene(), scene);
+
+        stack->undo();
+        QVERIFY(!item->scene());
+        QVERIFY(!scene->items().contains(item));
+
+        stack->redo();
+        QCOMPARE(item->scene(), scene);
+    }
+
+    void addItem_destroyedWhileUndone_deletesItem()
+    {
+        QPointer<QGraphicsTextItem> item = new QGraphicsTextItem("x");
+        stack->push(new AddItemCommand(scene, item, "text", "Add Text"));
+        stack->undo();
+        delete stack; stack = nullptr;
+        QVERIFY(item.isNull());
+    }
+
+    void addItem_destroyedWhileDone_leavesItemToScene()
+    {
+        QPointer<QGraphicsTextItem> item = new QGraphicsTextItem("x");
+        stack->push(new AddItemCommand(scene, item, "text", "Add Text"));
+        delete stack; stack = nullptr;
+        QVERIFY(!item.isNull());
+        QCOMPARE(item->scene(), scene);
+        delete scene; scene = nullptr;
+        QVERIFY(item.isNull());
     }
 
     void propertyChange_redoUndo()

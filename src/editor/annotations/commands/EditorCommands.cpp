@@ -44,6 +44,33 @@ void AddLayerCommand::undo()
     m_itemOffScene = true;
 }
 
+// ----------------------------------------------------------------- AddItemCommand
+AddItemCommand::AddItemCommand(QGraphicsScene *scene, QGraphicsItem *item,
+                               const QString &toolId, const QString &text,
+                               QUndoCommand *parent)
+    : QUndoCommand(text, parent), m_scene(scene), m_item(item), m_toolId(toolId)
+{
+}
+
+AddItemCommand::~AddItemCommand()
+{
+    // Only when the item sits off the scene is this command its owner.
+    if (m_itemOffScene)
+        delete m_item;
+}
+
+void AddItemCommand::redo()
+{
+    m_scene->addItem(m_item);
+    m_itemOffScene = false;
+}
+
+void AddItemCommand::undo()
+{
+    m_scene->removeItem(m_item);
+    m_itemOffScene = true;
+}
+
 // ------------------------------------------------------------- RemoveLayerCommand
 RemoveLayerCommand::RemoveLayerCommand(QGraphicsScene *scene, LayerManager *manager,
                                        LayerProperties *properties, Layer *layer,
