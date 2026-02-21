@@ -1,5 +1,6 @@
 #include "AreaSelector.h"
 #include "capture/AreaSelectorInput.h"
+#include "capture/OverlayAnnotations.h"
 #include "core/Perf.h"
 #include <QPainter>
 #include <QPainterPath>
@@ -51,6 +52,19 @@ void AreaSelector::setScreenshot(const QPixmap &screenshot)
     m_dpr = screenshot.devicePixelRatio();
     m_screenshotImage = screenshot.toImage();  // cache once; never per-frame
     m_dimmedBg = QPixmap();                     // invalidate cache
+    update();
+}
+
+void AreaSelector::setAnnotations(QSharedPointer<OverlayAnnotations> session)
+{
+    if (m_annotations)
+        m_annotations->disconnect(this);
+    m_annotations = std::move(session);
+    if (m_annotations) {
+        connect(m_annotations.data(), &OverlayAnnotations::changed,
+                this, qOverload<>(&QWidget::update));
+        m_annotations->setSelection(m_selectionVirt);
+    }
     update();
 }
 
@@ -413,6 +427,8 @@ bool AreaSelector::commitCurrentSelection()
 
 void AreaSelector::broadcastState()
 {
+    if (m_annotations)
+        m_annotations->setSelection(m_selectionVirt);
     emit liveStateChanged(m_selectionVirt, static_cast<int>(m_phase),
                           static_cast<int>(m_mode), m_cursorVirt);
 }
@@ -427,6 +443,8 @@ void AreaSelector::applyPeerState(const QRect &selectionVirt, int phase, int mod
     m_phase = static_cast<Phase>(phase);
     m_mode = static_cast<Mode>(mode);
     m_cursorVirt = cursorVirt;
+    if (m_annotations)
+        m_annotations->setSelection(m_selectionVirt);
     update();
 }
 
@@ -471,6 +489,16 @@ void AreaSelector::paintSelection(QPainter &p)
 
     // restore full brightness inside the selection
     p.drawPixmap(localSel, m_screenshot, virtToSource(m_selectionVirt));
+
+    if (m_annotations) {
+        // Every overlay renders its own screen's part of the one shared scene.
+        p.save();
+        p.setClipRect(localSel);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        m_annotations->render(&p, QRectF(rect()), QRect(m_screenOffset, size()));
+        p.restore();
+    }
 
     p.setRenderHint(QPainter::Antialiasing, false);
     p.setPen(QPen(kAccent, 2));

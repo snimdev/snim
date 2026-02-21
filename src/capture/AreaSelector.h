@@ -8,6 +8,7 @@
 #include <QPixmap>
 #include <QImage>
 #include <QVector>
+#include <QSharedPointer>
 #include <memory>
 #include <vector>
 #include "capture/WindowEnumerator.h"
@@ -17,6 +18,8 @@ class QShowEvent;
 class QResizeEvent;
 
 namespace Capture {
+
+    class OverlayAnnotations;
 
     /**
      * Full-screen overlay that lets the user interactively select a region of a
@@ -60,6 +63,10 @@ namespace Capture {
         // adjust phase. Off by default; the normal capture path enables it, OCR
         // leaves it off.
         void setActionsEnabled(bool enabled) { m_actionsEnabled = enabled; }
+
+        // Quick-annotation session shared by every overlay of one area capture; null
+        // (the default) for recording, OCR and window pick.
+        void setAnnotations(QSharedPointer<OverlayAnnotations> session);
 
         // Multi-monitor: mirror the live selection from a peer overlay on another
         // screen so this overlay renders its portion of a spanning selection.
@@ -167,6 +174,7 @@ namespace Capture {
         quint64 m_hoverWindowId = 0;    // id of the window currently under the cursor
 
         bool   m_actionsEnabled = false; // show the action toolbar
+        QSharedPointer<OverlayAnnotations> m_annotations;
         int    m_hoveredButton = -1;     // toolbar button under cursor (-1 = none)
 
         std::vector<std::unique_ptr<InputHandler>> m_inputChain;
