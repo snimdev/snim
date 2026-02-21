@@ -4,9 +4,14 @@
 #include <QPixmap>
 #include <QPointer>
 #include <QScreen>
+#include <QSharedPointer>
 #include <QSignalSpy>
+#include <memory>
 
 #include "capture/AreaSelector.h"
+#include "capture/OverlayAnnotations.h"
+#include "editor/annotations/ToolRegistry.h"
+#include "editor/annotations/tools/RectangleTool.h"
 
 using namespace Capture;
 
@@ -23,6 +28,46 @@ private:
 
     QPointer<AreaSelector> m_sel;
     QRect m_screen;
+    QPixmap m_shot;
+    QColor m_stroke;
+
+    // The area capture's session: built from the overlay's frame, virtual geometry = screen.
+    QSharedPointer<OverlayAnnotations> attachSession()
+    {
+        auto session = QSharedPointer<OverlayAnnotations>::create(m_shot, m_screen);
+        m_sel->setAnnotations(session);
+        return session;
+    }
+
+    // Presses the platform's first binding for a standard chord.
+    void chord(QKeySequence::StandardKey key)
+    {
+        const QKeyCombination combo = QKeySequence::keyBindings(key).first()[0];
+        QTest::keyClick(m_sel.data(), combo.key(), combo.keyboardModifiers());
+    }
+
+    void stroke(const QPoint &from, const QPoint &to)
+    {
+        QTest::mousePress(m_sel.data(), Qt::LeftButton, Qt::NoModifier, from);
+        QTest::mouseMove(m_sel.data(), to);
+        QTest::mouseRelease(m_sel.data(), Qt::LeftButton, Qt::NoModifier, to);
+    }
+
+    static bool near(const QColor &a, const QColor &b)
+    {
+        return qAbs(a.red() - b.red()) < 40 && qAbs(a.green() - b.green()) < 40
+               && qAbs(a.blue() - b.blue()) < 40;
+    }
+
+    // An interior drag with no tool armed moves the selection by the drag delta.
+    void verifyInteriorDragMoves(const QRect &sel)
+    {
+        QSignalSpy state(m_sel.data(), &AreaSelector::liveStateChanged);
+        stroke(QPoint(100, 100), QPoint(130, 120));
+        QVERIFY(!state.isEmpty());
+        QCOMPARE(state.last().at(1).toInt(), kAdjusting);
+        QCOMPARE(state.last().at(0).toRect(), sel.translated(30, 20));
+    }
 
     // Selections travel in virtual-desktop coords, so a local drag lands at the offset rect.
     QRect selectionFor(const QPoint &from, const QPoint &to) const
@@ -43,6 +88,17 @@ private:
     }
 
 private slots:
+    void initTestCase()
+    {
+        QCoreApplication::setOrganizationName("SnimTest");
+        QCoreApplication::setApplicationName("tst_areaselector");
+        QStandardPaths::setTestModeEnabled(true);
+        std::unique_ptr<Editor::Tools::ITool> tmpl(
+            Editor::ToolRegistry::find("rectangle")->makeTemplate());
+        m_stroke = dynamic_cast<Editor::Tools::RectangleTool*>(tmpl.get())->pen().color();
+        QVERIFY(!near(m_stroke, QColor(Qt::darkGray)));
+    }
+
     void init()
     {
         m_screen = QGuiApplication::primaryScreen()->geometry();
@@ -50,9 +106,9 @@ private slots:
         auto *sel = new AreaSelector;
         m_sel = sel;
 
-        QPixmap shot(m_screen.size());
-        shot.fill(Qt::darkGray);
-        sel->setScreenshot(shot);
+        m_shot = QPixmap(m_screen.size());
+        m_shot.fill(Qt::darkGray);
+        sel->setScreenshot(m_shot);
         sel->setVirtualGeometry(m_screen);
         sel->setScreenOffset(m_screen.topLeft());
         sel->setActionsEnabled(true);
@@ -193,6 +249,112 @@ private slots:
         QVERIFY(area.at(0).at(0).toRect().isEmpty());
         QVERIFY(m_sel);
         QVERIFY(!m_sel->isVisible());
+    }
+
+    // With a session attached, an armed tool turns interior presses into strokes.
+    void drawnRectangleIsInTheCopy()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_R);
+        QCOMPARE(session->activeTool(), QStringLiteral("rectangle"));
+
+        stroke(QPoint(80, 80), QPoint(160, 140));
+        QVERIFY(session->hasItems());
+
+        QSignalSpy copy(m_sel.data(), &AreaSelector::copyRequested);
+        QTest::keyClick(m_sel.data(), Qt::Key_C, Qt::ControlModifier);
+        QCOMPARE(copy.count(), 1);
+
+        // Crop-local: the rectangle spans (40,40)-(120,100).
+        const QRect area = copy.at(0).at(0).toRect();
+        const QImage out = session->flattenedCrop(area).toImage();
+        QVERIFY(near(out.pixelColor(40, 70), m_stroke));
+        QVERIFY(near(out.pixelColor(120, 70), m_stroke));
+        QCOMPARE(out.pixelColor(80, 70), QColor(Qt::darkGray));
+    }
+
+    void clicksDrawInsteadOfCommittingWithAToolArmed()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_R);
+        QSignalSpy area(m_sel.data(), &AreaSelector::areaSelected);
+
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(100, 100));
+        QCOMPARE(area.count(), 0);
+        QTest::mouseDClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(120, 120));
+        QCOMPARE(area.count(), 0);
+        QVERIFY(m_sel->isVisible());
+    }
+
+    void pressOutsideKeepsTheSelectionWithAToolArmed()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_R);
+        QSignalSpy state(m_sel.data(), &AreaSelector::liveStateChanged);
+
+        stroke(QPoint(400, 400), QPoint(500, 480));
+        for (const auto &args : state)
+            QCOMPARE(args.at(0).toRect(), selectionFor(QPoint(40, 40), QPoint(240, 180)));
+        QVERIFY(!session->hasItems());
+    }
+
+    void undoAndRedoChords()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_R);
+        stroke(QPoint(80, 80), QPoint(160, 140));
+        QVERIFY(session->hasItems());
+
+        chord(QKeySequence::Undo);
+        QVERIFY(!session->hasItems());
+        chord(QKeySequence::Redo);
+        QVERIFY(session->hasItems());
+        QVERIFY(m_sel->isVisible());
+    }
+
+    void sameLetterDisarmsTheTool()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_R);
+        QTest::keyClick(m_sel.data(), Qt::Key_R);
+        QVERIFY(session->activeTool().isEmpty());
+
+        verifyInteriorDragMoves(selectionFor(QPoint(40, 40), QPoint(240, 180)));
+        QVERIFY(!session->hasItems());
+    }
+
+    void toolLettersAreInertWithoutASession()
+    {
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_R);
+        verifyInteriorDragMoves(selectionFor(QPoint(40, 40), QPoint(240, 180)));
+    }
+
+    void escapeDisarmsBeforeClearing()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_R);
+        stroke(QPoint(80, 80), QPoint(160, 140));
+        QSignalSpy state(m_sel.data(), &AreaSelector::liveStateChanged);
+
+        QTest::keyClick(m_sel.data(), Qt::Key_Escape);
+        QVERIFY(session->activeTool().isEmpty());
+        QVERIFY(session->hasItems());
+        for (const auto &args : state)
+            QCOMPARE(args.at(1).toInt(), kAdjusting);
+        QVERIFY(m_sel->isVisible());
+
+        QTest::keyClick(m_sel.data(), Qt::Key_Escape);
+        QVERIFY(!state.isEmpty());
+        QCOMPARE(state.last().at(1).toInt(), kIdle);
+        QVERIFY(!session->hasItems());
+        QVERIFY(m_sel->isVisible());
     }
 };
 
