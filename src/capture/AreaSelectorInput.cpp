@@ -1,6 +1,10 @@
 #include "capture/AreaSelectorInput.h"
 
+#include "capture/OverlayAnnotations.h"
+#include "editor/annotations/ToolRegistry.h"
+
 #include <QKeySequence>
+#include <algorithm>
 
 namespace Capture {
 
@@ -20,6 +24,117 @@ bool AreaSelector::ToolbarHandler::mousePress(QMouseEvent *event)
     s.m_cursorVirt = s.toVirt(local);
     s.m_hasCursor = true;
     s.triggerToolbarButton(b);
+    return true;
+}
+
+// ---- TextEditingHandler ----------------------------------------------------
+
+bool AreaSelector::TextEditingHandler::keyPress(QKeyEvent *event)
+{
+    auto &s = m_sel;
+    if (!s.m_annotations || !s.m_annotations->isEditingText()) return false;
+    if (event->key() == Qt::Key_Escape)
+        s.m_annotations->commitPendingText();
+    else
+        s.m_annotations->forwardKey(event);
+    return true;
+}
+
+// ---- StrokeHandler ---------------------------------------------------------
+
+bool AreaSelector::StrokeHandler::armed() const
+{
+    const auto &s = m_sel;
+    return s.toolArmed() && s.m_mode == Mode::AreaSelect && s.m_phase == Phase::Adjusting &&
+           !s.m_selectionVirt.isEmpty();
+}
+
+bool AreaSelector::StrokeHandler::keyPress(QKeyEvent *event)
+{
+    auto &s = m_sel;
+    if (event->key() != Qt::Key_Escape || !s.m_annotations || !s.m_annotations->isDrawing())
+        return false;
+    s.m_annotations->cancelStroke();
+    return true;
+}
+
+bool AreaSelector::StrokeHandler::mousePress(QMouseEvent *event)
+{
+    auto &s = m_sel;
+    if (event->button() != Qt::LeftButton || !armed()) return false;
+    const QPoint local = event->pos();
+    const Handle h = s.hitTest(local);
+    if (h != Handle::Interior && h != Handle::None) return false;   // handles still resize
+    s.m_cursorVirt = s.toVirt(local);
+    s.m_hasCursor = true;
+    // Outside the selection the press is swallowed: no fresh selection while drawing.
+    if (h == Handle::Interior && s.m_annotations->press(s.m_cursorVirt))
+        s.setCursor(s.m_annotations->cursor());
+    return true;
+}
+
+bool AreaSelector::StrokeHandler::mouseMove(QMouseEvent *event)
+{
+    auto &s = m_sel;
+    if (!s.m_annotations || !s.m_annotations->isDrawing()) return false;
+    s.m_cursorVirt = s.toVirt(event->pos());
+    s.m_annotations->move(s.m_cursorVirt);
+    return true;
+}
+
+bool AreaSelector::StrokeHandler::mouseRelease(QMouseEvent *event)
+{
+    auto &s = m_sel;
+    if (event->button() != Qt::LeftButton || !s.m_annotations || !s.m_annotations->isDrawing())
+        return false;
+    s.m_cursorVirt = s.toVirt(event->pos());
+    s.m_annotations->release(s.m_cursorVirt);
+    s.updateCursorShape(event->pos());
+    return true;
+}
+
+bool AreaSelector::StrokeHandler::mouseDoubleClick(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton || !armed()) return false;
+    // A quick second click draws again; it must never commit the capture.
+    mousePress(event);
+    return true;
+}
+
+// ---- ToolHandler -----------------------------------------------------------
+
+bool AreaSelector::ToolHandler::keyPress(QKeyEvent *event)
+{
+    auto &s = m_sel;
+    if (!s.m_annotations || !s.actionsAvailable()) return false;
+    OverlayAnnotations &session = *s.m_annotations;
+
+    if (event->matches(QKeySequence::Undo)) {
+        session.undo();
+        return true;
+    }
+    if (event->matches(QKeySequence::Redo)) {
+        session.redo();
+        return true;
+    }
+
+    QString tool;
+    if (event->key() == Qt::Key_Escape) {
+        if (session.activeTool().isEmpty()) return false;
+    } else {
+        if (event->modifiers() != Qt::NoModifier || event->key() < Qt::Key_A || event->key() > Qt::Key_Z)
+            return false;
+        const Editor::ToolSpec *spec = Editor::ToolRegistry::findByShortcut(QChar(event->key()));
+        if (!spec || std::find(std::begin(kOverlayTools), std::end(kOverlayTools), spec->id)
+                         == std::end(kOverlayTools))
+            return false;
+        if (event->isAutoRepeat()) return true;
+        if (session.activeTool() != spec->id)
+            tool = spec->id;
+    }
+    session.setActiveTool(tool);
+    if (s.m_hoveredButton < 0)
+        s.updateCursorShape(s.toLocal(s.m_cursorVirt));
     return true;
 }
 
@@ -56,6 +171,8 @@ bool AreaSelector::SelectionHandler::mousePress(QMouseEvent *event)
         }
         // clicked outside the selection -> start a fresh one
     }
+    if (s.m_annotations)
+        s.m_annotations->clear();
 
     s.m_phase = Phase::Dragging;
     s.m_activeHandle = Handle::None;
@@ -153,6 +270,8 @@ bool AreaSelector::SelectionHandler::keyPress(QKeyEvent *event)
                 s.m_phase = Phase::Idle;
                 s.m_selectionVirt = QRect();
                 s.m_activeHandle = Handle::None;
+                if (s.m_annotations)
+                    s.m_annotations->clear();
                 s.setCursor(Qt::CrossCursor);
                 s.broadcastState();
                 s.update();

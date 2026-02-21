@@ -68,6 +68,7 @@ public:
     [[nodiscard]] QPixmap flattenedCrop(const QRect &virtArea);
 
 signals:
+    // Scene, undo history or armed tool changed.
     void changed();
 
 private:

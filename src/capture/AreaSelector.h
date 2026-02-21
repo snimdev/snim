@@ -105,6 +105,9 @@ namespace Capture {
         // Input chain of responsibility, defined in AreaSelectorInput.h.
         class InputHandler;
         class ToolbarHandler;
+        class TextEditingHandler;
+        class StrokeHandler;
+        class ToolHandler;
         class SelectionHandler;
 
         enum class Phase { Idle, Dragging, Adjusting };
@@ -136,6 +139,7 @@ namespace Capture {
         void   triggerToolbarButton(int index);
         void   paintToolbar(QPainter &p);
         void   updateCursorShape(const QPoint &local);
+        bool   toolArmed() const;
         void   applyHandleDrag(const QPoint &cursorVirt);
         void   commitSelection();
         void   cancel();

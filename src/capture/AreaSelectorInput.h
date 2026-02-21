@@ -4,7 +4,15 @@
 
 #include "capture/AreaSelector.h"
 
+#include <QLatin1StringView>
+
 namespace Capture {
+
+// Tools the overlay offers, in strip order.
+inline constexpr QLatin1StringView kOverlayTools[] = {
+    QLatin1StringView("arrow"), QLatin1StringView("rectangle"),
+    QLatin1StringView("ellipse"), QLatin1StringView("freehand"),
+};
 
 // One link of the chain; returning true stops the event there.
 class AreaSelector::InputHandler
@@ -30,6 +38,37 @@ class AreaSelector::ToolbarHandler : public AreaSelector::InputHandler
 public:
     using InputHandler::InputHandler;
     bool mousePress(QMouseEvent *event) override;
+};
+
+// While text is being typed every key belongs to it; Esc commits the text.
+class AreaSelector::TextEditingHandler : public AreaSelector::InputHandler
+{
+public:
+    using InputHandler::InputHandler;
+    bool keyPress(QKeyEvent *event) override;
+};
+
+// With a tool armed, presses inside the selection draw instead of moving or committing.
+class AreaSelector::StrokeHandler : public AreaSelector::InputHandler
+{
+public:
+    using InputHandler::InputHandler;
+    bool keyPress(QKeyEvent *event) override;
+    bool mousePress(QMouseEvent *event) override;
+    bool mouseMove(QMouseEvent *event) override;
+    bool mouseRelease(QMouseEvent *event) override;
+    bool mouseDoubleClick(QMouseEvent *event) override;
+
+private:
+    [[nodiscard]] bool armed() const;
+};
+
+// Tool letters, undo and redo, and Esc to disarm.
+class AreaSelector::ToolHandler : public AreaSelector::InputHandler
+{
+public:
+    using InputHandler::InputHandler;
+    bool keyPress(QKeyEvent *event) override;
 };
 
 // Selecting, adjusting and the terminal actions; last in the chain.

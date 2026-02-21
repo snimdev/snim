@@ -86,15 +86,19 @@ void OverlayAnnotations::setActiveTool(const QString &id)
     if (auto *previous = activeInteraction())
         previous->cleanup(m_scene.get());
 
+    const QString previousId = m_activeTool;
     const Editor::ToolSpec *spec = Editor::ToolRegistry::find(id);
     if (!spec || !spec->isDrawingTool || !m_builder->interaction(id)) {
         m_activeTool.clear();
-        return;
+    } else {
+        m_activeTool = id;
+        Editor::Tools::ITool *tmpl = m_builder->templateFor(id);
+        if (spec->syncStrategy && tmpl)
+            spec->syncStrategy(m_builder->interaction(id), tmpl);
     }
-    m_activeTool = id;
-    Editor::Tools::ITool *tmpl = m_builder->templateFor(id);
-    if (spec->syncStrategy && tmpl)
-        spec->syncStrategy(m_builder->interaction(id), tmpl);
+    // Every overlay shows the armed tool, so they all repaint.
+    if (m_activeTool != previousId)
+        emit changed();
 }
 
 bool OverlayAnnotations::press(const QPoint &virt)

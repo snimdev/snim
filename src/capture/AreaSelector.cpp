@@ -41,6 +41,9 @@ AreaSelector::AreaSelector(QWidget *parent)
 
     // Order is behaviour: the first handler that consumes an event wins.
     m_inputChain.push_back(std::make_unique<ToolbarHandler>(*this));
+    m_inputChain.push_back(std::make_unique<TextEditingHandler>(*this));
+    m_inputChain.push_back(std::make_unique<StrokeHandler>(*this));
+    m_inputChain.push_back(std::make_unique<ToolHandler>(*this));
     m_inputChain.push_back(std::make_unique<SelectionHandler>(*this));
 }
 
@@ -326,9 +329,17 @@ void AreaSelector::updateCursorShape(const QPoint &local)
         case Handle::Bottom:      setCursor(Qt::SizeVerCursor);   break;
         case Handle::Left:
         case Handle::Right:       setCursor(Qt::SizeHorCursor);   break;
-        case Handle::Interior:    setCursor(Qt::SizeAllCursor);   break;
+        case Handle::Interior:
+            if (toolArmed()) setCursor(m_annotations->cursor());
+            else             setCursor(Qt::SizeAllCursor);
+            break;
         default:                  setCursor(Qt::CrossCursor);     break;
     }
+}
+
+bool AreaSelector::toolArmed() const
+{
+    return m_annotations && !m_annotations->activeTool().isEmpty();
 }
 
 void AreaSelector::applyHandleDrag(const QPoint &c)
