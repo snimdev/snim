@@ -1,7 +1,9 @@
 #include "AreaSelector.h"
 #include "capture/AreaSelectorInput.h"
 #include "capture/OverlayAnnotations.h"
+#include "core/IconUtil.h"
 #include "core/Perf.h"
+#include "editor/annotations/ToolRegistry.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QApplication>
@@ -12,6 +14,7 @@
 #include <QShowEvent>
 #include <QResizeEvent>
 #include <QEvent>
+#include <QFile>
 #include <QPolygonF>
 
 namespace Capture {
@@ -21,6 +24,7 @@ namespace {
     const QColor  kAccent(0, 150, 255);       // selection / handle accent color
     constexpr int kBtnSize = 38;              // action toolbar button size
     constexpr int kBtnPad  = 6;               // padding around toolbar buttons
+    constexpr int kSepGap  = 9;               // extra gap holding a group separator
 
     QString keyText(QKeySequence::StandardKey k)
     {
@@ -171,11 +175,37 @@ bool AreaSelector::toolbarVisible() const
     return QRect(m_screenOffset, size()).contains(anchor);
 }
 
-QRect AreaSelector::toolbarRect() const
+QVector<AreaSelector::BarSlot> AreaSelector::toolbarSlots(QRect *barOut) const
 {
-    const int n = BtnCount;
-    const int w = n * kBtnSize + (n + 1) * kBtnPad;
-    const int h = kBtnSize + 2 * kBtnPad;
+    // Groups in bar order; tools and history only exist with a session.
+    QVector<QVector<BarSlot>> groups;
+    if (m_annotations) {
+        QVector<BarSlot> tools;
+        for (QLatin1StringView id : kOverlayTools)
+            tools.append({BarSlot::Kind::Tool, QString(id), -1, {}});
+        groups.append(tools);
+        groups.append({{BarSlot::Kind::Undo, {}, -1, {}}, {BarSlot::Kind::Redo, {}, -1, {}}});
+    }
+    QVector<BarSlot> actions;
+    for (int i = 0; i < BtnCount; ++i)
+        actions.append({BarSlot::Kind::Action, {}, i, {}});
+    groups.append(actions);
+
+    const auto rowWidth = [&groups](int from, int to) {
+        int n = 0;
+        for (int g = from; g < to; ++g)
+            n += int(groups[g].size());
+        return kBtnPad + n * (kBtnSize + kBtnPad) + (to - from - 1) * kSepGap;
+    };
+    const int count = int(groups.size());
+    QVector<QPair<int, int>> rows{{0, count}};
+    if (count > 1 && rowWidth(0, count) > width() - 8)
+        rows = {{0, count - 1}, {count - 1, count}};   // actions on their own row
+
+    int w = 0;
+    for (const auto &row : rows)
+        w = qMax(w, rowWidth(row.first, row.second));
+    const int h = int(rows.size()) * (kBtnSize + kBtnPad) + kBtnPad;
     const QRect sel = localSelection();
 
     int x = sel.center().x() - w / 2;
@@ -186,21 +216,34 @@ QRect AreaSelector::toolbarRect() const
         y = sel.top() - 12 - h;             // flip above if no room below
     if (y < 4)
         y = qBound(4, sel.bottom() + 12, qMax(4, height() - h - 4));
-    return QRect(x, y, w, h);
-}
+    const QRect bar(x, y, w, h);
+    if (barOut)
+        *barOut = bar;
 
-QRect AreaSelector::toolbarButtonRect(int index) const
-{
-    const QRect bar = toolbarRect();
-    const int x = bar.left() + kBtnPad + index * (kBtnSize + kBtnPad);
-    return QRect(x, bar.top() + kBtnPad, kBtnSize, kBtnSize);
+    QVector<BarSlot> out;
+    int top = bar.top() + kBtnPad;
+    for (const auto &row : rows) {
+        int left = bar.left() + (w - rowWidth(row.first, row.second)) / 2 + kBtnPad;
+        for (int g = row.first; g < row.second; ++g) {
+            if (g > row.first)
+                left += kSepGap;
+            for (BarSlot slot : groups[g]) {
+                slot.rect = QRect(left, top, kBtnSize, kBtnSize);
+                out.append(slot);
+                left += kBtnSize + kBtnPad;
+            }
+        }
+        top += kBtnSize + kBtnPad;
+    }
+    return out;
 }
 
 int AreaSelector::toolbarButtonAt(const QPoint &local) const
 {
     if (!toolbarVisible()) return -1;
-    for (int i = 0; i < BtnCount; ++i)
-        if (toolbarButtonRect(i).contains(local)) return i;
+    const QVector<BarSlot> bar = toolbarSlots();
+    for (int i = 0; i < bar.size(); ++i)
+        if (bar[i].rect.contains(local)) return i;
     return -1;
 }
 
@@ -215,9 +258,145 @@ void AreaSelector::triggerToolbarButton(int index)
     }
 }
 
+void AreaSelector::activateBarSlot(const BarSlot &slot)
+{
+    switch (slot.kind) {
+        case BarSlot::Kind::Tool:   toggleTool(slot.toolId);             break;
+        case BarSlot::Kind::Undo:   m_annotations->undo();               break;
+        case BarSlot::Kind::Redo:   m_annotations->redo();               break;
+        case BarSlot::Kind::Action: triggerToolbarButton(slot.action);   break;
+    }
+}
+
+void AreaSelector::toggleTool(const QString &id)
+{
+    m_annotations->setActiveTool(m_annotations->activeTool() == id ? QString() : id);
+}
+
+QIcon AreaSelector::barIcon(const QString &path)
+{
+    auto it = m_barIcons.constFind(path);
+    if (it == m_barIcons.constEnd()) {
+        // Without the qrc (tests) the glyph falls back to hand painting.
+        const QIcon icon = QFile::exists(path) ? Core::themedSvgIcon(path, Qt::white, 20) : QIcon();
+        it = m_barIcons.insert(path, icon);
+    }
+    return *it;
+}
+
+QString AreaSelector::barTooltip(const BarSlot &slot) const
+{
+    switch (slot.kind) {
+        case BarSlot::Kind::Tool:
+            if (const Editor::ToolSpec *spec = Editor::ToolRegistry::find(slot.toolId))
+                return QStringLiteral("%1 (%2)").arg(spec->tooltip, QString(spec->shortcut));
+            return {};
+        case BarSlot::Kind::Undo: return QStringLiteral("Undo (%1)").arg(keyText(QKeySequence::Undo));
+        case BarSlot::Kind::Redo: return QStringLiteral("Redo (%1)").arg(keyText(QKeySequence::Redo));
+        case BarSlot::Kind::Action: break;
+    }
+    switch (slot.action) {
+        case BtnEdit:   return QStringLiteral("Open in editor (Enter)");
+        case BtnCopy:   return QStringLiteral("Copy to clipboard (%1)").arg(keyText(QKeySequence::Copy));
+        case BtnSave:   return QStringLiteral("Save to file… (%1)").arg(keyText(QKeySequence::Save));
+        case BtnCancel: return QStringLiteral("Cancel (Esc)");
+        default:        return {};
+    }
+}
+
+void AreaSelector::paintBarGlyph(QPainter &p, const BarSlot &slot, const QRect &r)
+{
+    const QColor glyphColor = (slot.kind == BarSlot::Kind::Action && slot.action == BtnCancel)
+                              ? QColor(255, 120, 120) : QColor(Qt::white);
+    p.setPen(QPen(glyphColor, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setBrush(Qt::NoBrush);
+    const QRectF g = QRectF(r).adjusted(11, 11, -11, -11); // glyph box
+    QRect iconRect(0, 0, 20, 20);
+    iconRect.moveCenter(r.center());
+
+    if (slot.kind == BarSlot::Kind::Tool) {
+        const Editor::ToolSpec *spec = Editor::ToolRegistry::find(slot.toolId);
+        const QIcon icon = spec ? barIcon(spec->iconPath) : QIcon();
+        if (!icon.isNull()) {
+            icon.paint(&p, iconRect);
+        } else if (spec) {
+            p.save();
+            QFont f = p.font();
+            f.setPointSize(11);
+            f.setBold(true);
+            p.setFont(f);
+            p.drawText(r, Qt::AlignCenter, QString(spec->shortcut));
+            p.restore();
+        }
+        return;
+    }
+
+    if (slot.kind == BarSlot::Kind::Undo || slot.kind == BarSlot::Kind::Redo) {
+        const bool redo = slot.kind == BarSlot::Kind::Redo;
+        const QIcon icon = barIcon(redo ? QStringLiteral(":/icons/icons/redo.svg")
+                                        : QStringLiteral(":/icons/icons/undo.svg"));
+        if (!icon.isNull()) {
+            icon.paint(&p, iconRect);
+            return;
+        }
+        // Hook arrow in the SVG's 24-unit box, mirrored for redo.
+        p.save();
+        p.translate(QRectF(r).center());
+        p.scale(redo ? -20.0 / 24.0 : 20.0 / 24.0, 20.0 / 24.0);
+        p.translate(-12, -12);
+        p.drawPolyline(QPolygonF{QPointF(9, 7), QPointF(4, 12), QPointF(9, 17)});
+        QPainterPath tail;
+        tail.moveTo(4, 12);
+        tail.lineTo(15, 12);
+        tail.cubicTo(17.76, 12, 20, 14.24, 20, 17);
+        tail.lineTo(20, 18);
+        p.drawPath(tail);
+        p.restore();
+        return;
+    }
+
+    switch (slot.action) {
+        case BtnEdit: {            // checkmark
+            QPolygonF chk;
+            chk << QPointF(g.left(), g.center().y())
+                << QPointF(g.left() + g.width() * 0.38, g.bottom())
+                << QPointF(g.right(), g.top());
+            p.drawPolyline(chk);
+            break;
+        }
+        case BtnCopy: {            // two stacked rounded rects
+            QRectF back(g.left() + g.width() * 0.25, g.top(),
+                        g.width() * 0.75, g.height() * 0.75);
+            QRectF front(g.left(), g.top() + g.height() * 0.25,
+                         g.width() * 0.75, g.height() * 0.75);
+            p.drawRoundedRect(back, 2, 2);
+            p.drawRoundedRect(front, 2, 2);
+            break;
+        }
+        case BtnSave: {            // down arrow into a tray
+            const qreal cx = g.center().x();
+            p.drawLine(QPointF(cx, g.top()), QPointF(cx, g.bottom() - g.height() * 0.30));
+            QPolygonF arrow;
+            arrow << QPointF(cx - g.width() * 0.24, g.bottom() - g.height() * 0.48)
+                  << QPointF(cx, g.bottom() - g.height() * 0.18)
+                  << QPointF(cx + g.width() * 0.24, g.bottom() - g.height() * 0.48);
+            p.drawPolyline(arrow);
+            p.drawLine(QPointF(g.left(), g.bottom()), QPointF(g.right(), g.bottom()));
+            break;
+        }
+        case BtnCancel: {          // X
+            p.drawLine(g.topLeft(), g.bottomRight());
+            p.drawLine(g.topRight(), g.bottomLeft());
+            break;
+        }
+        default: break;
+    }
+}
+
 void AreaSelector::paintToolbar(QPainter &p)
 {
-    const QRect bar = toolbarRect();
+    QRect bar;
+    const QVector<BarSlot> buttons = toolbarSlots(&bar);
     p.setRenderHint(QPainter::Antialiasing, true);
 
     QPainterPath bg;
@@ -227,10 +406,27 @@ void AreaSelector::paintToolbar(QPainter &p)
     p.setBrush(Qt::NoBrush);
     p.drawPath(bg);
 
-    for (int i = 0; i < BtnCount; ++i) {
-        const QRect r = toolbarButtonRect(i);
-        const bool primary = (i == BtnEdit);
-        const bool hovered = (i == m_hoveredButton);
+    const QString armedTool = m_annotations ? m_annotations->activeTool() : QString();
+    const auto group = [](const BarSlot &slot) {
+        return slot.kind == BarSlot::Kind::Redo ? int(BarSlot::Kind::Undo) : int(slot.kind);
+    };
+
+    for (int i = 0; i < buttons.size(); ++i) {
+        const BarSlot &slot = buttons[i];
+        const QRect r = slot.rect;
+
+        if (i > 0 && buttons[i - 1].rect.top() == r.top() && group(buttons[i - 1]) != group(slot)) {
+            const qreal sx = (buttons[i - 1].rect.right() + r.left() + 1) / 2.0;
+            p.setPen(QPen(QColor(255, 255, 255, 50), 1));
+            p.drawLine(QPointF(sx, r.top() + 8), QPointF(sx, r.bottom() - 8));
+        }
+
+        bool enabled = true;
+        if (slot.kind == BarSlot::Kind::Undo) enabled = m_annotations->canUndo();
+        if (slot.kind == BarSlot::Kind::Redo) enabled = m_annotations->canRedo();
+        const bool primary = (slot.kind == BarSlot::Kind::Action && slot.action == BtnEdit) ||
+                             (slot.kind == BarSlot::Kind::Tool && slot.toolId == armedTool);
+        const bool hovered = enabled && (i == m_hoveredButton);
 
         if (primary || hovered) {
             QPainterPath hp;
@@ -240,65 +436,20 @@ void AreaSelector::paintToolbar(QPainter &p)
             p.fillPath(hp, fill);
         }
 
-        const QColor glyphColor = (i == BtnCancel) ? QColor(255, 120, 120) : Qt::white;
-        p.setPen(QPen(glyphColor, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        p.setBrush(Qt::NoBrush);
-        const QRectF g = QRectF(r).adjusted(11, 11, -11, -11); // glyph box
-
-        switch (i) {
-            case BtnEdit: {            // checkmark
-                QPolygonF chk;
-                chk << QPointF(g.left(), g.center().y())
-                    << QPointF(g.left() + g.width() * 0.38, g.bottom())
-                    << QPointF(g.right(), g.top());
-                p.drawPolyline(chk);
-                break;
-            }
-            case BtnCopy: {            // two stacked rounded rects
-                QRectF back(g.left() + g.width() * 0.25, g.top(),
-                            g.width() * 0.75, g.height() * 0.75);
-                QRectF front(g.left(), g.top() + g.height() * 0.25,
-                             g.width() * 0.75, g.height() * 0.75);
-                p.drawRoundedRect(back, 2, 2);
-                p.drawRoundedRect(front, 2, 2);
-                break;
-            }
-            case BtnSave: {            // down arrow into a tray
-                const qreal cx = g.center().x();
-                p.drawLine(QPointF(cx, g.top()), QPointF(cx, g.bottom() - g.height() * 0.30));
-                QPolygonF arrow;
-                arrow << QPointF(cx - g.width() * 0.24, g.bottom() - g.height() * 0.48)
-                      << QPointF(cx, g.bottom() - g.height() * 0.18)
-                      << QPointF(cx + g.width() * 0.24, g.bottom() - g.height() * 0.48);
-                p.drawPolyline(arrow);
-                p.drawLine(QPointF(g.left(), g.bottom()), QPointF(g.right(), g.bottom()));
-                break;
-            }
-            case BtnCancel: {          // X
-                p.drawLine(g.topLeft(), g.bottomRight());
-                p.drawLine(g.topRight(), g.bottomLeft());
-                break;
-            }
-            default: break;
-        }
+        p.setOpacity(enabled ? 1.0 : 0.35);
+        paintBarGlyph(p, slot, r);
+        p.setOpacity(1.0);
     }
 
     // Hover tooltip for the focused button (painted ourselves; a real QToolTip
     // would appear behind this shielding-level overlay window).
-    if (m_hoveredButton >= 0 && m_hoveredButton < BtnCount) {
-        QString label;
-        switch (m_hoveredButton) {
-            case BtnEdit:   label = QStringLiteral("Open in editor (Enter)"); break;
-            case BtnCopy:   label = QStringLiteral("Copy to clipboard (%1)").arg(keyText(QKeySequence::Copy)); break;
-            case BtnSave:   label = QStringLiteral("Save to file… (%1)").arg(keyText(QKeySequence::Save)); break;
-            case BtnCancel: label = QStringLiteral("Cancel (Esc)"); break;
-            default: break;
-        }
+    if (m_hoveredButton >= 0 && m_hoveredButton < buttons.size()) {
+        const QString label = barTooltip(buttons[m_hoveredButton]);
         if (!label.isEmpty()) {
             QFont f = p.font();
             f.setPointSize(10);
             p.setFont(f);
-            const QRect btn = toolbarButtonRect(m_hoveredButton);
+            const QRect btn = buttons[m_hoveredButton].rect;
             QRect tip = p.fontMetrics().boundingRect(label).adjusted(-8, -4, 8, 4);
             tip.moveCenter(QPoint(btn.center().x(), bar.top() - 6 - tip.height() / 2));
             if (tip.top() < 4)             tip.moveTop(bar.bottom() + 6); // no room above -> below
@@ -667,6 +818,11 @@ void AreaSelector::paintInstructions(QPainter &p)
             case Phase::Idle:      text = QStringLiteral("Drag to select  ·  Esc to cancel"); break;
             case Phase::Dragging:  text = QStringLiteral("Release to adjust"); break;
             case Phase::Adjusting:
+                if (toolArmed()) {
+                    text = QStringLiteral("Drag to draw  ·  %1 to undo  ·  Esc to stop drawing")
+                               .arg(keyText(QKeySequence::Undo));
+                    break;
+                }
                 text = m_actionsEnabled
                        ? QStringLiteral("Click inside or ✓ to capture  ·  %1 to copy  ·  %2 to save  ·  Esc to cancel")
                              .arg(keyText(QKeySequence::Copy), keyText(QKeySequence::Save))

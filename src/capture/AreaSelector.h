@@ -8,6 +8,8 @@
 #include <QPixmap>
 #include <QImage>
 #include <QVector>
+#include <QHash>
+#include <QIcon>
 #include <QSharedPointer>
 #include <memory>
 #include <vector>
@@ -128,15 +130,27 @@ namespace Capture {
         // so they appear on the right monitor, even during a grabbed cross-monitor drag.
         bool   cursorOnThisScreen() const { return QRect(m_screenOffset, size()).contains(m_cursorVirt); }
 
-        // Floating action toolbar (Edit/Copy/Save/Cancel) shown during Adjusting.
+        // Floating toolbar shown during Adjusting: [tools] | [undo redo] | [actions].
         enum ToolButton { BtnEdit = 0, BtnCopy, BtnSave, BtnCancel, BtnCount };
+        struct BarSlot {
+            enum class Kind { Tool, Undo, Redo, Action };
+            Kind    kind = Kind::Action;
+            QString toolId;     // Tool
+            int     action = -1; // Action: a ToolButton
+            QRect   rect;
+        };
         // No anchor test, so the keyboard path works on whichever overlay has focus.
         bool   actionsAvailable() const;
         bool   toolbarVisible() const;
-        QRect  toolbarRect() const;
-        QRect  toolbarButtonRect(int index) const;
-        int    toolbarButtonAt(const QPoint &local) const;
-        void   triggerToolbarButton(int index);
+        // The one layout shared by paint and hit-test; wraps to two rows when too wide.
+        QVector<BarSlot> toolbarSlots(QRect *bar = nullptr) const;
+        int    toolbarButtonAt(const QPoint &local) const;   // index into toolbarSlots()
+        void   triggerToolbarButton(int index);              // a ToolButton action
+        void   activateBarSlot(const BarSlot &slot);
+        void   toggleTool(const QString &id);
+        QIcon  barIcon(const QString &path);
+        QString barTooltip(const BarSlot &slot) const;
+        void   paintBarGlyph(QPainter &p, const BarSlot &slot, const QRect &r);
         void   paintToolbar(QPainter &p);
         void   updateCursorShape(const QPoint &local);
         bool   toolArmed() const;
@@ -179,7 +193,8 @@ namespace Capture {
 
         bool   m_actionsEnabled = false; // show the action toolbar
         QSharedPointer<OverlayAnnotations> m_annotations;
-        int    m_hoveredButton = -1;     // toolbar button under cursor (-1 = none)
+        int    m_hoveredButton = -1;     // toolbar slot under cursor (-1 = none)
+        QHash<QString, QIcon> m_barIcons; // white toolbar icons by resource path
 
         std::vector<std::unique_ptr<InputHandler>> m_inputChain;
 

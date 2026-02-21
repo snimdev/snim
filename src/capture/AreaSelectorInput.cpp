@@ -23,7 +23,7 @@ bool AreaSelector::ToolbarHandler::mousePress(QMouseEvent *event)
     if (b < 0) return false;
     s.m_cursorVirt = s.toVirt(local);
     s.m_hasCursor = true;
-    s.triggerToolbarButton(b);
+    s.activateBarSlot(s.toolbarSlots().at(b));
     return true;
 }
 
@@ -118,9 +118,9 @@ bool AreaSelector::ToolHandler::keyPress(QKeyEvent *event)
         return true;
     }
 
-    QString tool;
     if (event->key() == Qt::Key_Escape) {
         if (session.activeTool().isEmpty()) return false;
+        session.setActiveTool({});
     } else {
         if (event->modifiers() != Qt::NoModifier || event->key() < Qt::Key_A || event->key() > Qt::Key_Z)
             return false;
@@ -129,10 +129,8 @@ bool AreaSelector::ToolHandler::keyPress(QKeyEvent *event)
                          == std::end(kOverlayTools))
             return false;
         if (event->isAutoRepeat()) return true;
-        if (session.activeTool() != spec->id)
-            tool = spec->id;
+        s.toggleTool(spec->id);
     }
-    session.setActiveTool(tool);
     if (s.m_hoveredButton < 0)
         s.updateCursorShape(s.toLocal(s.m_cursorVirt));
     return true;
