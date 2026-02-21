@@ -85,6 +85,31 @@ private slots:
         delete arrow;
     }
 
+    void shortcutsAreUniqueAndAvoidCopyAndSave()
+    {
+        QSet<QChar> seen;
+        for (const ToolSpec &s : ToolRegistry::tools()) {
+            QVERIFY2(!s.shortcut.isNull(), qPrintable(s.id));
+            QVERIFY2(s.shortcut.isUpper(), qPrintable(s.id));
+            QVERIFY2(!seen.contains(s.shortcut), qPrintable(s.id));
+            QVERIFY2(s.shortcut != u'C' && s.shortcut != u'S', qPrintable(s.id));
+            QVERIFY2(!s.tooltip.contains(u'('), qPrintable(s.id));   // consumers add the key
+            seen.insert(s.shortcut);
+        }
+    }
+
+    void findByShortcut_roundTripsAnyCase()
+    {
+        for (const ToolSpec &s : ToolRegistry::tools()) {
+            QCOMPARE(ToolRegistry::findByShortcut(s.shortcut), &s);
+            QCOMPARE(ToolRegistry::findByShortcut(s.shortcut.toLower()), &s);
+        }
+        QCOMPARE(ToolRegistry::findByShortcut(u'r')->id, QStringLiteral("rectangle"));
+        QCOMPARE(ToolRegistry::findByShortcut(u'C'), nullptr);
+        QCOMPARE(ToolRegistry::findByShortcut(u's'), nullptr);
+        QCOMPARE(ToolRegistry::findByShortcut(QChar()), nullptr);
+    }
+
     void makeInteraction_producesNonNull()
     {
         const ToolSpec *a = ToolRegistry::find("arrow");

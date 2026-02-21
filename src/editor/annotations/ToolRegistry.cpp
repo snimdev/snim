@@ -51,7 +51,8 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.layerType = Layer::Background;   // unused (never commits)
             s.displayName = "Pointer";
             s.iconPath = ":/icons/icons/pointer.svg";
-            s.tooltip = "Pointer (V)";
+            s.tooltip = "Pointer";
+            s.shortcut = u'V';
             s.isDrawingTool = false;
             s.autoRevealPanel = false;
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PointerToolInteraction(p); };
@@ -67,6 +68,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.namePrefix = "Arrow";
             s.iconPath = ":/icons/icons/arrow.svg";
             s.tooltip = "Arrow";
+            s.shortcut = u'A';
             s.switchToPointerAfter = true;   // select the new arrow so it's movable immediately
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ArrowDrawingInteraction(p); };
             s.makeTemplate = []() -> ITool* {
@@ -86,6 +88,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.namePrefix = "Text";
             s.iconPath = ":/icons/icons/text.svg";
             s.tooltip = "Text";
+            s.shortcut = u'T';
             s.switchToPointerAfter = true;
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new TextDrawingInteraction(p); };
             s.makeTemplate = []() -> ITool* {
@@ -105,6 +108,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.namePrefix = "Rectangle";
             s.iconPath = ":/icons/icons/rectangle.svg";
             s.tooltip = "Rectangle";
+            s.shortcut = u'R';
             s.switchToPointerAfter = true;   // select the new shape so it's movable immediately
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new RectangleDrawingInteraction(p); };
             s.makeTemplate = []() -> ITool* {
@@ -124,6 +128,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.namePrefix = "Ellipse";
             s.iconPath = ":/icons/icons/ellipse.svg";
             s.tooltip = "Ellipse";
+            s.shortcut = u'E';
             s.switchToPointerAfter = true;   // select the new shape so it's movable immediately
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new EllipseDrawingInteraction(p); };
             s.makeTemplate = []() -> ITool* {
@@ -143,6 +148,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.namePrefix = "Freehand";
             s.iconPath = ":/icons/icons/freehand.svg";
             s.tooltip = "Freehand";
+            s.shortcut = u'P';
             s.switchToPointerAfter = true;   // select the new stroke so it's movable immediately
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new FreehandDrawingInteraction(p); };
             s.makeTemplate = []() -> ITool* {
@@ -167,6 +173,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.namePrefix = "Highlight";
             s.iconPath = ":/icons/icons/highlight.svg";
             s.tooltip = "Highlight";
+            s.shortcut = u'H';
             s.switchToPointerAfter = true;   // select the new stroke so it's movable immediately
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new HighlightDrawingInteraction(p); };
             s.makeTemplate = []() -> ITool* {
@@ -192,6 +199,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.namePrefix = "Blur";
             s.iconPath = ":/icons/icons/blur.svg";
             s.tooltip = "Blur";
+            s.shortcut = u'B';
             s.switchToPointerAfter = true;   // select the new stroke so it's movable immediately
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new BlurDrawingInteraction(p); };
             s.makeTemplate = []() -> ITool* {
@@ -217,6 +225,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.namePrefix = "Step";
             s.iconPath = ":/icons/icons/step.svg";
             s.tooltip = "Step numbers";
+            s.shortcut = u'N';
             // Stays armed after a stamp: numbering several steps in a row is the point.
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new StepDrawingInteraction(p); };
             s.makeTemplate = []() -> ITool* {
@@ -237,6 +246,15 @@ const ToolSpec* ToolRegistry::find(const QString &id)
 {
     for (const ToolSpec &s : tools())
         if (s.id == id)
+            return &s;
+    return nullptr;
+}
+
+const ToolSpec* ToolRegistry::findByShortcut(QChar key)
+{
+    const QChar upper = key.toUpper();
+    for (const ToolSpec &s : tools())
+        if (!s.shortcut.isNull() && s.shortcut == upper)
             return &s;
     return nullptr;
 }

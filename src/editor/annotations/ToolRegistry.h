@@ -25,7 +25,8 @@ struct ToolSpec {
     QString displayName;              // Properties-panel title, e.g. "Arrow Tool"
     QString namePrefix;               // Layer name prefix, e.g. "Arrow"
     QString iconPath;                 // ":/icons/icons/arrow.svg"
-    QString tooltip;                  // toolbar tooltip
+    QString tooltip;                  // toolbar tooltip, without the key
+    QChar shortcut;                   // single-key shortcut, upper case
 
     bool isDrawingTool = true;        // false for the pointer (no template/commit)
     bool autoRevealPanel = true;      // reveal the side panel when picked
@@ -49,6 +50,8 @@ class ToolRegistry {
 public:
     static const QList<ToolSpec>& tools();
     static const ToolSpec* find(const QString &id);
+    // Case-insensitive; null when no tool uses the key.
+    static const ToolSpec* findByShortcut(QChar key);
 };
 
 } // namespace Editor
