@@ -513,9 +513,13 @@ void KWinCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRec
         selectors->append(selector);
     }
 
+    const auto annotations = attachAnnotations(*selectors, screenshot, virtualGeometry);
+
     for (auto *selector : *selectors) {
+        // Each handler copies the session first, so it outlives the teardown.
         connect(selector, &AreaSelector::areaSelected,
-                this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
+                this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
+            const auto session = annotations;
             tearDownSelectors(selectors);
 
             if (area.isEmpty()) {
@@ -524,18 +528,20 @@ void KWinCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRec
             }
 
             // area is in virtual-desktop logical coords; map to physical pixmap coords.
-            emit screenshotReady(cropVirtualArea(screenshot, virtualGeometry, area));
+            emit screenshotReady(cropWithAnnotations(screenshot, virtualGeometry, area, session));
         });
         connect(selector, &AreaSelector::copyRequested,
-                this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
+                this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
+            const auto session = annotations;
             tearDownSelectors(selectors);
-            copyAreaToClipboard(screenshot, virtualGeometry, area);
+            copyAreaToClipboard(screenshot, virtualGeometry, area, session);
         });
         connect(selector, &AreaSelector::saveRequested,
-                this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
+                this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
+            const auto session = annotations;
             // Teardown first, or the save dialog opens behind the overlay.
             tearDownSelectors(selectors);
-            saveAreaToFile(screenshot, virtualGeometry, area);
+            saveAreaToFile(screenshot, virtualGeometry, area, session);
         });
     }
 }

@@ -1,11 +1,16 @@
 #ifndef CAPTURE_CAPTURESTRATEGY_H
 #define CAPTURE_CAPTURESTRATEGY_H
 
+#include <QList>
 #include <QObject>
 #include <QPixmap>
 #include <QRect>
+#include <QSharedPointer>
 
 namespace Capture {
+
+class AreaSelector;
+class OverlayAnnotations;
 
 /**
  * Abstract base class for different screenshot capture strategies
@@ -43,8 +48,21 @@ protected:
     // the frozen frame to the selection, then copy it or save it. Callers own the
     // frame, so they pass it in; they must also tear the overlays down BEFORE
     // saveAreaToFile, or the file dialog opens behind a fullscreen overlay.
-    void copyAreaToClipboard(const QPixmap &shot, const QRect &virtualGeometry, const QRect &area);
-    void saveAreaToFile(const QPixmap &shot, const QRect &virtualGeometry, const QRect &area);
+    void copyAreaToClipboard(const QPixmap &shot, const QRect &virtualGeometry, const QRect &area,
+                             const QSharedPointer<OverlayAnnotations> &annotations = {});
+    void saveAreaToFile(const QPixmap &shot, const QRect &virtualGeometry, const QRect &area,
+                        const QSharedPointer<OverlayAnnotations> &annotations = {});
+
+    // The selection crop, with the overlay's annotations burned in when there are any.
+    [[nodiscard]] static QPixmap cropWithAnnotations(const QPixmap &shot, const QRect &virtualGeometry,
+                                                     const QRect &area,
+                                                     const QSharedPointer<OverlayAnnotations> &annotations);
+
+    // Area selection only: one session shared by all the selectors, null when quick
+    // actions are off. Terminal handlers keep a copy until they have used it.
+    QSharedPointer<OverlayAnnotations> attachAnnotations(const QList<AreaSelector*> &selectors,
+                                                         const QPixmap &frame,
+                                                         const QRect &virtualGeometry);
 
     bool m_quickActionsEnabled = true;
 };

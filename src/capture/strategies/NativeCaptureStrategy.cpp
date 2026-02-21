@@ -72,7 +72,8 @@ bool NativeCaptureStrategy::isAvailable() const
     return true;
 }
 
-QPixmap NativeCaptureStrategy::cropSelection(const QRect &area) const
+QPixmap NativeCaptureStrategy::cropSelection(const QRect &area,
+                                             const QSharedPointer<OverlayAnnotations> &annotations) const
 {
     if (m_fullScreenshot.isNull() || area.isEmpty())
         return QPixmap();
@@ -83,16 +84,17 @@ QPixmap NativeCaptureStrategy::cropSelection(const QRect &area) const
                                                      m_fullScreenshot.devicePixelRatio(),
                                                      m_fullScreenshot.size());
 
-    return cropVirtualArea(m_fullScreenshot, m_virtualGeometry, area);
+    return cropWithAnnotations(m_fullScreenshot, m_virtualGeometry, area, annotations);
 }
 
-void NativeCaptureStrategy::onAreaSelected(const QRect &area)
+void NativeCaptureStrategy::onAreaSelected(const QRect &area,
+                                           const QSharedPointer<OverlayAnnotations> &annotations)
 {
     if (area.isEmpty()) {
         // User cancelled (pressed Escape)
         qDebug() << "Area selection cancelled";
     } else {
-        const QPixmap finalScreenshot = cropSelection(area);
+        const QPixmap finalScreenshot = cropSelection(area, annotations);
         if (!finalScreenshot.isNull())
             emit screenshotReady(finalScreenshot);
         else
@@ -104,21 +106,23 @@ void NativeCaptureStrategy::onAreaSelected(const QRect &area)
     m_virtualGeometry = QRect();
 }
 
-void NativeCaptureStrategy::onCopyRequested(const QRect &area)
+void NativeCaptureStrategy::onCopyRequested(const QRect &area,
+                                            const QSharedPointer<OverlayAnnotations> &annotations)
 {
-    copyAreaToClipboard(m_fullScreenshot, m_virtualGeometry, area);
+    copyAreaToClipboard(m_fullScreenshot, m_virtualGeometry, area, annotations);
     m_fullScreenshot = QPixmap();
     m_virtualGeometry = QRect();
 }
 
-void NativeCaptureStrategy::onSaveRequested(const QRect &area)
+void NativeCaptureStrategy::onSaveRequested(const QRect &area,
+                                            const QSharedPointer<OverlayAnnotations> &annotations)
 {
     // Drop the stored frame before the modal dialog runs, as the old inline save did.
     const QPixmap shot = m_fullScreenshot;
     const QRect virtualGeometry = m_virtualGeometry;
     m_fullScreenshot = QPixmap();
     m_virtualGeometry = QRect();
-    saveAreaToFile(shot, virtualGeometry, area);
+    saveAreaToFile(shot, virtualGeometry, area, annotations);
 }
 
 QPixmap NativeCaptureStrategy::captureScreen()
@@ -264,25 +268,33 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
         selectors->append(selector);
     }
 
+    QSharedPointer<OverlayAnnotations> annotations;
+    if (!windowPick)
+        annotations = attachAnnotations(*selectors, screenshot, virtualGeometry);
+
     // Each terminal action tears down ALL per-screen selectors, then routes:
     //  - areaSelected -> crop & open editor (or empty = cancel)
     //  - copyRequested -> crop & copy to clipboard
     //  - saveRequested -> crop & save to file (after teardown, so no overlay covers the dialog)
     for (auto *selector : *selectors) {
+        // Each handler copies the session first: teardown disconnects its own lambda.
         connect(selector, &Capture::AreaSelector::areaSelected,
-                this, [this, selectors](const QRect &area) {
+                this, [this, selectors, annotations](const QRect &area) {
+                    const auto session = annotations;
                     teardownSelectors(selectors);
-                    onAreaSelected(area);
+                    onAreaSelected(area, session);
                 });
         connect(selector, &Capture::AreaSelector::copyRequested,
-                this, [this, selectors](const QRect &area) {
+                this, [this, selectors, annotations](const QRect &area) {
+                    const auto session = annotations;
                     teardownSelectors(selectors);
-                    onCopyRequested(area);
+                    onCopyRequested(area, session);
                 });
         connect(selector, &Capture::AreaSelector::saveRequested,
-                this, [this, selectors](const QRect &area) {
+                this, [this, selectors, annotations](const QRect &area) {
+                    const auto session = annotations;
                     teardownSelectors(selectors);
-                    onSaveRequested(area);
+                    onSaveRequested(area, session);
                 });
         // Multi-monitor: mirror the live selection to every other overlay so a
         // selection spanning screens is drawn on all of them.

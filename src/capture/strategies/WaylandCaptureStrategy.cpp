@@ -281,10 +281,14 @@ namespace Capture {
             selectors->append(selector);
         }
 
+        const auto annotations = attachAnnotations(*selectors, screenshot, virtualGeometry);
+
         // Connect all selectors to the same handler - use a shared pointer approach
         for (auto *selector : *selectors) {
+            // Each handler copies the session first: teardown disconnects its own lambda.
             connect(selector, &Capture::AreaSelector::areaSelected,
-                    this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
+                    this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
+                        const auto session = annotations;
                         // Tear every overlay down first, to prevent multiple triggers
                         tearDownSelectors(selectors);
 
@@ -301,22 +305,25 @@ namespace Capture {
                                  << physicalCropRect(area, virtualGeometry,
                                                      screenshot.devicePixelRatio(), screenshot.size());
 
-                        const QPixmap finalScreenshot = cropVirtualArea(screenshot, virtualGeometry, area);
+                        const QPixmap finalScreenshot =
+                            cropWithAnnotations(screenshot, virtualGeometry, area, session);
 
                         qDebug() << "Final screenshot size:" << finalScreenshot.size();
 
                         emit screenshotReady(finalScreenshot);
                     });
             connect(selector, &Capture::AreaSelector::copyRequested,
-                    this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
+                    this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
+                        const auto session = annotations;
                         tearDownSelectors(selectors);
-                        copyAreaToClipboard(screenshot, virtualGeometry, area);
+                        copyAreaToClipboard(screenshot, virtualGeometry, area, session);
                     });
             connect(selector, &Capture::AreaSelector::saveRequested,
-                    this, [this, selectors, screenshot, virtualGeometry](const QRect &area) {
+                    this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
+                        const auto session = annotations;
                         // Teardown first, or the save dialog opens behind the overlay.
                         tearDownSelectors(selectors);
-                        saveAreaToFile(screenshot, virtualGeometry, area);
+                        saveAreaToFile(screenshot, virtualGeometry, area, session);
                     });
         }
     }
