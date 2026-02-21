@@ -1,4 +1,5 @@
 #include "AreaSelector.h"
+#include "capture/AreaSelectorInput.h"
 #include "core/Perf.h"
 #include <QPainter>
 #include <QPainterPath>
@@ -19,7 +20,6 @@ namespace {
     const QColor  kAccent(0, 150, 255);       // selection / handle accent color
     constexpr int kBtnSize = 38;              // action toolbar button size
     constexpr int kBtnPad  = 6;               // padding around toolbar buttons
-    constexpr int kClickThreshold = 4;        // px before an interior press becomes a drag
 
     QString keyText(QKeySequence::StandardKey k)
     {
@@ -37,7 +37,13 @@ AreaSelector::AreaSelector(QWidget *parent)
     setCursor(Qt::CrossCursor);
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
+
+    // Order is behaviour: the first handler that consumes an event wins.
+    m_inputChain.push_back(std::make_unique<ToolbarHandler>(*this));
+    m_inputChain.push_back(std::make_unique<SelectionHandler>(*this));
 }
+
+AreaSelector::~AreaSelector() = default;
 
 void AreaSelector::setScreenshot(const QPixmap &screenshot)
 {
@@ -339,173 +345,43 @@ void AreaSelector::applyHandleDrag(const QPoint &c)
 
 // ---- mouse / keyboard ------------------------------------------------------
 
+template <typename Event>
+bool AreaSelector::dispatchInput(bool (InputHandler::*handle)(Event *), Event *event)
+{
+    for (const auto &handler : m_inputChain)
+        if (((*handler).*handle)(event))
+            return true;
+    return false;
+}
+
 void AreaSelector::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() != Qt::LeftButton) return;
-    const QPoint local = event->pos();
-    m_cursorVirt = toVirt(local);
-    m_hasCursor = true;
-
-    if (m_mode == Mode::WindowPick) {
-        updateHoverWindow();
-        if (!m_selectionVirt.isEmpty())
-            commitSelection();
-        return;
-    }
-
-    // Action toolbar takes priority (it sits just outside the selection).
-    if (const int b = toolbarButtonAt(local); b >= 0) {
-        triggerToolbarButton(b);
-        return;
-    }
-
-    if (m_phase == Phase::Adjusting) {
-        const Handle h = hitTest(local);
-        if (h == Handle::Interior) {
-            m_activeHandle = Handle::Interior;
-            m_moveGrabOffsetVirt = m_cursorVirt - m_selectionVirt.topLeft();
-            m_interiorPressLocal = local;   // track for click-vs-drag
-            m_interiorMoved = false;
-            return;
-        }
-        if (h != Handle::None) {
-            m_activeHandle = h;
-            m_resizeBaseVirt = m_selectionVirt;
-            return;
-        }
-        // clicked outside the selection -> start a fresh one
-    }
-
-    m_phase = Phase::Dragging;
-    m_activeHandle = Handle::None;
-    m_dragAnchorVirt = m_cursorVirt;
-    m_selectionVirt = QRect(m_dragAnchorVirt, QSize(0, 0));
-    broadcastState();
-    update();
+    if (!dispatchInput(&InputHandler::mousePress, event))
+        QWidget::mousePressEvent(event);
 }
 
 void AreaSelector::mouseMoveEvent(QMouseEvent *event)
 {
-    const QPoint local = event->pos();
-    m_cursorVirt = toVirt(local);
-    m_hasCursor = true;
-
-    if (m_mode == Mode::WindowPick) {
-        updateHoverWindow();
-        broadcastState();
-        update();
-        return;
-    }
-
-    if (m_phase == Phase::Dragging) {
-        m_selectionVirt = QRect(m_dragAnchorVirt, m_cursorVirt).normalized();
-    } else if (m_phase == Phase::Adjusting && m_activeHandle != Handle::None) {
-        // An interior press only becomes a move once it passes the click threshold,
-        // so a plain click-inside stays a "confirm" gesture (handled on release).
-        if (m_activeHandle == Handle::Interior && !m_interiorMoved &&
-            (local - m_interiorPressLocal).manhattanLength() < kClickThreshold) {
-            // pending click, don't move yet
-        } else {
-            if (m_activeHandle == Handle::Interior)
-                m_interiorMoved = true;
-            applyHandleDrag(m_cursorVirt);
-        }
-    } else if (m_phase == Phase::Adjusting) {
-        const int b = toolbarButtonAt(local);
-        m_hoveredButton = b;
-        if (b >= 0)
-            setCursor(Qt::PointingHandCursor);
-        else
-            updateCursorShape(local);
-    }
-    broadcastState();
-    update();
+    if (!dispatchInput(&InputHandler::mouseMove, event))
+        QWidget::mouseMoveEvent(event);
 }
 
 void AreaSelector::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (event->button() != Qt::LeftButton) return;
-
-    if (m_phase == Phase::Dragging) {
-        if (m_selectionVirt.width() < 4 || m_selectionVirt.height() < 4) {
-            // treat as an accidental click: discard and return to idle
-            m_phase = Phase::Idle;
-            m_selectionVirt = QRect();
-        } else {
-            m_phase = Phase::Adjusting;
-        }
-        broadcastState();
-        update();
-    } else if (m_phase == Phase::Adjusting) {
-        if (m_activeHandle == Handle::Interior && !m_interiorMoved) {
-            // clicked inside without dragging -> confirm (open editor)
-            commitSelection();
-            return;
-        }
-        m_activeHandle = Handle::None;
-        updateCursorShape(event->pos());
-        broadcastState();
-        update();
-    }
+    if (!dispatchInput(&InputHandler::mouseRelease, event))
+        QWidget::mouseReleaseEvent(event);
 }
 
 void AreaSelector::mouseDoubleClickEvent(QMouseEvent *event)
 {
-    if (event->button() != Qt::LeftButton) return;
-    if (m_phase == Phase::Adjusting && m_selectionVirt.contains(toVirt(event->pos())))
-        commitSelection();
+    if (!dispatchInput(&InputHandler::mouseDoubleClick, event))
+        QWidget::mouseDoubleClickEvent(event);
 }
 
 void AreaSelector::keyPressEvent(QKeyEvent *event)
 {
-    switch (event->key()) {
-        case Qt::Key_Escape:
-            if (m_phase == Phase::Dragging || m_phase == Phase::Adjusting) {
-                m_phase = Phase::Idle;
-                m_selectionVirt = QRect();
-                m_activeHandle = Handle::None;
-                setCursor(Qt::CrossCursor);
-                broadcastState();
-                update();
-            } else {
-                cancel();
-            }
-            return;
-        case Qt::Key_Return:
-        case Qt::Key_Enter:
-            if (m_phase == Phase::Adjusting)
-                commitSelection();
-            return;
-        default:
-            break;
-    }
-
-    // matches() wants the exact platform chord (Cmd on macOS), so a bare C or S never lands here.
-    if (event->matches(QKeySequence::Copy) && actionsAvailable()) {
-        triggerToolbarButton(BtnCopy);
-        return;
-    }
-    if (event->matches(QKeySequence::Save) && actionsAvailable()) {
-        triggerToolbarButton(BtnSave);
-        return;
-    }
-
-    if (m_phase == Phase::Adjusting && !m_selectionVirt.isEmpty()) {
-        const int step = (event->modifiers() & Qt::ShiftModifier) ? 10 : 1;
-        QRect r = m_selectionVirt;
-        switch (event->key()) {
-            case Qt::Key_Left:  r.translate(-step, 0); break;
-            case Qt::Key_Right: r.translate(step, 0);  break;
-            case Qt::Key_Up:    r.translate(0, -step); break;
-            case Qt::Key_Down:  r.translate(0, step);  break;
-            default: QWidget::keyPressEvent(event); return;
-        }
-        m_selectionVirt = r;
-        broadcastState();
-        update();
-    } else {
+    if (!dispatchInput(&InputHandler::keyPress, event))
         QWidget::keyPressEvent(event);
-    }
 }
 
 void AreaSelector::commitSelection()

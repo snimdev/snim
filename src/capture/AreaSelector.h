@@ -8,6 +8,8 @@
 #include <QPixmap>
 #include <QImage>
 #include <QVector>
+#include <memory>
+#include <vector>
 #include "capture/WindowEnumerator.h"
 
 class QEvent;
@@ -34,6 +36,7 @@ namespace Capture {
         enum class Mode { AreaSelect, WindowPick };
 
         explicit AreaSelector(QWidget *parent = nullptr);
+        ~AreaSelector() override;
 
         void setScreenshot(const QPixmap &screenshot);
 
@@ -92,6 +95,11 @@ namespace Capture {
         void leaveEvent(QEvent *event) override;
 
     private:
+        // Input chain of responsibility, defined in AreaSelectorInput.h.
+        class InputHandler;
+        class ToolbarHandler;
+        class SelectionHandler;
+
         enum class Phase { Idle, Dragging, Adjusting };
         enum class Handle { None, TopLeft, Top, TopRight, Right,
                             BottomRight, Bottom, BottomLeft, Left, Interior };
@@ -125,6 +133,8 @@ namespace Capture {
         void   commitSelection();
         void   cancel();
         void   rebuildBackgroundCache();
+        template <typename Event>
+        bool   dispatchInput(bool (InputHandler::*handle)(Event *), Event *event);
 
         // painters
         void paintBackground(QPainter &p);
@@ -158,8 +168,8 @@ namespace Capture {
 
         bool   m_actionsEnabled = false; // show the action toolbar
         int    m_hoveredButton = -1;     // toolbar button under cursor (-1 = none)
-        QPoint m_interiorPressLocal;     // press point for click-vs-drag inside selection
-        bool   m_interiorMoved = false;  // whether an interior drag actually moved
+
+        std::vector<std::unique_ptr<InputHandler>> m_inputChain;
 
         static constexpr int kHandleSize = 10;
         static constexpr int kHandleHit  = 12;

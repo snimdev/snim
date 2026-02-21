@@ -286,6 +286,8 @@ add_library(snim_lib STATIC
         # Capture functionality
         src/capture/AreaSelector.cpp
         src/capture/AreaSelector.h
+        src/capture/AreaSelectorInput.cpp
+        src/capture/AreaSelectorInput.h
         src/capture/CaptureFactory.cpp
         src/capture/CaptureFactory.h
         src/capture/CaptureGeometry.h
