@@ -8,6 +8,7 @@
 #include <QRect>
 #include <QString>
 #include <memory>
+#include "editor/annotations/AnnotationSet.h"
 #include "editor/annotations/IAnnotationSink.h"
 
 class QGraphicsScene;
@@ -66,6 +67,8 @@ public:
     void render(QPainter *painter, const QRectF &target, const QRect &virtSource);
     // The frozen frame cropped to virtArea at native resolution, annotations burned in.
     [[nodiscard]] QPixmap flattenedCrop(const QRect &virtArea);
+    // Committed items touching virtArea, positioned relative to its top-left.
+    [[nodiscard]] Editor::AnnotationSet snapshot(const QRect &virtArea);
 
 signals:
     // Scene, undo history or armed tool changed.

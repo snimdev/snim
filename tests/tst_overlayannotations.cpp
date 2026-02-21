@@ -7,7 +7,9 @@
 
 #include "capture/OverlayAnnotations.h"
 #include "editor/annotations/ToolRegistry.h"
+#include "editor/annotations/tools/ArrowTool.h"
 #include "editor/annotations/tools/RectangleTool.h"
+#include "editor/annotations/tools/StepTool.h"
 
 using namespace Capture;
 
@@ -247,6 +249,67 @@ private slots:
         QVERIFY(at(out, 170, 150).lightness() < 10);
         QVERIFY(at(out, 230, 150).lightness() > 245);
         QCOMPARE(at(out, 150, 20), QColor(Qt::black));   // far from the stroke
+    }
+
+    void snapshotIsRelativeToTheArea()
+    {
+        OverlayAnnotations s(frame(1), kVirtual);
+        s.setSelection(kArea);
+        drawRect(s);
+        s.setActiveTool("step");
+        QVERIFY(s.press({-1750, 400}));
+        s.setActiveTool("arrow");
+        QVERIFY(s.press({-1780, 220}));
+        QVERIFY(s.move({-1700, 300}));
+        QVERIFY(s.release({-1700, 300}));
+
+        const Editor::AnnotationSet set = s.snapshot(kArea);
+        QCOMPARE(set.size(), 3);
+        const auto &e = set.entries();
+        QCOMPARE(e.at(0).toolId, QStringLiteral("rectangle"));
+        QCOMPARE(e.at(1).toolId, QStringLiteral("step"));
+        QCOMPARE(e.at(2).toolId, QStringLiteral("arrow"));
+
+        // Geometry is scene-absolute with pos 0, so pos carries the area offset.
+        auto *rect = dynamic_cast<Editor::Tools::RectangleTool*>(e.at(0).prototype.get());
+        QVERIFY(rect);
+        QCOMPARE(e.at(0).pos + rect->shapeRect().topLeft(), QPointF(100, 50));
+        QCOMPARE(rect->shapeRect().size(), QSizeF(101, 101));   // QRect corners are inclusive
+
+        auto *step = dynamic_cast<Editor::Tools::StepTool*>(e.at(1).prototype.get());
+        QVERIFY(step);
+        QCOMPARE(e.at(1).pos, QPointF(50, 200));   // a badge's pos is its centre
+        QCOMPARE(step->number(), 1);
+
+        auto *arrow = dynamic_cast<Editor::Tools::ArrowTool*>(e.at(2).prototype.get());
+        QVERIFY(arrow);
+        QCOMPARE(e.at(2).pos + arrow->startPoint(), QPointF(20, 20));
+        QCOMPARE(e.at(2).pos + arrow->endPoint(), QPointF(100, 100));
+    }
+
+    void snapshotDropsItemsOutsideTheArea()
+    {
+        OverlayAnnotations s(frame(1), kVirtual);
+        s.setSelection(kArea);
+        drawRect(s);
+        QCOMPARE(s.snapshot(QRect(-1500, 450, 200, 200)).size(), 0);
+        QCOMPARE(s.snapshot(kArea).size(), 1);
+    }
+
+    void snapshotSkipsUndoneItems()
+    {
+        OverlayAnnotations s(frame(1), kVirtual);
+        QVERIFY(s.snapshot(kArea).isEmpty());
+
+        s.setSelection(kArea);
+        drawRect(s);
+        drawRect(s, {-1750, 220}, {-1650, 300});
+        s.undo();
+        const Editor::AnnotationSet set = s.snapshot(kArea);
+        QCOMPARE(set.size(), 1);
+        auto *rect = dynamic_cast<Editor::Tools::RectangleTool*>(set.entries().at(0).prototype.get());
+        QVERIFY(rect);
+        QCOMPARE(rect->shapeRect().size(), QSizeF(101, 101));
     }
 
     void cropAwayFromTheDrawingIsPlain()

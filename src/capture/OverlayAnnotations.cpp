@@ -237,4 +237,24 @@ QPixmap OverlayAnnotations::flattenedCrop(const QRect &virtArea)
     return out;
 }
 
+Editor::AnnotationSet OverlayAnnotations::snapshot(const QRect &virtArea)
+{
+    commitPendingText();
+    cancelStroke();
+
+    Editor::AnnotationSet set;
+    const QRect area = virtArea.intersected(m_virtualGeometry);
+    if (area.isEmpty())
+        return set;
+    const QRectF sceneArea(toScene(area.topLeft()), area.size());
+    // Stack order is paint order: every item shares z 0.
+    for (int i = 0; i < m_stack->index(); ++i) {
+        const auto *cmd = dynamic_cast<const AddItemCommand*>(m_stack->command(i));
+        if (!cmd || !cmd->item() || !cmd->item()->sceneBoundingRect().intersects(sceneArea))
+            continue;
+        set.add(cmd->toolId(), *cmd->item(), cmd->item()->pos() - sceneArea.topLeft());
+    }
+    return set;
+}
+
 } // namespace Capture
