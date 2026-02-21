@@ -308,6 +308,8 @@ add_library(snim_lib STATIC
         src/editor/annotations/ToolRegistry.h
         src/editor/annotations/AnnotationBuilder.cpp
         src/editor/annotations/AnnotationBuilder.h
+        src/editor/annotations/AnnotationSet.cpp
+        src/editor/annotations/AnnotationSet.h
         src/editor/annotations/IAnnotationSink.h
         src/editor/annotations/StepNumbering.cpp
         src/editor/annotations/StepNumbering.h
