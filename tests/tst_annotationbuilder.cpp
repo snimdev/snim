@@ -252,6 +252,47 @@ private slots:
         QCOMPARE(sink->entries.size(), 1);
         QCOMPARE(sink->entries.first().item, static_cast<QGraphicsItem*>(item));
     }
+
+    void text_secondBoxCommitsTheFirst()
+    {
+        Tools::TextTool *first = placeText(QPointF(30, 40));
+        QVERIFY(first);
+        first->setPlainText(QStringLiteral("One"));
+
+        QPointer<Tools::TextTool> second = placeText(QPointF(80, 90));
+        QVERIFY(second);
+        QCOMPARE(sink->entries.size(), 1);
+        QCOMPARE(sink->entries.first().item, static_cast<QGraphicsItem*>(first));
+        QVERIFY(!first->scene());
+
+        QCoreApplication::processEvents();   // the first box's deferred finalize
+        QVERIFY(second);
+        QCOMPARE(second->scene(), scene);
+        QVERIFY(builder->isEditingText());
+        QCOMPARE(sink->entries.size(), 1);
+    }
+
+    void text_secondBoxDiscardsAnEmptyFirst()
+    {
+        QPointer<Tools::TextTool> first = placeText(QPointF(30, 40));
+        QVERIFY(first);
+
+        QPointer<Tools::TextTool> second = placeText(QPointF(80, 90));
+        QVERIFY(first.isNull());
+        QVERIFY(second);
+
+        // The freed first box's address may be reused by the second.
+        QCoreApplication::processEvents();
+        QVERIFY(second);
+        QCOMPARE(second->scene(), scene);
+        QVERIFY(builder->isEditingText());
+        QVERIFY(sink->entries.isEmpty());
+
+        second->setPlainText(QStringLiteral("Two"));
+        builder->commitPendingText();
+        QCOMPARE(sink->entries.size(), 1);
+        QCOMPARE(sink->entries.first().item, static_cast<QGraphicsItem*>(second.data()));
+    }
 };
 
 QTEST_MAIN(tst_AnnotationBuilder)

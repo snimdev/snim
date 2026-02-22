@@ -151,6 +151,7 @@ void AnnotationBuilder::registerFactories()
     if (auto *t = dynamic_cast<TextDrawingInteraction*>(interaction("text")))
         connect(t, &TextDrawingInteraction::textRequested, this, [this](const QPoint &position) {
             // Inline creation: drop an empty text box and edit it live (no popup).
+            commitPendingText();   // a second box must not orphan the first
             auto *item = new TextTool("");
             item->setPos(position);
             item->applyStyleFrom(templateFor("text"));
@@ -158,7 +159,10 @@ void AnnotationBuilder::registerFactories()
             m_pendingTextItem = item;
             connect(item, &TextTool::editingFinished, this, [this, item]() {
                 // editingFinished fires inside focusOutEvent, so defer commit/discard a tick.
-                QTimer::singleShot(0, this, [this, item] { finalizePendingText(item); });
+                // Guarded: a discarded box's address can come back as the next pending one.
+                QTimer::singleShot(0, this, [this, guard = QPointer<TextTool>(item)] {
+                    finalizePendingText(guard);
+                });
             });
             emit textPlaced(item);
             item->startEditing();            // caret appears at the click point; type directly
