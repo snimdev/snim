@@ -8,6 +8,7 @@
 #include "capture/OverlayAnnotations.h"
 #include "editor/annotations/ToolRegistry.h"
 #include "editor/annotations/tools/ArrowTool.h"
+#include "editor/annotations/tools/HighlightTool.h"
 #include "editor/annotations/tools/RectangleTool.h"
 #include "editor/annotations/tools/StepTool.h"
 
@@ -64,6 +65,32 @@ private:
         QVERIFY(s.move(to));
         QVERIFY(s.release(to));
         QVERIFY(!s.isDrawing());
+    }
+
+    static QList<int> stepNumbers(const Editor::AnnotationSet &set)
+    {
+        QList<int> out;
+        for (const auto &e : set.entries())
+            if (auto *step = dynamic_cast<Editor::Tools::StepTool*>(e.prototype.get()))
+                out.append(step->number());
+        return out;
+    }
+
+    // The highlight template's colour laid over the grey frame.
+    static QColor highlightOverGrey()
+    {
+        std::unique_ptr<Editor::Tools::ITool> tmpl(
+            Editor::ToolRegistry::find("highlight")->makeTemplate());
+        const QColor c = dynamic_cast<Editor::Tools::HighlightTool*>(tmpl.get())->color();
+        const qreal a = Editor::Tools::HighlightTool::HIGHLIGHT_OPACITY;
+        const auto mix = [a](int fg) { return qRound(128 + a * (fg - 128)); };
+        return QColor(mix(c.red()), mix(c.green()), mix(c.blue()));
+    }
+
+    static bool approx(const QColor &a, const QColor &b)
+    {
+        return qAbs(a.red() - b.red()) <= 3 && qAbs(a.green() - b.green()) <= 3
+               && qAbs(a.blue() - b.blue()) <= 3;
     }
 
 private slots:
@@ -249,6 +276,66 @@ private slots:
         QVERIFY(at(out, 170, 150).lightness() < 10);
         QVERIFY(at(out, 230, 150).lightness() > 245);
         QCOMPARE(at(out, 150, 20), QColor(Qt::black));   // far from the stroke
+    }
+
+    void stepsCountOnAndReuseAnUndoneNumber()
+    {
+        OverlayAnnotations s(frame(1), kVirtual);
+        s.setSelection(kArea);
+        s.setActiveTool("step");
+        QVERIFY(s.press({-1750, 250}));
+        QVERIFY(!s.isDrawing());   // a click stamps, there is no stroke to finish
+        QVERIFY(s.press({-1700, 250}));
+        QCOMPARE(stepNumbers(s.snapshot(kArea)), QList<int>({1, 2}));
+
+        s.undo();
+        QVERIFY(s.press({-1650, 250}));
+        QCOMPARE(stepNumbers(s.snapshot(kArea)), QList<int>({1, 2}));
+        QCOMPARE(s.activeTool(), QStringLiteral("step"));
+    }
+
+    void highlightIsBlendedIntoTheCrop()
+    {
+        OverlayAnnotations s(frame(1), kVirtual);
+        s.setSelection(kArea);
+        s.setActiveTool("highlight");
+        QVERIFY(s.press({-1700, 250}));
+        for (int x = -1690; x <= -1600; x += 10)
+            QVERIFY(s.move({x, 250}));
+        QVERIFY(s.release({-1600, 250}));
+        QVERIFY(s.canUndo());
+
+        const QPixmap out = s.flattenedCrop(kArea);
+        const QColor blended = highlightOverGrey();
+        QVERIFY(blended != kGrey);
+        QVERIFY(approx(at(out, 150, 50), blended));
+        QVERIFY(approx(at(out, 150, 58), blended));   // inside the wide stroke
+        QCOMPARE(at(out, 150, 90), kGrey);
+    }
+
+    void snapshotCarriesStepsAndHighlights()
+    {
+        OverlayAnnotations s(frame(1), kVirtual);
+        s.setSelection(kArea);
+        s.setActiveTool("step");
+        QVERIFY(s.press({-1750, 250}));
+        s.setActiveTool("highlight");
+        QVERIFY(s.press({-1700, 300}));
+        QVERIFY(s.move({-1650, 300}));
+        QVERIFY(s.release({-1650, 300}));
+        s.setActiveTool("step");
+        QVERIFY(s.press({-1600, 250}));
+
+        const Editor::AnnotationSet set = s.snapshot(kArea);
+        QCOMPARE(set.size(), 3);
+        QCOMPARE(set.entries().at(0).toolId, QStringLiteral("step"));
+        QCOMPARE(set.entries().at(1).toolId, QStringLiteral("highlight"));
+        QCOMPARE(set.entries().at(2).toolId, QStringLiteral("step"));
+        QCOMPARE(stepNumbers(set), QList<int>({1, 2}));
+        QCOMPARE(set.entries().at(2).pos, QPointF(200, 50));
+        auto *hl = dynamic_cast<Editor::Tools::HighlightTool*>(set.entries().at(1).prototype.get());
+        QVERIFY(hl);
+        QCOMPARE(set.entries().at(1).pos + hl->points().first(), QPointF(100, 100));
     }
 
     void snapshotIsRelativeToTheArea()

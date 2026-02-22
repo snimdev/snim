@@ -12,6 +12,7 @@ namespace Capture {
 inline constexpr QLatin1StringView kOverlayTools[] = {
     QLatin1StringView("arrow"), QLatin1StringView("rectangle"),
     QLatin1StringView("ellipse"), QLatin1StringView("freehand"),
+    QLatin1StringView("highlight"), QLatin1StringView("step"),
 };
 
 // One link of the chain; returning true stops the event there.

@@ -12,7 +12,9 @@
 #include "capture/AreaSelector.h"
 #include "capture/OverlayAnnotations.h"
 #include "editor/annotations/ToolRegistry.h"
+#include "editor/annotations/tools/HighlightTool.h"
 #include "editor/annotations/tools/RectangleTool.h"
+#include "editor/annotations/tools/StepTool.h"
 
 using namespace Capture;
 
@@ -311,6 +313,55 @@ private slots:
         QCOMPARE(area.count(), 0);
         QCOMPARE(session->snapshot(selectionFor(QPoint(40, 40), QPoint(240, 180))).size(), 2);
         QVERIFY(m_sel->isVisible());
+    }
+
+    void stepClicksStampOneThenTwo()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_N);
+        QCOMPARE(session->activeTool(), QStringLiteral("step"));
+        QSignalSpy area(m_sel.data(), &AreaSelector::areaSelected);
+
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(80, 80));
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(140, 80));
+        QCOMPARE(area.count(), 0);
+
+        const Editor::AnnotationSet set =
+            session->snapshot(selectionFor(QPoint(40, 40), QPoint(240, 180)));
+        QCOMPARE(set.size(), 2);
+        QCOMPARE(dynamic_cast<Editor::Tools::StepTool*>(set.entries().at(0).prototype.get())->number(), 1);
+        QCOMPARE(dynamic_cast<Editor::Tools::StepTool*>(set.entries().at(1).prototype.get())->number(), 2);
+        QCOMPARE(set.entries().at(1).pos, QPointF(100, 40));
+    }
+
+    void highlightStrokeIsInTheCopy()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_H);
+        QCOMPARE(session->activeTool(), QStringLiteral("highlight"));
+        stroke(QPoint(80, 100), QPoint(180, 100));
+
+        QSignalSpy copy(m_sel.data(), &AreaSelector::copyRequested);
+        QTest::keyClick(m_sel.data(), Qt::Key_C, Qt::ControlModifier);
+        QCOMPARE(copy.count(), 1);
+
+        std::unique_ptr<Editor::Tools::ITool> tmpl(
+            Editor::ToolRegistry::find("highlight")->makeTemplate());
+        const QColor c = dynamic_cast<Editor::Tools::HighlightTool*>(tmpl.get())->color();
+        const QColor bg(Qt::darkGray);
+        const qreal a = Editor::Tools::HighlightTool::HIGHLIGHT_OPACITY;
+        const auto mix = [a](int under, int over) { return qRound(under + a * (over - under)); };
+        const QColor blended(mix(bg.red(), c.red()), mix(bg.green(), c.green()), mix(bg.blue(), c.blue()));
+
+        // Crop-local: the stroke runs along y 60 from x 40 to 140.
+        const QImage out = session->flattenedCrop(copy.at(0).at(0).toRect()).toImage();
+        const QColor mid = out.pixelColor(90, 60);
+        QVERIFY(qAbs(mid.red() - blended.red()) <= 3);
+        QVERIFY(qAbs(mid.green() - blended.green()) <= 3);
+        QVERIFY(qAbs(mid.blue() - blended.blue()) <= 3);
+        QCOMPARE(out.pixelColor(90, 120), bg);
     }
 
     void pressOutsideKeepsTheSelectionWithAToolArmed()
