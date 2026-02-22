@@ -2,6 +2,7 @@
 #define CAPTURE_OVERLAYANNOTATIONS_H
 
 #include <QCursor>
+#include <QList>
 #include <QObject>
 #include <QPixmap>
 #include <QPointer>
@@ -11,6 +12,7 @@
 #include "editor/annotations/AnnotationSet.h"
 #include "editor/annotations/IAnnotationSink.h"
 
+class QGraphicsItem;
 class QGraphicsScene;
 class QKeyEvent;
 class QPainter;
@@ -87,7 +89,8 @@ private:
 
     [[nodiscard]] QPoint toScene(const QPoint &virt) const;
     [[nodiscard]] Editor::Interactions::IDrawingInteraction *activeInteraction() const;
-    [[nodiscard]] int nextStepNumber() const;
+    // Stack order, which is paint order: every item shares z 0.
+    [[nodiscard]] QList<QGraphicsItem*> committedItems() const;
 
     QPixmap m_frame;
     QRect m_virtualGeometry;

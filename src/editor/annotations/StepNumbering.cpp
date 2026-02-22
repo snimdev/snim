@@ -3,39 +3,40 @@
 #include "Layer.h"
 #include "tools/StepTool.h"
 
+#include <QGraphicsItem>
+
 namespace Editor {
 
 namespace {
 
-// Walks a layer list from top to bottom (the list is bottom-to-top) and reports the
-// first Step badge found. Groups are searched the same way, in place.
-bool findTopmostStepNumber(const QList<Layer*> &layers, int *number)
+// Groups are expanded in place, so bottom-to-top order is kept across nesting.
+void appendItems(const QList<Layer*> &layers, QList<QGraphicsItem*> *out)
 {
-    for (auto it = layers.crbegin(); it != layers.crend(); ++it) {
-        Layer *layer = *it;
+    for (Layer *layer : layers) {
         if (!layer)
             continue;
-        if (layer->isGroup()) {
-            if (findTopmostStepNumber(layer->children(), number))
-                return true;
-            continue;
-        }
-        if (auto *step = dynamic_cast<Tools::StepTool*>(layer->item())) {
-            *number = step->number();
-            return true;
-        }
+        if (layer->isGroup())
+            appendItems(layer->children(), out);
+        else if (layer->item())
+            out->append(layer->item());
     }
-    return false;
 }
 
 } // namespace
 
+int nextStepNumber(const QList<QGraphicsItem*> &items)
+{
+    for (auto it = items.crbegin(); it != items.crend(); ++it)
+        if (auto *step = dynamic_cast<const Tools::StepTool*>(*it))
+            return step->number() + 1;
+    return 1;
+}
+
 int nextStepNumber(const QList<Layer*> &topLevelLayers)
 {
-    int last = 0;
-    if (findTopmostStepNumber(topLevelLayers, &last))
-        return last + 1;
-    return 1;
+    QList<QGraphicsItem*> items;
+    appendItems(topLevelLayers, &items);
+    return nextStepNumber(items);
 }
 
 } // namespace Editor

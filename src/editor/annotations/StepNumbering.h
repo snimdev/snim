@@ -3,6 +3,8 @@
 
 #include <QList>
 
+class QGraphicsItem;
+
 namespace Editor {
 
 class Layer;
@@ -14,6 +16,9 @@ class Layer;
  * fall out for free, and lets a re-stamped "1" restart the sequence.
  */
 int nextStepNumber(const QList<Layer*> &topLevelLayers);
+
+// The same rule over plain items listed bottom-to-top (no groups to descend into).
+int nextStepNumber(const QList<QGraphicsItem*> &items);
 
 } // namespace Editor
 

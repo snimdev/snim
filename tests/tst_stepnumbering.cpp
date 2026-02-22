@@ -28,6 +28,21 @@ class tst_StepNumbering : public QObject
         return l;
     }
 
+    QGraphicsItem* stepItem(int number)
+    {
+        auto *s = new Tools::StepTool();
+        s->setNumber(number);
+        items.append(s);
+        return s;
+    }
+
+    QGraphicsItem* rectItem()
+    {
+        auto *r = new QGraphicsRectItem(0, 0, 10, 10);
+        items.append(r);
+        return r;
+    }
+
     Layer* makeRect()
     {
         auto *r = new QGraphicsRectItem(0, 0, 10, 10);
@@ -59,7 +74,8 @@ private slots:
 
     void emptyStack_startsAtOne()
     {
-        QCOMPARE(nextStepNumber({}), 1);
+        QCOMPARE(nextStepNumber(QList<Layer*>{}), 1);
+        QCOMPARE(nextStepNumber(QList<QGraphicsItem*>{}), 1);
     }
 
     void sequentialBadges_continue()
@@ -97,6 +113,27 @@ private slots:
         QCOMPARE(nextStepNumber(layers), 4);
         layers.removeLast();
         QCOMPARE(nextStepNumber(layers), 3);
+    }
+
+    // The overlay has no layers: the same rule runs over its committed items.
+    void itemList_topmostBadgeWins()
+    {
+        QCOMPARE(nextStepNumber(QList<QGraphicsItem*>{stepItem(1), stepItem(2)}), 3);
+        QCOMPARE(nextStepNumber(QList<QGraphicsItem*>{stepItem(3), stepItem(1)}), 2);
+    }
+
+    void itemList_nonStepItemsAreSkipped()
+    {
+        QCOMPARE(nextStepNumber(QList<QGraphicsItem*>{stepItem(1), stepItem(2), rectItem()}), 3);
+        QCOMPARE(nextStepNumber(QList<QGraphicsItem*>{rectItem(), rectItem()}), 1);
+    }
+
+    void itemList_removingTheTopItemStepsBack()
+    {
+        QList<QGraphicsItem*> list{stepItem(1), stepItem(2), stepItem(3)};
+        QCOMPARE(nextStepNumber(list), 4);
+        list.removeLast();
+        QCOMPARE(nextStepNumber(list), 3);
     }
 };
 

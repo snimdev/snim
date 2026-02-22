@@ -2,10 +2,10 @@
 
 #include "capture/CaptureGeometry.h"
 #include "editor/annotations/AnnotationBuilder.h"
+#include "editor/annotations/StepNumbering.h"
 #include "editor/annotations/ToolRegistry.h"
 #include "editor/annotations/commands/EditorCommands.h"
 #include "editor/annotations/interactions/IDrawingInteraction.h"
-#include "editor/annotations/tools/StepTool.h"
 #include "editor/annotations/tools/TextTool.h"
 
 #include <QCoreApplication>
@@ -43,7 +43,7 @@ OverlayAnnotations::OverlayAnnotations(const QPixmap &frame, const QRect &virtua
     m_builder = new Editor::AnnotationBuilder(m_scene.get(), &m_sink, this);
     m_builder->setSourcePixmap(frame);
     m_builder->setImageBounds(m_scene->sceneRect().toRect());
-    m_builder->setStepNumberProvider([this] { return nextStepNumber(); });
+    m_builder->setStepNumberProvider([this] { return Editor::nextStepNumber(committedItems()); });
     connect(m_builder, &Editor::AnnotationBuilder::textPlaced, this,
             [this](Editor::Tools::TextTool *item) { m_placedText = item; });
 
@@ -71,14 +71,13 @@ Editor::Interactions::IDrawingInteraction *OverlayAnnotations::activeInteraction
     return m_activeTool.isEmpty() ? nullptr : m_builder->interaction(m_activeTool);
 }
 
-int OverlayAnnotations::nextStepNumber() const
+QList<QGraphicsItem*> OverlayAnnotations::committedItems() const
 {
-    int highest = 0;
+    QList<QGraphicsItem*> items;
     for (int i = 0; i < m_stack->index(); ++i)
         if (auto *cmd = dynamic_cast<const AddItemCommand*>(m_stack->command(i)))
-            if (auto *step = dynamic_cast<Editor::Tools::StepTool*>(cmd->item()))
-                highest = qMax(highest, step->number());
-    return highest + 1;
+            items.append(cmd->item());
+    return items;
 }
 
 void OverlayAnnotations::setActiveTool(const QString &id)
