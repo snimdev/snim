@@ -18,6 +18,7 @@ set(SNIM_TESTS
         tst_layermanager
         tst_areaselector
         tst_overlayannotations
+        tst_annotationhandoff
         tst_capturefactory
         tst_capturegeometry
         tst_ocrservice
@@ -84,6 +85,9 @@ target_sources(tst_desktopintegration PRIVATE ${CMAKE_SOURCE_DIR}/resources/reso
 
 # The options bar themes :/icons/icons/*.svg at construction, so it needs the qrc too.
 target_sources(tst_recordingoptionsbar PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+
+# The handoff test opens an ImageEditor, which loads its qss and icons from the qrc.
+target_sources(tst_annotationhandoff PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
 
 # The ImageEditor smoke test also needs the qrc (it loads :/styles + themed
 # :/icons at construction), so it gets resources.qrc compiled into it directly.
