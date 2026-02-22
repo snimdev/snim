@@ -278,6 +278,25 @@ private slots:
         QCOMPARE(at(out, 150, 20), QColor(Qt::black));   // far from the stroke
     }
 
+    void blurSurvivesTeardownMidStroke()
+    {
+        Editor::AnnotationSet set;
+        {
+            OverlayAnnotations s(frame(1), kVirtual);
+            s.setSelection(kArea);
+            s.setActiveTool("blur");
+            QVERIFY(s.press({-1700, 250}));
+            QVERIFY(s.move({-1650, 260}));
+            QVERIFY(s.release({-1650, 260}));
+            set = s.snapshot(kArea);
+            QVERIFY(s.press({-1700, 300}));
+            QVERIFY(s.move({-1650, 310}));
+        }
+        QTest::qWait(120);   // past the blur's coalescing interval
+        QCOMPARE(set.size(), 1);
+        QCOMPARE(set.entries().at(0).toolId, QStringLiteral("blur"));
+    }
+
     void stepsCountOnAndReuseAnUndoneNumber()
     {
         OverlayAnnotations s(frame(1), kVirtual);

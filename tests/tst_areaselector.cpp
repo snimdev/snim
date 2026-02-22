@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QGuiApplication>
+#include <QPainter>
 #include <QPixmap>
 #include <QPointer>
 #include <QScreen>
@@ -362,6 +363,38 @@ private slots:
         QVERIFY(qAbs(mid.green() - blended.green()) <= 3);
         QVERIFY(qAbs(mid.blue() - blended.blue()) <= 3);
         QCOMPARE(out.pixelColor(90, 120), bg);
+    }
+
+    void blurStrokeSoftensTheCopy()
+    {
+        // Black left of local x 140, white right of it.
+        {
+            QPainter p(&m_shot);
+            p.fillRect(QRect(0, 0, 140, m_shot.height()), Qt::black);
+            p.fillRect(QRect(140, 0, m_shot.width() - 140, m_shot.height()), Qt::white);
+        }
+        m_sel->setScreenshot(m_shot);
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_B);
+        QCOMPARE(session->activeTool(), QStringLiteral("blur"));
+
+        QTest::mousePress(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(100, 110));
+        for (int x = 110; x <= 180; x += 10)
+            QTest::mouseMove(m_sel.data(), QPoint(x, 110));
+        QTest::mouseRelease(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(180, 110));
+        QVERIFY(session->canUndo());
+
+        QSignalSpy copy(m_sel.data(), &AreaSelector::copyRequested);
+        QTest::keyClick(m_sel.data(), Qt::Key_C, Qt::ControlModifier);
+        QCOMPARE(copy.count(), 1);
+
+        // Crop-local: the edge is at x 100 and the stroke runs along y 70.
+        const QImage out = session->flattenedCrop(copy.at(0).at(0).toRect()).toImage();
+        QVERIFY(out.pixelColor(97, 70).lightness() > 30);
+        QVERIFY(out.pixelColor(103, 70).lightness() < 225);
+        QCOMPARE(out.pixelColor(97, 10), QColor(Qt::black));
+        QCOMPARE(out.pixelColor(103, 10), QColor(Qt::white));
     }
 
     void pressOutsideKeepsTheSelectionWithAToolArmed()
