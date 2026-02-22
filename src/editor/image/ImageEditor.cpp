@@ -6,10 +6,12 @@
 #include "editor/annotations/Layer.h"
 #include "editor/annotations/ToolRegistry.h"
 #include "editor/annotations/AnnotationBuilder.h"
+#include "editor/annotations/AnnotationSet.h"
 #include "editor/annotations/IAnnotationSink.h"
 #include "editor/annotations/commands/EditorCommands.h"
 #include "core/IconUtil.h"
 #include "core/Perf.h"
+#include "editor/annotations/tools/StepTool.h"
 #include "editor/annotations/tools/TextTool.h"
 #include "editor/annotations/StepNumbering.h"
 #include "editor/image/BackdropItem.h"
@@ -626,12 +628,12 @@ void ImageEditor::activateTool(const QString &toolId)
         m_panelsAction->setChecked(true);
 }
 
-void ImageEditor::commitDrawnItem(QGraphicsItem *item, const QString &toolId)
+Layer *ImageEditor::makeLayer(QGraphicsItem *item, const QString &toolId)
 {
     const ToolSpec *spec = ToolRegistry::find(toolId);
     if (!spec || !item) {
         delete item;
-        return;
+        return nullptr;
     }
 
     // Layer name: text uses its content; everything else uses "Prefix N".
@@ -643,10 +645,6 @@ void ImageEditor::commitDrawnItem(QGraphicsItem *item, const QString &toolId)
     auto *layer = new Layer(name, spec->layerType, this);
     layer->setItem(item);
 
-    // "Remember last settings": copy this item's style back into the tool template
-    // so the next stroke/shape starts from the same look.
-    m_builder->rememberStyle(item, toolId);
-
     // Text layers keep their name in sync with their (editable) content.
     if (textItem) {
         connect(textItem, &Tools::TextTool::textChanged, this, [this, layer, textItem]() {
@@ -657,6 +655,19 @@ void ImageEditor::commitDrawnItem(QGraphicsItem *item, const QString &toolId)
             m_layerManager->updateLayerList();
         });
     }
+    return layer;
+}
+
+void ImageEditor::commitDrawnItem(QGraphicsItem *item, const QString &toolId)
+{
+    Layer *layer = makeLayer(item, toolId);
+    if (!layer)
+        return;
+    const ToolSpec *spec = ToolRegistry::find(toolId);
+
+    // "Remember last settings": copy this item's style back into the tool template
+    // so the next stroke/shape starts from the same look.
+    m_builder->rememberStyle(item, toolId);
 
     // Push as an undoable command; its redo() adds the item to the scene + manager.
     const QString label = spec->namePrefix.isEmpty() ? QStringLiteral("Add Layer")
@@ -669,6 +680,22 @@ void ImageEditor::commitDrawnItem(QGraphicsItem *item, const QString &toolId)
         activateTool("pointer");
         m_layerManager->selectLayer(layer);
     }
+}
+
+void ImageEditor::importAnnotations(const AnnotationSet &set)
+{
+    // Imported layers are the starting state, so they bypass the undo stack.
+    for (const AnnotationSet::Instance &instance : set.instantiate(m_originalScreenshot)) {
+        Layer *layer = makeLayer(instance.item, instance.toolId);
+        if (!layer)
+            continue;
+        m_builder->rememberStyle(instance.item, instance.toolId);
+        m_scene->addItem(instance.item);
+        m_layerManager->addLayer(layer);
+    }
+    // The panel's "Next number" hint; stamping derives the number from the layers anyway.
+    if (auto *step = dynamic_cast<Tools::StepTool*>(m_builder->templateFor("step")))
+        step->setNumber(nextStepNumber(m_layerManager->layers()));
 }
 
 void ImageEditor::keyPressEvent(QKeyEvent *event)

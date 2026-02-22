@@ -22,6 +22,7 @@ class QUndoStack;
 namespace Editor {
 
 class AnnotationBuilder;
+class AnnotationSet;
 class DrawingGraphicsView;
 class LayerManager;
 class LayerProperties;
@@ -40,6 +41,9 @@ class ImageEditor : public QMainWindow
 public:
     explicit ImageEditor(const QPixmap &screenshot, QWidget *parent = nullptr);
     ~ImageEditor() override;
+
+    // Adds the overlay's annotations as editable layers, outside the undo history.
+    void importAnnotations(const AnnotationSet &set);
 
 public slots:
     void saveAs();
@@ -78,6 +82,8 @@ private:
     // into a layer (the single commit point all drawing tools funnel through).
     void activateTool(const QString &toolId);
     void commitDrawnItem(QGraphicsItem *item, const QString &toolId);
+    // Named layer for item, or null (item deleted) for an unknown tool.
+    Layer *makeLayer(QGraphicsItem *item, const QString &toolId);
     // Keyboard-shortcut helpers (all document mutations go through QUndoCommands).
     void duplicateSelectedLayer();                 // ⌘/Ctrl+D: clone() + AddLayerCommand
     void nudgeSelectedLayer(qreal dx, qreal dy);   // arrows: MoveLayerCommand

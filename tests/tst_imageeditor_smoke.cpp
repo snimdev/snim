@@ -10,6 +10,11 @@
 #include "editor/annotations/LayerManager.h"
 #include "editor/annotations/Layer.h"
 #include "editor/annotations/ToolRegistry.h"
+#include "editor/annotations/AnnotationSet.h"
+#include "editor/annotations/tools/BlurTool.h"
+#include "editor/annotations/tools/RectangleTool.h"
+#include "editor/annotations/tools/StepTool.h"
+#include "editor/annotations/tools/TextTool.h"
 
 // The editor window is Editor::Image::ImageEditor; alias it for brevity (a plain
 // `using namespace` would clash with the Editor namespace).
@@ -95,6 +100,82 @@ private slots:
             rectangles += l->type() == Editor::Layer::Rectangle;
         QCOMPARE(rectangles, 1);
         QCOMPARE(stack->count(), 1);
+    }
+
+    // Overlay annotations arrive as ordinary layers that start outside the undo history.
+    void importedAnnotationsBecomeLayers()
+    {
+        QPixmap shot(400, 300);
+        shot.fill(Qt::darkGray);
+
+        Editor::AnnotationSet set;
+        Editor::Tools::RectangleTool rect(QRectF(0, 0, 60, 40));
+        set.add("rectangle", rect, QPointF(20, 30));
+        Editor::Tools::StepTool step;
+        step.setNumber(1);
+        set.add("step", step, QPointF(200, 100));
+        Editor::Tools::TextTool text(QStringLiteral("note"));
+        set.add("text", text, QPointF(50, 200));
+        Editor::Tools::BlurTool blur;
+        for (int x = 0; x <= 60; x += 10)
+            blur.addPoint(QPointF(x, 0));
+        blur.finishPath();
+        set.add("blur", blur, QPointF(250, 250));
+
+        ImageEditorWindow editor(shot);
+        editor.importAnnotations(set);
+        editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));
+
+        auto *view = editor.findChild<Editor::DrawingGraphicsView*>();
+        auto *layers = editor.findChild<Editor::LayerManager*>();
+        auto *stack = editor.findChild<QUndoStack*>();
+        auto *toolbar = editor.findChild<QToolBar*>();
+        QVERIFY(view && layers && stack && toolbar);
+
+        const QList<Editor::Layer*> all = layers->layers();
+        QCOMPARE(all.size(), 5);
+        const QList<Editor::Layer::LayerType> types{
+            Editor::Layer::Background, Editor::Layer::Rectangle, Editor::Layer::Step,
+            Editor::Layer::Text, Editor::Layer::Blur};
+        for (int i = 0; i < types.size(); ++i)
+            QCOMPARE(all.at(i)->type(), types.at(i));
+        QCOMPARE(all.at(1)->item()->pos(), QPointF(20, 30));
+        QCOMPARE(all.at(2)->item()->pos(), QPointF(200, 100));
+        QCOMPARE(all.at(3)->item()->pos(), QPointF(50, 200));
+        QCOMPARE(all.at(4)->item()->pos(), QPointF(250, 250));
+        QCOMPARE(all.at(1)->item()->scene(), view->scene());
+        QCOMPARE(all.at(3)->name(), QStringLiteral("Text: note"));
+        QCOMPARE(stack->count(), 0);
+
+        // The next stamp continues from the imported badge.
+        QAction *stepAction = nullptr;
+        for (QAction *a : toolbar->actions())
+            if (a->toolTip() == Editor::ToolRegistry::find("step")->tooltip)
+                stepAction = a;
+        QVERIFY(stepAction);
+        stepAction->trigger();
+        QTest::qWait(50);   // the tool reveals the side panel, which re-lays out the view
+        QTest::mouseClick(view->viewport(), Qt::LeftButton, Qt::NoModifier,
+                          view->mapFromScene(QPointF(300, 60)));
+        QCOMPARE(layers->layers().size(), 6);
+        auto *stamped = dynamic_cast<Editor::Tools::StepTool*>(layers->layers().last()->item());
+        QVERIFY(stamped);
+        QCOMPARE(stamped->number(), 2);
+        QCOMPARE(stack->count(), 1);
+
+        // Delete removes an imported layer undoably, and Undo brings it back.
+        Editor::Layer *imported = all.at(1);
+        layers->selectLayer(imported);
+        QTest::keyClick(&editor, Qt::Key_Delete);
+        QVERIFY(!layers->layers().contains(imported));
+        QVERIFY(!imported->item()->scene());
+        stack->undo();
+        QVERIFY(layers->layers().contains(imported));
+        QCOMPARE(imported->item()->scene(), view->scene());
+        stack->undo();   // the stamp
+        stack->undo();   // no-op: the imports are not on the stack
+        QCOMPARE(layers->layers().size(), 5);
     }
 };
 
