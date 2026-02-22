@@ -16,6 +16,7 @@
 #include "editor/annotations/tools/HighlightTool.h"
 #include "editor/annotations/tools/RectangleTool.h"
 #include "editor/annotations/tools/StepTool.h"
+#include "editor/annotations/tools/TextTool.h"
 
 using namespace Capture;
 
@@ -395,6 +396,43 @@ private slots:
         QVERIFY(out.pixelColor(103, 70).lightness() < 225);
         QCOMPARE(out.pixelColor(97, 10), QColor(Qt::black));
         QCOMPARE(out.pixelColor(103, 10), QColor(Qt::white));
+    }
+
+    // There is no QGraphicsView: keys reach the text box only through the session.
+    void textIsTypedWithoutAView()
+    {
+        const auto session = attachSession();
+        const QRect sel = selectionFor(QPoint(40, 40), QPoint(240, 180));
+        drag(QPoint(40, 40), QPoint(240, 180));
+        session->setActiveTool("text");
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(100, 100));
+        QVERIFY(session->isEditingText());
+
+        QTest::keyClicks(m_sel.data(), "hix");
+        QTest::keyClick(m_sel.data(), Qt::Key_Backspace);
+        QTest::keyClick(m_sel.data(), Qt::Key_Return);
+        QTest::keyClicks(m_sel.data(), "yo");
+        QVERIFY(session->isEditingText());
+        QVERIFY(m_sel->isVisible());
+
+        QTest::keyClick(m_sel.data(), Qt::Key_Escape);
+        QVERIFY(!session->isEditingText());
+        QCOMPARE(session->activeTool(), QStringLiteral("text"));
+        const Editor::AnnotationSet set = session->snapshot(sel);
+        QCOMPARE(set.size(), 1);
+        QCOMPARE(set.entries().at(0).toolId, QStringLiteral("text"));
+        auto *text = dynamic_cast<Editor::Tools::TextTool*>(set.entries().at(0).prototype.get());
+        QVERIFY(text);
+        QCOMPARE(text->toPlainText(), QStringLiteral("hi\nyo"));
+        QCOMPARE(set.entries().at(0).pos, QPointF(60, 60));
+
+        QSignalSpy state(m_sel.data(), &AreaSelector::liveStateChanged);
+        QTest::keyClick(m_sel.data(), Qt::Key_Escape);
+        QVERIFY(session->activeTool().isEmpty());
+        QVERIFY(session->hasItems());
+        for (const auto &args : state)
+            QCOMPARE(args.at(1).toInt(), kAdjusting);
+        QVERIFY(m_sel->isVisible());
     }
 
     void pressOutsideKeepsTheSelectionWithAToolArmed()
