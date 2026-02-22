@@ -95,10 +95,8 @@ bool AreaSelector::StrokeHandler::mouseRelease(QMouseEvent *event)
 
 bool AreaSelector::StrokeHandler::mouseDoubleClick(QMouseEvent *event)
 {
-    if (event->button() != Qt::LeftButton || !armed()) return false;
-    // A quick second click draws again; it must never commit the capture.
-    mousePress(event);
-    return true;
+    // The platform already delivered this click's press, so only keep it from committing.
+    return event->button() == Qt::LeftButton && armed();
 }
 
 // ---- ToolHandler -----------------------------------------------------------

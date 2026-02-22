@@ -1,5 +1,6 @@
 #include <QtTest>
 
+#include <QApplication>
 #include <QGuiApplication>
 #include <QPixmap>
 #include <QPointer>
@@ -51,6 +52,17 @@ private:
         QTest::mousePress(m_sel.data(), Qt::LeftButton, Qt::NoModifier, from);
         QTest::mouseMove(m_sel.data(), to);
         QTest::mouseRelease(m_sel.data(), Qt::LeftButton, Qt::NoModifier, to);
+    }
+
+    // What a real double-click delivers: the second press arrives before the double-click.
+    void doubleClick(const QPoint &pos)
+    {
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, pos);
+        QTest::mousePress(m_sel.data(), Qt::LeftButton, Qt::NoModifier, pos);
+        QMouseEvent dbl(QEvent::MouseButtonDblClick, pos, m_sel->mapToGlobal(pos), Qt::LeftButton,
+                        Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(m_sel.data(), &dbl);
+        QTest::mouseRelease(m_sel.data(), Qt::LeftButton, Qt::NoModifier, pos);
     }
 
     static bool near(const QColor &a, const QColor &b)
@@ -285,6 +297,19 @@ private slots:
         QCOMPARE(area.count(), 0);
         QTest::mouseDClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(120, 120));
         QCOMPARE(area.count(), 0);
+        QVERIFY(m_sel->isVisible());
+    }
+
+    void doubleClickDrawsOnlyOnce()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        session->setActiveTool("step");   // one item per press, so an extra press shows
+        QSignalSpy area(m_sel.data(), &AreaSelector::areaSelected);
+
+        doubleClick(QPoint(120, 120));
+        QCOMPARE(area.count(), 0);
+        QCOMPARE(session->snapshot(selectionFor(QPoint(40, 40), QPoint(240, 180))).size(), 2);
         QVERIFY(m_sel->isVisible());
     }
 
