@@ -305,12 +305,7 @@ namespace Capture {
                                  << physicalCropRect(area, virtualGeometry,
                                                      screenshot.devicePixelRatio(), screenshot.size());
 
-                        const QPixmap finalScreenshot =
-                            cropWithAnnotations(screenshot, virtualGeometry, area, session);
-
-                        qDebug() << "Final screenshot size:" << finalScreenshot.size();
-
-                        emit screenshotReady(finalScreenshot);
+                        emitSelection(screenshot, virtualGeometry, area, session);
                     });
             connect(selector, &Capture::AreaSelector::copyRequested,
                     this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {

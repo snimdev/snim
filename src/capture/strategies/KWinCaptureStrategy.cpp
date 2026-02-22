@@ -527,8 +527,7 @@ void KWinCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRec
                 return;
             }
 
-            // area is in virtual-desktop logical coords; map to physical pixmap coords.
-            emit screenshotReady(cropWithAnnotations(screenshot, virtualGeometry, area, session));
+            emitSelection(screenshot, virtualGeometry, area, session);
         });
         connect(selector, &AreaSelector::copyRequested,
                 this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {

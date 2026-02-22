@@ -23,6 +23,19 @@ QPixmap CaptureStrategy::cropWithAnnotations(const QPixmap &shot, const QRect &v
     return cropVirtualArea(shot, virtualGeometry, area);
 }
 
+void CaptureStrategy::emitSelection(const QPixmap &shot, const QRect &virtualGeometry,
+                                    const QRect &area,
+                                    const QSharedPointer<OverlayAnnotations> &annotations)
+{
+    const QPixmap cropped = cropVirtualArea(shot, virtualGeometry, area);
+    if (cropped.isNull()) {
+        emit screenshotFailed("Invalid area selected or no screenshot available");
+        return;
+    }
+    emit screenshotReady(cropped, annotations && annotations->hasItems()
+                                      ? annotations->snapshot(area) : Editor::AnnotationSet{});
+}
+
 QSharedPointer<OverlayAnnotations> CaptureStrategy::attachAnnotations(
     const QList<AreaSelector*> &selectors, const QPixmap &frame, const QRect &virtualGeometry)
 {

@@ -38,8 +38,6 @@ private:
     void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry,
                           bool windowPick = false, const QVector<QRect> &windows = {});
     void teardownSelectors(QList<AreaSelector*> *selectors);
-    [[nodiscard]] QPixmap cropSelection(const QRect &area,
-                                        const QSharedPointer<OverlayAnnotations> &annotations) const;
     void onCopyRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
     void onSaveRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
 

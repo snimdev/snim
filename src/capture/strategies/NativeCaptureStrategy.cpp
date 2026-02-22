@@ -1,6 +1,5 @@
 #include "NativeCaptureStrategy.h"
 #include "../AreaSelector.h"
-#include "../CaptureGeometry.h"
 #include "../WindowEnumerator.h"
 #ifdef Q_OS_MACOS
 #include "../MacOverlay.h"
@@ -72,21 +71,6 @@ bool NativeCaptureStrategy::isAvailable() const
     return true;
 }
 
-QPixmap NativeCaptureStrategy::cropSelection(const QRect &area,
-                                             const QSharedPointer<OverlayAnnotations> &annotations) const
-{
-    if (m_fullScreenshot.isNull() || area.isEmpty())
-        return QPixmap();
-
-    // area is in virtual-desktop logical coords; map to physical pixmap coords.
-    qDebug() << "Selected area (logical):" << area
-             << "Physical area:" << physicalCropRect(area, m_virtualGeometry,
-                                                     m_fullScreenshot.devicePixelRatio(),
-                                                     m_fullScreenshot.size());
-
-    return cropWithAnnotations(m_fullScreenshot, m_virtualGeometry, area, annotations);
-}
-
 void NativeCaptureStrategy::onAreaSelected(const QRect &area,
                                            const QSharedPointer<OverlayAnnotations> &annotations)
 {
@@ -94,11 +78,7 @@ void NativeCaptureStrategy::onAreaSelected(const QRect &area,
         // User cancelled (pressed Escape)
         qDebug() << "Area selection cancelled";
     } else {
-        const QPixmap finalScreenshot = cropSelection(area, annotations);
-        if (!finalScreenshot.isNull())
-            emit screenshotReady(finalScreenshot);
-        else
-            emit screenshotFailed("Invalid area selected or no screenshot available");
+        emitSelection(m_fullScreenshot, m_virtualGeometry, area, annotations);
     }
 
     // Clear the stored screenshot

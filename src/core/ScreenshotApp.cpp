@@ -499,7 +499,8 @@ namespace Core {
             DesktopIntegration::status() != DesktopIntegration::Status::Installed);
     }
 
-    void ScreenshotApp::onScreenshotReady(const QPixmap &screenshot) {
+    void ScreenshotApp::onScreenshotReady(const QPixmap &screenshot,
+                                          const Editor::AnnotationSet &annotations) {
         // Fullscreen shows no overlay, so this is its visible-endpoint; area/window already reported.
         Perf::reportCaptureShown("frame ready");
         qDebug() << "Screenshot ready, opening ImageEditor";
@@ -509,6 +510,8 @@ namespace Core {
         editor->setAttribute(Qt::WA_DeleteOnClose);
         connect(editor, &Editor::Image::ImageEditor::uploadRequested,
                 this, &ScreenshotApp::startUpload);
+        if (!annotations.isEmpty())
+            editor->importAnnotations(annotations);
         editor->show();
         editor->raise();
         editor->activateWindow();

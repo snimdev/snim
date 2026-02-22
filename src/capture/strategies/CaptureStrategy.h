@@ -6,6 +6,7 @@
 #include <QPixmap>
 #include <QRect>
 #include <QSharedPointer>
+#include "editor/annotations/AnnotationSet.h"
 
 namespace Capture {
 
@@ -40,7 +41,8 @@ public:
     [[nodiscard]] bool quickActionsEnabled() const { return m_quickActionsEnabled; }
 
 signals:
-    void screenshotReady(const QPixmap &pixmap);
+    // annotations: overlay drawings the editor adds as layers over the plain pixmap.
+    void screenshotReady(const QPixmap &pixmap, const Editor::AnnotationSet &annotations = {});
     void screenshotFailed(const QString &error);
 
 protected:
@@ -52,6 +54,10 @@ protected:
                              const QSharedPointer<OverlayAnnotations> &annotations = {});
     void saveAreaToFile(const QPixmap &shot, const QRect &virtualGeometry, const QRect &area,
                         const QSharedPointer<OverlayAnnotations> &annotations = {});
+
+    // Edit: the plain crop, with the overlay's annotations handed over as editable layers.
+    void emitSelection(const QPixmap &shot, const QRect &virtualGeometry, const QRect &area,
+                       const QSharedPointer<OverlayAnnotations> &annotations);
 
     // The selection crop, with the overlay's annotations burned in when there are any.
     [[nodiscard]] static QPixmap cropWithAnnotations(const QPixmap &shot, const QRect &virtualGeometry,

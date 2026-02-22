@@ -3,6 +3,7 @@
 
 #include "core/DesktopIntegration.h"
 #include "hotkeys/HotkeyAction.h"
+#include "editor/annotations/AnnotationSet.h"
 
 #include <QApplication>
 #include <QSystemTrayIcon>
@@ -57,7 +58,7 @@ private slots:
     void captureWindow() const;
     void captureFullScreen() const;
     void captureTextSnip();
-    void onScreenshotReady(const QPixmap &screenshot);
+    void onScreenshotReady(const QPixmap &screenshot, const Editor::AnnotationSet &annotations);
     void onTextExtracted(const QString &text, bool success);
     void toggleAreaRecording();                              // Record Area / Stop (toggles)
     void startWindowRecording();                             // Record Window (disabled while recording)
