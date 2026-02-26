@@ -514,6 +514,58 @@ private slots:
         QVERIFY(session->isEditingText());
     }
 
+    void chordsStayInertWhileTyping()
+    {
+        const auto session = attachSession();
+        const QRect sel = selectionFor(QPoint(40, 40), QPoint(240, 180));
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_R);
+        stroke(QPoint(60, 60), QPoint(100, 100));
+        QTest::keyClick(m_sel.data(), Qt::Key_T);
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(120, 120));
+        QVERIFY(session->isEditingText());
+
+        QSignalSpy copy(m_sel.data(), &AreaSelector::copyRequested);
+        QSignalSpy save(m_sel.data(), &AreaSelector::saveRequested);
+        QSignalSpy area(m_sel.data(), &AreaSelector::areaSelected);
+        QSignalSpy state(m_sel.data(), &AreaSelector::liveStateChanged);
+
+        // Ctrl+Z belongs to the text box's own editing history, not the overlay's.
+        QTest::keyClick(m_sel.data(), Qt::Key_X);
+        chord(QKeySequence::Undo);
+        chord(QKeySequence::Redo);
+        QTest::keyClicks(m_sel.data(), "hi");
+        QTest::keyClick(m_sel.data(), Qt::Key_Return);
+        QTest::keyClick(m_sel.data(), Qt::Key_Enter);
+        QTest::keyClick(m_sel.data(), Qt::Key_C, Qt::ControlModifier);
+        QTest::keyClick(m_sel.data(), Qt::Key_S, Qt::ControlModifier);
+        QTest::keyClicks(m_sel.data(), "re");
+        QTest::keyClick(m_sel.data(), Qt::Key_Left, Qt::ShiftModifier);
+
+        QCOMPARE(copy.count(), 0);
+        QCOMPARE(save.count(), 0);
+        QCOMPARE(area.count(), 0);
+        QVERIFY(state.isEmpty());   // no selection nudges either
+        QVERIFY(session->isEditingText());
+        QCOMPARE(session->activeTool(), QStringLiteral("text"));
+        QVERIFY(m_sel->isVisible());
+
+        QTest::keyClick(m_sel.data(), Qt::Key_Escape);
+        QVERIFY(!session->isEditingText());
+        QTest::keyClick(m_sel.data(), Qt::Key_Return);
+        QCOMPARE(area.count(), 1);
+        QCOMPARE(area.at(0).at(0).toRect(), sel);
+        QCOMPARE(copy.count(), 0);
+        QVERIFY(!m_sel->isVisible());
+
+        const Editor::AnnotationSet set = session->snapshot(sel);
+        QCOMPARE(set.size(), 2);
+        QCOMPARE(set.entries().at(0).toolId, QStringLiteral("rectangle"));
+        const QStringList typed = texts(set);
+        QCOMPARE(typed.size(), 1);
+        QVERIFY2(typed.first().endsWith(QStringLiteral("hi\n\nre")), qPrintable(typed.first()));
+    }
+
     void pressOutsideKeepsTheSelectionWithAToolArmed()
     {
         const auto session = attachSession();

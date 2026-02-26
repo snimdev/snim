@@ -11,6 +11,7 @@
 #include "editor/annotations/LayerManager.h"
 #include "editor/annotations/tools/RectangleTool.h"
 #include "editor/annotations/tools/StepTool.h"
+#include "editor/annotations/tools/TextTool.h"
 #include "editor/image/ImageEditor.h"
 
 using Capture::OverlayAnnotations;
@@ -172,6 +173,41 @@ private slots:
         const QImage out = QGuiApplication::clipboard()->pixmap().toImage();
         QCOMPARE(out.size(), kArea.size());
         QVERIFY(!near(out.pixelColor(100, 100), kGrey));
+    }
+
+    void typedTextBecomesATextLayer()
+    {
+        OverlayAnnotations s(frame(), kVirtual);
+        s.setSelection(kArea);
+        s.setActiveTool("text");
+        QVERIFY(s.press({-1700, 250}));
+        for (const QChar c : QStringLiteral("Hi\ryo")) {
+            QKeyEvent key(QEvent::KeyPress, c == u'\r' ? int(Qt::Key_Return) : int(c.toUpper().unicode()),
+                          c.isUpper() ? Qt::ShiftModifier : Qt::NoModifier, QString(c));
+            s.forwardKey(&key);
+        }
+        QVERIFY(s.isEditingText());   // Edit is chosen mid-typing
+        const QSharedPointer<OverlayAnnotations> session(&s, [](OverlayAnnotations *) {});
+
+        ProbeStrategy strategy;
+        Emitted got;
+        record(strategy, &got);
+        strategy.emitSelection(frame(), kVirtual, kArea, session);
+        QCOMPARE(got.count, 1);
+        QCOMPARE(got.annotations.size(), 1);
+
+        Editor::Image::ImageEditor editor(got.pixmap);
+        editor.importAnnotations(got.annotations);
+        auto *manager = editor.findChild<Editor::LayerManager*>();
+        QVERIFY(manager);
+        const QList<Editor::Layer*> layers = manager->layers();
+        QCOMPARE(layers.size(), 2);
+        auto *text = dynamic_cast<Editor::Tools::TextTool*>(layers.at(1)->item());
+        QVERIFY(text);
+        QCOMPARE(text->toPlainText(), QStringLiteral("Hi\nyo"));
+        QCOMPARE(text->pos(), QPointF(100, 50));
+        QCOMPARE(text->textInteractionFlags(), Qt::NoTextInteraction);
+        QCOMPARE(layers.at(1)->type(), Editor::Layer::Text);
     }
 
     void editWithoutDrawingHandsNoLayers()
