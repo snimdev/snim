@@ -849,8 +849,12 @@ void AreaSelector::paintInstructions(QPainter &p)
                     break;
                 }
                 if (toolArmed()) {
-                    text = QStringLiteral("Drag to draw  ·  %1 to undo  ·  Esc to stop drawing")
-                               .arg(keyText(QKeySequence::Undo));
+                    const QString tool = m_annotations->activeTool();
+                    const QString verb = tool == QLatin1String("text") ? QStringLiteral("Click to type")
+                                       : tool == QLatin1String("step") ? QStringLiteral("Click to place a step")
+                                       : QStringLiteral("Drag to draw");
+                    text = QStringLiteral("%1  ·  %2 to undo  ·  Esc to stop drawing")
+                               .arg(verb, keyText(QKeySequence::Undo));
                     break;
                 }
                 text = m_actionsEnabled
