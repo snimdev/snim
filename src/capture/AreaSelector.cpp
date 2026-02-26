@@ -818,6 +818,10 @@ void AreaSelector::paintInstructions(QPainter &p)
             case Phase::Idle:      text = QStringLiteral("Drag to select  ·  Esc to cancel"); break;
             case Phase::Dragging:  text = QStringLiteral("Release to adjust"); break;
             case Phase::Adjusting:
+                if (m_annotations && m_annotations->isEditingText()) {
+                    text = QStringLiteral("Type your text  ·  Esc to finish");
+                    break;
+                }
                 if (toolArmed()) {
                     text = QStringLiteral("Drag to draw  ·  %1 to undo  ·  Esc to stop drawing")
                                .arg(keyText(QKeySequence::Undo));

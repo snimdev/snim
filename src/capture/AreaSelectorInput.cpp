@@ -67,8 +67,9 @@ bool AreaSelector::StrokeHandler::mousePress(QMouseEvent *event)
     if (h != Handle::Interior && h != Handle::None) return false;   // handles still resize
     s.m_cursorVirt = s.toVirt(local);
     s.m_hasCursor = true;
-    // Outside the selection the press is swallowed: no fresh selection while drawing.
-    if (h == Handle::Interior && s.m_annotations->press(s.m_cursorVirt))
+    // Outside the selection the press only ends typing: no fresh selection while drawing.
+    const bool reachesSession = h == Handle::Interior || s.m_annotations->isEditingText();
+    if (reachesSession && s.m_annotations->press(s.m_cursorVirt))
         s.setCursor(s.m_annotations->cursor());
     return true;
 }

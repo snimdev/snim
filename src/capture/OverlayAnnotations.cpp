@@ -82,6 +82,7 @@ QList<QGraphicsItem*> OverlayAnnotations::committedItems() const
 
 void OverlayAnnotations::setActiveTool(const QString &id)
 {
+    commitPendingText();
     if (auto *previous = activeInteraction())
         previous->cleanup(m_scene.get());
 

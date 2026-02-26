@@ -6,6 +6,7 @@
 #include <QPixmap>
 #include <QPointer>
 #include <QScreen>
+#include <QStyleHints>
 #include <QSharedPointer>
 #include <QSignalSpy>
 #include <memory>
@@ -433,6 +434,84 @@ private slots:
         for (const auto &args : state)
             QCOMPARE(args.at(1).toInt(), kAdjusting);
         QVERIFY(m_sel->isVisible());
+    }
+
+    static QStringList texts(const Editor::AnnotationSet &set)
+    {
+        QStringList out;
+        for (const auto &e : set.entries())
+            if (auto *t = dynamic_cast<Editor::Tools::TextTool*>(e.prototype.get()))
+                out.append(t->toPlainText());
+        return out;
+    }
+
+    void textToolTypesOneBoxPerClick()
+    {
+        const auto session = attachSession();
+        const QRect sel = selectionFor(QPoint(40, 40), QPoint(240, 180));
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_T);
+        QCOMPARE(session->activeTool(), QStringLiteral("text"));
+        QTest::mouseMove(m_sel.data(), QPoint(100, 100));
+        QCOMPARE(m_sel->cursor().shape(), Qt::IBeamCursor);
+
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(60, 60));
+        QTest::keyClicks(m_sel.data(), "ab");
+        // A click while typing only ends the box; the next one places another.
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(120, 120));
+        QVERIFY(!session->isEditingText());
+        QCOMPARE(texts(session->snapshot(sel)), QStringList{"ab"});
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(120, 120));
+        QVERIFY(session->isEditingText());
+        QTest::keyClicks(m_sel.data(), "cd");
+        QTest::keyClick(m_sel.data(), Qt::Key_Escape);
+
+        QCOMPARE(texts(session->snapshot(sel)), QStringList({"ab", "cd"}));
+        QCOMPARE(session->activeTool(), QStringLiteral("text"));
+        QVERIFY(m_sel->isVisible());
+    }
+
+    void pressOutsideTheSelectionEndsTyping()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_T);
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(60, 60));
+        QTest::keyClicks(m_sel.data(), "ab");
+        QSignalSpy state(m_sel.data(), &AreaSelector::liveStateChanged);
+
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(400, 400));
+        QVERIFY(!session->isEditingText());
+        QVERIFY(session->canUndo());
+        for (const auto &args : state)
+            QCOMPARE(args.at(0).toRect(), selectionFor(QPoint(40, 40), QPoint(240, 180)));
+    }
+
+    void switchingToolsEndsTyping()
+    {
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        session->setActiveTool("text");
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(60, 60));
+        QTest::keyClicks(m_sel.data(), "ab");
+
+        session->setActiveTool("rectangle");   // what a toolbar click does
+        QVERIFY(!session->isEditingText());
+        QVERIFY(session->canUndo());
+    }
+
+    void caretKeepsTheOverlayRepainting()
+    {
+        if (QGuiApplication::styleHints()->cursorFlashTime() <= 0)
+            QSKIP("The platform does not blink the caret");
+        const auto session = attachSession();
+        drag(QPoint(40, 40), QPoint(240, 180));
+        session->setActiveTool("text");
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(60, 60));
+        QTest::qWait(50);   // let the placement's own repaint go by
+        QSignalSpy changed(session.data(), &OverlayAnnotations::changed);
+        QVERIFY(changed.wait(QGuiApplication::styleHints()->cursorFlashTime() * 2));
+        QVERIFY(session->isEditingText());
     }
 
     void pressOutsideKeepsTheSelectionWithAToolArmed()
