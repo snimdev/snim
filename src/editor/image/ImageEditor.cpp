@@ -461,7 +461,9 @@ void ImageEditor::setupToolbar()
 
     for (const ToolSpec &spec : ToolRegistry::tools()) {
         auto *act = new QAction(this);
-        act->setToolTip(spec.tooltip.isEmpty() ? spec.displayName : spec.tooltip);
+        const QString tip = spec.tooltip.isEmpty() ? spec.displayName : spec.tooltip;
+        act->setToolTip(spec.shortcut.isNull() ? tip
+                                               : QStringLiteral("%1 (%2)").arg(tip, QString(spec.shortcut)));
         act->setIcon(createThemedIcon(spec.iconPath));
         act->setCheckable(true);
         m_toolGroup->addAction(act);
@@ -716,6 +718,16 @@ void ImageEditor::keyPressEvent(QKeyEvent *event)
     if (m_builder->isEditingText()) {      // let the inline editor keep every other key
         QMainWindow::keyPressEvent(event);
         return;
+    }
+
+    // Bare letters pick tools, the same keys the capture overlay uses.
+    if (event->modifiers() == Qt::NoModifier && event->key() >= Qt::Key_A
+        && event->key() <= Qt::Key_Z) {
+        if (const ToolSpec *spec = ToolRegistry::findByShortcut(QChar(event->key()))) {
+            activateTool(spec->id);
+            event->accept();
+            return;
+        }
     }
 
     if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
