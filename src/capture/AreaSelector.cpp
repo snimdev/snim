@@ -14,6 +14,7 @@
 #include <QShowEvent>
 #include <QResizeEvent>
 #include <QEvent>
+#include <QInputMethodEvent>
 #include <QFile>
 #include <QPolygonF>
 
@@ -69,9 +70,16 @@ void AreaSelector::setAnnotations(QSharedPointer<OverlayAnnotations> session)
     m_annotations = std::move(session);
     if (m_annotations) {
         connect(m_annotations.data(), &OverlayAnnotations::changed,
-                this, qOverload<>(&QWidget::update));
+                this, &AreaSelector::onAnnotationsChanged);
         m_annotations->setSelection(m_selectionVirt);
     }
+    update();
+}
+
+void AreaSelector::onAnnotationsChanged()
+{
+    // Input methods only compose for a text box; tool letters must reach us raw.
+    setAttribute(Qt::WA_InputMethodEnabled, m_annotations && m_annotations->isEditingText());
     update();
 }
 
@@ -558,6 +566,24 @@ void AreaSelector::keyPressEvent(QKeyEvent *event)
 {
     if (!dispatchInput(&InputHandler::keyPress, event))
         QWidget::keyPressEvent(event);
+}
+
+void AreaSelector::inputMethodEvent(QInputMethodEvent *event)
+{
+    if (m_annotations && m_annotations->isEditingText())
+        m_annotations->forwardInputMethod(event);
+    else
+        QWidget::inputMethodEvent(event);
+}
+
+QVariant AreaSelector::inputMethodQuery(Qt::InputMethodQuery query) const
+{
+    if (query == Qt::ImEnabled || !m_annotations || !m_annotations->isEditingText())
+        return QWidget::inputMethodQuery(query);
+    const QVariant value = m_annotations->inputMethodQuery(query);
+    if (value.typeId() == QMetaType::QRectF)
+        return value.toRectF().translated(-m_screenOffset);
+    return value;
 }
 
 void AreaSelector::commitSelection()

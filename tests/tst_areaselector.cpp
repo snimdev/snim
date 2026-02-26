@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QGuiApplication>
+#include <QInputMethodEvent>
 #include <QPainter>
 #include <QPixmap>
 #include <QPointer>
@@ -564,6 +565,32 @@ private slots:
         const QStringList typed = texts(set);
         QCOMPARE(typed.size(), 1);
         QVERIFY2(typed.first().endsWith(QStringLiteral("hi\n\nre")), qPrintable(typed.first()));
+    }
+
+    void inputMethodComposesIntoTheTextBox()
+    {
+        const auto session = attachSession();
+        const QRect sel = selectionFor(QPoint(40, 40), QPoint(240, 180));
+        drag(QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(m_sel.data(), Qt::Key_T);
+        QVERIFY(!m_sel->testAttribute(Qt::WA_InputMethodEnabled));   // letters stay tool keys
+
+        QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(100, 100));
+        QTRY_VERIFY(m_sel->testAttribute(Qt::WA_InputMethodEnabled));
+        const QRectF caret = m_sel->inputMethodQuery(Qt::ImCursorRectangle).toRectF();
+        QVERIFY2(QRectF(90, 90, 30, 40).contains(caret.topLeft()), qPrintable(QStringLiteral("%1,%2")
+                     .arg(caret.x()).arg(caret.y())));
+
+        QTest::keyClicks(m_sel.data(), "caf");
+        QInputMethodEvent preedit(QStringLiteral("e"), {});
+        QApplication::sendEvent(m_sel.data(), &preedit);
+        QInputMethodEvent commit;
+        commit.setCommitString(QStringLiteral("\u00e9"));
+        QApplication::sendEvent(m_sel.data(), &commit);
+        QTest::keyClick(m_sel.data(), Qt::Key_Escape);
+
+        QCOMPARE(texts(session->snapshot(sel)), QStringList{QStringLiteral("caf\u00e9")});
+        QTRY_VERIFY(!m_sel->testAttribute(Qt::WA_InputMethodEnabled));
     }
 
     void pressOutsideKeepsTheSelectionWithAToolArmed()

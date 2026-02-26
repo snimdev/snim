@@ -10,6 +10,7 @@
 
 #include <QCoreApplication>
 #include <QGraphicsScene>
+#include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QPainter>
 #include <QUndoStack>
@@ -167,6 +168,19 @@ bool OverlayAnnotations::isEditingText() const
 void OverlayAnnotations::forwardKey(QKeyEvent *event)
 {
     QCoreApplication::sendEvent(m_scene.get(), event);
+}
+
+void OverlayAnnotations::forwardInputMethod(QInputMethodEvent *event)
+{
+    QCoreApplication::sendEvent(m_scene.get(), event);
+}
+
+QVariant OverlayAnnotations::inputMethodQuery(Qt::InputMethodQuery query) const
+{
+    const QVariant value = m_scene->inputMethodQuery(query);
+    if (value.typeId() == QMetaType::QRectF)
+        return value.toRectF().translated(m_virtualGeometry.topLeft());
+    return value;
 }
 
 void OverlayAnnotations::commitPendingText()

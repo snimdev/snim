@@ -16,6 +16,7 @@
 #include "capture/WindowEnumerator.h"
 
 class QEvent;
+class QInputMethodEvent;
 class QShowEvent;
 class QResizeEvent;
 
@@ -80,6 +81,9 @@ namespace Capture {
         bool commitCurrentSelection();
         void cancelSelection() { cancel(); }
 
+        // Answers for the text box being typed, so an IME's popup sits at its caret.
+        QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
+
     signals:
         void areaSelected(const QRect &area);
         void copyRequested(const QRect &area);
@@ -102,6 +106,7 @@ namespace Capture {
         void showEvent(QShowEvent *event) override;
         void resizeEvent(QResizeEvent *event) override;
         void leaveEvent(QEvent *event) override;
+        void inputMethodEvent(QInputMethodEvent *event) override;
 
     private:
         // Input chain of responsibility, defined in AreaSelectorInput.h.
@@ -152,6 +157,7 @@ namespace Capture {
         QString barTooltip(const BarSlot &slot) const;
         void   paintBarGlyph(QPainter &p, const BarSlot &slot, const QRect &r);
         void   paintToolbar(QPainter &p);
+        void   onAnnotationsChanged();
         void   updateCursorShape(const QPoint &local);
         bool   toolArmed() const;
         void   applyHandleDrag(const QPoint &cursorVirt);

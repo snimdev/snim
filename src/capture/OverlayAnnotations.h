@@ -8,12 +8,14 @@
 #include <QPointer>
 #include <QRect>
 #include <QString>
+#include <QVariant>
 #include <memory>
 #include "editor/annotations/AnnotationSet.h"
 #include "editor/annotations/IAnnotationSink.h"
 
 class QGraphicsItem;
 class QGraphicsScene;
+class QInputMethodEvent;
 class QKeyEvent;
 class QPainter;
 class QUndoStack;
@@ -55,6 +57,9 @@ public:
 
     [[nodiscard]] bool isEditingText() const;
     void forwardKey(QKeyEvent *event);
+    // Composed text (dead keys, IMEs) for the text box; geometry answers are virtual coords.
+    void forwardInputMethod(QInputMethodEvent *event);
+    [[nodiscard]] QVariant inputMethodQuery(Qt::InputMethodQuery query) const;
     void commitPendingText();
 
     void undo();
