@@ -88,7 +88,7 @@ void MacVideoExporter::trim(const QString &input, const QString &output,
     d->session = session;
 
     // The handler runs on an AVFoundation queue, possibly after this exporter is
-    // gone — capture a weak guard, do all object access on the Qt thread.
+    // gone: capture a weak guard, do all object access on the Qt thread.
     QPointer<MacVideoExporter> weak(this);
     const QString outPath = output;
 
@@ -149,7 +149,7 @@ void MacVideoExporter::toGif(const QString &input, const QString &output,
     for (qint64 ms : frameTimesMs)
         [times addObject:[NSValue valueWithCMTime:CMTimeMake(ms, 1000)]];
 
-    // Prepare the GIF destination — a LOCAL owned solely by the callback block, so
+    // Prepare the GIF destination: a LOCAL owned solely by the callback block, so
     // cancel() (on the Qt thread) never races a CFRelease/AddImage here.
     NSURL *outputURL = [NSURL fileURLWithPath:output.toNSString()];
     [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
@@ -179,9 +179,9 @@ void MacVideoExporter::toGif(const QString &input, const QString &output,
         completionHandler:^(CMTime, CGImageRef image, CMTime,
                             AVAssetImageGeneratorResult result, NSError *) {
             // NOTE: this block runs on the generator's own queue and may outlive the
-            // exporter — it touches only block-local / captured state, never `this`/`d`.
+            // exporter, so it touches only block-local / captured state, never `this`/`d`.
             // Count EVERY callback (succeeded/failed/cancelled) so the terminal
-            // condition is reached even when the generator drops or aborts frames —
+            // condition is reached even when the generator drops or aborts frames;
             // otherwise the editor would hang in its "busy" state forever.
             ++seen;
             if (result == AVAssetImageGeneratorSucceeded && image && !cancelFlag->load()) {

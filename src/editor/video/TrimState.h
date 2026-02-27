@@ -7,7 +7,7 @@ namespace Editor::Video {
 
 /**
  * The trim model: a duration plus an [in, out] keep-range in milliseconds. Pure
- * arithmetic (no widgets, no player) — the single source of truth for clamping
+ * arithmetic (no widgets, no player), the single source of truth for clamping
  * rules and the timeline's px<->ms mapping, so the riskiest math is unit-tested.
  */
 class TrimState

@@ -7,9 +7,9 @@
 namespace Editor::Video {
 
 /**
- * macOS trim exporter built on AVAssetExportSession. Uses the passthrough preset —
+ * macOS trim exporter built on AVAssetExportSession. Uses the passthrough preset:
  * a remux of the selected time range with no re-encode (fast and lossless; the cut
- * snaps to safe sample boundaries) — falling back to a re-encoding preset when
+ * snaps to safe sample boundaries), falling back to a re-encoding preset when
  * passthrough is unsupported for the asset. The header stays pure C++; all
  * AVFoundation state lives behind the pimpl in the .mm (compiled with ARC).
  */

@@ -263,7 +263,7 @@ void VideoEditor::previewFailed()
     m_previewOk = false;
     m_playPauseAction->setEnabled(false);
     m_timeline->setInteractive(false);   // no duration -> no trimming
-    m_statusLabel->setText(tr("Preview unavailable — Save still works"));
+    m_statusLabel->setText(tr("Preview unavailable, Save still works"));
 }
 
 void VideoEditor::togglePlayPause()
@@ -615,7 +615,7 @@ void VideoEditor::onExporterFailed(const QString &error)
         m_exportTempPath.clear();
     }
     // A failure with nothing pending means the export was cancelled (e.g. the window is
-    // closing) — clean up silently, no error dialog.
+    // closing): clean up silently, no error dialog.
     if (pending == Pending::None)
         return;
     // Keep the original temp so the user can retry, save untrimmed, or discard.

@@ -20,14 +20,14 @@ class WebpExporter;
 
 /**
  * The post-recording window: a finished recording opens here (instead of a bare
- * save dialog) for preview, trimming, and a decision — Save (save-as), Copy (file
+ * save dialog) for preview, trimming, and a decision: Save (save-as), Copy (file
  * lands in the recordings folder + clipboard), or Discard. The editor owns the
  * recording's temp file: every path through save/copy/close either consumes it or
  * deletes it, so nothing accumulates in the temp directory.
  *
  * Trimmed saves export via VideoExporter (AVAssetExportSession remux on macOS);
  * untrimmed saves are a plain file move. If the preview fails (codec/corrupt
- * file), trimming is disabled but Save still works — it never decodes.
+ * file), trimming is disabled but Save still works (it never decodes).
  */
 class VideoEditor : public QMainWindow
 {
