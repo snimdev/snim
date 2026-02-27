@@ -50,6 +50,18 @@ private slots:
         QVERIFY(sawCopy);
         QVERIFY(sawDiscard);
 
+        // GIF encoding is macOS-only; elsewhere the action must not invite a sure failure.
+        bool sawGif = false;
+        for (const QAction *a : actions) {
+            if (!a->toolTip().contains("GIF"))
+                continue;
+            sawGif = true;
+#ifndef Q_OS_MACOS
+            QVERIFY(!a->isEnabled());
+#endif
+        }
+        QVERIFY(sawGif);
+
         // Let queued player error signals deliver; the editor must absorb them.
         QTest::qWait(50);
 

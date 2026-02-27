@@ -80,6 +80,10 @@ VideoEditor::VideoEditor(const QString &tempPath, QWidget *parent)
     setWindowTitle(tr("Snim - Recording"));
     resize(900, 620);
     setupUi();
+    if (!exporter()->isAvailable()) {
+        m_gifAction->setEnabled(false);
+        m_gifAction->setToolTip(tr("GIF export is not available on this platform yet"));
+    }
 
     // Player wiring. The editor stays usable even if decoding fails: trimming is
     // disabled, but Save (a plain file move) keeps working.
@@ -383,7 +387,7 @@ void VideoEditor::setBusy(bool busy)
 {
     m_saveAction->setEnabled(!busy);
     m_copyAction->setEnabled(!busy);
-    m_gifAction->setEnabled(!busy && m_previewOk);   // GIF needs a decodable source
+    m_gifAction->setEnabled(!busy && m_previewOk && exporter()->isAvailable());
     m_webpAction->setEnabled(!busy && m_previewOk);   // WebP needs a decodable source
     m_uploadAction->setEnabled(!busy);
     m_discardAction->setEnabled(!busy);
