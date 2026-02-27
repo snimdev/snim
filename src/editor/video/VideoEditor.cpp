@@ -385,6 +385,14 @@ void VideoEditor::setBusy(bool busy)
     m_statusLabel->setText(busy ? tr("Exporting…") : QString());
 }
 
+bool VideoEditor::confirmUntrimmedFallback()
+{
+    const auto answer = QMessageBox::question(
+        this, tr("Trimming Unavailable"),
+        tr("Trimming is not supported on this platform. Use the full recording instead?"));
+    return answer == QMessageBox::Yes;
+}
+
 void VideoEditor::onSave()
 {
     const QString dest = QFileDialog::getSaveFileName(
@@ -404,11 +412,13 @@ void VideoEditor::onSave()
     }
 
     if (!exporter()->isAvailable()) {
-        const auto answer = QMessageBox::question(
-            this, tr("Trimming Unavailable"),
-            tr("Trimming is not supported on this platform. Save the full recording instead?"));
-        if (answer == QMessageBox::Yes && moveFileTo(m_tempPath, dest))
+        if (!confirmUntrimmedFallback())
+            return;
+        if (moveFileTo(m_tempPath, dest))
             finishSaved(dest);
+        else
+            QMessageBox::warning(this, tr("Save Failed"),
+                                 tr("Could not save the recording to %1").arg(dest));
         return;
     }
 
@@ -430,7 +440,13 @@ void VideoEditor::onCopy()
     const TrimState &state = m_timeline->state();
     const QString dest = recordingsDir() + "/" + suggestedFileName();
 
-    if (!state.isTrimmed() || !exporter()->isAvailable()) {
+    bool trimmed = state.isTrimmed();
+    if (trimmed && !exporter()->isAvailable()) {
+        if (!confirmUntrimmedFallback())
+            return;
+        trimmed = false;
+    }
+    if (!trimmed) {
         if (moveFileTo(m_tempPath, dest)) {
             putOnClipboard(dest);
             finishSaved(dest);
@@ -496,7 +512,13 @@ void VideoEditor::doUpload(const QString &profileId)
         return;
     }
     const TrimState &state = m_timeline->state();
-    if (!state.isTrimmed()) {
+    bool trimmed = state.isTrimmed();
+    if (trimmed && !exporter()->isAvailable()) {
+        if (!confirmUntrimmedFallback())
+            return;
+        trimmed = false;
+    }
+    if (!trimmed) {
         // Hand the recording temp to the app's uploader; mark saved so closeEvent
         // won't delete it out from under the in-flight PUT (the app owns it now).
         m_saved = true;

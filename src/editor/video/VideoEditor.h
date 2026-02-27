@@ -66,6 +66,7 @@ private:
     void exportAnimation(AnimationFormat format);
     void previewFailed();
     void setBusy(bool busy);
+    [[nodiscard]] bool confirmUntrimmedFallback();   // trimmed but no exporter: ask once
     void updateTimeLabel();
     void updatePlayPauseIcon();
     [[nodiscard]] QIcon themedIcon(const QString &svgPath) const;
