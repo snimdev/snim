@@ -45,6 +45,13 @@ QString formatMs(qint64 ms)
                                   .arg(totalSec % 60, 2, 10, QLatin1Char('0'));
 }
 
+// The uploaded name follows the file's container (the untrimmed temp may be .mov).
+QString uploadNameFor(const QString &path)
+{
+    const QString suffix = QFileInfo(path).suffix();
+    return QStringLiteral("recording.") + (suffix.isEmpty() ? QStringLiteral("mp4") : suffix);
+}
+
 // Everything the animation export path reads off the chosen format.
 struct AnimationFormatInfo {
     QString extension;     // also the saved file's and the temp file's suffix
@@ -522,7 +529,7 @@ void VideoEditor::doUpload(const QString &profileId)
         // Hand the recording temp to the app's uploader; mark saved so closeEvent
         // won't delete it out from under the in-flight PUT (the app owns it now).
         m_saved = true;
-        emit uploadRequested(m_tempPath, QStringLiteral("recording.mp4"), /*deleteWhenDone=*/true, profileId);
+        emit uploadRequested(m_tempPath, uploadNameFor(m_tempPath), /*deleteWhenDone=*/true, profileId);
         close();
         return;
     }
@@ -573,7 +580,7 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
         QFile::remove(m_tempPath);
         m_exportTempPath.clear();
         m_saved = true;
-        emit uploadRequested(exportedPath, QStringLiteral("recording.mp4"), /*deleteWhenDone=*/true,
+        emit uploadRequested(exportedPath, uploadNameFor(exportedPath), /*deleteWhenDone=*/true,
                              m_pendingUploadProfileId);
         close();
     } else if (pending == Pending::ExportAnimation) {
