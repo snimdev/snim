@@ -297,8 +297,9 @@ void VideoEditor::keyPressEvent(QKeyEvent *event)
         if (!m_previewOk)
             break;
         const qint64 delta = (event->key() == Qt::Key_Left) ? -1000 : 1000;
+        // The whole clip, not the kept range: I/O must be able to widen the cut.
         m_player->setPosition(std::clamp(m_player->position() + delta,
-                                         state.inMs(), state.outMs()));
+                                         qint64(0), state.durationMs()));
         return;
     }
     case Qt::Key_I:
