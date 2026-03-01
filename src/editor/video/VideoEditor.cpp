@@ -4,6 +4,7 @@
 #include "editor/video/VideoExporter.h"
 #include "editor/video/WebpExporter.h"
 #include "editor/video/AnimationParams.h"
+#include "editor/video/Timecode.h"
 #include "upload/UploaderFactory.h"
 #include "upload/UploadConfig.h"
 #include "upload/UploadMenu.h"
@@ -38,13 +39,6 @@
 namespace Editor::Video {
 
 namespace {
-QString formatMs(qint64 ms)
-{
-    const qint64 totalSec = ms / 1000;
-    return QStringLiteral("%1:%2").arg(totalSec / 60)
-                                  .arg(totalSec % 60, 2, 10, QLatin1Char('0'));
-}
-
 // The uploaded name follows the file's container (the untrimmed temp may be .mov).
 QString uploadNameFor(const QString &path)
 {
@@ -202,8 +196,13 @@ void VideoEditor::setupUi()
     playButton->setIconSize(QSize(20, 20));   // match the toolbar glyphs, not the 16pt default
     transportLayout->addWidget(playButton);
 
-    m_timeLabel = new QLabel(QStringLiteral("0:00 / 0:00"), transport);
+    m_timeLabel = new QLabel(QStringLiteral("0:00.0 / 0:00.0"), transport);
     transportLayout->addWidget(m_timeLabel);
+
+    m_keptLabel = new QLabel(transport);
+    m_keptLabel->setStyleSheet(QStringLiteral("color: gray;"));
+    m_keptLabel->hide();   // only while trimmed
+    transportLayout->addWidget(m_keptLabel);
 
     m_timeline = new TrimTimeline(transport);
     transportLayout->addWidget(m_timeline, /*stretch=*/1);
@@ -290,9 +289,13 @@ void VideoEditor::updatePlayPauseIcon()
 
 void VideoEditor::updateTimeLabel()
 {
+    const TrimState &state = m_timeline->state();
     m_timeLabel->setText(QStringLiteral("%1 / %2")
-                             .arg(formatMs(m_player ? m_player->position() : 0),
-                                  formatMs(m_timeline->state().trimmedDurationMs())));
+                             .arg(formatTimecode(m_player ? m_player->position() : 0),
+                                  formatTimecode(state.durationMs())));
+    m_keptLabel->setVisible(state.isTrimmed());
+    if (state.isTrimmed())
+        m_keptLabel->setText(tr("kept %1").arg(formatTimecode(state.trimmedDurationMs())));
 }
 
 void VideoEditor::keyPressEvent(QKeyEvent *event)

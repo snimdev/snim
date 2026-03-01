@@ -30,6 +30,7 @@ set(SNIM_TESTS
         tst_recordingoptionsbar
         tst_pcmmixbuffer
         tst_trimstate
+        tst_timecode
         tst_animationparams
         tst_webpencoder
         tst_webpexporter

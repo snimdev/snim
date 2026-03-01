@@ -91,6 +91,7 @@ private:
     QVideoWidget *m_videoWidget = nullptr;
     TrimTimeline *m_timeline = nullptr;
     QLabel *m_timeLabel = nullptr;
+    QLabel *m_keptLabel = nullptr;     // "kept m:ss.d", shown only while trimmed
     QLabel *m_statusLabel = nullptr;
     QToolBar *m_toolbar = nullptr;
     QAction *m_playPauseAction = nullptr;
