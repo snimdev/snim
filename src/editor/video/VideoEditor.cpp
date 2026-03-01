@@ -24,6 +24,7 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMediaMetaData>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QStandardPaths>
@@ -310,8 +311,23 @@ void VideoEditor::keyPressEvent(QKeyEvent *event)
     case Qt::Key_Right: {
         if (!m_previewOk)
             break;
-        const qint64 delta = (event->key() == Qt::Key_Left) ? -1000 : 1000;
+        const qint64 step = (event->modifiers() & Qt::ShiftModifier) ? 5000 : 1000;
+        const qint64 delta = (event->key() == Qt::Key_Left) ? -step : step;
         // The whole clip, not the kept range: I/O must be able to widen the cut.
+        m_player->setPosition(std::clamp(m_player->position() + delta,
+                                         qint64(0), state.durationMs()));
+        return;
+    }
+    case Qt::Key_Comma:
+    case Qt::Key_Period: {
+        if (!m_previewOk)
+            break;
+        double fps = m_player->metaData().value(QMediaMetaData::VideoFrameRate).toReal();
+        if (!(fps > 0))
+            fps = Core::Settings::recordingFps();
+        const qint64 step = frameStepMs(fps);
+        const qint64 delta = (event->key() == Qt::Key_Comma) ? -step : step;
+        m_player->pause();
         m_player->setPosition(std::clamp(m_player->position() + delta,
                                          qint64(0), state.durationMs()));
         return;
