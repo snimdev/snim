@@ -32,6 +32,7 @@ set(SNIM_TESTS
         tst_trimstate
         tst_timecode
         tst_animationparams
+        tst_animationoptionsdialog
         tst_webpencoder
         tst_webpexporter
         tst_videoframegrabber

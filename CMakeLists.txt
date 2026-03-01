@@ -396,6 +396,8 @@ add_library(snim_lib STATIC
         src/editor/video/VideoExporter.h
         src/editor/video/VideoExporter.cpp
         src/editor/video/AnimationParams.h
+        src/editor/video/AnimationOptionsDialog.cpp
+        src/editor/video/AnimationOptionsDialog.h
         src/editor/video/Timecode.h
         src/editor/video/VideoFrameGrabber.h
         src/editor/video/MediaFrameGrabber.cpp

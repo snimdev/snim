@@ -4,6 +4,7 @@
 #include "editor/video/VideoExporter.h"
 #include "editor/video/WebpExporter.h"
 #include "editor/video/AnimationParams.h"
+#include "editor/video/AnimationOptionsDialog.h"
 #include "editor/video/Timecode.h"
 #include "upload/UploaderFactory.h"
 #include "upload/UploadConfig.h"
@@ -533,6 +534,11 @@ void VideoEditor::exportAnimation(AnimationFormat format)
         return;
     }
 
+    AnimationOptionsDialog options(format, AnimationParams{}, this);
+    if (options.exec() != QDialog::Accepted)
+        return;
+    const AnimationParams params = options.params();
+
     const QString dest = QFileDialog::getSaveFileName(
         this, info.dialogTitle,
         recordingsDir() + "/" + animationFileNameFor(suggestedFileName(), info.extension),
@@ -555,9 +561,9 @@ void VideoEditor::exportAnimation(AnimationFormat format)
     setBusy(true);
     m_player->pause();
     if (format == AnimationFormat::WebP)
-        webpExporter()->start(m_tempPath, m_exportTempPath, in, out, AnimationParams{});
+        webpExporter()->start(m_tempPath, m_exportTempPath, in, out, params);
     else
-        exporter()->toGif(m_tempPath, m_exportTempPath, in, out, AnimationParams{});
+        exporter()->toGif(m_tempPath, m_exportTempPath, in, out, params);
 }
 
 void VideoEditor::doUpload(const QString &profileId)
