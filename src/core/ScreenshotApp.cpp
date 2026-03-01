@@ -504,9 +504,12 @@ namespace Core {
         // Fullscreen shows no overlay, so this is its visible-endpoint; area/window already reported.
         Perf::reportCaptureShown("frame ready");
         qDebug() << "Screenshot ready, opening ImageEditor";
+        openImageEditor(screenshot, annotations);
+    }
 
-        // Create and show the ImageEditor with the captured screenshot
-        auto *editor = new Editor::Image::ImageEditor(screenshot);
+    void ScreenshotApp::openImageEditor(const QPixmap &image,
+                                        const Editor::AnnotationSet &annotations) {
+        auto *editor = new Editor::Image::ImageEditor(image);
         editor->setAttribute(Qt::WA_DeleteOnClose);
         connect(editor, &Editor::Image::ImageEditor::uploadRequested,
                 this, &ScreenshotApp::startUpload);
@@ -632,6 +635,8 @@ namespace Core {
                 });
         connect(editor, &Editor::Video::VideoEditor::uploadRequested,
                 this, &ScreenshotApp::startUpload);
+        connect(editor, &Editor::Video::VideoEditor::frameEditRequested, this,
+                [this](const QPixmap &frame) { openImageEditor(frame, {}); });
         editor->show();
         editor->raise();
         editor->activateWindow();

@@ -5,6 +5,7 @@
 
 #include <QMainWindow>
 #include <QMediaPlayer>
+#include <QPixmap>
 #include <memory>
 
 class QAudioOutput;
@@ -42,6 +43,7 @@ signals:
     // The app owns the upload (outlives this window) and deletes the temp when done.
     void uploadRequested(const QString &localPath, const QString &suggestedName,
                          bool deleteWhenDone, const QString &profileId);
+    void frameEditRequested(const QPixmap &frame);   // this editor stays open
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -52,6 +54,7 @@ private slots:
     void onCopy();
     void doUpload(const QString &profileId);   // empty id = default destination
     void onSaveFrame();
+    void onEditFrame();
     void togglePlayPause();
     void onDurationChanged(qint64 durationMs);
     void onPositionChanged(qint64 positionMs);

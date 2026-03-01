@@ -162,6 +162,8 @@ void VideoEditor::setupUi()
     auto *frameMenu = new QMenu(frameButton);
     connect(frameMenu->addAction(tr("Save frame as PNG…")), &QAction::triggered,
             this, &VideoEditor::onSaveFrame);
+    connect(frameMenu->addAction(tr("Open frame in editor")), &QAction::triggered,
+            this, &VideoEditor::onEditFrame);
     frameButton->setMenu(frameMenu);
     m_toolbar->addWidget(frameButton);
 
@@ -621,6 +623,18 @@ void VideoEditor::onSaveFrame()
     if (!frame.save(dest, "PNG"))
         QMessageBox::warning(this, tr("Save Failed"),
                              tr("Could not save the frame to %1").arg(dest));
+}
+
+void VideoEditor::onEditFrame()
+{
+    if (!m_previewOk)
+        return;
+    const QImage frame = grabFrame();
+    if (frame.isNull()) {
+        QMessageBox::information(this, tr("No Frame"), tr("There is no frame to edit yet."));
+        return;
+    }
+    emit frameEditRequested(QPixmap::fromImage(frame));
 }
 
 void VideoEditor::putOnClipboard(const QString &path)

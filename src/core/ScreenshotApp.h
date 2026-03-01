@@ -76,6 +76,7 @@ private slots:
 
 private:
     void setupSystemTray();
+    void openImageEditor(const QPixmap &image, const Editor::AnnotationSet &annotations);
 
     // KWin refused ScreenShot2: offer to install the desktop entry that authorizes it,
     // then resume the pending capture (true retries it, false takes the slow fallback).
