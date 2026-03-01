@@ -332,6 +332,12 @@ void VideoEditor::keyPressEvent(QKeyEvent *event)
                                          qint64(0), state.durationMs()));
         return;
     }
+    case Qt::Key_Home:
+    case Qt::Key_End:
+        if (!m_previewOk)
+            break;
+        m_player->setPosition(event->key() == Qt::Key_Home ? state.inMs() : state.outMs());
+        return;
     case Qt::Key_I:
         m_timeline->setInMs(m_player->position());
         return;
