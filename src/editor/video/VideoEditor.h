@@ -51,6 +51,7 @@ private slots:
     void onSave();
     void onCopy();
     void doUpload(const QString &profileId);   // empty id = default destination
+    void onSaveFrame();
     void togglePlayPause();
     void onDurationChanged(qint64 durationMs);
     void onPositionChanged(qint64 positionMs);
@@ -65,6 +66,7 @@ private:
     void setupUi();
     void exportAnimation(AnimationFormat format);
     void previewFailed();
+    [[nodiscard]] QImage grabFrame();                // pauses; null if nothing decoded yet
     void setBusy(bool busy);
     [[nodiscard]] bool confirmUntrimmedFallback();   // trimmed but no exporter: ask once
     void updateTimeLabel();
@@ -99,6 +101,7 @@ private:
     QAction *m_copyAction = nullptr;
     QAction *m_gifAction = nullptr;
     QAction *m_webpAction = nullptr;
+    QAction *m_frameAction = nullptr;
     QAction *m_uploadAction = nullptr;
     QAction *m_discardAction = nullptr;
     QString m_pendingUploadProfileId;   // carries the chosen profile across a trimmed export

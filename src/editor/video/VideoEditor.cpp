@@ -32,6 +32,8 @@
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QVideoFrame>
+#include <QVideoSink>
 #include <QVideoWidget>
 #include <QWidget>
 
@@ -149,6 +151,20 @@ void VideoEditor::setupUi()
     connect(m_webpAction, &QAction::triggered, this,
             [this] { exportAnimation(AnimationFormat::WebP); });
 
+    // Frame as a split button: click = save as PNG; the menu holds the other uses.
+    m_frameAction = new QAction(themedIcon(":/icons/icons/frame.svg"), QString(), this);
+    m_frameAction->setToolTip(tr("Save the current frame as a PNG"));
+    m_frameAction->setEnabled(false);   // until the media loads
+    connect(m_frameAction, &QAction::triggered, this, &VideoEditor::onSaveFrame);
+    auto *frameButton = new QToolButton(m_toolbar);
+    frameButton->setDefaultAction(m_frameAction);
+    frameButton->setPopupMode(QToolButton::MenuButtonPopup);
+    auto *frameMenu = new QMenu(frameButton);
+    connect(frameMenu->addAction(tr("Save frame as PNG…")), &QAction::triggered,
+            this, &VideoEditor::onSaveFrame);
+    frameButton->setMenu(frameMenu);
+    m_toolbar->addWidget(frameButton);
+
     // Upload as a split button: click = default destination; ▾ = pick a saved server.
     m_uploadAction = new QAction(themedIcon(":/icons/icons/upload.svg"), QString(), this);
     m_uploadAction->setToolTip(tr("Upload to the default server and copy the link"));
@@ -250,6 +266,7 @@ void VideoEditor::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
 {
     if (status == QMediaPlayer::LoadedMedia || status == QMediaPlayer::BufferedMedia) {
         m_playPauseAction->setEnabled(true);
+        m_frameAction->setEnabled(m_pending == Pending::None);
     } else if (status == QMediaPlayer::InvalidMedia) {
         previewFailed();
     } else if (status == QMediaPlayer::EndOfMedia) {
@@ -262,6 +279,7 @@ void VideoEditor::previewFailed()
 {
     m_previewOk = false;
     m_playPauseAction->setEnabled(false);
+    m_frameAction->setEnabled(false);
     m_timeline->setInteractive(false);   // no duration -> no trimming
     m_statusLabel->setText(tr("Preview unavailable, Save still works"));
 }
@@ -414,6 +432,7 @@ void VideoEditor::setBusy(bool busy)
     m_copyAction->setEnabled(!busy);
     m_gifAction->setEnabled(!busy && m_previewOk && exporter()->isAvailable());
     m_webpAction->setEnabled(!busy && m_previewOk);   // WebP needs a decodable source
+    m_frameAction->setEnabled(!busy && m_previewOk);
     m_uploadAction->setEnabled(!busy);
     m_discardAction->setEnabled(!busy);
     m_playPauseAction->setEnabled(!busy && m_previewOk);
@@ -573,6 +592,35 @@ void VideoEditor::doUpload(const QString &profileId)
     setBusy(true);
     m_player->pause();
     exporter()->trim(m_tempPath, m_exportTempPath, state.inMs(), state.outMs());
+}
+
+QImage VideoEditor::grabFrame()
+{
+    m_player->pause();
+    return m_videoWidget->videoSink()->videoFrame().toImage();
+}
+
+void VideoEditor::onSaveFrame()
+{
+    if (!m_previewOk)
+        return;
+    const QImage frame = grabFrame();
+    if (frame.isNull()) {
+        QMessageBox::information(this, tr("No Frame"), tr("There is no frame to save yet."));
+        return;
+    }
+
+    const QString dir = Core::Settings::screenshotFolder();
+    QDir().mkpath(dir);
+    const QString dest = QFileDialog::getSaveFileName(
+        this, tr("Save Frame"),
+        dir + "/" + frameFileNameFor(suggestedFileName(), m_player->position()),
+        tr("PNG (*.png)"));
+    if (dest.isEmpty())
+        return;
+    if (!frame.save(dest, "PNG"))
+        QMessageBox::warning(this, tr("Save Failed"),
+                             tr("Could not save the frame to %1").arg(dest));
 }
 
 void VideoEditor::putOnClipboard(const QString &path)

@@ -65,6 +65,14 @@ private slots:
         // Let queued player error signals deliver; the editor must absorb them.
         QTest::qWait(50);
 
+        // Nothing decodes from a missing file, so there is no frame to grab.
+        QAction *frame = nullptr;
+        for (QAction *a : editor->findChildren<QAction *>())
+            if (a->toolTip().contains("current frame"))
+                frame = a;
+        QVERIFY(frame != nullptr);
+        QVERIFY(!frame->isEnabled());
+
         delete editor;   // direct delete: no closeEvent, no modal discard prompt
     }
 };

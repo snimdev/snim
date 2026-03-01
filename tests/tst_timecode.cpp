@@ -55,6 +55,16 @@ private slots:
         QCOMPARE(frameStepMs(std::numeric_limits<double>::infinity()), qint64(33));
         QCOMPARE(frameStepMs(1e6), qint64(1));
     }
+
+    void frameFileNameIsFileSafe()
+    {
+        QCOMPARE(frameFileNameFor(QStringLiteral("Snim_2026-09-22_10-00-00.mp4"), 12'345),
+                 QStringLiteral("Snim_2026-09-22_10-00-00_frame_0m12s3.png"));
+        QCOMPARE(frameFileNameFor(QStringLiteral("clip.mov"), 65'300),
+                 QStringLiteral("clip_frame_1m05s3.png"));
+        QCOMPARE(frameFileNameFor(QString(), -5), QStringLiteral("recording_frame_0m00s0.png"));
+        QVERIFY(!frameFileNameFor(QStringLiteral("a.mp4"), 1'000).contains(QLatin1Char(':')));
+    }
 };
 
 QTEST_MAIN(tst_Timecode)
