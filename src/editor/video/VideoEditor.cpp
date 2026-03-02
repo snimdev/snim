@@ -70,6 +70,28 @@ AnimationFormatInfo animationFormatInfo(AnimationFormat format)
             VideoEditor::tr("GIF (*.gif)"), QStringLiteral("Snim_gif_"),
             VideoEditor::tr("GIF")};
 }
+
+AnimationParams loadAnimationParams(AnimationFormat format)
+{
+    const QString key = animationFormatInfo(format).extension;
+    AnimationParams p;
+    p.fps = Core::Settings::animationFps(key);
+    p.maxWidth = Core::Settings::animationMaxWidth(key);
+    p.quality = Core::Settings::animationQuality(key);
+    p.lossless = Core::Settings::animationLossless(key);
+    p.loopCount = Core::Settings::animationLoopCount(key);
+    return p.clamped();
+}
+
+void saveAnimationParams(AnimationFormat format, const AnimationParams &p)
+{
+    const QString key = animationFormatInfo(format).extension;
+    Core::Settings::setAnimationFps(key, p.fps);
+    Core::Settings::setAnimationMaxWidth(key, p.maxWidth);
+    Core::Settings::setAnimationQuality(key, p.quality);
+    Core::Settings::setAnimationLossless(key, p.lossless);
+    Core::Settings::setAnimationLoopCount(key, p.loopCount);
+}
 } // namespace
 
 VideoEditor::VideoEditor(const QString &tempPath, QWidget *parent)
@@ -534,10 +556,9 @@ void VideoEditor::exportAnimation(AnimationFormat format)
         return;
     }
 
-    AnimationOptionsDialog options(format, AnimationParams{}, this);
-    if (options.exec() != QDialog::Accepted)
+    const std::optional<AnimationParams> params = resolveAnimationParams(format);
+    if (!params)
         return;
-    const AnimationParams params = options.params();
 
     const QString dest = QFileDialog::getSaveFileName(
         this, info.dialogTitle,
@@ -561,9 +582,21 @@ void VideoEditor::exportAnimation(AnimationFormat format)
     setBusy(true);
     m_player->pause();
     if (format == AnimationFormat::WebP)
-        webpExporter()->start(m_tempPath, m_exportTempPath, in, out, params);
+        webpExporter()->start(m_tempPath, m_exportTempPath, in, out, *params);
     else
-        exporter()->toGif(m_tempPath, m_exportTempPath, in, out, params);
+        exporter()->toGif(m_tempPath, m_exportTempPath, in, out, *params);
+}
+
+std::optional<AnimationParams> VideoEditor::resolveAnimationParams(AnimationFormat format)
+{
+    if (Core::Settings::animationOptionsSkip())
+        return loadAnimationParams(format);
+    AnimationOptionsDialog options(format, loadAnimationParams(format), this);
+    if (options.exec() != QDialog::Accepted)
+        return std::nullopt;
+    saveAnimationParams(format, options.params());
+    Core::Settings::setAnimationOptionsSkip(options.skipNextTime());
+    return options.params();
 }
 
 void VideoEditor::doUpload(const QString &profileId)

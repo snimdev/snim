@@ -7,6 +7,7 @@
 #include <QMediaPlayer>
 #include <QPixmap>
 #include <memory>
+#include <optional>
 
 class QAudioOutput;
 class QLabel;
@@ -68,6 +69,8 @@ private:
 
     void setupUi();
     void exportAnimation(AnimationFormat format);
+    // The saved options, or the dialog's when it is not skipped; nullopt = cancelled.
+    [[nodiscard]] std::optional<AnimationParams> resolveAnimationParams(AnimationFormat format);
     void previewFailed();
     [[nodiscard]] QImage grabFrame();                // pauses; null if nothing decoded yet
     void setBusy(bool busy);

@@ -41,6 +41,13 @@ constexpr auto kHotkeyOcrTextSnip       = "Hotkeys/OcrTextSnip";
 constexpr auto kHotkeyRecordArea        = "Hotkeys/RecordArea";
 constexpr auto kHotkeyRecordWindow      = "Hotkeys/RecordWindow";
 constexpr auto kDesktopIntegrationDismissed = "DesktopIntegration/PromptDismissed";
+constexpr auto kAnimationOptionsSkip   = "Animation/SkipOptions";
+
+// "Animation/<format>/<field>", one group per export format.
+QString animationKey(const QString &format, const char *field)
+{
+    return QStringLiteral("Animation/%1/%2").arg(format, QLatin1String(field));
+}
 }
 
 QString Settings::screenshotFolder()
@@ -73,6 +80,19 @@ void Settings::setRecordingCaptureCursor(bool on) { QSettings().setValue(kRecord
 
 bool Settings::recordingRetina() { return QSettings().value(kRecordingRetina, true).toBool(); }
 void Settings::setRecordingRetina(bool on) { QSettings().setValue(kRecordingRetina, on); }
+
+int Settings::animationFps(const QString &format) { return QSettings().value(animationKey(format, "Fps"), 10).toInt(); }
+void Settings::setAnimationFps(const QString &format, int fps) { QSettings().setValue(animationKey(format, "Fps"), fps); }
+int Settings::animationMaxWidth(const QString &format) { return QSettings().value(animationKey(format, "MaxWidth"), 600).toInt(); }
+void Settings::setAnimationMaxWidth(const QString &format, int px) { QSettings().setValue(animationKey(format, "MaxWidth"), px); }
+int Settings::animationQuality(const QString &format) { return QSettings().value(animationKey(format, "Quality"), 75).toInt(); }
+void Settings::setAnimationQuality(const QString &format, int quality) { QSettings().setValue(animationKey(format, "Quality"), quality); }
+bool Settings::animationLossless(const QString &format) { return QSettings().value(animationKey(format, "Lossless"), false).toBool(); }
+void Settings::setAnimationLossless(const QString &format, bool on) { QSettings().setValue(animationKey(format, "Lossless"), on); }
+int Settings::animationLoopCount(const QString &format) { return QSettings().value(animationKey(format, "LoopCount"), 0).toInt(); }
+void Settings::setAnimationLoopCount(const QString &format, int count) { QSettings().setValue(animationKey(format, "LoopCount"), count); }
+bool Settings::animationOptionsSkip() { return QSettings().value(kAnimationOptionsSkip, false).toBool(); }
+void Settings::setAnimationOptionsSkip(bool on) { QSettings().setValue(kAnimationOptionsSkip, on); }
 
 bool Settings::cameraEnabled() { return QSettings().value(kCameraEnabled, false).toBool(); }
 void Settings::setCameraEnabled(bool on) { QSettings().setValue(kCameraEnabled, on); }

@@ -4,6 +4,7 @@
 #include <QColor>
 
 #include "core/Settings.h"
+#include "editor/video/AnimationParams.h"
 
 using namespace Core;
 
@@ -96,6 +97,36 @@ private slots:
         QVERIFY(!Settings::systemAudioEnabled());
         QVERIFY(!Settings::recordingFrameEnabled());
         QVERIFY(!Settings::recordingRetina());
+    }
+
+    void animation_defaults_then_roundtrip()
+    {
+        const Editor::Video::AnimationParams def;
+        for (const QString format : {QStringLiteral("gif"), QStringLiteral("webp")}) {
+            QCOMPARE(Settings::animationFps(format), def.fps);
+            QCOMPARE(Settings::animationMaxWidth(format), def.maxWidth);
+            QCOMPARE(Settings::animationQuality(format), def.quality);
+            QCOMPARE(Settings::animationLossless(format), def.lossless);
+            QCOMPARE(Settings::animationLoopCount(format), def.loopCount);
+        }
+        QVERIFY(!Settings::animationOptionsSkip());
+
+        Settings::setAnimationFps("webp", 24);
+        Settings::setAnimationMaxWidth("webp", 0);
+        Settings::setAnimationQuality("webp", 90);
+        Settings::setAnimationLossless("webp", true);
+        Settings::setAnimationLoopCount("webp", 3);
+        Settings::setAnimationOptionsSkip(true);
+        QCOMPARE(Settings::animationFps("webp"), 24);
+        QCOMPARE(Settings::animationMaxWidth("webp"), 0);
+        QCOMPARE(Settings::animationQuality("webp"), 90);
+        QVERIFY(Settings::animationLossless("webp"));
+        QCOMPARE(Settings::animationLoopCount("webp"), 3);
+        QVERIFY(Settings::animationOptionsSkip());
+
+        // Each format keeps its own options.
+        QCOMPARE(Settings::animationFps("gif"), def.fps);
+        QVERIFY(!Settings::animationLossless("gif"));
     }
 
     void upload_defaults_then_roundtrip()

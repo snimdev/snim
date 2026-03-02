@@ -34,6 +34,20 @@ public:
     static bool recordingRetina();                     // default: true (capture at native pixel scale)
     static void setRecordingRetina(bool on);
 
+    // Animation export options per format key ("gif" / "webp"); defaults match AnimationParams.
+    static int animationFps(const QString &format);             // default: 10
+    static void setAnimationFps(const QString &format, int fps);
+    static int animationMaxWidth(const QString &format);        // default: 600 (0 = original)
+    static void setAnimationMaxWidth(const QString &format, int px);
+    static int animationQuality(const QString &format);         // default: 75
+    static void setAnimationQuality(const QString &format, int quality);
+    static bool animationLossless(const QString &format);       // default: false
+    static void setAnimationLossless(const QString &format, bool on);
+    static int animationLoopCount(const QString &format);       // default: 0 (forever)
+    static void setAnimationLoopCount(const QString &format, int count);
+    static bool animationOptionsSkip();                         // default: false (ask each export)
+    static void setAnimationOptionsSkip(bool on);
+
     // Recording inputs: camera (webcam circle) + microphone + system audio
     static bool cameraEnabled();                       // default: false
     static void setCameraEnabled(bool on);
