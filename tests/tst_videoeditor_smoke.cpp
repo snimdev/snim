@@ -1,6 +1,8 @@
 #include <QtTest>
 #include <QLabel>
 #include <QStandardPaths>
+#include <QMenu>
+#include <QToolButton>
 #include <QVideoWidget>
 
 #include "editor/video/TrimTimeline.h"
@@ -72,6 +74,24 @@ private slots:
                 frame = a;
         QVERIFY(frame != nullptr);
         QVERIFY(!frame->isEnabled());
+
+        // GIF and WebP are split buttons: click exports, the menu copies, uploads, or tunes.
+        int animationButtons = 0;
+        for (const QToolButton *b : editor->findChildren<QToolButton *>()) {
+            const QString tip = b->defaultAction() ? b->defaultAction()->toolTip() : QString();
+            if (!tip.contains("GIF") && !tip.contains("WebP"))
+                continue;
+            ++animationButtons;
+            QCOMPARE(b->popupMode(), QToolButton::MenuButtonPopup);
+            QVERIFY(b->menu() != nullptr);
+            QStringList entries;
+            for (const QAction *a : b->menu()->actions())
+                entries << a->text();
+            QVERIFY(entries.contains("Copy"));
+            QVERIFY(entries.contains("Upload"));
+            QVERIFY(entries.contains(QStringLiteral("Export options…")));
+        }
+        QCOMPARE(animationButtons, 2);
 
         delete editor;   // direct delete: no closeEvent, no modal discard prompt
     }

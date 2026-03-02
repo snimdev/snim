@@ -78,4 +78,9 @@ bool AnimationOptionsDialog::skipNextTime() const
     return m_skip->isChecked();
 }
 
+void AnimationOptionsDialog::setSkipNextTime(bool on)
+{
+    m_skip->setChecked(on);
+}
+
 } // namespace Editor::Video

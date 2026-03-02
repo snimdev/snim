@@ -25,6 +25,7 @@ public:
 
     [[nodiscard]] AnimationParams params() const;    // clamped
     [[nodiscard]] bool skipNextTime() const;         // "Don't ask again"
+    void setSkipNextTime(bool on);
 
 private:
     AnimationFormat m_format;

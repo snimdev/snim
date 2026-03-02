@@ -164,45 +164,37 @@ void VideoEditor::setupUi()
 
     m_toolbar->addSeparator();
 
-    m_gifAction = m_toolbar->addAction(themedIcon(":/icons/icons/export-gif.svg"), QString());
+    m_gifAction = new QAction(themedIcon(":/icons/icons/export-gif.svg"), QString(), this);
     m_gifAction->setToolTip(tr("Export the trimmed range as an animated GIF"));
     connect(m_gifAction, &QAction::triggered, this,
             [this] { exportAnimation(AnimationFormat::Gif); });
+    buildAnimationMenu(addSplitButton(m_gifAction), AnimationFormat::Gif);
 
-    m_webpAction = m_toolbar->addAction(themedIcon(":/icons/icons/export-webp.svg"), QString());
+    m_webpAction = new QAction(themedIcon(":/icons/icons/export-webp.svg"), QString(), this);
     m_webpAction->setToolTip(tr("Export the trimmed range as an animated WebP"));
     connect(m_webpAction, &QAction::triggered, this,
             [this] { exportAnimation(AnimationFormat::WebP); });
+    buildAnimationMenu(addSplitButton(m_webpAction), AnimationFormat::WebP);
 
-    // Frame as a split button: click = save as PNG; the menu holds the other uses.
+    // Frame: click = save as PNG; the menu holds the other uses.
     m_frameAction = new QAction(themedIcon(":/icons/icons/frame.svg"), QString(), this);
     m_frameAction->setToolTip(tr("Save the current frame as a PNG"));
     m_frameAction->setEnabled(false);   // until the media loads
     connect(m_frameAction, &QAction::triggered, this, &VideoEditor::onSaveFrame);
-    auto *frameButton = new QToolButton(m_toolbar);
-    frameButton->setDefaultAction(m_frameAction);
-    frameButton->setPopupMode(QToolButton::MenuButtonPopup);
-    auto *frameMenu = new QMenu(frameButton);
+    QMenu *frameMenu = addSplitButton(m_frameAction);
     connect(frameMenu->addAction(tr("Save frame as PNG…")), &QAction::triggered,
             this, &VideoEditor::onSaveFrame);
     connect(frameMenu->addAction(tr("Open frame in editor")), &QAction::triggered,
             this, &VideoEditor::onEditFrame);
-    frameButton->setMenu(frameMenu);
-    m_toolbar->addWidget(frameButton);
 
-    // Upload as a split button: click = default destination; ▾ = pick a saved server.
+    // Upload: click = default destination; the menu picks a saved server.
     m_uploadAction = new QAction(themedIcon(":/icons/icons/upload.svg"), QString(), this);
     m_uploadAction->setToolTip(tr("Upload to the default server and copy the link"));
     connect(m_uploadAction, &QAction::triggered, this, [this] { doUpload(QString()); });
-    auto *uploadButton = new QToolButton(m_toolbar);
-    uploadButton->setDefaultAction(m_uploadAction);
-    uploadButton->setPopupMode(QToolButton::MenuButtonPopup);
-    auto *uploadMenu = new QMenu(uploadButton);
-    uploadButton->setMenu(uploadMenu);
+    QMenu *uploadMenu = addSplitButton(m_uploadAction);
     connect(uploadMenu, &QMenu::aboutToShow, this, [this, uploadMenu] {
         Upload::rebuildUploadMenu(uploadMenu, [this](const QString &id) { doUpload(id); });
     });
-    m_toolbar->addWidget(uploadButton);
 
     auto *spacer = new QWidget(m_toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -251,6 +243,32 @@ void VideoEditor::setupUi()
 
     layout->addWidget(transport);
     setCentralWidget(central);
+}
+
+QMenu *VideoEditor::addSplitButton(QAction *defaultAction)
+{
+    auto *button = new QToolButton(m_toolbar);
+    button->setDefaultAction(defaultAction);
+    button->setPopupMode(QToolButton::MenuButtonPopup);
+    auto *menu = new QMenu(button);
+    button->setMenu(menu);
+    m_toolbar->addWidget(button);
+    return menu;
+}
+
+void VideoEditor::buildAnimationMenu(QMenu *menu, AnimationFormat format)
+{
+    connect(menu->addAction(tr("Copy")), &QAction::triggered, this,
+            [this, format] { copyAnimation(format); });
+    QMenu *upload = menu->addMenu(tr("Upload"));
+    connect(upload, &QMenu::aboutToShow, this, [this, upload, format] {
+        Upload::rebuildUploadMenu(upload, [this, format](const QString &id) {
+            uploadAnimation(format, id);
+        });
+    });
+    menu->addSeparator();
+    connect(menu->addAction(tr("Export options…")), &QAction::triggered, this,
+            [this, format] { (void)resolveAnimationParams(format, /*alwaysAsk=*/true); });
 }
 
 QIcon VideoEditor::themedIcon(const QString &svgPath) const
@@ -544,22 +562,42 @@ void VideoEditor::onCopy()
     exporter()->trim(m_tempPath, dest, state.inMs(), state.outMs());   // straight to dest
 }
 
-void VideoEditor::exportAnimation(AnimationFormat format)
+bool VideoEditor::animationAvailable(AnimationFormat format)
 {
     if (!m_previewOk)
-        return;
-
-    const AnimationFormatInfo info = animationFormatInfo(format);
+        return false;
     if (format == AnimationFormat::Gif && !exporter()->isAvailable()) {
         QMessageBox::warning(this, tr("GIF Unavailable"),
                              tr("Exporting to GIF is not supported on this platform."));
-        return;
+        return false;
     }
+    return true;
+}
 
+std::optional<AnimationParams> VideoEditor::resolveAnimationParams(AnimationFormat format,
+                                                                   bool alwaysAsk)
+{
+    const bool skip = Core::Settings::animationOptionsSkip();
+    if (skip && !alwaysAsk)
+        return loadAnimationParams(format);
+    AnimationOptionsDialog options(format, loadAnimationParams(format), this);
+    options.setSkipNextTime(skip);
+    if (options.exec() != QDialog::Accepted)
+        return std::nullopt;
+    saveAnimationParams(format, options.params());
+    Core::Settings::setAnimationOptionsSkip(options.skipNextTime());
+    return options.params();
+}
+
+void VideoEditor::exportAnimation(AnimationFormat format)
+{
+    if (!animationAvailable(format))
+        return;
     const std::optional<AnimationParams> params = resolveAnimationParams(format);
     if (!params)
         return;
 
+    const AnimationFormatInfo info = animationFormatInfo(format);
     const QString dest = QFileDialog::getSaveFileName(
         this, info.dialogTitle,
         recordingsDir() + "/" + animationFileNameFor(suggestedFileName(), info.extension),
@@ -567,14 +605,53 @@ void VideoEditor::exportAnimation(AnimationFormat format)
     if (dest.isEmpty())
         return;                                   // cancelled: keep editing
 
+    m_pendingDest = dest;
+    startAnimation(format, Pending::ExportAnimation, *params);
+}
+
+void VideoEditor::copyAnimation(AnimationFormat format)
+{
+    if (!animationAvailable(format))
+        return;
+    const std::optional<AnimationParams> params = resolveAnimationParams(format);
+    if (!params)
+        return;
+
+    // Like Copy: the file lands in the recordings folder so the clipboard URL stays valid.
+    m_pendingDest = recordingsDir() + "/"
+                    + animationFileNameFor(suggestedFileName(),
+                                           animationFormatInfo(format).extension);
+    startAnimation(format, Pending::CopyAnimation, *params);
+}
+
+void VideoEditor::uploadAnimation(AnimationFormat format, const QString &profileId)
+{
+    if (!animationAvailable(format))
+        return;
+    if (!Upload::UploadConfig::forProfile(profileId).isComplete()) {
+        QMessageBox::information(this, tr("Upload not configured"),
+                                tr("Set up an upload destination in Settings → Upload first."));
+        return;
+    }
+    const std::optional<AnimationParams> params = resolveAnimationParams(format);
+    if (!params)
+        return;
+
+    m_pendingUploadProfileId = profileId;
+    startAnimation(format, Pending::UploadAnimation, *params);
+}
+
+void VideoEditor::startAnimation(AnimationFormat format, Pending kind,
+                                 const AnimationParams &params)
+{
     // Both formats always re-encode (no fast-path move): use the whole clip untrimmed.
     const TrimState &state = m_timeline->state();
     const qint64 in = state.isTrimmed() ? state.inMs() : 0;
     const qint64 out = state.isTrimmed() ? state.outMs() : state.durationMs();
 
+    const AnimationFormatInfo info = animationFormatInfo(format);
     m_animationFormat = format;
-    m_pending = Pending::ExportAnimation;
-    m_pendingDest = dest;
+    m_pending = kind;
     m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
                        + QStringLiteral("/") + info.tempPrefix
                        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
@@ -582,21 +659,9 @@ void VideoEditor::exportAnimation(AnimationFormat format)
     setBusy(true);
     m_player->pause();
     if (format == AnimationFormat::WebP)
-        webpExporter()->start(m_tempPath, m_exportTempPath, in, out, *params);
+        webpExporter()->start(m_tempPath, m_exportTempPath, in, out, params);
     else
-        exporter()->toGif(m_tempPath, m_exportTempPath, in, out, *params);
-}
-
-std::optional<AnimationParams> VideoEditor::resolveAnimationParams(AnimationFormat format)
-{
-    if (Core::Settings::animationOptionsSkip())
-        return loadAnimationParams(format);
-    AnimationOptionsDialog options(format, loadAnimationParams(format), this);
-    if (options.exec() != QDialog::Accepted)
-        return std::nullopt;
-    saveAnimationParams(format, options.params());
-    Core::Settings::setAnimationOptionsSkip(options.skipNextTime());
-    return options.params();
+        exporter()->toGif(m_tempPath, m_exportTempPath, in, out, params);
 }
 
 void VideoEditor::doUpload(const QString &profileId)
@@ -713,6 +778,27 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
         emit uploadRequested(exportedPath, uploadNameFor(exportedPath), /*deleteWhenDone=*/true,
                              m_pendingUploadProfileId);
         close();
+    } else if (pending == Pending::CopyAnimation) {
+        const QString label = animationFormatInfo(m_animationFormat).label;
+        if (moveFileTo(exportedPath, m_pendingDest)) {
+            putOnClipboard(m_pendingDest);
+            QFile::remove(m_tempPath);
+            m_exportTempPath.clear();
+            finishSaved(m_pendingDest);
+        } else {
+            QFile::remove(exportedPath);
+            m_exportTempPath.clear();
+            QMessageBox::warning(this, tr("Copy Failed"),
+                                 tr("Could not save the %1 to %2").arg(label, m_pendingDest));
+        }
+    } else if (pending == Pending::UploadAnimation) {
+        // The app's uploader owns the encoded temp from here and deletes it when done.
+        QFile::remove(m_tempPath);
+        m_exportTempPath.clear();
+        m_saved = true;
+        emit uploadRequested(exportedPath, uploadNameFor(exportedPath), /*deleteWhenDone=*/true,
+                             m_pendingUploadProfileId);
+        close();
     } else if (pending == Pending::ExportAnimation) {
         // Mirror SaveMove exactly: move the temp to the destination, drop the source MP4
         // temp, clear m_exportTempPath on BOTH the success and failure branches so a later
@@ -750,7 +836,10 @@ void VideoEditor::onExporterFailed(const QString &error)
 
 void VideoEditor::onExportProgress(int done, int total)
 {
-    if (m_pending != Pending::ExportAnimation || total <= 0)
+    const bool animation = m_pending == Pending::ExportAnimation
+                           || m_pending == Pending::CopyAnimation
+                           || m_pending == Pending::UploadAnimation;
+    if (!animation || total <= 0)
         return;
     m_statusLabel->setText(tr("Encoding %1… %2/%3")
                                .arg(animationFormatInfo(m_animationFormat).label)

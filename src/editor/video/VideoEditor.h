@@ -11,6 +11,7 @@
 
 class QAudioOutput;
 class QLabel;
+class QMenu;
 class QToolBar;
 class QVideoWidget;
 
@@ -65,12 +66,20 @@ private slots:
     void onExportProgress(int done, int total);
 
 private:
-    enum class Pending { None, SaveMove, Copy, ExportAnimation, Upload };
+    enum class Pending { None, SaveMove, Copy, Upload,
+                         ExportAnimation, CopyAnimation, UploadAnimation };
 
     void setupUi();
-    void exportAnimation(AnimationFormat format);
+    [[nodiscard]] QMenu *addSplitButton(QAction *defaultAction);   // click = the action
+    void buildAnimationMenu(QMenu *menu, AnimationFormat format);
+    void exportAnimation(AnimationFormat format);                   // save-as
+    void copyAnimation(AnimationFormat format);                     // recordings folder + clipboard
+    void uploadAnimation(AnimationFormat format, const QString &profileId);
+    void startAnimation(AnimationFormat format, Pending kind, const AnimationParams &params);
+    [[nodiscard]] bool animationAvailable(AnimationFormat format);  // warns when it is not
     // The saved options, or the dialog's when it is not skipped; nullopt = cancelled.
-    [[nodiscard]] std::optional<AnimationParams> resolveAnimationParams(AnimationFormat format);
+    [[nodiscard]] std::optional<AnimationParams> resolveAnimationParams(AnimationFormat format,
+                                                                        bool alwaysAsk = false);
     void previewFailed();
     [[nodiscard]] QImage grabFrame();                // pauses; null if nothing decoded yet
     void setBusy(bool busy);
