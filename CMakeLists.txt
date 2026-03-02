@@ -245,6 +245,7 @@ add_library(snim_lib STATIC
         src/core/IconUtil.h
         src/core/Perf.cpp
         src/core/Perf.h
+        src/core/FileNames.h
         src/core/ScreenshotDialog.cpp
         src/core/ScreenshotDialog.h
         src/core/SettingsDialog.cpp

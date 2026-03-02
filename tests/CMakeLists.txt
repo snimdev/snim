@@ -6,6 +6,7 @@ find_package(Qt6 COMPONENTS Test REQUIRED)
 # The list grows tier by tier as tests are added.
 set(SNIM_TESTS
         tst_settings
+        tst_filenames
         tst_layer
         tst_toolregistry
         tst_tools
