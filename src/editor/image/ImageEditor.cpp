@@ -580,7 +580,8 @@ void ImageEditor::doUpload(const QString &profileId)
     }
     m_dirty = false;   // exported; closing won't lose work
     if (m_undoStack) m_undoStack->setClean();
-    emit uploadRequested(tmp, QStringLiteral("screenshot.png"), /*deleteWhenDone=*/true, profileId);
+    emit uploadRequested(tmp, Core::screenshotFileName(m_capturedAt, QStringLiteral("png")),
+                         /*deleteWhenDone=*/true, profileId);
 }
 
 QPixmap ImageEditor::renderScene()
