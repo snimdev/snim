@@ -12,6 +12,7 @@
 #include <QGraphicsLineItem>
 #include <QMouseEvent>
 #include <QPen>
+#include <QDateTime>
 #include <QHash>
 #include <QString>
 #include <memory>
@@ -143,6 +144,7 @@ private:
 
     // State
     QPixmap m_originalScreenshot;
+    QDateTime m_capturedAt = QDateTime::currentDateTime();   // opens right after capture
     bool m_firstShown = false;   // fit/center the view only on the first show
     bool m_dirty = false;        // unsaved changes (layers added/edited, backdrop, ...)
     Layer *m_backgroundLayer;

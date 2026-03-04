@@ -9,8 +9,10 @@
 #include "editor/annotations/AnnotationSet.h"
 #include "editor/annotations/IAnnotationSink.h"
 #include "editor/annotations/commands/EditorCommands.h"
+#include "core/FileNames.h"
 #include "core/IconUtil.h"
 #include "core/Perf.h"
+#include "core/Settings.h"
 #include "editor/annotations/tools/StepTool.h"
 #include "editor/annotations/tools/TextTool.h"
 #include "editor/annotations/StepNumbering.h"
@@ -21,6 +23,7 @@
 #include <QGraphicsLineItem>
 #include <QInputDialog>
 #include <QPainter>
+#include <QDir>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QStatusBar>
@@ -526,10 +529,12 @@ void ImageEditor::setupStrategies()
 
 void ImageEditor::saveAs()
 {
+    const QString dir = Core::Settings::screenshotFolder();
+    QDir().mkpath(dir);
     QString fileName = QFileDialog::getSaveFileName(
         this,
         "Save Screenshot",
-        QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/screenshot.png",
+        dir + "/" + Core::screenshotFileName(m_capturedAt, Core::Settings::imageFormat()),
         "Image Files (*.png *.jpg *.bmp)"
     );
 
