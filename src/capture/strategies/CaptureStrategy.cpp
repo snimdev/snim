@@ -2,12 +2,15 @@
 #include "../AreaSelector.h"
 #include "../CaptureGeometry.h"
 #include "../OverlayAnnotations.h"
+#include "core/FileNames.h"
+#include "core/Settings.h"
 
 #include <QClipboard>
+#include <QDateTime>
 #include <QDebug>
+#include <QDir>
 #include <QFileDialog>
 #include <QGuiApplication>
-#include <QStandardPaths>
 
 namespace Capture {
 
@@ -70,9 +73,12 @@ void CaptureStrategy::saveAreaToFile(const QPixmap &shot, const QRect &virtualGe
         return;
 
     // The overlay is already torn down, so this dialog isn't hidden behind it.
+    const QString dir = Core::Settings::screenshotFolder();
+    QDir().mkpath(dir);
     const QString fileName = QFileDialog::getSaveFileName(
         nullptr, "Save Screenshot",
-        QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/screenshot.png",
+        dir + "/" + Core::screenshotFileName(QDateTime::currentDateTime(),
+                                             Core::Settings::imageFormat()),
         "Image Files (*.png *.jpg *.bmp)");
     if (!fileName.isEmpty())
         cropped.save(fileName);
