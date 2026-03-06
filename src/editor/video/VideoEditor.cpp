@@ -415,9 +415,8 @@ void VideoEditor::keyPressEvent(QKeyEvent *event)
 
 QString VideoEditor::suggestedFileName() const
 {
-    QString name = QFileInfo(m_tempPath).fileName();
-    name.replace(QStringLiteral("Snim_recording_"), QStringLiteral("Snim_"));
-    return name;
+    // The recorder already names the temp after the recording's start time.
+    return QFileInfo(m_tempPath).fileName();
 }
 
 QString VideoEditor::recordingsDir() const

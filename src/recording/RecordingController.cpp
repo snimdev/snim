@@ -8,6 +8,7 @@
 #include "recording/RecordingOptionsBar.h"
 #include "capture/AreaSelector.h"
 #include "capture/WindowEnumerator.h"
+#include "core/FileNames.h"
 #include "core/Settings.h"
 #ifdef Q_OS_MACOS
 #include "capture/MacOverlay.h"
@@ -451,8 +452,8 @@ QString RecordingController::makeOutputPath() const
     // Record into a temp file; the app prompts for the final destination on stop and
     // moves it there. recordingFolder() is then just the save dialog's default dir.
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    const QString stamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
-    return dir + "/Snim_recording_" + stamp + "." + Core::Settings::recordingFormat();
+    return dir + "/" + Core::recordingFileName(QDateTime::currentDateTime(),
+                                               Core::Settings::recordingFormat());
 }
 
 } // namespace Recording

@@ -30,7 +30,7 @@ private slots:
     void constructsWithChromeOnErrorPath()
     {
         const QString missing = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                                + "/Snim_recording_does-not-exist.mp4";
+                                + "/snimcapture-does-not-exist.mp4";
         auto *editor = new VideoEditor(missing);
 
         QVERIFY(editor->findChild<TrimTimeline *>() != nullptr);
