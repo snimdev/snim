@@ -1,6 +1,6 @@
 #include "recording/strategies/LinuxRecordingStrategy.h"
 
-#include "core/BundledPaths.h"
+#include "media/gst/GstSupport.h"
 #include "recording/RecordingGeometry.h"
 #include "recording/strategies/LinuxRecorderModule.h"
 #include "recording/strategies/ScreenCastPortalSession.h"
@@ -24,60 +24,6 @@ namespace {
 
 constexpr int kDurationIntervalMs = 250;
 constexpr int kEosTimeoutMs = 5000;
-
-bool ensureGstInitialized()
-{
-    static const bool ok = [] {
-        // Must precede gst_init: it reads the plugin path once, when it builds its registry.
-        Core::BundledPaths::applyForThisExecutable();
-        GError *error = nullptr;
-        const gboolean initialized = gst_init_check(nullptr, nullptr, &error);
-        if (error) {
-            qWarning() << "GStreamer init failed:" << error->message;
-            g_clear_error(&error);
-        }
-        return initialized != FALSE;
-    }();
-    return ok;
-}
-
-bool hasFactory(const char *name)
-{
-    GstElementFactory *factory = gst_element_factory_find(name);
-    if (!factory)
-        return false;
-    gst_object_unref(factory);
-    return true;
-}
-
-// Software x264 first (predictable and always present when installed), then the VA-API
-// encoder, then OpenH264 as the last resort.
-QString encoderChain(int fps)
-{
-    if (hasFactory("x264enc"))
-        return QStringLiteral("x264enc tune=zerolatency speed-preset=veryfast pass=qual "
-                              "quantizer=22 key-int-max=%1").arg(fps * 2);
-    if (hasFactory("vapostproc") && hasFactory("vah264enc"))
-        return QStringLiteral("vapostproc ! vah264enc");
-    if (hasFactory("openh264enc"))
-        return QStringLiteral("openh264enc complexity=0");
-    return {};
-}
-
-bool hasAnyEncoder()
-{
-    return hasFactory("x264enc") || hasFactory("vah264enc") || hasFactory("openh264enc");
-}
-
-// AAC encoders in preference order. Empty when none is installed.
-QString aacEncoderChain()
-{
-    for (const char *name : {"fdkaacenc", "avenc_aac", "voaacenc"}) {
-        if (hasFactory(name))
-            return QString::fromLatin1(name);
-    }
-    return {};
-}
 
 QSize pixelSize(const QRect &logical, qreal dpr)
 {
@@ -288,8 +234,9 @@ GstBusSyncReply onBusMessage(GstBus *bus, GstMessage *message, gpointer data)
                 && error->code == GST_RESOURCE_ERROR_NO_SPACE_LEFT) {
                 text = LinuxRecordingStrategy::tr("Not enough disk space to continue recording.");
             } else {
-                text = error ? QString::fromUtf8(error->message)
-                             : LinuxRecordingStrategy::tr("The recording pipeline failed.");
+                text = Media::Gst::errorText(error);
+                if (text.isEmpty())
+                    text = LinuxRecordingStrategy::tr("The recording pipeline failed.");
             }
             qWarning() << "GStreamer recording error:" << text
                        << (debug ? QString::fromUtf8(debug) : QString());
@@ -351,7 +298,8 @@ bool LinuxRecordingStrategy::isAvailable() const
     if (m_available.has_value())
         return *m_available;
 
-    m_available = ensureGstInitialized()
+    using Media::Gst::hasFactory;
+    m_available = Media::Gst::ensureInitialized()
                   && ScreenCastPortalSession::isPortalAvailable()
                   && hasFactory("pipewiresrc")
                   && hasFactory("videorate")
@@ -362,7 +310,7 @@ bool LinuxRecordingStrategy::isAvailable() const
                   && hasFactory("valve")
                   && hasFactory("h264parse")
                   && hasFactory("mp4mux")
-                  && hasAnyEncoder();
+                  && Media::Gst::hasAnyH264Encoder();
     return *m_available;
 }
 
@@ -509,7 +457,8 @@ void LinuxRecordingStrategy::handleSessionClosed()
 
 bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
 {
-    const QString encoder = encoderChain(m_target.fps);
+    const QString encoder = Media::Gst::h264EncoderChain(
+        {Media::Gst::EncoderTuning::Live, m_target.fps * 2});
     if (encoder.isEmpty()) {
         *error = tr("No H.264 encoder is installed.");
         return false;
@@ -529,9 +478,10 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
             .arg(QString::number(m_target.fps), encoder, mux);
 
     if (m_target.captureMic || m_target.captureSystemAudio) {
-        const QString aac = aacEncoderChain();
+        const QString aac = Media::Gst::aacEncoderChain();
         // Audio is best-effort: a missing piece costs the audio track, not the recording.
-        if (!hasFactory("pulsesrc") || !hasFactory("aacparse") || aac.isEmpty()) {
+        if (!Media::Gst::hasFactory("pulsesrc") || !Media::Gst::hasFactory("aacparse")
+            || aac.isEmpty()) {
             qWarning() << "Audio capture requested but pulsesrc, aacparse or an AAC encoder is "
                           "missing; recording video only";
         } else {

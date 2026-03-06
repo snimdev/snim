@@ -579,6 +579,8 @@ if(GSTREAMER_AVAILABLE)
             # into the binary doing the loading.
             src/recording/strategies/ScreenCastPortalSession.cpp
             src/recording/strategies/ScreenCastPortalSession.h
+            src/media/gst/GstSupport.cpp
+            src/media/gst/GstSupport.h
             src/core/BundledPaths.cpp
             src/core/BundledPaths.h)
     set_target_properties(snim_recorder_linux PROPERTIES
