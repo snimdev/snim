@@ -53,9 +53,9 @@ set(SNIM_TESTS
         tst_bundledpaths
 )
 
-# The dlopened Linux recorder module only exists where it is built.
+# The dlopened Linux modules only exist where they are built.
 if(GSTREAMER_AVAILABLE)
-    list(APPEND SNIM_TESTS tst_linuxrecordermodule)
+    list(APPEND SNIM_TESTS tst_linuxrecordermodule tst_gstvideoexporter)
 endif()
 
 foreach(test_name ${SNIM_TESTS})
@@ -81,6 +81,20 @@ if(GSTREAMER_AVAILABLE)
     set_target_properties(tst_recordingfactory PROPERTIES ENABLE_EXPORTS ON)
     set_tests_properties(tst_recordingfactory PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=offscreen;SNIM_RECORDER_MODULE=$<TARGET_FILE:snim_recorder_linux>")
+
+    # Same seam for the trim exporter module; the test also drives GStreamer itself to
+    # make a fixture with audio.
+    add_dependencies(tst_gstvideoexporter snim_video_linux)
+    target_compile_definitions(tst_gstvideoexporter PRIVATE
+            SNIM_VIDEO_MODULE_PATH="$<TARGET_FILE:snim_video_linux>")
+    set_target_properties(tst_gstvideoexporter PROPERTIES ENABLE_EXPORTS ON)
+    target_include_directories(tst_gstvideoexporter PRIVATE ${GSTREAMER_INCLUDE_DIRS})
+    if(GSTREAMER_LIBRARY_DIRS)
+        target_link_directories(tst_gstvideoexporter PRIVATE ${GSTREAMER_LIBRARY_DIRS})
+    endif()
+    target_link_libraries(tst_gstvideoexporter PRIVATE ${GSTREAMER_LIBRARIES})
+    set_tests_properties(tst_gstvideoexporter PROPERTIES ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
 endif()
 
 # install() copies the app icon out of the qrc, so this one needs the resources too.

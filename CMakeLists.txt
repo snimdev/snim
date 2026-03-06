@@ -611,6 +611,36 @@ if(GSTREAMER_AVAILABLE)
     # dlopen time, which needs that binary's own symbols in its dynamic table.
     set_target_properties(Snim PROPERTIES ENABLE_EXPORTS ON)
     add_dependencies(Snim snim_recorder_linux)
+
+    # The trim exporter is a second dlopened module, so it borrows only VideoExporter
+    # from the host and fails independently of the recorder.
+    target_sources(snim_lib PRIVATE
+            src/editor/video/LinuxVideoModule.cpp
+            src/editor/video/LinuxVideoModule.h)
+    target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_LINUX_VIDEO_EXPORTER)
+
+    add_library(snim_video_linux MODULE
+            src/editor/video/GstVideoExporter.cpp
+            src/editor/video/GstVideoExporter.h
+            src/media/gst/GstSupport.cpp
+            src/media/gst/GstSupport.h
+            src/core/BundledPaths.cpp
+            src/core/BundledPaths.h)
+    set_target_properties(snim_video_linux PROPERTIES
+            OUTPUT_NAME "snim-video-linux"
+            LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+            INSTALL_RPATH "$ORIGIN")
+    target_include_directories(snim_video_linux PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${GSTREAMER_INCLUDE_DIRS})
+    if(GSTREAMER_LIBRARY_DIRS)
+        target_link_directories(snim_video_linux PRIVATE ${GSTREAMER_LIBRARY_DIRS})
+    endif()
+    target_link_libraries(snim_video_linux PRIVATE
+            Qt::Core
+            ${GSTREAMER_LIBRARIES})
+    add_dependencies(Snim snim_video_linux)
 endif()
 
 # Wayland layer-shell path for the recording frame overlay. Attaching
@@ -831,6 +861,9 @@ if(UNIX AND NOT APPLE)
     # portable tarball to carry it (the loader looks in ../lib next to the binary).
     if(TARGET snim_recorder_linux)
         install(TARGETS snim_recorder_linux LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    endif()
+    if(TARGET snim_video_linux)
+        install(TARGETS snim_video_linux LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
     endif()
 
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/deploy/dev.snim.Snim.desktop"
