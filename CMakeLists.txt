@@ -263,6 +263,9 @@ add_library(snim_lib STATIC
         # Points GStreamer and Tesseract at the resources beside a relocated binary.
         src/core/BundledPaths.cpp
         src/core/BundledPaths.h
+        # Finds and dlopens the optional Linux modules (recorder, video exporter).
+        src/core/DynamicModule.cpp
+        src/core/DynamicModule.h
 
         # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
         # macOS keychain backing is added in the APPLE block; a stub elsewhere. The

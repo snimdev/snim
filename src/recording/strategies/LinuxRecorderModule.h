@@ -29,11 +29,7 @@ namespace Recording::LinuxRecorderModule {
 inline constexpr char kEntryPoint[] = "snimCreateLinuxRecorder";
 inline constexpr char kBaseName[] = "snim-recorder-linux";
 
-// Where the module is looked for, in order: beside the binary (a build tree), then the
-// lib dir of an install beside it (usr/bin + usr/lib is what the AppImage and the
-// portable tarball lay out), then the bare name so QLibrary's own search (rpath,
-// ldconfig) still applies to a distro package. SNIM_RECORDER_MODULE replaces the whole
-// list when set, a dev and test seam. Pure string work, so it needs no module on disk.
+// Core::DynamicModule's search order; SNIM_RECORDER_MODULE replaces the whole list.
 [[nodiscard]] QStringList candidatePaths(const QString &binDir);
 
 // Loads the module and calls its entry point. Returns nullptr on ANY failure: no module
