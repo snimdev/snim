@@ -43,11 +43,13 @@
 namespace Editor::Video {
 
 namespace {
-// The uploaded name follows the file's container (the untrimmed temp may be .mov).
-QString uploadNameFor(const QString &path)
+// The recording's name with the uploaded file's container (the untrimmed temp may be .mov).
+QString uploadNameFor(const QString &sourceName, const QString &path)
 {
+    const QString base = QFileInfo(sourceName).completeBaseName();
     const QString suffix = QFileInfo(path).suffix();
-    return QStringLiteral("recording.") + (suffix.isEmpty() ? QStringLiteral("mp4") : suffix);
+    return (base.isEmpty() ? QStringLiteral("recording") : base) + QStringLiteral(".")
+           + (suffix.isEmpty() ? QStringLiteral("mp4") : suffix);
 }
 
 // Everything the animation export path reads off the chosen format.
@@ -682,7 +684,8 @@ void VideoEditor::doUpload(const QString &profileId)
         // Hand the recording temp to the app's uploader; mark saved so closeEvent
         // won't delete it out from under the in-flight PUT (the app owns it now).
         m_saved = true;
-        emit uploadRequested(m_tempPath, uploadNameFor(m_tempPath), /*deleteWhenDone=*/true, profileId);
+        emit uploadRequested(m_tempPath, uploadNameFor(suggestedFileName(), m_tempPath),
+                             /*deleteWhenDone=*/true, profileId);
         close();
         return;
     }
@@ -774,8 +777,8 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
         QFile::remove(m_tempPath);
         m_exportTempPath.clear();
         m_saved = true;
-        emit uploadRequested(exportedPath, uploadNameFor(exportedPath), /*deleteWhenDone=*/true,
-                             m_pendingUploadProfileId);
+        emit uploadRequested(exportedPath, uploadNameFor(suggestedFileName(), exportedPath),
+                             /*deleteWhenDone=*/true, m_pendingUploadProfileId);
         close();
     } else if (pending == Pending::CopyAnimation) {
         const QString label = animationFormatInfo(m_animationFormat).label;
@@ -795,8 +798,8 @@ void VideoEditor::onExporterFinished(const QString &exportedPath)
         QFile::remove(m_tempPath);
         m_exportTempPath.clear();
         m_saved = true;
-        emit uploadRequested(exportedPath, uploadNameFor(exportedPath), /*deleteWhenDone=*/true,
-                             m_pendingUploadProfileId);
+        emit uploadRequested(exportedPath, uploadNameFor(suggestedFileName(), exportedPath),
+                             /*deleteWhenDone=*/true, m_pendingUploadProfileId);
         close();
     } else if (pending == Pending::ExportAnimation) {
         // Mirror SaveMove exactly: move the temp to the destination, drop the source MP4
