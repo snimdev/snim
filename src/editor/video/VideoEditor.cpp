@@ -102,7 +102,7 @@ VideoEditor::VideoEditor(const QString &tempPath, QWidget *parent)
     setWindowTitle(tr("Snim - Recording"));
     resize(900, 620);
     setupUi();
-    if (!exporter()->isAvailable()) {
+    if (!exporter()->supportsGif()) {
         m_gifAction->setEnabled(false);
         m_gifAction->setToolTip(tr("GIF export is not available on this platform yet"));
     }
@@ -474,7 +474,7 @@ void VideoEditor::setBusy(bool busy)
 {
     m_saveAction->setEnabled(!busy);
     m_copyAction->setEnabled(!busy);
-    m_gifAction->setEnabled(!busy && m_previewOk && exporter()->isAvailable());
+    m_gifAction->setEnabled(!busy && m_previewOk && exporter()->supportsGif());
     m_webpAction->setEnabled(!busy && m_previewOk);   // WebP needs a decodable source
     m_frameAction->setEnabled(!busy && m_previewOk);
     m_uploadAction->setEnabled(!busy);
@@ -488,7 +488,12 @@ bool VideoEditor::confirmUntrimmedFallback()
 {
     const auto answer = QMessageBox::question(
         this, tr("Trimming Unavailable"),
+#ifdef Q_OS_LINUX
+        tr("Trimming is not available (missing GStreamer plugins). "
+           "Use the full recording instead?"));
+#else
         tr("Trimming is not supported on this platform. Use the full recording instead?"));
+#endif
     return answer == QMessageBox::Yes;
 }
 
@@ -567,7 +572,7 @@ bool VideoEditor::animationAvailable(AnimationFormat format)
 {
     if (!m_previewOk)
         return false;
-    if (format == AnimationFormat::Gif && !exporter()->isAvailable()) {
+    if (format == AnimationFormat::Gif && !exporter()->supportsGif()) {
         QMessageBox::warning(this, tr("GIF Unavailable"),
                              tr("Exporting to GIF is not supported on this platform."));
         return false;

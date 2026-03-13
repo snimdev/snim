@@ -10,9 +10,10 @@
 namespace Editor::Video {
 
 /**
- * Platform seam for cutting a recording down to a time range. The macOS
- * implementation remuxes with AVAssetExportSession (no re-encode); other
- * platforms get a stub that reports trimming as unavailable, since untrimmed saves
+ * Platform seam (Strategy) for cutting a recording down to a time range. The macOS
+ * implementation remuxes with AVAssetExportSession (no re-encode); Linux re-encodes
+ * through GStreamer in a dlopened module; anything else, or a Linux host missing the
+ * plugins, gets a stub that reports trimming as unavailable, since untrimmed saves
  * are a plain file move and never touch this interface.
  */
 class VideoExporter : public QObject
@@ -38,6 +39,9 @@ public:
     virtual void cancel() {}
 
     [[nodiscard]] virtual bool isAvailable() const = 0;
+
+    // Whether toGif() can succeed here, separate from trimming.
+    [[nodiscard]] virtual bool supportsGif() const { return false; }
 
     // Platform pick, mirroring RecordingFactory's stub-is-universal layout.
     static std::unique_ptr<VideoExporter> create(QObject *parent = nullptr);

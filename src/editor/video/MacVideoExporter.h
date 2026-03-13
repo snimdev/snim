@@ -27,6 +27,7 @@ public:
                qint64 inMs, qint64 outMs, const AnimationParams &params) override;
     void cancel() override;
     [[nodiscard]] bool isAvailable() const override { return true; }
+    [[nodiscard]] bool supportsGif() const override { return true; }
 
     // Backend hooks: called on the Qt thread. completeExport ends an export
     // (success/cancel/failure); reportProgress feeds the GIF status. Not for general use.

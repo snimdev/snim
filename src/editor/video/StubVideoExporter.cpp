@@ -10,7 +10,11 @@ void StubVideoExporter::trim(const QString &input, const QString &output,
     Q_UNUSED(input); Q_UNUSED(output); Q_UNUSED(inMs); Q_UNUSED(outMs);
     // Deferred, like the real exporter: callers connect before the signal fires.
     QMetaObject::invokeMethod(this, [this] {
+#ifdef Q_OS_LINUX
+        emit failed(tr("Trimming is not available (missing GStreamer plugins)."));
+#else
         emit failed(tr("Trimming is not supported on this platform."));
+#endif
     }, Qt::QueuedConnection);
 }
 
