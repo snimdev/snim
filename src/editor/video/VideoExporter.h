@@ -49,7 +49,7 @@ public:
 signals:
     void finished(const QString &outputPath);
     void failed(const QString &error);
-    void progress(int done, int total);           // per frame, GIF
+    void progress(int done, int total);           // frames for GIF, ms for a trim
 };
 
 } // namespace Editor::Video

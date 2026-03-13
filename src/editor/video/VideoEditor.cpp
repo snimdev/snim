@@ -843,10 +843,20 @@ void VideoEditor::onExporterFailed(const QString &error)
 
 void VideoEditor::onExportProgress(int done, int total)
 {
+    if (total <= 0)
+        return;
+    const bool trim = m_pending == Pending::SaveMove
+                      || m_pending == Pending::Copy
+                      || m_pending == Pending::Upload;
+    if (trim) {
+        const int percent = int(qBound(qint64(0), qint64(done) * 100 / total, qint64(100)));
+        m_statusLabel->setText(tr("Trimming… %1%").arg(percent));
+        return;
+    }
     const bool animation = m_pending == Pending::ExportAnimation
                            || m_pending == Pending::CopyAnimation
                            || m_pending == Pending::UploadAnimation;
-    if (!animation || total <= 0)
+    if (!animation)
         return;
     m_statusLabel->setText(tr("Encoding %1… %2/%3")
                                .arg(animationFormatInfo(m_animationFormat).label)
