@@ -76,7 +76,6 @@ private:
     void copyAnimation(AnimationFormat format);                     // recordings folder + clipboard
     void uploadAnimation(AnimationFormat format, const QString &profileId);
     void startAnimation(AnimationFormat format, Pending kind, const AnimationParams &params);
-    [[nodiscard]] bool animationAvailable(AnimationFormat format);  // warns when it is not
     // The saved options, or the dialog's when it is not skipped; nullopt = cancelled.
     [[nodiscard]] std::optional<AnimationParams> resolveAnimationParams(AnimationFormat format,
                                                                         bool alwaysAsk = false);

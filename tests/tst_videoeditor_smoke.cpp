@@ -52,20 +52,32 @@ private slots:
         QVERIFY(sawCopy);
         QVERIFY(sawDiscard);
 
-        // GIF encoding is macOS-only; elsewhere the action must not invite a sure failure.
-        bool sawGif = false;
-        for (const QAction *a : actions) {
-            if (!a->toolTip().contains("GIF"))
-                continue;
-            sawGif = true;
-#ifndef Q_OS_MACOS
-            QVERIFY(!a->isEnabled());
-#endif
+        // GIF and WebP share one export path, so neither is gated by platform.
+        QAction *gif = nullptr;
+        QAction *webp = nullptr;
+        for (QAction *a : actions) {
+            if (a->toolTip().contains("animated GIF"))
+                gif = a;
+            if (a->toolTip().contains("animated WebP"))
+                webp = a;
         }
-        QVERIFY(sawGif);
+        QVERIFY(gif != nullptr);
+        QVERIFY(webp != nullptr);
 
         // Let queued player error signals deliver; the editor must absorb them.
         QTest::qWait(50);
+
+        // Once the preview has failed there are no frames to grab, so both animations go
+        // off together. A backend that never reports the failure leaves both on.
+        const bool previewFailed = QTest::qWaitFor([editor] {
+            for (const QLabel *label : editor->findChildren<QLabel *>())
+                if (label->text().startsWith("Preview unavailable"))
+                    return true;
+            return false;
+        }, 2000);
+        if (previewFailed)
+            QVERIFY(!gif->isEnabled());
+        QCOMPARE(gif->isEnabled(), webp->isEnabled());
 
         // Nothing decodes from a missing file, so there is no frame to grab.
         QAction *frame = nullptr;

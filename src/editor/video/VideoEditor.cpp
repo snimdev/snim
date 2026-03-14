@@ -102,10 +102,6 @@ VideoEditor::VideoEditor(const QString &tempPath, QWidget *parent)
     setWindowTitle(tr("Snim - Recording"));
     resize(900, 620);
     setupUi();
-    if (!exporter()->supportsGif()) {
-        m_gifAction->setEnabled(false);
-        m_gifAction->setToolTip(tr("GIF export is not available on this platform yet"));
-    }
 
     // Player wiring. The editor stays usable even if decoding fails: trimming is
     // disabled, but Save (a plain file move) keeps working.
@@ -325,6 +321,8 @@ void VideoEditor::previewFailed()
     m_previewOk = false;
     m_playPauseAction->setEnabled(false);
     m_frameAction->setEnabled(false);
+    m_gifAction->setEnabled(false);
+    m_webpAction->setEnabled(false);
     m_timeline->setInteractive(false);   // no duration -> no trimming
     m_statusLabel->setText(tr("Preview unavailable, Save still works"));
 }
@@ -474,8 +472,8 @@ void VideoEditor::setBusy(bool busy)
 {
     m_saveAction->setEnabled(!busy);
     m_copyAction->setEnabled(!busy);
-    m_gifAction->setEnabled(!busy && m_previewOk && exporter()->supportsGif());
-    m_webpAction->setEnabled(!busy && m_previewOk);   // WebP needs a decodable source
+    m_gifAction->setEnabled(!busy && m_previewOk);    // both animations need a decodable source
+    m_webpAction->setEnabled(!busy && m_previewOk);
     m_frameAction->setEnabled(!busy && m_previewOk);
     m_uploadAction->setEnabled(!busy);
     m_discardAction->setEnabled(!busy);
@@ -568,18 +566,6 @@ void VideoEditor::onCopy()
     exporter()->trim(m_tempPath, dest, state.inMs(), state.outMs());   // straight to dest
 }
 
-bool VideoEditor::animationAvailable(AnimationFormat format)
-{
-    if (!m_previewOk)
-        return false;
-    if (format == AnimationFormat::Gif && !exporter()->supportsGif()) {
-        QMessageBox::warning(this, tr("GIF Unavailable"),
-                             tr("Exporting to GIF is not supported on this platform."));
-        return false;
-    }
-    return true;
-}
-
 std::optional<AnimationParams> VideoEditor::resolveAnimationParams(AnimationFormat format,
                                                                    bool alwaysAsk)
 {
@@ -597,8 +583,8 @@ std::optional<AnimationParams> VideoEditor::resolveAnimationParams(AnimationForm
 
 void VideoEditor::exportAnimation(AnimationFormat format)
 {
-    if (!animationAvailable(format))
-        return;
+    if (!m_previewOk)
+        return;                                   // no frames to grab
     const std::optional<AnimationParams> params = resolveAnimationParams(format);
     if (!params)
         return;
@@ -617,8 +603,8 @@ void VideoEditor::exportAnimation(AnimationFormat format)
 
 void VideoEditor::copyAnimation(AnimationFormat format)
 {
-    if (!animationAvailable(format))
-        return;
+    if (!m_previewOk)
+        return;                                   // no frames to grab
     const std::optional<AnimationParams> params = resolveAnimationParams(format);
     if (!params)
         return;
@@ -632,8 +618,8 @@ void VideoEditor::copyAnimation(AnimationFormat format)
 
 void VideoEditor::uploadAnimation(AnimationFormat format, const QString &profileId)
 {
-    if (!animationAvailable(format))
-        return;
+    if (!m_previewOk)
+        return;                                   // no frames to grab
     if (!Upload::UploadConfig::forProfile(profileId).isComplete()) {
         QMessageBox::information(this, tr("Upload not configured"),
                                 tr("Set up an upload destination in Settings → Upload first."));
@@ -664,10 +650,7 @@ void VideoEditor::startAnimation(AnimationFormat format, Pending kind,
                        + QStringLiteral(".") + info.extension;
     setBusy(true);
     m_player->pause();
-    if (format == AnimationFormat::WebP)
-        animationExporter()->start(format, m_tempPath, m_exportTempPath, in, out, params);
-    else
-        exporter()->toGif(m_tempPath, m_exportTempPath, in, out, params);
+    animationExporter()->start(format, m_tempPath, m_exportTempPath, in, out, params);
 }
 
 void VideoEditor::doUpload(const QString &profileId)
