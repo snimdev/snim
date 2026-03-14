@@ -110,11 +110,13 @@ while : ; do
 done
 
 echo "==> Verifying bundled dependencies"
-# libwebp is required, so a build that does not link it is broken, not a variant.
-if ! otool -L "$EXE" | grep -qi "libwebp"; then
-    echo "error: $EXE does not link libwebp" >&2
-    exit 1
-fi
+# libwebp, giflib and libimagequant are required, so a build missing one is broken.
+for lib in libwebp libgif libimagequant; do
+    if ! otool -L "$EXE" | grep -qi "$lib"; then
+        echo "error: $EXE does not link $lib" >&2
+        exit 1
+    fi
+done
 
 # Any absolute Homebrew path left anywhere in the bundle means the DMG would fail to
 # launch on a Mac without Homebrew. Scanned across every Mach-O macdeployqt touched

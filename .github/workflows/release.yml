@@ -75,6 +75,8 @@ jobs:
             libtesseract-dev \
             libleptonica-dev \
             libwebp-dev \
+            libgif-dev \
+            libimagequant-dev \
             libcurl4-openssl-dev \
             libssh2-1-dev \
             extra-cmake-modules \
@@ -392,7 +394,7 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: brew install qt tesseract webp ninja cmake
+        run: brew install qt tesseract webp giflib libimagequant ninja cmake
 
       - name: Configure
         run: >

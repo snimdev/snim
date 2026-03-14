@@ -197,6 +197,55 @@ if(NOT LIBWEBP_AVAILABLE)
             "  Install with: sudo apt install libwebp-dev / sudo dnf install libwebp-devel / brew install webp")
 endif()
 
+# Required giflib + libimagequant - animated GIF export in the trim editor: giflib writes
+# the file, libimagequant picks each frame's palette and dithers it. Required like
+# libwebp: every build ships GIF export. 5.1 is the first giflib with the current API.
+find_package(GIF 5.1)
+if(NOT GIF_FOUND)
+    message(FATAL_ERROR
+            "giflib 5.1 or newer is required but was not found.\n"
+            "  Install with: sudo apt install libgif-dev / sudo dnf install giflib-devel / brew install giflib")
+endif()
+message(STATUS "giflib found - animated GIF export")
+message(STATUS "  Version: ${GIF_VERSION}")
+message(STATUS "  Include: ${GIF_INCLUDE_DIRS}")
+message(STATUS "  Libraries: ${GIF_LIBRARIES}")
+
+set(IMAGEQUANT_AVAILABLE FALSE)
+
+if(PkgConfig_FOUND)
+    pkg_check_modules(IMAGEQUANT imagequant)
+    if(IMAGEQUANT_FOUND)
+        set(IMAGEQUANT_AVAILABLE TRUE)
+        message(STATUS "libimagequant found via pkg-config - GIF palettes")
+        message(STATUS "  Version: ${IMAGEQUANT_VERSION}")
+        message(STATUS "  Include: ${IMAGEQUANT_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${IMAGEQUANT_LIBRARIES}")
+    endif()
+endif()
+
+if(NOT IMAGEQUANT_AVAILABLE)
+    find_path(Imagequant_INCLUDE_DIR libimagequant.h
+        PATHS /usr/include /usr/local/include /opt/homebrew/include)
+    find_library(Imagequant_LIBRARY imagequant
+        PATHS /usr/lib64 /usr/lib /usr/local/lib /opt/homebrew/lib)
+
+    if(Imagequant_INCLUDE_DIR AND Imagequant_LIBRARY)
+        set(IMAGEQUANT_AVAILABLE TRUE)
+        set(IMAGEQUANT_INCLUDE_DIRS ${Imagequant_INCLUDE_DIR})
+        set(IMAGEQUANT_LIBRARIES ${Imagequant_LIBRARY})
+        message(STATUS "libimagequant found (manual detection) - GIF palettes")
+        message(STATUS "  Include: ${IMAGEQUANT_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${IMAGEQUANT_LIBRARIES}")
+    endif()
+endif()
+
+if(NOT IMAGEQUANT_AVAILABLE)
+    message(FATAL_ERROR
+            "libimagequant is required but was not found.\n"
+            "  Install with: sudo apt install libimagequant-dev / sudo dnf install libimagequant-devel / brew install libimagequant")
+endif()
+
 # Optional GStreamer - Linux screen recording (portal ScreenCast stream -> H.264 file)
 set(GSTREAMER_AVAILABLE FALSE)
 
@@ -756,6 +805,16 @@ if(LIBWEBP_LIBRARY_DIRS)
     target_link_directories(snim_lib PUBLIC ${LIBWEBP_LIBRARY_DIRS})
 endif()
 target_link_libraries(snim_lib PUBLIC ${LIBWEBPMUX_LIBRARIES} ${LIBWEBP_LIBRARIES})
+
+# Animated GIF export, shared like WebP. PUBLIC link so the tests resolve the same symbols.
+target_link_libraries(snim_lib PUBLIC GIF::GIF)
+target_include_directories(snim_lib PRIVATE ${IMAGEQUANT_INCLUDE_DIRS})
+# pkg-config reports plain library names; add its dirs so a non-default prefix
+# (Homebrew) still links. Empty for the manual-detection fallback (absolute paths).
+if(IMAGEQUANT_LIBRARY_DIRS)
+    target_link_directories(snim_lib PUBLIC ${IMAGEQUANT_LIBRARY_DIRS})
+endif()
+target_link_libraries(snim_lib PUBLIC ${IMAGEQUANT_LIBRARIES})
 
 # ---------------------------------------------------------------------------
 # macOS application bundle + deployment
