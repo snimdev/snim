@@ -15,9 +15,8 @@ namespace Editor::Video {
 /**
  * Knobs for the silent short-loop exports (animated GIF, animated WebP) and the pure
  * math behind them. Header-only and platform-neutral (no Qt widgets, no Objective-C)
- * so the macOS GIF encoder, the shared WebP encoder, the cross-platform editor, and
- * the headless unit tests all share exactly one source of truth: the riskiest
- * arithmetic (frame timing, downscaling) is therefore testable off-platform.
+ * so the encoders, the frame grabber, the editor, and the headless unit tests all
+ * share exactly one source of truth for frame timing and downscaling.
  */
 struct AnimationParams {
     int fps = 10;          // frame rate (kept low: these formats grow fast)
@@ -61,12 +60,6 @@ inline QVector<qint64> planAnimationFrames(qint64 inMs, qint64 outMs, int fps)
         times.append(t);
     }
     return times;
-}
-
-// Per-frame on-screen duration in seconds (the animation delay metadata).
-inline double animationFrameDelaySec(int fps)
-{
-    return 1.0 / std::max(1, fps);
 }
 
 /**

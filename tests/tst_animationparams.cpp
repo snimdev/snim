@@ -1,15 +1,11 @@
 #include <QtTest>
-#include <QSignalSpy>
 
 #include "editor/video/AnimationParams.h"
-#include "editor/video/VideoExporter.h"
-#include "editor/video/StubVideoExporter.h"
 
 using namespace Editor::Video;
 
-// Pure animation-export math (frame planning, delay, downscale, filename) plus the
-// cross-platform exporter contract for GIF. No AVFoundation / ImageIO here - the
-// actual encode is verified live; this locks the logic that feeds it.
+// Pure animation-export math (frame planning, downscale, filename). The encoders
+// have their own tests; this locks the logic that feeds them.
 class tst_AnimationParams : public QObject
 {
     Q_OBJECT
@@ -37,12 +33,6 @@ private slots:
         QCOMPARE(planAnimationFrames(500, 500, 10).size(), 1); // empty span -> single frame
         const QVector<qint64> z = planAnimationFrames(500, 500, 10);
         QCOMPARE(z.first(), qint64(500));                      // sits at inMs, no out-1 underflow
-    }
-
-    void frameDelay()
-    {
-        QCOMPARE(animationFrameDelaySec(10), 0.1);
-        QCOMPARE(animationFrameDelaySec(0), 1.0);   // clamped to >=1 fps
     }
 
     void scaledSize()
@@ -87,19 +77,6 @@ private slots:
         QCOMPARE(animationFileNameFor("", QStringLiteral("gif")), QStringLiteral("recording.gif"));
         QCOMPARE(animationFileNameFor("/tmp/clip.mov", QStringLiteral("webp")),
                  QStringLiteral("clip.webp"));
-    }
-
-    void stubReportsGifUnsupported()
-    {
-        // The stub backend must resolve a GIF request via failed() (async), so the
-        // editor never hangs on platforms without an encoder. Construct it directly
-        // so the test is platform-independent (create() returns Mac's on macOS).
-        StubVideoExporter stub;
-        QVERIFY(!stub.isAvailable());
-        QSignalSpy failedSpy(&stub, &VideoExporter::failed);
-        stub.toGif("/in.mp4", "/out.gif", 0, 1000, AnimationParams{});
-        QVERIFY(failedSpy.wait(1000));
-        QCOMPARE(failedSpy.count(), 1);
     }
 };
 

@@ -567,7 +567,6 @@ if(APPLE)
             "-framework AVFoundation"
             "-framework CoreMedia"
             "-framework CoreVideo"
-            "-framework ImageIO"     # animated-GIF encode in the trim editor
             "-framework Security"    # keychain (S3 secret access key)
             "-framework Carbon")     # RegisterEventHotKey (global hotkeys)
     # Qt ships the macOS permission backends as STATIC plugins (libqdarwin*permission.a),
