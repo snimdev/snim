@@ -12,7 +12,7 @@
 
 #include "editor/video/AnimationParams.h"
 #include "editor/video/VideoFrameGrabber.h"
-#include "editor/video/WebpExporter.h"
+#include "editor/video/AnimationExporter.h"
 
 #include "VideoBackendProbe.h"
 
@@ -45,6 +45,9 @@ QByteArray readAll(const QString &path)
 // about the exporter's plumbing, not the compression, and minimizeSize off also keeps
 // libwebp from merging similar frames, which the frame-count assertions depend on.
 const AnimationParams kCheap{10, 600, 0, 75, false, 0, false};
+
+// Only the fake grabber sees this path, so it never has to exist.
+const QString kRecording = QStringLiteral("/tmp/recording.mp4");
 
 // Stands in for the real decoder, so the exporter's own logic (canvas from the first
 // frame, per-frame progress, the terminal paths) is testable with no media at all.
@@ -107,10 +110,10 @@ private:
 
 } // namespace
 
-// The shared animated-WebP export path: grabber into encoder, the progress it reports,
+// The shared animation export path: grabber into encoder, the progress it reports,
 // and the failure paths the editor relies on to never be left busy. The real decoder is
 // covered by tst_videoframegrabber; here the frames are synthetic.
-class tst_WebpExporter : public QObject
+class tst_AnimationExporter : public QObject
 {
     Q_OBJECT
 
@@ -121,12 +124,12 @@ private slots:
         QVERIFY(dir.isValid());
         const QString output = dir.filePath("clip.webp");
 
-        WebpExporter exporter(std::make_unique<FakeGrabber>());
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
-        QSignalSpy progress(&exporter, &WebpExporter::progress);
+        AnimationExporter exporter(std::make_unique<FakeGrabber>());
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
+        QSignalSpy progress(&exporter, &AnimationExporter::progress);
 
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), output, 0, 300, kCheap);
+        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 300, kCheap);
 
         QVERIFY2(finished.wait(5000), "the export never finished");
         QCOMPARE(failed.count(), 0);
@@ -156,10 +159,10 @@ private slots:
 
         auto fake = std::make_unique<FakeGrabber>();
         auto *raw = fake.get();
-        WebpExporter exporter(std::move(fake));
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
+        AnimationExporter exporter(std::move(fake));
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
 
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), dir.filePath("clip.webp"),
+        exporter.start(AnimationFormat::WebP, kRecording, dir.filePath("clip.webp"),
                        1500, 4000, AnimationParams{5, 320, 0, 75, false, 0, false});
         QVERIFY(finished.wait(5000));
 
@@ -177,14 +180,14 @@ private slots:
 
         auto fake = std::make_unique<FakeGrabber>();
         auto *raw = fake.get();
-        WebpExporter exporter(std::move(fake));
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
+        AnimationExporter exporter(std::move(fake));
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
 
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), dir.filePath("first.webp"),
+        exporter.start(AnimationFormat::WebP, kRecording, dir.filePath("first.webp"),
                        0, 300, kCheap);
         QVERIFY2(finished.wait(5000), "the first export never finished");
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), dir.filePath("second.webp"),
+        exporter.start(AnimationFormat::WebP, kRecording, dir.filePath("second.webp"),
                        0, 300, kCheap);
         QVERIFY2(finished.wait(5000), "the second export never finished");
 
@@ -200,11 +203,11 @@ private slots:
         QVERIFY(dir.isValid());
         const QString output = dir.filePath("clip.webp");
 
-        WebpExporter exporter(std::make_unique<FakeGrabber>(FakeGrabber::Mode::Fail));
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
+        AnimationExporter exporter(std::make_unique<FakeGrabber>(FakeGrabber::Mode::Fail));
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
 
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), output, 0, 300, kCheap);
+        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 300, kCheap);
 
         QVERIFY(failed.wait(5000));
         QCOMPARE(finished.count(), 0);
@@ -219,11 +222,12 @@ private slots:
         QVERIFY(dir.isValid());
         const QString output = dir.filePath("clip.webp");
 
-        WebpExporter exporter(std::make_unique<FakeGrabber>(FakeGrabber::Mode::FinishWithoutFrames));
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
+        AnimationExporter exporter(
+            std::make_unique<FakeGrabber>(FakeGrabber::Mode::FinishWithoutFrames));
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
 
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), output, 0, 300, kCheap);
+        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 300, kCheap);
 
         QVERIFY(failed.wait(5000));
         QCOMPARE(finished.count(), 0);
@@ -239,11 +243,11 @@ private slots:
         QVERIFY(dir.isValid());
         const QString output = dir.filePath("missing/clip.webp");
 
-        WebpExporter exporter(std::make_unique<FakeGrabber>());
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
+        AnimationExporter exporter(std::make_unique<FakeGrabber>());
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
 
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), output, 0, 300, kCheap);
+        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 300, kCheap);
 
         QVERIFY(failed.wait(5000));
         QTest::qWait(100);   // the fake's remaining frames must not add a second result
@@ -265,12 +269,12 @@ private slots:
 
         auto fake = std::make_unique<FakeGrabber>(FakeGrabber::Mode::HangAfterFirstFrame);
         auto *raw = fake.get();
-        WebpExporter exporter(std::move(fake));
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
-        QSignalSpy progress(&exporter, &WebpExporter::progress);
+        AnimationExporter exporter(std::move(fake));
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
+        QSignalSpy progress(&exporter, &AnimationExporter::progress);
 
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), output, 0, 3000, kCheap);
+        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 3000, kCheap);
         QTRY_COMPARE(progress.count(), 1);
 
         exporter.cancel();
@@ -292,12 +296,12 @@ private slots:
         // before cancel() returns, or a late signal or a leftover QSaveFile temp escapes.
         auto fake = std::make_unique<FakeGrabber>();
         fake->frameSize = QSize(640, 480);
-        WebpExporter exporter(std::move(fake));
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
-        QSignalSpy progress(&exporter, &WebpExporter::progress);
+        AnimationExporter exporter(std::move(fake));
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
+        QSignalSpy progress(&exporter, &AnimationExporter::progress);
 
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), output, 0, 1500, kCheap);
+        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 1500, kCheap);
         QTRY_VERIFY(progress.count() >= 2);
         QVERIFY(progress.count() < 15);   // still mid-run, or this proves nothing
 
@@ -325,12 +329,12 @@ private slots:
         auto fake = std::make_unique<FakeGrabber>();
         fake->frameSize = QSize(320, 240);
         auto *raw = fake.get();
-        WebpExporter exporter(std::move(fake));
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
-        QSignalSpy progress(&exporter, &WebpExporter::progress);
+        AnimationExporter exporter(std::move(fake));
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
+        QSignalSpy progress(&exporter, &AnimationExporter::progress);
 
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), output, 0, 4000, kCheap);
+        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 4000, kCheap);
         QVERIFY2(finished.wait(120000),
                  qPrintable(failed.isEmpty() ? QStringLiteral("timed out")
                                              : failed.first().at(0).toString()));
@@ -354,9 +358,9 @@ private slots:
         // seconds instead of the few ms it is allowed here.
         auto fake = std::make_unique<FakeGrabber>();
         fake->frameSize = QSize(640, 480);
-        WebpExporter exporter(std::move(fake));
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
+        AnimationExporter exporter(std::move(fake));
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
 
         QTimer ticker;
         ticker.setTimerType(Qt::PreciseTimer);
@@ -373,7 +377,7 @@ private slots:
 
         QElapsedTimer run;
         run.start();
-        exporter.start(QStringLiteral("/tmp/recording.mp4"), output, 0, 1400, AnimationParams{});
+        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 1400, AnimationParams{});
         QVERIFY2(finished.wait(120000),
                  qPrintable(failed.isEmpty() ? QStringLiteral("timed out")
                                              : failed.first().at(0).toString()));
@@ -407,12 +411,13 @@ private slots:
         QVERIFY(dir.isValid());
         const QString output = dir.filePath("clip.webp");
 
-        WebpExporter exporter;   // the default ctor: the real grabber, created lazily
-        QSignalSpy finished(&exporter, &WebpExporter::finished);
-        QSignalSpy failed(&exporter, &WebpExporter::failed);
-        QSignalSpy progress(&exporter, &WebpExporter::progress);
+        AnimationExporter exporter;   // the default ctor: the real grabber, created lazily
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
+        QSignalSpy progress(&exporter, &AnimationExporter::progress);
 
-        exporter.start(clip, output, 500, 2000, AnimationParams{10, 0, 0, 75, false, 0, false});
+        exporter.start(AnimationFormat::WebP, clip, output, 500, 2000,
+                       AnimationParams{10, 0, 0, 75, false, 0, false});
 
         QVERIFY2(finished.wait(30000),
                  qPrintable(failed.isEmpty() ? QStringLiteral("timed out")
@@ -427,5 +432,5 @@ private slots:
     }
 };
 
-QTEST_MAIN(tst_WebpExporter)
-#include "tst_webpexporter.moc"
+QTEST_MAIN(tst_AnimationExporter)
+#include "tst_animationexporter.moc"

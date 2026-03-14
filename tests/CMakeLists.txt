@@ -35,7 +35,7 @@ set(SNIM_TESTS
         tst_animationparams
         tst_animationoptionsdialog
         tst_webpencoder
-        tst_webpexporter
+        tst_animationexporter
         tst_videoframegrabber
         tst_sigv4
         tst_uploaderfactory

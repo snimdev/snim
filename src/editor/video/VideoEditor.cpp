@@ -2,7 +2,7 @@
 #include "editor/EditorChrome.h"
 #include "editor/video/TrimTimeline.h"
 #include "editor/video/VideoExporter.h"
-#include "editor/video/WebpExporter.h"
+#include "editor/video/AnimationExporter.h"
 #include "editor/video/AnimationParams.h"
 #include "editor/video/AnimationOptionsDialog.h"
 #include "editor/video/Timecode.h"
@@ -456,18 +456,18 @@ VideoExporter *VideoEditor::exporter()
     return m_exporter.get();
 }
 
-WebpExporter *VideoEditor::webpExporter()
+AnimationExporter *VideoEditor::animationExporter()
 {
-    if (!m_webpExporter) {
-        m_webpExporter = std::make_unique<WebpExporter>(this);
-        connect(m_webpExporter.get(), &WebpExporter::finished,
+    if (!m_animationExporter) {
+        m_animationExporter = std::make_unique<AnimationExporter>(this);
+        connect(m_animationExporter.get(), &AnimationExporter::finished,
                 this, &VideoEditor::onExporterFinished);
-        connect(m_webpExporter.get(), &WebpExporter::failed,
+        connect(m_animationExporter.get(), &AnimationExporter::failed,
                 this, &VideoEditor::onExporterFailed);
-        connect(m_webpExporter.get(), &WebpExporter::progress,
+        connect(m_animationExporter.get(), &AnimationExporter::progress,
                 this, &VideoEditor::onExportProgress);
     }
-    return m_webpExporter.get();
+    return m_animationExporter.get();
 }
 
 void VideoEditor::setBusy(bool busy)
@@ -665,7 +665,7 @@ void VideoEditor::startAnimation(AnimationFormat format, Pending kind,
     setBusy(true);
     m_player->pause();
     if (format == AnimationFormat::WebP)
-        webpExporter()->start(m_tempPath, m_exportTempPath, in, out, params);
+        animationExporter()->start(format, m_tempPath, m_exportTempPath, in, out, params);
     else
         exporter()->toGif(m_tempPath, m_exportTempPath, in, out, params);
 }
@@ -876,8 +876,8 @@ void VideoEditor::closeEvent(QCloseEvent *event)
     if (m_pending != Pending::None) {
         if (m_exporter)
             m_exporter->cancel();
-        if (m_webpExporter)
-            m_webpExporter->cancel();
+        if (m_animationExporter)
+            m_animationExporter->cancel();
         m_pending = Pending::None;
     }
 

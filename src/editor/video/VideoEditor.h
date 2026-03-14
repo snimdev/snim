@@ -19,7 +19,7 @@ namespace Editor::Video {
 
 class TrimTimeline;
 class VideoExporter;
-class WebpExporter;
+class AnimationExporter;
 
 /**
  * The post-recording window: a finished recording opens here (instead of a bare
@@ -92,7 +92,7 @@ private:
     bool moveFileTo(const QString &source, const QString &dest);
     void finishSaved(const QString &finalPath);      // mark saved, notify, close
     VideoExporter *exporter();                       // lazily created + wired
-    WebpExporter *webpExporter();                    // the same, for animated WebP
+    AnimationExporter *animationExporter();          // the same, for the animation formats
     static void putOnClipboard(const QString &path);
 
     QString m_tempPath;            // the recording, owned by this editor
@@ -121,7 +121,7 @@ private:
     QAction *m_discardAction = nullptr;
     QString m_pendingUploadProfileId;   // carries the chosen profile across a trimmed export
     std::unique_ptr<VideoExporter> m_exporter;
-    std::unique_ptr<WebpExporter> m_webpExporter;
+    std::unique_ptr<AnimationExporter> m_animationExporter;
 };
 
 } // namespace Editor::Video

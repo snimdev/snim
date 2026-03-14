@@ -461,8 +461,8 @@ add_library(snim_lib STATIC
         src/editor/video/AnimationEncoder.h
         src/editor/video/WebpEncoder.cpp
         src/editor/video/WebpEncoder.h
-        src/editor/video/WebpExporter.cpp
-        src/editor/video/WebpExporter.h
+        src/editor/video/AnimationExporter.cpp
+        src/editor/video/AnimationExporter.h
 
         # Recording: platform-agnostic Strategy + Factory (the macOS ScreenCaptureKit
         # backend is added in the APPLE block below). The stub is the universal fallback.

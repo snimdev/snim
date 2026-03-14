@@ -1,6 +1,6 @@
-#include "editor/video/WebpExporter.h"
+#include "editor/video/AnimationExporter.h"
 
-#include "editor/video/WebpEncoder.h"
+#include "editor/video/AnimationEncoder.h"
 
 #include <QFile>
 #include <QMetaObject>
@@ -17,24 +17,31 @@ constexpr int kLowWaterFrames = 2;
 } // namespace
 
 /**
- * Lives on the worker thread and is the only thing that touches WebpEncoder: a lossy
+ * Lives on the worker thread and is the only thing that touches the encoder: a lossy
  * encode at 10 fps is hundreds of compressions, which the GUI thread cannot afford.
  *
  * Every call arrives as a queued post from the exporter, so the frames are encoded in
  * the order they were grabbed.
  */
-class WebpEncodeWorker : public QObject
+class AnimationEncodeWorker : public QObject
 {
     Q_OBJECT
 
 public:
+    explicit AnimationEncodeWorker(AnimationFormat format)
+        : m_encoder(AnimationEncoder::create(format)) {}
+
     void begin(const QString &path, const QSize &size, const AnimationParams &params)
     {
         if (stopped())
             return;
+        if (!m_encoder) {
+            breakWith(QStringLiteral("This animation format is not supported."));
+            return;
+        }
         QString error;
         m_path = path;
-        if (!m_encoder.begin(path, size, params, &error))
+        if (!m_encoder->begin(path, size, params, &error))
             breakWith(error);
     }
 
@@ -43,7 +50,7 @@ public:
         if (stopped())
             return;
         QString error;
-        if (!m_encoder.addFrame(frame, sourceMs, &error)) {
+        if (!m_encoder->addFrame(frame, sourceMs, &error)) {
             breakWith(error);
             return;
         }
@@ -55,7 +62,7 @@ public:
         if (stopped())
             return;
         QString error;
-        if (!m_encoder.finish(&error)) {
+        if (!m_encoder->finish(&error)) {
             breakWith(error);
             return;
         }
@@ -82,7 +89,8 @@ private:
     void breakWith(const QString &error)
     {
         m_broken = true;
-        m_encoder.cancel();   // no partial file survives a failure
+        if (m_encoder)
+            m_encoder->cancel();   // no partial file survives a failure
         emit failed(error);
     }
 
@@ -91,35 +99,37 @@ private:
         return m_broken || m_aborted.load(std::memory_order_relaxed);
     }
 
-    WebpEncoder m_encoder;
+    std::unique_ptr<AnimationEncoder> m_encoder;
     QString m_path;
     bool m_broken = false;                 // worker thread only
     std::atomic<bool> m_aborted{false};    // written by the GUI thread
 };
 
-WebpExporter::WebpExporter(QObject *parent) : QObject(parent) {}
+AnimationExporter::AnimationExporter(QObject *parent) : QObject(parent) {}
 
-WebpExporter::WebpExporter(std::unique_ptr<VideoFrameGrabber> grabber, QObject *parent)
+AnimationExporter::AnimationExporter(std::unique_ptr<VideoFrameGrabber> grabber,
+                                     QObject *parent)
     : QObject(parent)
 {
     adopt(std::move(grabber));
 }
 
-WebpExporter::~WebpExporter()
+AnimationExporter::~AnimationExporter()
 {
     reset();   // never leave the worker thread running past this object
 }
 
-void WebpExporter::adopt(std::unique_ptr<VideoFrameGrabber> grabber)
+void AnimationExporter::adopt(std::unique_ptr<VideoFrameGrabber> grabber)
 {
     m_grabber = std::move(grabber);
-    connect(m_grabber.get(), &VideoFrameGrabber::frameReady, this, &WebpExporter::onFrame);
+    connect(m_grabber.get(), &VideoFrameGrabber::frameReady,
+            this, &AnimationExporter::onFrame);
     connect(m_grabber.get(), &VideoFrameGrabber::finished, this,
-            &WebpExporter::onGrabberFinished);
-    connect(m_grabber.get(), &VideoFrameGrabber::failed, this, &WebpExporter::fail);
+            &AnimationExporter::onGrabberFinished);
+    connect(m_grabber.get(), &VideoFrameGrabber::failed, this, &AnimationExporter::fail);
 }
 
-VideoFrameGrabber *WebpExporter::grabber()
+VideoFrameGrabber *AnimationExporter::grabber()
 {
     // Created on first use: the real grabber builds a QMediaPlayer, which the editor must
     // not pay for just by opening a window.
@@ -131,21 +141,22 @@ VideoFrameGrabber *WebpExporter::grabber()
     return m_grabber.get();
 }
 
-void WebpExporter::startWorker()
+void AnimationExporter::startWorker(AnimationFormat format)
 {
     m_thread = new QThread;
-    m_thread->setObjectName(QStringLiteral("webp-encode"));
-    m_worker = new WebpEncodeWorker;   // no parent: stopWorker() is the only owner
+    m_thread->setObjectName(QStringLiteral("animation-encode"));
+    m_worker = new AnimationEncodeWorker(format);   // no parent: stopWorker() owns it
     m_worker->moveToThread(m_thread);
     // Queued because the worker is on another thread; every handler re-checks m_running,
     // since a disconnect cannot recall a signal that is already in this thread's queue.
-    connect(m_worker, &WebpEncodeWorker::frameEncoded, this, &WebpExporter::onFrameEncoded);
-    connect(m_worker, &WebpEncodeWorker::wrote, this, &WebpExporter::onWrote);
-    connect(m_worker, &WebpEncodeWorker::failed, this, &WebpExporter::fail);
+    connect(m_worker, &AnimationEncodeWorker::frameEncoded,
+            this, &AnimationExporter::onFrameEncoded);
+    connect(m_worker, &AnimationEncodeWorker::wrote, this, &AnimationExporter::onWrote);
+    connect(m_worker, &AnimationEncodeWorker::failed, this, &AnimationExporter::fail);
     m_thread->start();
 }
 
-void WebpExporter::stopWorker()
+void AnimationExporter::stopWorker()
 {
     if (!m_worker)
         return;
@@ -159,8 +170,9 @@ void WebpExporter::stopWorker()
     m_thread = nullptr;
 }
 
-void WebpExporter::start(const QString &input, const QString &output,
-                         qint64 inMs, qint64 outMs, const AnimationParams &params)
+void AnimationExporter::start(AnimationFormat format, const QString &input,
+                              const QString &output, qint64 inMs, qint64 outMs,
+                              const AnimationParams &params)
 {
     cancel();   // one export at a time: a previous one is abandoned, not queued
 
@@ -176,13 +188,13 @@ void WebpExporter::start(const QString &input, const QString &output,
     m_inFlight = 0;
     m_paused = false;
     m_started = false;
-    startWorker();
+    startWorker(format);
     m_running = true;
 
     grabber()->start(input, inMs, outMs, m_params.fps, m_params.maxWidth);
 }
 
-void WebpExporter::onFrame(const QImage &frame, qint64 sourceMs)
+void AnimationExporter::onFrame(const QImage &frame, qint64 sourceMs)
 {
     if (!m_running || !m_worker)
         return;
@@ -205,7 +217,7 @@ void WebpExporter::onFrame(const QImage &frame, qint64 sourceMs)
     throttle();
 }
 
-void WebpExporter::onGrabberFinished()
+void AnimationExporter::onGrabberFinished()
 {
     if (!m_running || !m_worker)
         return;
@@ -219,7 +231,7 @@ void WebpExporter::onGrabberFinished()
     QMetaObject::invokeMethod(worker, [worker] { worker->finish(); }, Qt::QueuedConnection);
 }
 
-void WebpExporter::onFrameEncoded()
+void AnimationExporter::onFrameEncoded()
 {
     if (!m_running)
         return;
@@ -229,7 +241,7 @@ void WebpExporter::onFrameEncoded()
     emit progress(m_done, m_total);   // encoded frames, not grabbed ones
 }
 
-void WebpExporter::throttle()
+void AnimationExporter::throttle()
 {
     if (!m_grabber)
         return;
@@ -242,7 +254,7 @@ void WebpExporter::throttle()
     }
 }
 
-void WebpExporter::onWrote(const QString &outputPath)
+void AnimationExporter::onWrote(const QString &outputPath)
 {
     if (!m_running)
         return;
@@ -250,7 +262,7 @@ void WebpExporter::onWrote(const QString &outputPath)
     emit finished(outputPath);
 }
 
-void WebpExporter::fail(const QString &error)
+void AnimationExporter::fail(const QString &error)
 {
     reset();
     // Deferred like the stub's failures, so a caller that connects after calling start()
@@ -258,12 +270,12 @@ void WebpExporter::fail(const QString &error)
     QMetaObject::invokeMethod(this, [this, error] { emit failed(error); }, Qt::QueuedConnection);
 }
 
-void WebpExporter::cancel()
+void AnimationExporter::cancel()
 {
     reset();
 }
 
-void WebpExporter::reset()
+void AnimationExporter::reset()
 {
     // Cleared first: it is what makes a signal already queued from the worker a no-op.
     m_running = false;
@@ -280,4 +292,4 @@ void WebpExporter::reset()
 
 } // namespace Editor::Video
 
-#include "WebpExporter.moc"
+#include "AnimationExporter.moc"
