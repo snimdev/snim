@@ -115,7 +115,8 @@ jobs:
         # either the FFmpeg or the GStreamer backend depending on how Qt was built.
         # Both sets are installed so the test exercises the grabber instead of skipping
         # it for want of a decoder. Nothing here is a runtime dependency of the app: the
-        # same backends ship with Qt in the released bundles.
+        # same backends ship with Qt in the released bundles. plugins-ugly carries x264enc,
+        # so tst_gstvideoexporter trims for real instead of skipping.
         run: >
           sudo apt-get update && sudo apt-get install -y
           ninja-build
@@ -131,6 +132,7 @@ jobs:
           libswscale-dev
           gstreamer1.0-plugins-good
           gstreamer1.0-plugins-bad
+          gstreamer1.0-plugins-ugly
           gstreamer1.0-libav
 
       - name: Restore the ccache
