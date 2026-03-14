@@ -457,6 +457,8 @@ add_library(snim_lib STATIC
         src/editor/video/MediaFrameGrabber.h
         src/editor/video/StubVideoExporter.cpp
         src/editor/video/StubVideoExporter.h
+        src/editor/video/AnimationEncoder.cpp
+        src/editor/video/AnimationEncoder.h
         src/editor/video/WebpEncoder.cpp
         src/editor/video/WebpEncoder.h
         src/editor/video/WebpExporter.cpp
