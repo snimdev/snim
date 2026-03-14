@@ -52,13 +52,20 @@ private slots:
         QVERIFY(dialog.skipNextTime());
     }
 
-    void gifHasNoLosslessOrQuality()
+    void gifHasQualityButNoLossless()
     {
         AnimationParams initial;
         initial.lossless = true;
+        initial.quality = 40;
         AnimationOptionsDialog dialog(AnimationFormat::Gif, initial);
         QVERIFY(dialog.findChild<QCheckBox *>("lossless")->isHidden());
-        QVERIFY(dialog.findChild<QSpinBox *>("quality")->isHidden());
+        // A lossless flag carried over from WebP must not grey out the GIF's quality.
+        auto *quality = dialog.findChild<QSpinBox *>("quality");
+        QVERIFY(!quality->isHidden());
+        QVERIFY(quality->isEnabled());
+        QCOMPARE(quality->value(), 40);
+        quality->setValue(85);
+        QCOMPARE(dialog.params().quality, 85);
         QVERIFY(!dialog.params().lossless);
         QVERIFY(!dialog.skipNextTime());
         QCOMPARE(dialog.windowTitle(), QStringLiteral("GIF Options"));

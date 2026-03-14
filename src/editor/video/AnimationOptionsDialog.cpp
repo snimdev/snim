@@ -35,8 +35,7 @@ AnimationOptionsDialog::AnimationOptionsDialog(AnimationFormat format,
     m_quality->setObjectName(QStringLiteral("quality"));
     m_quality->setRange(0, 100);
     m_quality->setValue(m_initial.quality);
-    form->addRow(tr("Quality:"), m_quality);
-    form->setRowVisible(m_quality, format == AnimationFormat::WebP);   // the GIF encoders take no quality
+    form->addRow(tr("Quality:"), m_quality);   // GIF: libimagequant's target quality
 
     m_lossless = new QCheckBox(tr("Lossless"), this);
     m_lossless->setObjectName(QStringLiteral("lossless"));
