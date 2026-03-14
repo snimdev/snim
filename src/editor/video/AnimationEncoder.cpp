@@ -1,5 +1,6 @@
 #include "editor/video/AnimationEncoder.h"
 
+#include "editor/video/GifEncoder.h"
 #include "editor/video/WebpEncoder.h"
 
 #include <QSaveFile>
@@ -27,7 +28,7 @@ std::unique_ptr<AnimationEncoder> AnimationEncoder::create(AnimationFormat forma
     case AnimationFormat::WebP:
         return std::make_unique<WebpEncoder>();
     case AnimationFormat::Gif:
-        break;
+        return std::make_unique<GifEncoder>();
     }
     return nullptr;
 }

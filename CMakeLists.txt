@@ -459,6 +459,8 @@ add_library(snim_lib STATIC
         src/editor/video/StubVideoExporter.h
         src/editor/video/AnimationEncoder.cpp
         src/editor/video/AnimationEncoder.h
+        src/editor/video/GifEncoder.cpp
+        src/editor/video/GifEncoder.h
         src/editor/video/WebpEncoder.cpp
         src/editor/video/WebpEncoder.h
         src/editor/video/AnimationExporter.cpp

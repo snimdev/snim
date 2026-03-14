@@ -49,6 +49,32 @@ const AnimationParams kCheap{10, 600, 0, 75, false, 0, false};
 // Only the fake grabber sees this path, so it never has to exist.
 const QString kRecording = QStringLiteral("/tmp/recording.mp4");
 
+// The data-driven cases run once per format, keyed by the file extension.
+void addFormatRows()
+{
+    QTest::addColumn<QString>("extension");
+    QTest::newRow("gif") << QStringLiteral("gif");
+    QTest::newRow("webp") << QStringLiteral("webp");
+}
+
+AnimationFormat formatFor(const QString &extension)
+{
+    return extension == QLatin1String("gif") ? AnimationFormat::Gif : AnimationFormat::WebP;
+}
+
+bool hasMagic(const QByteArray &bytes, const QString &extension)
+{
+    if (extension == QLatin1String("gif"))
+        return bytes.startsWith("GIF89a");
+    return bytes.startsWith("RIFF") && bytes.mid(8, 4) == QByteArrayLiteral("WEBP");
+}
+
+// Qt reads GIF with a built-in plugin and WebP through qtimageformats; either can be absent.
+bool qtCanRead(const QString &extension)
+{
+    return QImageReader::supportedImageFormats().contains(extension.toLatin1());
+}
+
 // Stands in for the real decoder, so the exporter's own logic (canvas from the first
 // frame, per-frame progress, the terminal paths) is testable with no media at all.
 class FakeGrabber : public VideoFrameGrabber
@@ -111,25 +137,28 @@ private:
 } // namespace
 
 // The shared animation export path: grabber into encoder, the progress it reports,
-// and the failure paths the editor relies on to never be left busy. The real decoder is
+// and the failure paths the editor relies on to never be left busy. The cases that
+// reach the encoder run for both GIF and WebP. The real decoder is
 // covered by tst_videoframegrabber; here the frames are synthetic.
 class tst_AnimationExporter : public QObject
 {
     Q_OBJECT
 
 private slots:
+    void writesAnAnimationFromGrabbedFrames_data() { addFormatRows(); }
     void writesAnAnimationFromGrabbedFrames()
     {
+        QFETCH(QString, extension);
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
-        const QString output = dir.filePath("clip.webp");
+        const QString output = dir.filePath("clip." + extension);
 
         AnimationExporter exporter(std::make_unique<FakeGrabber>());
         QSignalSpy finished(&exporter, &AnimationExporter::finished);
         QSignalSpy failed(&exporter, &AnimationExporter::failed);
         QSignalSpy progress(&exporter, &AnimationExporter::progress);
 
-        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 300, kCheap);
+        exporter.start(formatFor(extension), kRecording, output, 0, 300, kCheap);
 
         QVERIFY2(finished.wait(5000), "the export never finished");
         QCOMPARE(failed.count(), 0);
@@ -142,10 +171,11 @@ private slots:
 
         const QByteArray bytes = readAll(output);
         QVERIFY(bytes.size() > 100);
-        QCOMPARE(bytes.left(4), QByteArrayLiteral("RIFF"));
-        QCOMPARE(bytes.mid(8, 4), QByteArrayLiteral("WEBP"));
+        QVERIFY(hasMagic(bytes, extension));
 
         // The canvas comes from the first grabbed frame.
+        if (!qtCanRead(extension))
+            QSKIP("Qt cannot read this format here");
         QImageReader reader(output);
         QVERIFY(reader.canRead());
         QCOMPARE(reader.imageCount(), 3);
@@ -235,19 +265,21 @@ private slots:
         QVERIFY(!QFile::exists(output));
     }
 
+    void unwritableOutputFailsTheExport_data() { addFormatRows(); }
     void unwritableOutputFailsTheExport()
     {
+        QFETCH(QString, extension);
         // The encoder's own failure path: the grabber is perfectly healthy, but the
         // destination directory does not exist, so begin() fails on the first frame.
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
-        const QString output = dir.filePath("missing/clip.webp");
+        const QString output = dir.filePath("missing/clip." + extension);
 
         AnimationExporter exporter(std::make_unique<FakeGrabber>());
         QSignalSpy finished(&exporter, &AnimationExporter::finished);
         QSignalSpy failed(&exporter, &AnimationExporter::failed);
 
-        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 300, kCheap);
+        exporter.start(formatFor(extension), kRecording, output, 0, 300, kCheap);
 
         QVERIFY(failed.wait(5000));
         QTest::qWait(100);   // the fake's remaining frames must not add a second result
@@ -258,7 +290,8 @@ private slots:
         QVERIFY2(failed.first().at(0).toString().contains(output),
                  qPrintable(failed.first().at(0).toString()));
         QVERIFY(!QFile::exists(output));
-        QVERIFY(QDir(dir.path()).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot).isEmpty());
+        QVERIFY(QDir(dir.path()).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)
+                    .isEmpty());
     }
 
     void cancelStopsQuietlyAndLeavesNoFile()
@@ -286,11 +319,13 @@ private slots:
         QVERIFY(QDir(dir.path()).entryList(QDir::Files).isEmpty());
     }
 
+    void cancelMidEncodeLeavesNoFileAndNoLateSignal_data() { addFormatRows(); }
     void cancelMidEncodeLeavesNoFileAndNoLateSignal()
     {
+        QFETCH(QString, extension);
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
-        const QString output = dir.filePath("clip.webp");
+        const QString output = dir.filePath("clip." + extension);
 
         // Cancelling while the worker is genuinely mid-frame: the thread has to be joined
         // before cancel() returns, or a late signal or a leftover QSaveFile temp escapes.
@@ -301,7 +336,7 @@ private slots:
         QSignalSpy failed(&exporter, &AnimationExporter::failed);
         QSignalSpy progress(&exporter, &AnimationExporter::progress);
 
-        exporter.start(AnimationFormat::WebP, kRecording, output, 0, 1500, kCheap);
+        exporter.start(formatFor(extension), kRecording, output, 0, 1500, kCheap);
         QTRY_VERIFY(progress.count() >= 2);
         QVERIFY(progress.count() < 15);   // still mid-run, or this proves nothing
 
@@ -397,8 +432,10 @@ private slots:
                  qPrintable(QStringLiteral("the GUI thread stalled for %1 ms").arg(worstGapMs)));
     }
 
+    void exportsARealClipEndToEnd_data() { addFormatRows(); }
     void exportsARealClipEndToEnd()
     {
+        QFETCH(QString, extension);
         if (!TestSupport::videoFramesAvailable())
             QSKIP("this platform delivers no video frames, so the real clip cannot be decoded");
 
@@ -409,14 +446,14 @@ private slots:
         QVERIFY2(!clip.isEmpty(), "the clip.mp4 fixture is missing");
         QTemporaryDir dir;
         QVERIFY(dir.isValid());
-        const QString output = dir.filePath("clip.webp");
+        const QString output = dir.filePath("clip." + extension);
 
         AnimationExporter exporter;   // the default ctor: the real grabber, created lazily
         QSignalSpy finished(&exporter, &AnimationExporter::finished);
         QSignalSpy failed(&exporter, &AnimationExporter::failed);
         QSignalSpy progress(&exporter, &AnimationExporter::progress);
 
-        exporter.start(AnimationFormat::WebP, clip, output, 500, 2000,
+        exporter.start(formatFor(extension), clip, output, 500, 2000,
                        AnimationParams{10, 0, 0, 75, false, 0, false});
 
         QVERIFY2(finished.wait(30000),
@@ -424,7 +461,10 @@ private slots:
                                              : failed.first().at(0).toString()));
         QCOMPARE(failed.count(), 0);
         QCOMPARE(progress.count(), 15);   // 1500 ms at 10 fps
+        QVERIFY(hasMagic(readAll(output), extension));
 
+        if (!qtCanRead(extension))
+            QSKIP("Qt cannot read this format here");
         QImageReader reader(output);
         QVERIFY(reader.canRead());
         QCOMPARE(reader.size(), QSize(128, 96));   // the clip's own size, no downscale
