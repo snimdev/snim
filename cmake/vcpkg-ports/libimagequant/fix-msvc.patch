@@ -1,0 +1,25 @@
+diff --git a/mediancut.c b/mediancut.c
+index cc241b8..83e349b 100644
+--- a/mediancut.c
++++ b/mediancut.c
+@@ -325,7 +325,7 @@ static void box_init(struct box *box, const hist_item *achv, const unsigned int
+ LIQ_PRIVATE colormap *mediancut(histogram *hist, unsigned int newcolors, const double target_mse, const double max_mse, void* (*malloc)(size_t), void (*free)(void*))
+ {
+     hist_item *achv = hist->achv;
+-    struct box bv[newcolors+16];
++    LIQ_ARRAY(struct box, bv, newcolors+16);
+ 
+     assert(hist->boxes[0].begin == 0);
+     assert(hist->boxes[LIQ_MAXCLUSTER-1].end == hist->size);
+diff --git a/pam.h b/pam.h
+index 4ab4e0d..9e08367 100644
+--- a/pam.h
++++ b/pam.h
+@@ -71,6 +71,7 @@
+ #ifndef _MSC_VER
+ #define LIQ_ARRAY(type, var, count) type var[count]
+ #else
++#include <malloc.h>
+ #define LIQ_ARRAY(type, var, count) type* var = (type*)_alloca(sizeof(type)*(count))
+ #endif
+ 
