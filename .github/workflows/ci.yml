@@ -177,7 +177,7 @@ jobs:
           ctest --output-on-failure --timeout 120
 
   windows:
-    name: Build (Windows)
+    name: Build & test (Windows)
     runs-on: windows-2022
     timeout-minutes: 60  # a cold vcpkg cache builds every dependency from source
 
@@ -231,3 +231,12 @@ jobs:
 
       - name: Build
         run: cmake --build --preset windows-msvc
+
+      - name: Test
+        working-directory: build
+        # Windows has no rpath: the tests find Qt and the vcpkg DLLs through PATH.
+        run: |
+          $env:PATH = "$env:QT_ROOT_DIR\bin;$pwd\vcpkg_installed\x64-windows\bin;$env:PATH"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          # --timeout kills a hung test's process tree instead of leaving it orphaned
+          ctest --output-on-failure --timeout 120
