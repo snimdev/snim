@@ -10,12 +10,18 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+if(WIN32)
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # 6.5 minimum: the permission API (QCameraPermission and friends) starts there.
 find_package(Qt6 6.5 COMPONENTS
         Core
         Gui
         Widgets
-        DBus
         Concurrent
         Svg
         Multimedia
@@ -23,8 +29,18 @@ find_package(Qt6 6.5 COMPONENTS
         Network
         REQUIRED)
 
+# Only the Linux portal and KWin code talks D-Bus; Windows has no session bus.
+if(NOT WIN32)
+    find_package(Qt6 COMPONENTS DBus REQUIRED)
+endif()
+
+# Windows takes its libraries from vcpkg packages; a pkg-config on PATH there
+# (Strawberry Perl) would hand out MinGW builds.
+if(NOT WIN32)
+    find_package(PkgConfig)
+endif()
+
 # Optional Tesseract OCR support for text sniping feature
-find_package(PkgConfig)
 set(TESSERACT_AVAILABLE FALSE)
 
 if(PkgConfig_FOUND)
@@ -39,7 +55,7 @@ if(PkgConfig_FOUND)
 endif()
 
 # If pkg-config didn't find it, try manual detection
-if(NOT TESSERACT_AVAILABLE)
+if(NOT TESSERACT_AVAILABLE AND NOT WIN32)
     find_path(Tesseract_INCLUDE_DIR tesseract/baseapi.h
         PATHS /usr/include /usr/local/include)
     find_library(Tesseract_LIBRARY tesseract
@@ -91,7 +107,7 @@ if(PkgConfig_FOUND)
 endif()
 
 # The macOS SDK ships libcurl without a .pc file, so fall back to CMake's finder.
-if(NOT LIBCURL_AVAILABLE)
+if(NOT LIBCURL_AVAILABLE AND NOT WIN32)
     find_package(CURL QUIET)
     if(CURL_FOUND)
         set(LIBCURL_AVAILABLE TRUE)
@@ -160,7 +176,19 @@ endif()
 # build ships the feature, so a missing dev package fails the configure step below.
 set(LIBWEBP_AVAILABLE FALSE)
 
-if(PkgConfig_FOUND)
+# The vcpkg toolchain (Windows) provides CMake packages for libwebp and libimagequant.
+if(VCPKG_TOOLCHAIN)
+    find_package(WebP CONFIG)
+    if(WebP_FOUND)
+        set(LIBWEBP_AVAILABLE TRUE)
+        set(LIBWEBP_LIBRARIES WebP::webp)
+        set(LIBWEBPMUX_LIBRARIES WebP::libwebpmux)
+        message(STATUS "libwebp found via vcpkg - animated WebP export")
+        message(STATUS "  Version: ${WebP_VERSION}")
+    endif()
+endif()
+
+if(PkgConfig_FOUND AND NOT LIBWEBP_AVAILABLE)
     pkg_check_modules(LIBWEBP libwebp)
     pkg_check_modules(LIBWEBPMUX libwebpmux)
     if(LIBWEBP_FOUND AND LIBWEBPMUX_FOUND)
@@ -213,7 +241,17 @@ message(STATUS "  Libraries: ${GIF_LIBRARIES}")
 
 set(IMAGEQUANT_AVAILABLE FALSE)
 
-if(PkgConfig_FOUND)
+if(VCPKG_TOOLCHAIN)
+    find_package(imagequant CONFIG)
+    if(imagequant_FOUND)
+        set(IMAGEQUANT_AVAILABLE TRUE)
+        set(IMAGEQUANT_LIBRARIES imagequant::imagequant)
+        message(STATUS "libimagequant found via vcpkg - GIF palettes")
+        message(STATUS "  Version: ${imagequant_VERSION}")
+    endif()
+endif()
+
+if(PkgConfig_FOUND AND NOT IMAGEQUANT_AVAILABLE)
     pkg_check_modules(IMAGEQUANT imagequant)
     if(IMAGEQUANT_FOUND)
         set(IMAGEQUANT_AVAILABLE TRUE)
@@ -729,7 +767,6 @@ target_link_libraries(snim_lib PUBLIC
         Qt::Core
         Qt::Gui
         Qt::Widgets
-        Qt::DBus
         Qt::Concurrent
         # Needed to render the SVG tray/toolbar icons. Linking it explicitly also
         # ensures macdeployqt bundles QtSvg + the svg image/icon-engine plugins.
@@ -741,6 +778,9 @@ target_link_libraries(snim_lib PUBLIC
         # S3-compatible upload via QNetworkAccessManager + hand-rolled SigV4.
         Qt::Network
 )
+if(NOT WIN32)
+    target_link_libraries(snim_lib PUBLIC Qt::DBus)
+endif()
 
 # Link Tesseract if available (PUBLIC link: OCRService.o references its symbols and
 # HAVE_TESSERACT is a global define, so consumers - exe and tests - must link it).
