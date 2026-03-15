@@ -20,7 +20,7 @@ namespace Editor::Video {
  */
 struct AnimationParams {
     int fps = 10;          // frame rate (kept low: these formats grow fast)
-    int maxWidth = 600;    // longest edge cap; 0 = no downscale
+    int maxWidth = 1200;   // longest edge cap; 0 = no downscale
     int loopCount = 0;     // 0 = loop forever
     int quality = 75;      // lossy quality 0-100; ignored when lossless
     bool lossless = false; // WebP only: GIF has no lossless mode

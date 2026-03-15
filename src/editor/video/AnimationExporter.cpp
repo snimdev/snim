@@ -10,7 +10,7 @@
 namespace Editor::Video {
 
 namespace {
-// Frames wait in the worker's queue at full size (a 600x400 RGBA frame is about 1 MB), so
+// Frames wait in the worker's queue at full size (a 1200x800 RGBA frame is about 4 MB), so
 // the grabber is held back instead of letting a long clip queue hundreds of megabytes.
 constexpr int kHighWaterFrames = 8;
 constexpr int kLowWaterFrames = 2;

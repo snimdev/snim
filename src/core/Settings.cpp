@@ -83,7 +83,7 @@ void Settings::setRecordingRetina(bool on) { QSettings().setValue(kRecordingReti
 
 int Settings::animationFps(const QString &format) { return QSettings().value(animationKey(format, "Fps"), 10).toInt(); }
 void Settings::setAnimationFps(const QString &format, int fps) { QSettings().setValue(animationKey(format, "Fps"), fps); }
-int Settings::animationMaxWidth(const QString &format) { return QSettings().value(animationKey(format, "MaxWidth"), 600).toInt(); }
+int Settings::animationMaxWidth(const QString &format) { return QSettings().value(animationKey(format, "MaxWidth"), 1200).toInt(); }
 void Settings::setAnimationMaxWidth(const QString &format, int px) { QSettings().setValue(animationKey(format, "MaxWidth"), px); }
 int Settings::animationQuality(const QString &format) { return QSettings().value(animationKey(format, "Quality"), 75).toInt(); }
 void Settings::setAnimationQuality(const QString &format, int quality) { QSettings().setValue(animationKey(format, "Quality"), quality); }

@@ -37,7 +37,7 @@ public:
     // Animation export options per format key ("gif" / "webp"); defaults match AnimationParams.
     static int animationFps(const QString &format);             // default: 10
     static void setAnimationFps(const QString &format, int fps);
-    static int animationMaxWidth(const QString &format);        // default: 600 (0 = original)
+    static int animationMaxWidth(const QString &format);        // default: 1200 (0 = original)
     static void setAnimationMaxWidth(const QString &format, int px);
     static int animationQuality(const QString &format);         // default: 75
     static void setAnimationQuality(const QString &format, int quality);
