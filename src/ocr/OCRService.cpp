@@ -33,12 +33,13 @@ void postToGui(F &&fn)
 
 #ifdef HAVE_TESSERACT
 // A bundle ships its own language packs, which Tesseract's built-in search path never
-// finds: macOS keeps them in the .app, a relocatable Linux install beside the binary.
+// finds: macOS keeps them in the .app, a relocatable Linux install and Windows beside
+// the binary.
 // Returns nullptr when there are none, and whenever TESSDATA_PREFIX already names a
 // directory, which both mean "use the default path".
 const char *bundledTessdataPath()
 {
-#if defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
+#if defined(Q_OS_MACOS) || defined(Q_OS_LINUX) || defined(Q_OS_WIN)
     if (qEnvironmentVariableIsSet("TESSDATA_PREFIX"))
         return nullptr;
     static const QByteArray path = [] {
@@ -46,7 +47,7 @@ const char *bundledTessdataPath()
         const QString dir = QDir::cleanPath(QCoreApplication::applicationDirPath()
                                             + QStringLiteral("/../Resources/tessdata"));
 #else
-        const QString dir = Core::BundledPaths::forBinaryDir(
+        const QString dir = Core::BundledPaths::forThisPlatform(
             QCoreApplication::applicationDirPath()).tessdataDir;
 #endif
         return QDir(dir).exists() ? QFile::encodeName(dir) : QByteArray();

@@ -23,6 +23,9 @@
  * environment already sets always wins (AppRun, a packager, the user), a path that does
  * not exist is skipped, and only what is left gets exported. Harmless off Linux, where
  * none of those paths exist.
+ *
+ * Windows ships a flat folder instead: no GStreamer, and the language packs in
+ * <exe dir>/tessdata. forWindowsBinaryDir() describes it, forThisPlatform() picks one.
  */
 namespace Core::BundledPaths {
 
@@ -36,6 +39,12 @@ struct Paths {
 // Pure string work, so it is testable without a bundle: existence is not checked here.
 // Every field is empty for a /usr install, which means "there is nothing to point at".
 [[nodiscard]] Paths forBinaryDir(const QString &binDir);
+
+// The flat Windows layout: only tessdataDir, beside the exe. Also pure string work.
+[[nodiscard]] Paths forWindowsBinaryDir(const QString &binDir);
+
+// forWindowsBinaryDir() on Windows, forBinaryDir() everywhere else.
+[[nodiscard]] Paths forThisPlatform(const QString &binDir);
 
 // Exports the paths that exist onto their variables, skipping every variable that is
 // already set. Returns the names it exported, for logging and tests.

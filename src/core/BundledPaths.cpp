@@ -50,6 +50,22 @@ Paths forBinaryDir(const QString &binDir)
     };
 }
 
+Paths forWindowsBinaryDir(const QString &binDir)
+{
+    Paths paths;
+    paths.tessdataDir = QDir::cleanPath(binDir + QLatin1String("/tessdata"));
+    return paths;
+}
+
+Paths forThisPlatform(const QString &binDir)
+{
+#ifdef Q_OS_WIN
+    return forWindowsBinaryDir(binDir);
+#else
+    return forBinaryDir(binDir);
+#endif
+}
+
 QStringList applyToEnvironment(const Paths &paths)
 {
     QStringList exported;
@@ -69,7 +85,7 @@ QStringList applyToEnvironment(const Paths &paths)
 
 QStringList applyForThisExecutable()
 {
-    return applyToEnvironment(forBinaryDir(QCoreApplication::applicationDirPath()));
+    return applyToEnvironment(forThisPlatform(QCoreApplication::applicationDirPath()));
 }
 
 } // namespace Core::BundledPaths
