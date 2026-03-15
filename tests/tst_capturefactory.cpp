@@ -32,7 +32,7 @@ private slots:
     {
         QVERIFY(CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Native));
         QVERIFY(CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Auto));
-#ifdef Q_OS_MACOS
+#if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
         QVERIFY(CaptureFactory::getDefaultStrategyType() == CaptureFactory::StrategyType::Native);
         QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::KWin));
         QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Wayland));
