@@ -175,3 +175,59 @@ jobs:
           export QT_QPA_PLATFORM=offscreen
           # --timeout kills a hung test's process tree instead of leaving it orphaned
           ctest --output-on-failure --timeout 120
+
+  windows:
+    name: Build (Windows)
+    runs-on: windows-2022
+    timeout-minutes: 60  # a cold vcpkg cache builds every dependency from source
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtmultimedia qtimageformats'
+          cache: true
+
+      - name: Set up vcpkg
+        id: vcpkg
+        # A shallow fetch of the manifest's builtin-baseline pins the ports and the tool
+        # to the same commit. The image version feeds the cache key below: a runner
+        # image with a newer MSVC changes every package ABI.
+        run: |
+          $baseline = (Get-Content vcpkg.json | ConvertFrom-Json).'builtin-baseline'
+          $root = "$env:RUNNER_TEMP\vcpkg"
+          git init --quiet $root
+          git -C $root fetch --quiet --depth 1 https://github.com/microsoft/vcpkg $baseline
+          git -C $root checkout --quiet FETCH_HEAD
+          & "$root\bootstrap-vcpkg.bat" -disableMetrics
+          $cache = "$env:RUNNER_TEMP\vcpkg-cache"
+          New-Item -ItemType Directory -Force $cache | Out-Null
+          "VCPKG_ROOT=$root" >> $env:GITHUB_ENV
+          "VCPKG_BINARY_SOURCES=clear;files,$cache,readwrite" >> $env:GITHUB_ENV
+          "cache=$cache" >> $env:GITHUB_OUTPUT
+          "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.vcpkg.outputs.cache }}
+          key: vcpkg-${{ runner.os }}-${{ steps.vcpkg.outputs.image }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/vcpkg-ports/**', 'cmake/vcpkg-triplets/**') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
+      - name: Configure
+        # vcpkg installs the manifest's dependencies during this step.
+        run: cmake --preset windows-msvc -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      - name: Build
+        run: cmake --build --preset windows-msvc
