@@ -23,6 +23,10 @@ private slots:
     void exportsWhatTheBundleActuallyHas();
     void skipsPathsThatDoNotExist();
     void neverOverridesTheEnvironment();
+
+    void computesTheWindowsLayout();
+    void exportsOnlyTessdataForTheWindowsLayout();
+    void picksTheLayoutForThisPlatform();
 };
 
 namespace {
@@ -143,6 +147,43 @@ void tst_BundledPaths::neverOverridesTheEnvironment()
     QVERIFY(exported.contains(QStringLiteral("GST_PLUGIN_SYSTEM_PATH_1_0")));
     QCOMPARE(qEnvironmentVariable("GST_PLUGIN_PATH_1_0"),
              QDir::cleanPath(prefix + QStringLiteral("/lib/gstreamer-1.0")));
+}
+
+void tst_BundledPaths::computesTheWindowsLayout()
+{
+    const BundledPaths::Paths paths =
+        BundledPaths::forWindowsBinaryDir(QStringLiteral("C:/Program Files/Snim"));
+    QCOMPARE(paths.tessdataDir, QStringLiteral("C:/Program Files/Snim/tessdata"));
+    // No GStreamer ships on Windows, so nothing may point GStreamer anywhere.
+    QVERIFY(paths.gstPluginDir.isEmpty());
+    QVERIFY(paths.gstPluginScanner.isEmpty());
+    QVERIFY(paths.gstPtpHelper.isEmpty());
+}
+
+void tst_BundledPaths::exportsOnlyTessdataForTheWindowsLayout()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QVERIFY(QDir().mkpath(root.path() + QStringLiteral("/tessdata")));
+
+    const BundledPaths::Paths paths = BundledPaths::forWindowsBinaryDir(root.path());
+    const QStringList exported = BundledPaths::applyToEnvironment(paths);
+
+    QCOMPARE(exported, QStringList({QStringLiteral("TESSDATA_PREFIX")}));
+    QCOMPARE(qEnvironmentVariable("TESSDATA_PREFIX"), paths.tessdataDir);
+}
+
+void tst_BundledPaths::picksTheLayoutForThisPlatform()
+{
+    const QString binDir = QStringLiteral("/opt/snim/usr/bin");
+    const BundledPaths::Paths paths = BundledPaths::forThisPlatform(binDir);
+#ifdef Q_OS_WIN
+    QCOMPARE(paths.tessdataDir, BundledPaths::forWindowsBinaryDir(binDir).tessdataDir);
+    QVERIFY(paths.gstPluginDir.isEmpty());
+#else
+    QCOMPARE(paths.tessdataDir, BundledPaths::forBinaryDir(binDir).tessdataDir);
+    QCOMPARE(paths.gstPluginDir, BundledPaths::forBinaryDir(binDir).gstPluginDir);
+#endif
 }
 
 QTEST_MAIN(tst_BundledPaths)
