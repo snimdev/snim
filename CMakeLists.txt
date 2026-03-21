@@ -588,6 +588,19 @@ if(NOT APPLE)
     set_target_properties(Snim PROPERTIES OUTPUT_NAME "snim")
 endif()
 
+# A GUI-subsystem exe (no console window) with icon, version resource and manifest.
+# Tests stay console apps: only this target gets WIN32_EXECUTABLE.
+if(WIN32)
+    set(SNIM_WIN_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/snim.ico")
+    string(REPLACE "." "," SNIM_VERSION_RC "${SNIM_VERSION_NUMERIC},0")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/snim.rc.in"
+            "${CMAKE_BINARY_DIR}/generated/snim.rc" @ONLY)
+    target_sources(Snim PRIVATE
+            "${CMAKE_BINARY_DIR}/generated/snim.rc"
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/snim.manifest")
+    set_target_properties(Snim PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
+
 # Platform-specific window enumeration for the interactive window picker.
 # macOS uses CGWindowList (Objective-C++); other platforms get a stub that
 # returns no windows, so window-pick falls back to the screen under the cursor.
