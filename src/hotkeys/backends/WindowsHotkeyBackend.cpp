@@ -49,7 +49,14 @@ void WindowsHotkeyBackend::registerAll(const QList<HotkeyBinding> &bindings)
         if (!RegisterHotKey(nullptr, id, hotkey->modifiers | MOD_NOREPEAT, hotkey->virtualKey)) {
             const DWORD error = GetLastError();
             // Best effort: a rejected sequence must not cost the remaining ones.
-            if (error == ERROR_HOTKEY_ALREADY_REGISTERED)
+            if (error == ERROR_HOTKEY_ALREADY_REGISTERED && hotkey->virtualKey == VK_SNAPSHOT
+                && hotkey->modifiers == 0)
+                emit registrationFailed(
+                    binding.action,
+                    tr("Windows gives Print Screen to Snipping Tool; turn off \"Use the Print "
+                       "screen key to open screen capture\" in Settings > Accessibility > "
+                       "Keyboard, then restart Snim"));
+            else if (error == ERROR_HOTKEY_ALREADY_REGISTERED)
                 emit registrationFailed(binding.action,
                                         tr("already in use by another application"));
             else
