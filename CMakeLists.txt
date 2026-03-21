@@ -653,6 +653,11 @@ if(APPLE)
     set_target_properties(Snim PROPERTIES
             _qt_has_QDarwinCameraPermissionPlugin_usage_description TRUE
             _qt_has_QDarwinMicrophonePermissionPlugin_usage_description TRUE)
+elseif(WIN32)
+    target_sources(snim_lib PRIVATE
+            src/capture/WindowEnumerator_stub.cpp
+            # Credential Manager backing for upload secrets (advapi32, linked by default)
+            src/core/KeychainStore_win.cpp)
 else()
     target_sources(snim_lib PRIVATE
             src/capture/WindowEnumerator_stub.cpp

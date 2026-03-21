@@ -6,10 +6,11 @@
 
 /**
  * Tiny secrets vault: stores a secret string under (service, account) in the OS
- * keychain. macOS uses Security.framework (KeychainStore_mac.mm); other platforms get
- * a no-op stub (KeychainStore_stub.cpp) so the app still builds and links - with the
- * stub, store() returns false and retrieve() returns nullopt, which makes the S3
- * uploader report itself not-configured rather than crash.
+ * keychain. macOS uses Security.framework (KeychainStore_mac.mm), Windows the Credential
+ * Manager (KeychainStore_win.cpp); other platforms get a no-op stub
+ * (KeychainStore_stub.cpp) so the app still builds and links - with the stub, store()
+ * returns false and retrieve() returns nullopt, which makes the S3 uploader report
+ * itself not-configured rather than crash.
  *
  * Only upload-destination secrets go here (the S3 secret access key, an SFTP/FTP
  * password or key passphrase); all non-secret config lives in Core::Settings.
