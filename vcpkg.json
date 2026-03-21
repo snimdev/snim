@@ -13,6 +13,13 @@
     "giflib",
     "libimagequant",
     {
+      "name": "libssh2",
+      "default-features": false,
+      "features": [
+        "openssl"
+      ]
+    },
+    {
       "name": "libwebp",
       "features": [
         "libwebpmux"

@@ -150,7 +150,18 @@ endif()
 # Optional libssh2 - SFTP upload transport (Qt has no SFTP at all)
 set(LIBSSH2_AVAILABLE FALSE)
 
-if(PkgConfig_FOUND)
+# vcpkg's libssh2[openssl]: WinCNG has no ed25519 host or user keys.
+if(VCPKG_TOOLCHAIN)
+    find_package(libssh2 CONFIG)
+    if(libssh2_FOUND)
+        set(LIBSSH2_AVAILABLE TRUE)
+        set(LIBSSH2_LIBRARIES libssh2::libssh2)
+        message(STATUS "libssh2 found via vcpkg - enabling SFTP uploads")
+        message(STATUS "  Version: ${libssh2_VERSION}")
+    endif()
+endif()
+
+if(PkgConfig_FOUND AND NOT LIBSSH2_AVAILABLE)
     pkg_check_modules(LIBSSH2 libssh2)
     if(LIBSSH2_FOUND)
         set(LIBSSH2_AVAILABLE TRUE)
@@ -176,13 +187,6 @@ if(NOT LIBSSH2_AVAILABLE)
         message(STATUS "  Include: ${LIBSSH2_INCLUDE_DIRS}")
         message(STATUS "  Libraries: ${LIBSSH2_LIBRARIES}")
     endif()
-endif()
-
-if(LIBSSH2_AVAILABLE AND WIN32)
-    # SftpUploader is written against POSIX sockets; a Windows port needs Winsock
-    # plumbing first, so a found libssh2 must not switch it on there.
-    set(LIBSSH2_AVAILABLE FALSE)
-    message(STATUS "libssh2 found but SFTP upload is not ported to Windows - disabled")
 endif()
 
 if(LIBSSH2_AVAILABLE)
