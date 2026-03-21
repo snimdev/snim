@@ -60,6 +60,11 @@ if(GSTREAMER_AVAILABLE)
     list(APPEND SNIM_TESTS tst_linuxrecordermodule tst_gstvideoexporter)
 endif()
 
+# Round-trips the real Credential Manager, so it only exists on Windows.
+if(WIN32)
+    list(APPEND SNIM_TESTS tst_keychainstore)
+endif()
+
 foreach(test_name ${SNIM_TESTS})
     add_executable(${test_name} ${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE snim_lib Qt6::Test)
