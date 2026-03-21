@@ -43,7 +43,17 @@ endif()
 # Optional Tesseract OCR support for text sniping feature
 set(TESSERACT_AVAILABLE FALSE)
 
-if(PkgConfig_FOUND)
+if(VCPKG_TOOLCHAIN)
+    find_package(Tesseract CONFIG)
+    if(Tesseract_FOUND)
+        set(TESSERACT_AVAILABLE TRUE)
+        set(TESSERACT_LIBRARIES Tesseract::libtesseract)
+        message(STATUS "Tesseract OCR found via vcpkg - enabling text snipping feature")
+        message(STATUS "  Version: ${Tesseract_VERSION}")
+    endif()
+endif()
+
+if(PkgConfig_FOUND AND NOT TESSERACT_AVAILABLE)
     pkg_check_modules(TESSERACT tesseract)
     if(TESSERACT_FOUND)
         set(TESSERACT_AVAILABLE TRUE)
