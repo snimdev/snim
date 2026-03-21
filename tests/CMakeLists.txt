@@ -43,6 +43,7 @@ set(SNIM_TESTS
         tst_uploadprofiles
         tst_uploadconfig
         tst_uploadutil
+        tst_socketshim
         tst_hotkeyaction
         tst_hotkeybindings
         tst_hotkeymapping

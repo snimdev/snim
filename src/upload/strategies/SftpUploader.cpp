@@ -1,5 +1,6 @@
 #include "upload/strategies/SftpUploader.h"
 #include "upload/KnownHosts.h"
+#include "upload/SocketShim.h"
 #include "upload/UploadConfig.h"
 #include "upload/Util.h"
 
@@ -15,15 +16,6 @@
 #include <libssh2.h>
 #include <libssh2_sftp.h>
 
-// POSIX sockets: libssh2 takes a descriptor we open ourselves. This file only compiles
-// where libssh2 was found, i.e. macOS/Linux (see CMakeLists).
-#include <netdb.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <unistd.h>
-
-#include <cerrno>
-#include <cstring>
 #include <mutex>
 #include <optional>
 #include <utility>
@@ -76,9 +68,9 @@ QString sessionError(LIBSSH2_SESSION *session)
     return (msg && len > 0) ? QString::fromUtf8(msg, len) : QString();
 }
 
-// Blocking connect to the first address that answers. Returns the fd, or -1 with *detail
-// filled in. IPv4/IPv6 agnostic via AF_UNSPEC, which is why this loops over addrinfo.
-int connectSocket(const QString &host, int port, QString *detail)
+// Blocking connect to the first address that answers. Returns the socket, or Invalid with
+// *detail filled in. IPv4/IPv6 agnostic via AF_UNSPEC, which is why this loops over addrinfo.
+SocketShim::Handle connectSocket(const QString &host, int port, QString *detail)
 {
     addrinfo hints{};
     hints.ai_family = AF_UNSPEC;        // whichever of A / AAAA resolves and answers
@@ -87,33 +79,30 @@ int connectSocket(const QString &host, int port, QString *detail)
     const QByteArray hostUtf8 = host.toUtf8();
     const QByteArray portStr = QByteArray::number(port);
     addrinfo *res = nullptr;
-    const int rc = ::getaddrinfo(hostUtf8.constData(), portStr.constData(), &hints, &res);
+    const int rc = SocketShim::resolve(hostUtf8.constData(), portStr.constData(), &hints, &res);
     if (rc != 0) {
-        *detail = QString::fromUtf8(::gai_strerror(rc));
-        return -1;
+        *detail = SocketShim::resolveError(rc);
+        return SocketShim::Invalid;
     }
 
-    int fd = -1;
+    SocketShim::Handle fd = SocketShim::Invalid;
     for (addrinfo *ai = res; ai; ai = ai->ai_next) {
-        fd = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (fd < 0)
+        fd = SocketShim::open(ai);
+        if (fd == SocketShim::Invalid)
             continue;
-        if (::connect(fd, ai->ai_addr, ai->ai_addrlen) == 0)
+        if (SocketShim::connect(fd, ai))
             break;
-        *detail = QString::fromUtf8(std::strerror(errno));
-        ::close(fd);
-        fd = -1;
+        *detail = SocketShim::lastError();
+        SocketShim::close(fd);
+        fd = SocketShim::Invalid;
     }
-    ::freeaddrinfo(res);
+    SocketShim::freeResolved(res);
 
-    if (fd >= 0) {
+    if (fd != SocketShim::Invalid) {
         // The worker has no event loop, so a peer that stops answering would otherwise
         // hang this thread forever: bound every blocking read/write at 30 s. (connect()
         // itself is not covered - it falls back to the OS TCP connect timeout.)
-        timeval tv{};
-        tv.tv_sec = 30;
-        ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-        ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+        SocketShim::setIoTimeout(fd, 30);
     }
     return fd;
 }
@@ -164,7 +153,7 @@ HostKeyVerdict checkSystemKnownHosts(LIBSSH2_KNOWNHOSTS *hosts, const QString &h
 // many early returns below cannot leak a socket or a session. knownhosts is released
 // before the session it was created from, since it borrows that session for errors.
 struct SshResources {
-    int fd = -1;
+    SocketShim::Handle fd = SocketShim::Invalid;
     LIBSSH2_SESSION *session = nullptr;
     LIBSSH2_KNOWNHOSTS *hosts = nullptr;
     LIBSSH2_SFTP *sftp = nullptr;
@@ -186,8 +175,8 @@ struct SshResources {
             libssh2_session_disconnect(session, "done");
             libssh2_session_free(session);
         }
-        if (fd >= 0)
-            ::close(fd);
+        if (fd != SocketShim::Invalid)
+            SocketShim::close(fd);
     }
 };
 
@@ -226,7 +215,7 @@ SessionResult establishSession(SshResources &res, const SessionParams &p)
     // 1. TCP.
     QString detail;
     res.fd = connectSocket(host, p.port, &detail);
-    if (res.fd < 0) {
+    if (res.fd == SocketShim::Invalid) {
         out.error = detail.isEmpty()
                         ? SftpUploader::tr("Could not connect to %1.").arg(host)
                         : SftpUploader::tr("Could not connect to %1: %2.").arg(host, detail);

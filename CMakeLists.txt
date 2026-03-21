@@ -388,6 +388,8 @@ add_library(snim_lib STATIC
         src/upload/Util.h
         src/upload/KnownHosts.cpp
         src/upload/KnownHosts.h
+        src/upload/SocketShim.cpp
+        src/upload/SocketShim.h
         src/upload/SigV4.cpp
         src/upload/SigV4.h
         src/upload/strategies/S3Uploader.cpp
@@ -801,6 +803,10 @@ target_link_libraries(snim_lib PUBLIC
 )
 if(NOT WIN32)
     target_link_libraries(snim_lib PUBLIC Qt::DBus)
+endif()
+# Winsock, behind upload/SocketShim.
+if(WIN32)
+    target_link_libraries(snim_lib PUBLIC ws2_32)
 endif()
 
 # Link Tesseract if available (PUBLIC link: OCRService.o references its symbols and
