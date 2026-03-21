@@ -102,12 +102,51 @@ private slots:
         QCOMPARE(toWinHotkey(QKeySequence("Ctrl+,"))->virtualKey, quint32(0xBC));    // VK_OEM_COMMA
     }
 
+    void winMapsPrintScreenAndFriends()
+    {
+        // Bare Print Screen is the classic screenshot key, so no modifiers must survive.
+        const auto print = toWinHotkey(QKeySequence(Qt::Key_Print));
+        QVERIFY(print.has_value());
+        QCOMPARE(print->virtualKey, quint32(0x2C));                   // VK_SNAPSHOT
+        QCOMPARE(print->modifiers, quint32(0));
+
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::ShiftModifier | Qt::Key_Print))->modifiers,
+                 quint32(0x4));
+        QCOMPARE(toWinHotkey(QKeySequence("Ctrl+Insert"))->virtualKey, quint32(0x2D));   // VK_INSERT
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::Key_Pause))->virtualKey, quint32(0x13));  // VK_PAUSE
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::Key_ScrollLock))->virtualKey, quint32(0x91));  // VK_SCROLL
+    }
+
+    void winMapsKeypadKeysApart()
+    {
+        const auto kp5 = toWinHotkey(QKeySequence(Qt::ControlModifier | Qt::KeypadModifier | Qt::Key_5));
+        QVERIFY(kp5.has_value());
+        QCOMPARE(kp5->virtualKey, quint32(0x65));                     // VK_NUMPAD5
+        // KeypadModifier picks the key; it is not a RegisterHotKey modifier.
+        QCOMPARE(kp5->modifiers, quint32(0x2));
+
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::KeypadModifier | Qt::Key_0))->virtualKey, quint32(0x60));
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::KeypadModifier | Qt::Key_9))->virtualKey, quint32(0x69));
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::KeypadModifier | Qt::Key_Asterisk))->virtualKey, quint32(0x6A));
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::KeypadModifier | Qt::Key_Plus))->virtualKey, quint32(0x6B));
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::KeypadModifier | Qt::Key_Minus))->virtualKey, quint32(0x6D));
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::KeypadModifier | Qt::Key_Period))->virtualKey, quint32(0x6E));
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::KeypadModifier | Qt::Key_Slash))->virtualKey, quint32(0x6F));
+        // Keypad Enter and Num Lock off navigation share the main-block VK.
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::KeypadModifier | Qt::Key_Enter))->virtualKey, quint32(0x0D));
+        QCOMPARE(toWinHotkey(QKeySequence(Qt::KeypadModifier | Qt::Key_Home))->virtualKey, quint32(0x24));
+
+        // The main-row keys stay where they were.
+        QCOMPARE(toWinHotkey(QKeySequence("Ctrl+5"))->virtualKey, quint32(0x35));
+        QCOMPARE(toWinHotkey(QKeySequence("Ctrl+-"))->virtualKey, quint32(0xBD));    // VK_OEM_MINUS
+    }
+
     void winUnmappableIsNullopt()
     {
         QVERIFY(!toWinHotkey(QKeySequence()).has_value());
         QVERIFY(!toWinHotkey(QKeySequence("")).has_value());
         QVERIFY(!toWinHotkey(QKeySequence("Ctrl+Shift")).has_value());   // modifiers only
-        QVERIFY(!toWinHotkey(QKeySequence("Ctrl+Insert")).has_value());
+        QVERIFY(!toWinHotkey(QKeySequence(Qt::ControlModifier | Qt::Key_F25)).has_value());   // past VK_F24
     }
 
     // --- Linux / xdg-desktop-portal -----------------------------------------

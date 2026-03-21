@@ -14,6 +14,24 @@ constexpr quint32 kModWin     = 0x0008;
 static_assert(static_cast<int>(Qt::Key_A) == 0x41);
 static_assert(static_cast<int>(Qt::Key_0) == 0x30);
 
+// Keypad keys that have their own VK; the rest (Enter, and Home etc. with Num Lock
+// off) share the main-block VK, which is all RegisterHotKey can tell apart anyway.
+std::optional<quint32> keypadVirtualKeyFor(Qt::Key key)
+{
+    // VK_NUMPAD0 0x60 .. VK_NUMPAD9 0x69.
+    if (key >= Qt::Key_0 && key <= Qt::Key_9)
+        return 0x60 + static_cast<quint32>(key - Qt::Key_0);
+
+    switch (key) {
+    case Qt::Key_Asterisk: return 0x6A;   // VK_MULTIPLY
+    case Qt::Key_Plus:     return 0x6B;   // VK_ADD
+    case Qt::Key_Minus:    return 0x6D;   // VK_SUBTRACT
+    case Qt::Key_Period:   return 0x6E;   // VK_DECIMAL
+    case Qt::Key_Slash:    return 0x6F;   // VK_DIVIDE
+    default: return std::nullopt;
+    }
+}
+
 std::optional<quint32> virtualKeyFor(Qt::Key key)
 {
     if (key >= Qt::Key_A && key <= Qt::Key_Z)
@@ -27,6 +45,7 @@ std::optional<quint32> virtualKeyFor(Qt::Key key)
     switch (key) {
     case Qt::Key_Space:     return 0x20;   // VK_SPACE
     case Qt::Key_Return:    return 0x0D;   // VK_RETURN
+    case Qt::Key_Enter:     return 0x0D;   // keypad Enter is VK_RETURN too
     case Qt::Key_Tab:       return 0x09;   // VK_TAB
     case Qt::Key_Escape:    return 0x1B;   // VK_ESCAPE
     case Qt::Key_Backspace: return 0x08;   // VK_BACK
@@ -39,6 +58,10 @@ std::optional<quint32> virtualKeyFor(Qt::Key key)
     case Qt::Key_Up:        return 0x26;   // VK_UP
     case Qt::Key_Right:     return 0x27;   // VK_RIGHT
     case Qt::Key_Down:      return 0x28;   // VK_DOWN
+    case Qt::Key_Insert:    return 0x2D;   // VK_INSERT
+    case Qt::Key_Print:     return 0x2C;   // VK_SNAPSHOT
+    case Qt::Key_Pause:     return 0x13;   // VK_PAUSE
+    case Qt::Key_ScrollLock: return 0x91;  // VK_SCROLL
 
     // OEM keys. These are US-layout positions, which is the same compromise
     // RegisterHotKey itself makes.
@@ -66,7 +89,11 @@ std::optional<WinHotkey> toWinHotkey(const QKeySequence &seq)
         return std::nullopt;
 
     const QKeyCombination chord = seq[0];
-    const std::optional<quint32> vk = virtualKeyFor(chord.key());
+    std::optional<quint32> vk;
+    if (chord.keyboardModifiers() & Qt::KeypadModifier)
+        vk = keypadVirtualKeyFor(chord.key());
+    if (!vk)
+        vk = virtualKeyFor(chord.key());
     if (!vk)
         return std::nullopt;
 
