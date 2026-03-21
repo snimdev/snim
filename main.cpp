@@ -8,6 +8,11 @@
 #include <iostream>
 #include <string_view>
 
+#ifdef Q_OS_WIN
+#include <cstdio>
+#include <windows.h>
+#endif
+
 // Carry settings over from the pre-rebrand scope, once, if Snim has none yet.
 static void migrateLegacySettings()
 {
@@ -25,6 +30,25 @@ static void migrateLegacySettings()
     current.sync();
 }
 
+#ifdef Q_OS_WIN
+// A GUI-subsystem exe starts without stdout; borrow the launching console, if any.
+static void attachParentConsole()
+{
+    // Already redirected to a file or pipe: that handle works as is.
+    if (GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) != FILE_TYPE_UNKNOWN)
+        return;
+    if (!AttachConsole(ATTACH_PARENT_PROCESS))
+        return;
+    FILE *stream = nullptr;
+    freopen_s(&stream, "CONOUT$", "w", stdout);
+    freopen_s(&stream, "CONOUT$", "w", stderr);
+    std::cout.clear();
+    std::cerr.clear();
+}
+#else
+static void attachParentConsole() {}
+#endif
+
 int main(int argc, char *argv[]) {
 
     // Scanned before the app object exists: ScreenshotApp is a QApplication and raises a
@@ -32,10 +56,12 @@ int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg(argv[i]);
         if (arg == "--version" || arg == "-v") {
+            attachParentConsole();
             std::cout << "Snim " << Core::Version::kVersion << '\n';
             return 0;
         }
         if (arg == "--help" || arg == "-h") {
+            attachParentConsole();
             std::cout << "Usage: snim [--version] [--help]\n"
                          "  --version   Print the version and exit.\n"
                          "Snim runs in the system tray; everything else is configured from "
