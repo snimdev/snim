@@ -409,6 +409,7 @@ add_library(snim_lib STATIC
         src/capture/CaptureFactory.cpp
         src/capture/CaptureFactory.h
         src/capture/CaptureGeometry.h
+        src/capture/WinScreenMap.h
         src/capture/OverlayAnnotations.cpp
         src/capture/OverlayAnnotations.h
         # Frozen backdrop for the selection overlays (portal-based on Wayland).
