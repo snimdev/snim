@@ -410,6 +410,7 @@ add_library(snim_lib STATIC
         src/capture/CaptureFactory.h
         src/capture/CaptureGeometry.h
         src/capture/WinScreenMap.h
+        src/capture/WinWindowFilter.h
         src/capture/OverlayAnnotations.cpp
         src/capture/OverlayAnnotations.h
         # Frozen backdrop for the selection overlays (portal-based on Wayland).
@@ -603,8 +604,8 @@ if(WIN32)
 endif()
 
 # Platform-specific window enumeration for the interactive window picker.
-# macOS uses CGWindowList (Objective-C++); other platforms get a stub that
-# returns no windows, so window-pick falls back to the screen under the cursor.
+# macOS uses CGWindowList (Objective-C++), Windows EnumWindows; Linux gets a stub
+# that returns no windows, so window-pick falls back to the screen under the cursor.
 if(APPLE)
     enable_language(OBJCXX)
     target_sources(snim_lib PRIVATE
@@ -669,7 +670,8 @@ if(APPLE)
             _qt_has_QDarwinMicrophonePermissionPlugin_usage_description TRUE)
 elseif(WIN32)
     target_sources(snim_lib PRIVATE
-            src/capture/WindowEnumerator_stub.cpp
+            # EnumWindows + DWM frame bounds for the window picker
+            src/capture/WindowEnumerator_win.cpp
             # Credential Manager backing for upload secrets (advapi32, linked by default)
             src/core/KeychainStore_win.cpp)
 else()
@@ -827,9 +829,9 @@ target_link_libraries(snim_lib PUBLIC
 if(NOT WIN32)
     target_link_libraries(snim_lib PUBLIC Qt::DBus)
 endif()
-# Winsock, behind upload/SocketShim.
+# Winsock, behind upload/SocketShim; DWM for window bounds and cloaking.
 if(WIN32)
-    target_link_libraries(snim_lib PUBLIC ws2_32)
+    target_link_libraries(snim_lib PUBLIC ws2_32 dwmapi)
 endif()
 
 # Link Tesseract if available (PUBLIC link: OCRService.o references its symbols and

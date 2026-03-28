@@ -23,6 +23,7 @@ set(SNIM_TESTS
         tst_capturefactory
         tst_capturegeometry
         tst_winscreenmap
+        tst_winwindowfilter
         tst_ocrservice
         tst_integration_scene
         tst_recordingfactory
