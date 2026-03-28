@@ -378,6 +378,9 @@ add_library(snim_lib STATIC
         # Finds and dlopens the optional Linux modules (recorder, video exporter).
         src/core/DynamicModule.cpp
         src/core/DynamicModule.h
+        # `snim --self-test`: plugin and library checks for a deployed bundle.
+        src/core/SelfTest.cpp
+        src/core/SelfTest.h
 
         # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
         # macOS keychain backing is added in the APPLE block; a stub elsewhere. The

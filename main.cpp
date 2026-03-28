@@ -1,6 +1,8 @@
 #include "src/core/ScreenshotApp.h"
 #include "core/AppScope.h"
+#include "core/SelfTest.h"
 #include "core/Version.h"
+#include <QApplication>
 #include <QLoggingCategory>
 #include <QSettings>
 #include <QIcon>
@@ -10,6 +12,7 @@
 
 #ifdef Q_OS_WIN
 #include <cstdio>
+#include <cstdlib>
 #include <windows.h>
 #include <shobjidl.h>
 #endif
@@ -61,10 +64,21 @@ int main(int argc, char *argv[]) {
             std::cout << "Snim " << Core::Version::kVersion << '\n';
             return 0;
         }
+        if (arg == "--self-test") {
+            attachParentConsole();
+#ifdef Q_OS_WIN
+            // A broken bundle must fail the run, not leave a crash dialog up on a CI runner.
+            SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+            _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
+            QApplication app(argc, argv);
+            return Core::SelfTest::run(std::cout);
+        }
         if (arg == "--help" || arg == "-h") {
             attachParentConsole();
-            std::cout << "Usage: snim [--version] [--help]\n"
+            std::cout << "Usage: snim [--version] [--self-test] [--help]\n"
                          "  --version   Print the version and exit.\n"
+                         "  --self-test Check the bundled plugins and libraries, then exit.\n"
                          "Snim runs in the system tray; everything else is configured from "
                          "its tray menu.\n";
             return 0;
