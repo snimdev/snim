@@ -1,4 +1,4 @@
-#include "MacOverlay.h"
+#include "OverlayWindows.h"
 
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>

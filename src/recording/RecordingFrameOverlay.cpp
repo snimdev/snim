@@ -7,9 +7,7 @@
 #include <QScreen>
 #include <QWindow>
 
-#ifdef Q_OS_MACOS
-#include "capture/MacOverlay.h"
-#endif
+#include "capture/OverlayWindows.h"
 
 namespace Recording {
 
@@ -102,9 +100,7 @@ void RecordingFrameOverlay::paintEvent(QPaintEvent *)
 void RecordingFrameOverlay::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
-#ifdef Q_OS_MACOS
     Capture::configureRecordingHud(this);   // float across Spaces, non-activating
-#endif
 }
 
 } // namespace Recording

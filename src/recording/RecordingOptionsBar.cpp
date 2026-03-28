@@ -19,9 +19,7 @@
 #include <QToolButton>
 #include <QWindow>
 
-#ifdef Q_OS_MACOS
-#include "capture/MacOverlay.h"
-#endif
+#include "capture/OverlayWindows.h"
 
 namespace Recording {
 
@@ -346,9 +344,7 @@ void RecordingOptionsBar::showEvent(QShowEvent *event)
             const QRect avail = screen->availableGeometry();
             move(avail.center().x() - width() / 2, avail.bottom() - height() - 24);
         }
-#ifdef Q_OS_MACOS
         Capture::configureSelectionHud(this);   // above the shielding-level overlay
-#endif
         return;
     }
 

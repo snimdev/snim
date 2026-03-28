@@ -1,9 +1,7 @@
 #include "NativeCaptureStrategy.h"
 #include "../AreaSelector.h"
 #include "../WindowEnumerator.h"
-#ifdef Q_OS_MACOS
-#include "../MacOverlay.h"
-#endif
+#include "../OverlayWindows.h"
 #include <QScreen>
 #include <QApplication>
 #include <QCursor>
@@ -241,9 +239,7 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
         selector->show();
         selector->raise();
         selector->activateWindow();
-#ifdef Q_OS_MACOS
         configureOverlayWindow(selector);
-#endif
 
         selectors->append(selector);
     }

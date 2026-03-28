@@ -417,6 +417,8 @@ add_library(snim_lib STATIC
         src/capture/FrozenFrameGrabber.cpp
         src/capture/FrozenFrameGrabber.h
         src/capture/WindowEnumerator.h
+        # Facade over native overlay tweaks; the per-platform file is added below.
+        src/capture/OverlayWindows.h
         src/capture/strategies/CaptureStrategy.cpp
         src/capture/strategies/CaptureStrategy.h
         src/capture/strategies/NativeCaptureStrategy.cpp
@@ -610,8 +612,7 @@ if(APPLE)
     enable_language(OBJCXX)
     target_sources(snim_lib PRIVATE
             src/capture/WindowEnumerator_mac.mm
-            src/capture/MacOverlay.h
-            src/capture/MacOverlay.mm
+            src/capture/OverlayWindows_mac.mm
             # macOS screen-recording backend (ScreenCaptureKit + AVAssetWriter)
             src/recording/strategies/MacRecordingStrategy.h
             src/recording/strategies/MacRecordingStrategy.mm
@@ -672,11 +673,13 @@ elseif(WIN32)
     target_sources(snim_lib PRIVATE
             # EnumWindows + DWM frame bounds for the window picker
             src/capture/WindowEnumerator_win.cpp
+            src/capture/OverlayWindows_stub.cpp
             # Credential Manager backing for upload secrets (advapi32, linked by default)
             src/core/KeychainStore_win.cpp)
 else()
     target_sources(snim_lib PRIVATE
             src/capture/WindowEnumerator_stub.cpp
+            src/capture/OverlayWindows_stub.cpp
             src/core/KeychainStore_stub.cpp)
 endif()
 

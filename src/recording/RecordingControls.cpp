@@ -11,9 +11,7 @@
 #include <QTime>
 #include <QWindow>
 
-#ifdef Q_OS_MACOS
-#include "capture/MacOverlay.h"
-#endif
+#include "capture/OverlayWindows.h"
 
 namespace Recording {
 
@@ -128,11 +126,9 @@ void RecordingControls::showEvent(QShowEvent *event)
         }
     }
 
-#ifdef Q_OS_MACOS
     // Persistent, non-activating HUD: stays visible across Spaces and when the user
     // clicks other apps mid-recording, without stealing focus from them.
     Capture::configureRecordingHud(this);
-#endif
 }
 
 } // namespace Recording

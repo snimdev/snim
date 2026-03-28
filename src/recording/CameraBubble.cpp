@@ -20,9 +20,7 @@
 #include <QWindow>
 #include <QDebug>
 
-#ifdef Q_OS_MACOS
-#include "capture/MacOverlay.h"
-#endif
+#include "capture/OverlayWindows.h"
 
 namespace Recording {
 
@@ -388,9 +386,7 @@ void CameraBubble::showEvent(QShowEvent *event)
 
     ensurePlacement();   // no-op once a region park or a drag has placed the bubble
 
-#ifdef Q_OS_MACOS
     Capture::configureRecordingHud(this);   // float across Spaces, non-activating
-#endif
 }
 
 } // namespace Recording

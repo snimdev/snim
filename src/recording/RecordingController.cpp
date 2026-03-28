@@ -10,9 +10,7 @@
 #include "capture/WindowEnumerator.h"
 #include "core/FileNames.h"
 #include "core/Settings.h"
-#ifdef Q_OS_MACOS
-#include "capture/MacOverlay.h"
-#endif
+#include "capture/OverlayWindows.h"
 
 #include <QDir>
 #include <QDateTime>
@@ -97,10 +95,8 @@ void RecordingController::destroyFrameOverlay()
 
 quint64 RecordingController::cameraBubbleWindowId() const
 {
-#ifdef Q_OS_MACOS
     if (m_cameraBubble)
         return Capture::nativeWindowId(m_cameraBubble);
-#endif
     return 0;
 }
 
@@ -266,9 +262,7 @@ void RecordingController::presentSelection(bool windowPick)
             selector->show();
             selector->raise();
             selector->activateWindow();
-#ifdef Q_OS_MACOS
             Capture::configureOverlayWindow(selector);
-#endif
             selectors->append(selector);
         }
 
@@ -314,13 +308,11 @@ void RecordingController::presentSelection(bool windowPick)
         });
         optionsBar->show();
         optionsBar->raise();
-#ifdef Q_OS_MACOS
         // AFTER show() returns: Qt re-applies its own window level while making the
         // window visible, which would bury the bar beneath the shielding-level overlay
         // if we only configured from showEvent (same reason configureOverlayWindow is
         // applied to the selectors post-show above).
         Capture::configureSelectionHud(optionsBar);
-#endif
 
         auto teardown = [selectors, optionsBar]() {
             optionsBar->hide();
