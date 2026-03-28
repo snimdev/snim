@@ -198,6 +198,8 @@ namespace Core {
 #elif defined(Q_OS_LINUX)
             const QString reason = "Screen recording requires the ScreenCast portal and "
                                    "GStreamer (with an H.264 encoder)";
+#elif defined(Q_OS_WIN)
+            const QString reason = "Screen recording and trimming come to Windows in a later release";
 #else
             const QString reason = "Screen recording is not supported on this platform yet";
 #endif
@@ -236,6 +238,10 @@ namespace Core {
 
         // Create tray menu
         m_trayMenu = new QMenu();
+#ifdef Q_OS_WIN
+        // The Windows tray menu is a plain QMenu, which hides tooltips such as the recording reason.
+        m_trayMenu->setToolTipsVisible(true);
+#endif
         m_trayMenu->addAction(m_captureAreaAction);
         m_trayMenu->addAction(m_captureWindowAction);
         m_trayMenu->addAction(m_captureFullScreenAction);
