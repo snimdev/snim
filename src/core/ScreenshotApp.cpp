@@ -6,6 +6,7 @@
 #include "../capture/CaptureFactory.h"
 #include "../capture/strategies/CaptureStrategy.h"
 #include <QTimer>
+#include <QCursor>
 #include <QKeyEvent>
 #include <QMessageBox>
 #include <QPushButton>
@@ -269,7 +270,12 @@ namespace Core {
             if (reason == QSystemTrayIcon::DoubleClick) {
                 captureArea();
             }
-            // Single click (Trigger) will show the context menu automatically
+#ifdef Q_OS_WIN
+            // Windows opens the context menu on right click only; left click is what users try first.
+            if (reason == QSystemTrayIcon::Trigger)
+                m_trayMenu->popup(QCursor::pos());
+#endif
+            // Elsewhere a single click (Trigger) shows the context menu automatically
         });
     }
 
