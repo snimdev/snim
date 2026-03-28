@@ -11,6 +11,7 @@
 #ifdef Q_OS_WIN
 #include <cstdio>
 #include <windows.h>
+#include <shobjidl.h>
 #endif
 
 // Carry settings over from the pre-rebrand scope, once, if Snim has none yet.
@@ -83,6 +84,10 @@ int main(int argc, char *argv[]) {
     Core::ScreenshotApp::setOrganizationName("darkog");
     // Wayland matches windows to the installed desktop entry by this name.
     Core::ScreenshotApp::setDesktopFileName(QStringLiteral("dev.snim.Snim"));
+#ifdef Q_OS_WIN
+    // Before any window or tray icon exists, so the taskbar and toasts group under it.
+    SetCurrentProcessExplicitAppUserModelID(L"dev.snim.Snim");
+#endif
 
     // Must run before the app object exists: its ctor already reads settings.
     migrateLegacySettings();
