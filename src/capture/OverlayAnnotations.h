@@ -10,6 +10,7 @@
 #include <QString>
 #include <QVariant>
 #include <memory>
+#include "capture/CaptureGeometry.h"
 #include "editor/annotations/AnnotationSet.h"
 #include "editor/annotations/IAnnotationSink.h"
 
@@ -72,6 +73,8 @@ public:
 
     // Paints the annotations over virtSource into target (frame pixels are not drawn).
     void render(QPainter *painter, const QRectF &target, const QRect &virtSource);
+    // Per-screen native grabs: flattenedCrop prefers the one holding the whole area.
+    void setScreenGrabs(const QList<ScreenGrab> &grabs) { m_screenGrabs = grabs; }
     // The frozen frame cropped to virtArea at native resolution, annotations burned in.
     [[nodiscard]] QPixmap flattenedCrop(const QRect &virtArea);
     // Committed items touching virtArea, positioned relative to its top-left.
@@ -99,6 +102,7 @@ private:
 
     QPixmap m_frame;
     QRect m_virtualGeometry;
+    QList<ScreenGrab> m_screenGrabs;
     QRect m_selection;   // scene coords, empty until setSelection
     QString m_activeTool;
     std::unique_ptr<QGraphicsScene> m_scene;

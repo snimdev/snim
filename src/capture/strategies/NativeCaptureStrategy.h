@@ -2,12 +2,14 @@
 #define CAPTURE_NATIVECAPTURESTRATEGY_H
 
 #include "CaptureStrategy.h"
+#include "../CaptureGeometry.h"
 #include <QScreen>
 #include <QApplication>
 #include <QTimer>
 #include <QVector>
 #include <QRect>
 #include <QList>
+#include <utility>
 
 namespace Capture {
 
@@ -40,9 +42,13 @@ private:
     void teardownSelectors(QList<AreaSelector*> *selectors);
     void onCopyRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
     void onSaveRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
+    // The frame and its geometry to crop area from: one screen's own grab when it holds area.
+    [[nodiscard]] std::pair<QPixmap, QRect> cropSource(const QRect &area) const;
+    void clearFrames();
 
     QPixmap m_fullScreenshot; // Store for area selection
     QRect m_virtualGeometry;  // Store virtual desktop geometry
+    QList<ScreenGrab> m_screenGrabs; // Windows only: each screen's own grab
 };
 
 } // namespace Capture

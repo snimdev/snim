@@ -1,6 +1,7 @@
 #ifndef CAPTURE_CAPTUREGEOMETRY_H
 #define CAPTURE_CAPTUREGEOMETRY_H
 
+#include <QList>
 #include <QPixmap>
 #include <QRect>
 #include <QSize>
@@ -48,6 +49,31 @@ inline QPixmap cropVirtualArea(const QPixmap &shot, const QRect &virtualGeometry
     QPixmap cropped = shot.copy(physical);
     cropped.setDevicePixelRatio(dpr);
     return cropped;
+}
+
+// One screen's own grab: its logical geometry and the native, DPR-tagged pixmap.
+struct ScreenGrab {
+    QRect geometry;
+    QPixmap pixmap;
+};
+
+// The grab whose screen wholly holds area, so it crops at that screen's own DPR with
+// no resampling. Null when area spans screens or a grab does not cover its screen.
+inline const ScreenGrab *screenGrabFor(const QList<ScreenGrab> &grabs, const QRect &area)
+{
+    if (area.isEmpty())
+        return nullptr;
+    for (const ScreenGrab &grab : grabs) {
+        if (!grab.geometry.contains(area))
+            continue;
+        // Fractional DPRs round the logical screen size, so allow under a pixel.
+        const QSizeF logical = grab.pixmap.deviceIndependentSize();
+        const bool covers = !grab.pixmap.isNull()
+                            && qAbs(logical.width() - grab.geometry.width()) < 1.0
+                            && qAbs(logical.height() - grab.geometry.height()) < 1.0;
+        return covers ? &grab : nullptr;
+    }
+    return nullptr;
 }
 
 } // namespace Capture

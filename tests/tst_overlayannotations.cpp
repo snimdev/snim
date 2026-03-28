@@ -164,6 +164,23 @@ private slots:
         QCOMPARE(at(out, 300, 200), kGrey);
     }
 
+    void singleScreenAreaFlattensOntoThatScreensGrab()
+    {
+        // The frame is composited at 2x; the screen holding the area was grabbed at 1x.
+        OverlayAnnotations s(frame(2), kVirtual);
+        QPixmap screen(800, 600);
+        screen.fill(kGrey);
+        s.setScreenGrabs({ { kVirtual, screen } });
+        s.setSelection(kArea);
+        drawRect(s);
+
+        const QPixmap out = s.flattenedCrop(kArea);
+        QCOMPARE(out.size(), kArea.size());
+        QCOMPARE(out.devicePixelRatio(), 1.0);
+        QVERIFY(near(at(out, 100, 100), m_stroke));
+        QCOMPARE(at(out, 150, 100), kGrey);
+    }
+
     void strokeIsClampedToTheSelection()
     {
         OverlayAnnotations s(frame(1), kVirtual);

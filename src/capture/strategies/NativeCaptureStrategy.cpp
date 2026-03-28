@@ -1,6 +1,7 @@
 #include "NativeCaptureStrategy.h"
 #include "../AreaSelector.h"
 #include "../WindowEnumerator.h"
+#include "../OverlayAnnotations.h"
 #include "../OverlayWindows.h"
 #include <QScreen>
 #include <QApplication>
@@ -76,31 +77,43 @@ void NativeCaptureStrategy::onAreaSelected(const QRect &area,
         // User cancelled (pressed Escape)
         qDebug() << "Area selection cancelled";
     } else {
-        emitSelection(m_fullScreenshot, m_virtualGeometry, area, annotations);
+        const auto [shot, geometry] = cropSource(area);
+        emitSelection(shot, geometry, area, annotations);
     }
 
     // Clear the stored screenshot
-    m_fullScreenshot = QPixmap();
-    m_virtualGeometry = QRect();
+    clearFrames();
 }
 
 void NativeCaptureStrategy::onCopyRequested(const QRect &area,
                                             const QSharedPointer<OverlayAnnotations> &annotations)
 {
-    copyAreaToClipboard(m_fullScreenshot, m_virtualGeometry, area, annotations);
-    m_fullScreenshot = QPixmap();
-    m_virtualGeometry = QRect();
+    const auto [shot, geometry] = cropSource(area);
+    copyAreaToClipboard(shot, geometry, area, annotations);
+    clearFrames();
 }
 
 void NativeCaptureStrategy::onSaveRequested(const QRect &area,
                                             const QSharedPointer<OverlayAnnotations> &annotations)
 {
     // Drop the stored frame before the modal dialog runs, as the old inline save did.
-    const QPixmap shot = m_fullScreenshot;
-    const QRect virtualGeometry = m_virtualGeometry;
+    const auto [shot, virtualGeometry] = cropSource(area);
+    clearFrames();
+    saveAreaToFile(shot, virtualGeometry, area, annotations);
+}
+
+std::pair<QPixmap, QRect> NativeCaptureStrategy::cropSource(const QRect &area) const
+{
+    if (const ScreenGrab *grab = screenGrabFor(m_screenGrabs, area))
+        return { grab->pixmap, grab->geometry };
+    return { m_fullScreenshot, m_virtualGeometry };
+}
+
+void NativeCaptureStrategy::clearFrames()
+{
     m_fullScreenshot = QPixmap();
     m_virtualGeometry = QRect();
-    saveAreaToFile(shot, virtualGeometry, area, annotations);
+    m_screenGrabs.clear();
 }
 
 QPixmap NativeCaptureStrategy::captureScreen()
@@ -140,6 +153,7 @@ QPixmap NativeCaptureStrategy::captureScreen()
 
 QPixmap NativeCaptureStrategy::captureAllScreens()
 {
+    m_screenGrabs.clear();
     QList<QScreen*> screens = QGuiApplication::screens();
     if (screens.isEmpty()) {
         qDebug() << "No screens available";
@@ -191,6 +205,10 @@ QPixmap NativeCaptureStrategy::captureAllScreens()
         // offset would misalign/mis-scale the secondary screen.
         const QRect destLogical(offset, screenGeometry.size());
         painter.drawPixmap(destLogical, screenPixmap, screenPixmap.rect());
+#ifdef Q_OS_WIN
+        // Mixed DPIs are common on Windows: a single-screen area crops this grab instead.
+        m_screenGrabs.append({ screenGeometry, screenPixmap });
+#endif
     }
 
     painter.end();
@@ -247,6 +265,8 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
     QSharedPointer<OverlayAnnotations> annotations;
     if (!windowPick)
         annotations = attachAnnotations(*selectors, screenshot, virtualGeometry);
+    if (annotations)
+        annotations->setScreenGrabs(m_screenGrabs);
 
     // Each terminal action tears down ALL per-screen selectors, then routes:
     //  - areaSelected -> crop & open editor (or empty = cancel)

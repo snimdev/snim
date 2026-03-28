@@ -239,7 +239,9 @@ QPixmap OverlayAnnotations::flattenedCrop(const QRect &virtArea)
     cancelStroke();
 
     const QRect area = virtArea.intersected(m_virtualGeometry);
-    QPixmap out = cropVirtualArea(m_frame, m_virtualGeometry, area);
+    const ScreenGrab *grab = screenGrabFor(m_screenGrabs, area);
+    QPixmap out = grab ? cropVirtualArea(grab->pixmap, grab->geometry, area)
+                       : cropVirtualArea(m_frame, m_virtualGeometry, area);
     if (out.isNull() || !hasItems())
         return out;
 

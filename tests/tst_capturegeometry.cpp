@@ -90,6 +90,62 @@ private slots:
         QVERIFY(cropVirtualArea(shot, virt, QRect()).isNull());        // nothing selected
         QVERIFY(cropVirtualArea(QPixmap(), virt, QRect(0, 0, 10, 10)).isNull()); // no frame
     }
+
+    // A 100% screen and a 150% screen on its left, each with its own native grab.
+    static QList<ScreenGrab> mixedGrabs()
+    {
+        QPixmap primary(800, 600);
+        primary.fill(Qt::red);
+        QPixmap left(1200, 900);
+        left.fill(Qt::blue);
+        left.setDevicePixelRatio(1.5);
+        return { { QRect(0, 0, 800, 600), primary }, { QRect(-1200, 0, 800, 600), left } };
+    }
+
+    void singleScreenAreaUsesThatScreensGrab()
+    {
+        const QList<ScreenGrab> grabs = mixedGrabs();
+
+        const QRect onPrimary(100, 100, 200, 100);
+        const ScreenGrab *grab = screenGrabFor(grabs, onPrimary);
+        QVERIFY(grab);
+        QCOMPARE(grab->geometry, QRect(0, 0, 800, 600));
+        // Cropped at the screen's own 1x: nothing upscaled to the highest DPR.
+        const QPixmap out = cropVirtualArea(grab->pixmap, grab->geometry, onPrimary);
+        QCOMPARE(out.size(), QSize(200, 100));
+        QCOMPARE(out.devicePixelRatio(), 1.0);
+        QCOMPARE(out.toImage().pixelColor(0, 0), QColor(Qt::red));
+
+        const QRect onLeft(-1100, 500, 100, 50);
+        grab = screenGrabFor(grabs, onLeft);
+        QVERIFY(grab);
+        const QPixmap leftOut = cropVirtualArea(grab->pixmap, grab->geometry, onLeft);
+        QCOMPARE(leftOut.size(), QSize(150, 75));
+        QCOMPARE(leftOut.devicePixelRatio(), 1.5);
+        QCOMPARE(leftOut.toImage().pixelColor(0, 0), QColor(Qt::blue));
+    }
+
+    void areaAcrossScreensHasNoSingleGrab()
+    {
+        const QList<ScreenGrab> grabs = mixedGrabs();
+        QVERIFY(!screenGrabFor(grabs, QRect(-500, 0, 600, 100)));   // spans the gap
+        QVERIFY(!screenGrabFor(grabs, QRect(700, 0, 200, 100)));    // runs off the edge
+        QVERIFY(!screenGrabFor(grabs, QRect()));
+        QVERIFY(!screenGrabFor({}, QRect(0, 0, 10, 10)));
+    }
+
+    void grabThatMissesItsScreenIsRejected()
+    {
+        // A fractional DPR rounds the logical size: 1707 logical for 2560 physical at 1.5.
+        QPixmap fractional(2560, 1440);
+        fractional.setDevicePixelRatio(1.5);
+        QVERIFY(screenGrabFor({ { QRect(0, 0, 1707, 960), fractional } }, QRect(0, 0, 10, 10)));
+
+        // A grab without its DPR tag would crop the wrong pixels: use the composite.
+        QPixmap untagged(2560, 1440);
+        QVERIFY(!screenGrabFor({ { QRect(0, 0, 1707, 960), untagged } }, QRect(0, 0, 10, 10)));
+        QVERIFY(!screenGrabFor({ { QRect(0, 0, 800, 600), QPixmap() } }, QRect(0, 0, 10, 10)));
+    }
 };
 
 QTEST_MAIN(tst_CaptureGeometry)
