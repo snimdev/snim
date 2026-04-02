@@ -240,3 +240,33 @@ jobs:
           $env:QT_QPA_PLATFORM = "offscreen"
           # --timeout kills a hung test's process tree instead of leaving it orphaned
           ctest --output-on-failure --timeout 120
+
+      - name: Stage a windeployqt bundle
+        id: bundle
+        # snim.exe, the vcpkg DLLs applocal deployment put beside it, the MSVC runtime,
+        # then everything Qt's own deployment tool adds.
+        run: |
+          $stage = "$env:RUNNER_TEMP\snim"
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item build\snim.exe $stage
+          Get-ChildItem build\vcpkg_installed\x64-windows\bin\*.dll |
+            Where-Object { Test-Path (Join-Path build $_.Name) } |
+            Copy-Item -Destination $stage
+          Copy-Item "$env:VCToolsRedistDir\x64\Microsoft.VC143.CRT\*.dll" $stage
+          & "$env:QT_ROOT_DIR\bin\windeployqt.exe" --release --no-translations "$stage\snim.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "dir=$stage" >> $env:GITHUB_OUTPUT
+
+      - name: Smoke-test the bundle
+        timeout-minutes: 5
+        # Only System32 on PATH and no Qt variables, so anything missing from the bundle
+        # fails here. snim.exe is a GUI exe whose stdout PowerShell never captures, hence
+        # the explicit redirect.
+        run: |
+          $env:PATH = "$env:SystemRoot\System32"
+          Remove-Item Env:QT_PLUGIN_PATH, Env:QML2_IMPORT_PATH, Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+          $out = "$env:RUNNER_TEMP\self-test.txt"
+          $p = Start-Process -FilePath "${{ steps.bundle.outputs.dir }}\snim.exe" -ArgumentList '--self-test' `
+            -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out
+          Get-Content $out
+          exit $p.ExitCode
