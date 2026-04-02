@@ -107,6 +107,15 @@ if(GSTREAMER_AVAILABLE)
             "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
 endif()
 
+# FFmpeg must stay static in snim.exe, or it would clash with Qt Multimedia's DLLs.
+if(WIN32)
+    get_filename_component(_snim_linker_dir "${CMAKE_LINKER}" DIRECTORY)
+    find_program(SNIM_DUMPBIN dumpbin HINTS "${_snim_linker_dir}" REQUIRED)
+    add_test(NAME snim_no_shared_ffmpeg
+            COMMAND "${CMAKE_COMMAND}" -DDUMPBIN=${SNIM_DUMPBIN} -DEXE=$<TARGET_FILE:Snim>
+                    -P "${CMAKE_SOURCE_DIR}/cmake/CheckNoSharedFfmpeg.cmake")
+endif()
+
 # install() copies the app icon out of the qrc, so this one needs the resources too.
 target_sources(tst_desktopintegration PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
 

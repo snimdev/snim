@@ -179,7 +179,7 @@ jobs:
   windows:
     name: Build & test (Windows)
     runs-on: windows-2022
-    timeout-minutes: 60  # a cold vcpkg cache builds every dependency from source
+    timeout-minutes: 120  # a cold vcpkg cache builds every dependency, FFmpeg included
 
     steps:
       - uses: actions/checkout@v5
@@ -236,7 +236,7 @@ jobs:
         working-directory: build
         # Windows has no rpath: the tests find Qt and the vcpkg DLLs through PATH.
         run: |
-          $env:PATH = "$env:QT_ROOT_DIR\bin;$pwd\vcpkg_installed\x64-windows\bin;$env:PATH"
+          $env:PATH = "$env:QT_ROOT_DIR\bin;$pwd\vcpkg_installed\x64-windows-snim\bin;$env:PATH"
           $env:QT_QPA_PLATFORM = "offscreen"
           # --timeout kills a hung test's process tree instead of leaving it orphaned
           ctest --output-on-failure --timeout 120
@@ -249,7 +249,7 @@ jobs:
           $stage = "$env:RUNNER_TEMP\snim"
           New-Item -ItemType Directory -Force $stage | Out-Null
           Copy-Item build\snim.exe $stage
-          Get-ChildItem build\vcpkg_installed\x64-windows\bin\*.dll |
+          Get-ChildItem build\vcpkg_installed\x64-windows-snim\bin\*.dll |
             Where-Object { Test-Path (Join-Path build $_.Name) } |
             Copy-Item -Destination $stage
           Copy-Item "$env:VCToolsRedistDir\x64\Microsoft.VC143.CRT\*.dll" $stage

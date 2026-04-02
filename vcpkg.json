@@ -10,6 +10,22 @@
         "ssl"
       ]
     },
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": [
+        "amf",
+        "avcodec",
+        "avformat",
+        "gpl",
+        "nvcodec",
+        "qsv",
+        "swresample",
+        "swscale",
+        "x264"
+      ],
+      "platform": "windows & x64"
+    },
     "giflib",
     "libimagequant",
     {
@@ -26,5 +42,17 @@
       ]
     },
     "tesseract"
+  ],
+  "overrides": [
+    {
+      "name": "ffmpeg",
+      "version": "8.1.2",
+      "port-version": 3
+    },
+    {
+      "name": "x264",
+      "version": "0.164.3108",
+      "port-version": 2
+    }
   ]
 }
