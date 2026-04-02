@@ -804,6 +804,23 @@ if(WIN32)
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_WIN_HOTKEYS)
 endif()
 
+# The FFmpeg media layer: encode and trim, Windows only for now. vcpkg's x64-windows-snim
+# triplet builds FFmpeg static, so it cannot clash with Qt Multimedia's FFmpeg DLLs.
+if(WIN32)
+    # vcpkg's module, not Qt's FindFFmpeg.cmake: only it lists the static deps (x264, VPL).
+    list(PREPEND CMAKE_MODULE_PATH "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/ffmpeg")
+    find_package(FFMPEG REQUIRED)
+    list(POP_FRONT CMAKE_MODULE_PATH)
+    add_library(snim_media_ffmpeg STATIC
+            src/media/ffmpeg/FfmpegSupport.cpp
+            src/media/ffmpeg/FfmpegSupport.h)
+    target_include_directories(snim_media_ffmpeg PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${FFMPEG_INCLUDE_DIRS})
+    target_link_directories(snim_media_ffmpeg PUBLIC ${FFMPEG_LIBRARY_DIRS})
+    target_link_libraries(snim_media_ffmpeg PUBLIC Qt::Core ${FFMPEG_LIBRARIES})
+endif()
+
 # The version header is generated, not checked in, so `core/Version.h` resolves out
 # of the build tree for the library, the executable and the tests alike.
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.h.in"
