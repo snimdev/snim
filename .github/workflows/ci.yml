@@ -270,3 +270,12 @@ jobs:
             -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out
           Get-Content $out
           exit $p.ExitCode
+
+      - name: Upload the bundle
+        # For manual testing; a pull request names it after its head commit, not the merge.
+        uses: actions/upload-artifact@v4
+        with:
+          name: snim-windows-x64-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ steps.bundle.outputs.dir }}
+          if-no-files-found: error
+          retention-days: 14
