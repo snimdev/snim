@@ -817,7 +817,11 @@ if(WIN32)
             src/media/ffmpeg/H264EncoderChain.cpp
             src/media/ffmpeg/H264EncoderChain.h
             src/media/ffmpeg/FfmpegEncoder.cpp
-            src/media/ffmpeg/FfmpegEncoder.h)
+            src/media/ffmpeg/FfmpegEncoder.h
+            src/media/ffmpeg/FfmpegTranscoder.cpp
+            src/media/ffmpeg/FfmpegTranscoder.h
+            src/media/ffmpeg/FfmpegTrimTranscoder.cpp
+            src/media/ffmpeg/FfmpegTrimTranscoder.h)
     target_include_directories(snim_media_ffmpeg PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${FFMPEG_INCLUDE_DIRS})
