@@ -813,7 +813,9 @@ if(WIN32)
     list(POP_FRONT CMAKE_MODULE_PATH)
     add_library(snim_media_ffmpeg STATIC
             src/media/ffmpeg/FfmpegSupport.cpp
-            src/media/ffmpeg/FfmpegSupport.h)
+            src/media/ffmpeg/FfmpegSupport.h
+            src/media/ffmpeg/H264EncoderChain.cpp
+            src/media/ffmpeg/H264EncoderChain.h)
     target_include_directories(snim_media_ffmpeg PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${FFMPEG_INCLUDE_DIRS})

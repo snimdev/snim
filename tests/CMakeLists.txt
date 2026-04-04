@@ -68,6 +68,11 @@ if(WIN32)
     list(APPEND SNIM_TESTS tst_keychainstore)
 endif()
 
+# The FFmpeg media layer is built on Windows only.
+if(WIN32)
+    list(APPEND SNIM_TESTS tst_h264encoderchain)
+endif()
+
 foreach(test_name ${SNIM_TESTS})
     add_executable(${test_name} ${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE snim_lib Qt6::Test)
@@ -105,6 +110,10 @@ if(GSTREAMER_AVAILABLE)
     target_link_libraries(tst_gstvideoexporter PRIVATE ${GSTREAMER_LIBRARIES})
     set_tests_properties(tst_gstvideoexporter PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
+endif()
+
+if(WIN32)
+    target_link_libraries(tst_h264encoderchain PRIVATE snim_media_ffmpeg)
 endif()
 
 # FFmpeg must stay static in snim.exe, or it would clash with Qt Multimedia's DLLs.
