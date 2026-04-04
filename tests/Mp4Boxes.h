@@ -22,6 +22,7 @@ struct Mp4Info {
     QByteArray brand;
     qint64 durationMs = -1;
     QList<Mp4Track> tracks;
+    QList<QByteArray> topLevel;   // box types in file order
 };
 
 inline quint64 readBe(const QByteArray &data, qsizetype at, int bytes)
@@ -60,6 +61,8 @@ inline void walkBoxes(const QByteArray &data, qsizetype begin, qsizetype end, Mp
             return;
         const qsizetype body = at + header;
         const qsizetype boxEnd = at + qsizetype(size);
+        if (begin == 0)
+            info->topLevel.append(type);
 
         if (type == "ftyp") {
             info->brand = data.mid(body, 4);

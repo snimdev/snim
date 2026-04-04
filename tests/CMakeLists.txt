@@ -70,7 +70,7 @@ endif()
 
 # The FFmpeg media layer is built on Windows only.
 if(WIN32)
-    list(APPEND SNIM_TESTS tst_h264encoderchain)
+    list(APPEND SNIM_TESTS tst_h264encoderchain tst_ffmpegencoder)
 endif()
 
 foreach(test_name ${SNIM_TESTS})
@@ -114,6 +114,7 @@ endif()
 
 if(WIN32)
     target_link_libraries(tst_h264encoderchain PRIVATE snim_media_ffmpeg)
+    target_link_libraries(tst_ffmpegencoder PRIVATE snim_media_ffmpeg)
 endif()
 
 # FFmpeg must stay static in snim.exe, or it would clash with Qt Multimedia's DLLs.
