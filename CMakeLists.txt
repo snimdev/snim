@@ -827,6 +827,13 @@ if(WIN32)
             ${FFMPEG_INCLUDE_DIRS})
     target_link_directories(snim_media_ffmpeg PUBLIC ${FFMPEG_LIBRARY_DIRS})
     target_link_libraries(snim_media_ffmpeg PUBLIC Qt::Core ${FFMPEG_LIBRARIES})
+
+    # Trims through FFmpeg. PUBLIC because the tests check the macro.
+    target_sources(snim_lib PRIVATE
+            src/editor/video/FfmpegVideoExporter.cpp
+            src/editor/video/FfmpegVideoExporter.h)
+    target_link_libraries(snim_lib PUBLIC snim_media_ffmpeg)
+    target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_FFMPEG_VIDEO_EXPORTER)
 endif()
 
 # The version header is generated, not checked in, so `core/Version.h` resolves out
