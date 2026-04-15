@@ -41,6 +41,7 @@ set(SNIM_TESTS
         tst_gifencoder
         tst_animationexporter
         tst_videoframegrabber
+        tst_videoexportercontract
         tst_sigv4
         tst_uploaderfactory
         tst_uploadprofiles
@@ -109,6 +110,14 @@ if(GSTREAMER_AVAILABLE)
     endif()
     target_link_libraries(tst_gstvideoexporter PRIVATE ${GSTREAMER_LIBRARIES})
     set_tests_properties(tst_gstvideoexporter PROPERTIES ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
+
+    # The exporter contract runs against the same module.
+    add_dependencies(tst_videoexportercontract snim_video_linux)
+    target_compile_definitions(tst_videoexportercontract PRIVATE
+            SNIM_VIDEO_MODULE_PATH="$<TARGET_FILE:snim_video_linux>")
+    set_target_properties(tst_videoexportercontract PROPERTIES ENABLE_EXPORTS ON)
+    set_tests_properties(tst_videoexportercontract PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
 endif()
 
