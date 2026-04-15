@@ -543,6 +543,7 @@ add_library(snim_lib STATIC
         src/recording/RecordTarget.h
         src/recording/RecordingGeometry.h
         src/recording/PcmMixBuffer.h
+        src/recording/PauseAwareClock.h
         src/recording/RecordingStrategy.cpp
         src/recording/RecordingStrategy.h
         src/recording/RecordingFactory.cpp
