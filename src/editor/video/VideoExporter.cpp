@@ -8,6 +8,9 @@
 #ifdef SNIM_HAVE_LINUX_VIDEO_EXPORTER
 #include "editor/video/LinuxVideoModule.h"
 #endif
+#ifdef SNIM_HAVE_FFMPEG_VIDEO_EXPORTER
+#include "editor/video/FfmpegVideoExporter.h"
+#endif
 
 #include <QDebug>
 
@@ -19,6 +22,8 @@ std::unique_ptr<VideoExporter> VideoExporter::create(QObject *parent)
 {
 #ifdef Q_OS_MACOS
     return std::make_unique<MacVideoExporter>(parent);
+#elif defined(SNIM_HAVE_FFMPEG_VIDEO_EXPORTER)
+    return std::make_unique<FfmpegVideoExporter>(parent);
 #else
 #ifdef SNIM_HAVE_LINUX_VIDEO_EXPORTER
     // The backend lives in a dlopened module, so a host without GStreamer (or without

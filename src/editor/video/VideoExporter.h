@@ -10,9 +10,10 @@ namespace Editor::Video {
 /**
  * Platform seam (Strategy) for cutting a recording down to a time range. The macOS
  * implementation remuxes with AVAssetExportSession (no re-encode); Linux re-encodes
- * through GStreamer in a dlopened module; anything else, or a Linux host missing the
- * plugins, gets a stub that reports trimming as unavailable, since untrimmed saves
- * are a plain file move and never touch this interface.
+ * through GStreamer in a dlopened module; Windows re-encodes through the statically
+ * linked FFmpeg layer; anything else, or a Linux host missing the plugins, gets a stub
+ * that reports trimming as unavailable, since untrimmed saves are a plain file move and
+ * never touch this interface.
  */
 class VideoExporter : public QObject
 {
