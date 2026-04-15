@@ -837,6 +837,14 @@ if(WIN32)
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_FFMPEG_VIDEO_EXPORTER)
 endif()
 
+# Windows screen recording: Graphics Capture through C++/WinRT and Direct3D 11.
+if(WIN32)
+    target_sources(snim_lib PRIVATE
+            src/recording/strategies/windows/WgcFrameSource.cpp
+            src/recording/strategies/windows/WgcFrameSource.h)
+    target_link_libraries(snim_lib PUBLIC windowsapp d3d11 dxgi)
+endif()
+
 # The version header is generated, not checked in, so `core/Version.h` resolves out
 # of the build tree for the library, the executable and the tests alike.
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Version.h.in"
