@@ -843,7 +843,9 @@ if(WIN32)
             src/recording/strategies/windows/WgcFrameSource.cpp
             src/recording/strategies/windows/WgcFrameSource.h
             src/recording/strategies/windows/WasapiAudioSource.cpp
-            src/recording/strategies/windows/WasapiAudioSource.h)
+            src/recording/strategies/windows/WasapiAudioSource.h
+            src/recording/strategies/windows/WindowsRecordingStrategy.cpp
+            src/recording/strategies/windows/WindowsRecordingStrategy.h)
     target_link_libraries(snim_lib PUBLIC windowsapp d3d11 dxgi)
 endif()
 
