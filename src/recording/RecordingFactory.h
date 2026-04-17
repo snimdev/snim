@@ -8,9 +8,9 @@ namespace Recording {
 
 /**
  * Creates the recording backend for the current system, mirroring CaptureFactory.
- * Auto picks the best available (ScreenCaptureKit on macOS; the stub elsewhere or
- * on macOS too old for it). Adding a platform (Linux portal/PipeWire, Windows
- * Graphics Capture) is a new strategy class plus one branch here.
+ * Auto picks the best available (ScreenCaptureKit on macOS, the portal on Linux,
+ * Graphics Capture on Windows; the stub where none of them can run). Adding a
+ * platform is a new strategy class plus one branch here.
  */
 class RecordingFactory
 {
@@ -19,6 +19,7 @@ public:
         Auto,       // best available for this system
         Mac,        // ScreenCaptureKit (macOS 12.3+)
         Linux,      // portal ScreenCast + GStreamer
+        Windows,    // Graphics Capture + WASAPI + FFmpeg (Windows 10 2004+)
         Stub        // unsupported-platform fallback
     };
 

@@ -36,8 +36,21 @@ private slots:
         QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Mac);
 #elif defined(SNIM_HAVE_LINUX_RECORDER)
         QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Linux);
+#elif defined(SNIM_HAVE_WIN_RECORDER)
+        QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Windows);
 #endif
     }
+
+#ifdef SNIM_HAVE_WIN_RECORDER
+    void createsWindowsOrFallsBack()
+    {
+        auto s = RecordingFactory::createStrategy(RecordingFactory::StrategyType::Windows);
+        QVERIFY(s);
+        // Windows before 2004 (or without Graphics Capture) gets the stub.
+        QCOMPARE(s->name() == QStringLiteral("Graphics Capture"),
+                 RecordingFactory::isStrategyAvailable(RecordingFactory::StrategyType::Windows));
+    }
+#endif
 
 #ifdef SNIM_HAVE_LINUX_RECORDER
     void createsLinuxOrFallsBack()

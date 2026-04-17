@@ -847,6 +847,8 @@ if(WIN32)
             src/recording/strategies/windows/WindowsRecordingStrategy.cpp
             src/recording/strategies/windows/WindowsRecordingStrategy.h)
     target_link_libraries(snim_lib PUBLIC windowsapp d3d11 dxgi)
+    # Activates the Windows branch of RecordingFactory and makes Auto pick it.
+    target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_WIN_RECORDER)
 endif()
 
 # The version header is generated, not checked in, so `core/Version.h` resolves out

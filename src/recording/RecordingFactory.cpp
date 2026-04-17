@@ -6,6 +6,9 @@
 #ifdef SNIM_HAVE_LINUX_RECORDER
 #include "recording/strategies/LinuxRecorderModule.h"
 #endif
+#ifdef SNIM_HAVE_WIN_RECORDER
+#include "recording/strategies/windows/WindowsRecordingStrategy.h"
+#endif
 
 #include <QtGlobal>
 #include <QDebug>
@@ -45,6 +48,18 @@ std::unique_ptr<RecordingStrategy> RecordingFactory::createStrategy(StrategyType
         }
         [[fallthrough]];
 
+        case StrategyType::Windows: {
+#ifdef SNIM_HAVE_WIN_RECORDER
+            auto strategy = std::make_unique<WindowsRecordingStrategy>(parent);
+            if (strategy->isAvailable()) {
+                qDebug() << "Created Graphics Capture recording strategy";
+                return strategy;
+            }
+            qWarning() << "Graphics Capture recorder unavailable (needs Windows 10 2004+), using stub";
+#endif
+        }
+        [[fallthrough]];
+
         case StrategyType::Stub:
         default:
             return std::make_unique<StubRecordingStrategy>(parent);
@@ -57,6 +72,8 @@ RecordingFactory::StrategyType RecordingFactory::getDefaultStrategyType()
     return StrategyType::Mac;
 #elif defined(SNIM_HAVE_LINUX_RECORDER)
     return StrategyType::Linux;
+#elif defined(SNIM_HAVE_WIN_RECORDER)
+    return StrategyType::Windows;
 #else
     return StrategyType::Stub;
 #endif
@@ -78,6 +95,13 @@ bool RecordingFactory::isStrategyAvailable(StrategyType type)
             // Built with Linux recording support is not the same as usable here: the
             // module still has to load and find its portal, plugins and encoder.
             return LinuxRecorderModule::isAvailable();
+#else
+            return false;
+#endif
+        }
+        case StrategyType::Windows: {
+#ifdef SNIM_HAVE_WIN_RECORDER
+            return WindowsRecordingStrategy().isAvailable();
 #else
             return false;
 #endif
