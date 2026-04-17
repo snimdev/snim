@@ -837,11 +837,13 @@ if(WIN32)
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_FFMPEG_VIDEO_EXPORTER)
 endif()
 
-# Windows screen recording: Graphics Capture through C++/WinRT and Direct3D 11.
+# Windows screen recording: Graphics Capture through C++/WinRT and Direct3D 11, WASAPI audio.
 if(WIN32)
     target_sources(snim_lib PRIVATE
             src/recording/strategies/windows/WgcFrameSource.cpp
-            src/recording/strategies/windows/WgcFrameSource.h)
+            src/recording/strategies/windows/WgcFrameSource.h
+            src/recording/strategies/windows/WasapiAudioSource.cpp
+            src/recording/strategies/windows/WasapiAudioSource.h)
     target_link_libraries(snim_lib PUBLIC windowsapp d3d11 dxgi)
 endif()
 
