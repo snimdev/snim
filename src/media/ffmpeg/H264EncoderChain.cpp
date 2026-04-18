@@ -111,6 +111,9 @@ private:
         context->colorspace = settings.colorSpace;
         if (settings.globalHeader)
             context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+        // Live frames come at uneven times; B-frame reordering skews the track's start and length.
+        if (settings.tuning == H264EncoderSettings::Live)
+            context->max_b_frames = 0;
 
         AVDictionary *options = nullptr;
         setEncoderOptions(m_name, settings, &options);

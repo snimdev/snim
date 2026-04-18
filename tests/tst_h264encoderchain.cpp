@@ -44,6 +44,22 @@ private slots:
         QCOMPARE(opened.context->width, 320);
     }
 
+    void liveEncodingHasNoBFrames()
+    {
+        H264EncoderSettings settings = smallSettings();
+        settings.tuning = H264EncoderSettings::Live;
+        for (const QString &name : H264EncoderChain::defaultOrder()) {
+            const OpenedH264Encoder opened = H264EncoderChain({name}).open(settings);
+            if (!opened)
+                continue;
+            QCOMPARE(opened.context->max_b_frames, 0);
+            QCOMPARE(opened.context->has_b_frames, 0);
+        }
+        settings.tuning = H264EncoderSettings::Offline;
+        const OpenedH264Encoder offline = H264EncoderChain({QStringLiteral("libx264")}).open(settings);
+        QVERIFY(offline);
+        QVERIFY(offline.context->has_b_frames > 0);
+    }
     void theDefaultChainAlwaysOpensSomething()
     {
         const OpenedH264Encoder opened = H264EncoderChain::fromEnvironment().open(smallSettings());
