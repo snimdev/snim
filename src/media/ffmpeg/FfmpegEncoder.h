@@ -5,6 +5,7 @@
 #include "media/ffmpeg/H264EncoderChain.h"
 
 #include <QString>
+#include <QStringList>
 #include <QtGlobal>
 
 struct AVAudioFifo;
@@ -14,6 +15,7 @@ namespace Media::Ffmpeg {
 struct FfmpegEncoderSettings {
     QString path;                 // .mov writes QuickTime, anything else MP4
     H264EncoderSettings video;    // odd sizes lose their last column or row
+    QStringList videoEncoders;    // chain order; empty uses H264EncoderChain::fromEnvironment()
     int sampleRate = 48000;
     int channels = 2;             // 0 writes no audio track
 };

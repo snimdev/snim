@@ -108,7 +108,9 @@ bool FfmpegEncoder::open(const FfmpegEncoderSettings &settings)
 
 bool FfmpegEncoder::openVideo()
 {
-    OpenedH264Encoder opened = H264EncoderChain::fromEnvironment().open(m_settings.video);
+    const H264EncoderChain chain = m_settings.videoEncoders.isEmpty()
+        ? H264EncoderChain::fromEnvironment() : H264EncoderChain(m_settings.videoEncoders);
+    OpenedH264Encoder opened = chain.open(m_settings.video);
     if (!opened)
         return fail(QStringLiteral("No H.264 encoder could be opened"));
     m_video.codec = std::move(opened.context);

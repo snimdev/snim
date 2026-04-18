@@ -34,6 +34,8 @@ namespace {
 
 using Media::Ffmpeg::FfmpegEncoder;
 using Media::Ffmpeg::FfmpegEncoderSettings;
+using Media::Ffmpeg::H264EncoderChain;
+using Media::Ffmpeg::H264EncoderSettings;
 
 constexpr int kMixRate = WasapiAudioSource::kSampleRate;
 constexpr int kMixChannels = WasapiAudioSource::kChannels;
@@ -43,6 +45,23 @@ constexpr std::int64_t kMixResyncFrames = 2400;
 // Frames waiting for the encoder; past this the capture side drops new ones.
 constexpr int kMaxPendingFrames = 3;
 constexpr int kDurationIntervalMs = 200;
+
+// Probing the chain opens hardware encoders one by one and can take a second, so it runs
+// once, before capture starts; recordings open the winner directly, then the links after it.
+QStringList encoderOrder(const H264EncoderSettings &probe)
+{
+    static std::mutex mutex;
+    static QString picked;
+    std::lock_guard lock(mutex);
+    const QStringList chain = H264EncoderChain::fromEnvironment().names();
+    if (!chain.contains(picked)) {
+        const Media::Ffmpeg::OpenedH264Encoder opened = H264EncoderChain(chain).open(probe);
+        if (!opened)
+            return chain;
+        picked = opened.name;
+    }
+    return chain.mid(chain.indexOf(picked));
+}
 
 QVector<Capture::WinScreenMap::Screen> screenMap()
 {
@@ -204,6 +223,14 @@ void WindowsRecordingStrategy::Engine::begin(const Setup &setup)
         clock.reset();
     }
 
+    // Before any capture starts, so the probe never ends up in the recording.
+    H264EncoderSettings probe;
+    probe.width = setup.outputPx.isEmpty() ? 1280 : setup.outputPx.width() & ~1;
+    probe.height = setup.outputPx.isEmpty() ? 720 : setup.outputPx.height() & ~1;
+    probe.frameRate = AVRational{qMax(setup.fps, 1), 1};
+    probe.globalHeader = true;
+    const QStringList encoders = encoderOrder(probe);
+
     // Audio that cannot start leaves the recording silent rather than failing it.
     int audioSources = 0;
     QString error;
@@ -254,6 +281,7 @@ void WindowsRecordingStrategy::Engine::begin(const Setup &setup)
     settings.video.width = outputPx.width();
     settings.video.height = outputPx.height();
     settings.video.frameRate = AVRational{qMax(setup.fps, 1), 1};
+    settings.videoEncoders = encoders;
     settings.sampleRate = kMixRate;
     settings.channels = audioSources > 0 ? kMixChannels : 0;
     encoder = std::make_unique<FfmpegEncoder>();
