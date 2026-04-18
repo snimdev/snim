@@ -196,19 +196,7 @@ void WindowsRecordingStrategy::Engine::begin(const Setup &setup)
     for (MixSourceClock &mixClock : mixClocks)
         mixClock.reset();
 
-    FfmpegEncoderSettings settings;
-    settings.path = path;
-    settings.video.width = setup.outputPx.width();
-    settings.video.height = setup.outputPx.height();
-    settings.video.frameRate = AVRational{qMax(setup.fps, 1), 1};
-    settings.sampleRate = kMixRate;
-    settings.channels = audioSources > 0 ? kMixChannels : 0;
-    encoder = std::make_unique<FfmpegEncoder>();
-    if (!encoder->open(settings)) {
-        failWith(encoder->errorString());
-        return;
-    }
-
+    // Frames queue up behind this task, so the encoder is open before the first one.
     const quint64 current = generation;
     WindowsRecordingStrategy *strategy = owner;
     error.clear();
@@ -220,7 +208,21 @@ void WindowsRecordingStrategy::Engine::begin(const Setup &setup)
                      },
                      &error)) {
         failWith(error.isEmpty() ? QStringLiteral("Could not start screen capture.") : error);
+        return;
     }
+
+    // A window records at the size it has now; later resizes are scaled to fit.
+    const QSize outputPx = setup.outputPx.isEmpty() ? video.itemSize() : setup.outputPx;
+    FfmpegEncoderSettings settings;
+    settings.path = path;
+    settings.video.width = outputPx.width();
+    settings.video.height = outputPx.height();
+    settings.video.frameRate = AVRational{qMax(setup.fps, 1), 1};
+    settings.sampleRate = kMixRate;
+    settings.channels = audioSources > 0 ? kMixChannels : 0;
+    encoder = std::make_unique<FfmpegEncoder>();
+    if (!encoder->open(settings))
+        failWith(encoder->errorString());
 }
 
 void WindowsRecordingStrategy::Engine::stopSources()
@@ -438,6 +440,33 @@ void WindowsRecordingStrategy::start(const RecordTarget &target, const QString &
             reportFailed(generation, error);
         }, Qt::QueuedConnection);
     };
+    auto launch = [this](const Setup &setup) {
+        m_active = true;
+        Engine *engine = m_engine.get();
+        engine->queue.post([engine, setup] { engine->begin(setup); });
+    };
+
+    Setup setup;
+    setup.generation = generation;
+    setup.path = outputPath;
+    setup.fps = target.fps > 0 ? target.fps : 30;
+    setup.video.captureCursor = target.captureCursor;
+    setup.video.maxFps = setup.fps;
+    setup.systemAudio = target.captureSystemAudio;
+    setup.mic = target.captureMic;
+    setup.micDeviceId = target.micDeviceId;
+
+    if (target.kind == RecordTarget::Kind::Window && target.windowId != 0) {
+        // True window capture: follows the window and leaves out whatever overlaps it.
+        const HWND window = reinterpret_cast<HWND>(quintptr(target.windowId));
+        if (!IsWindow(window)) {
+            failSoon(QStringLiteral("That window is no longer available."));
+            return;
+        }
+        setup.video.window = quintptr(window);
+        launch(setup);
+        return;
+    }
 
     const QRect region = target.regionVirtual;
     QScreen *screen = QGuiApplication::screenAt(region.center());
@@ -459,22 +488,10 @@ void WindowsRecordingStrategy::start(const RecordTarget &target, const QString &
         return;
     }
 
-    Setup setup;
-    setup.generation = generation;
-    setup.path = outputPath;
-    setup.fps = target.fps > 0 ? target.fps : 30;
     setup.video.monitor = quintptr(native->handle());
     setup.video.cropPx = crop.cropPx;
-    setup.video.captureCursor = target.captureCursor;
-    setup.video.maxFps = setup.fps;
     setup.outputPx = crop.outputPx;
-    setup.systemAudio = target.captureSystemAudio;
-    setup.mic = target.captureMic;
-    setup.micDeviceId = target.micDeviceId;
-
-    m_active = true;
-    Engine *engine = m_engine.get();
-    engine->queue.post([engine, setup] { engine->begin(setup); });
+    launch(setup);
 }
 
 void WindowsRecordingStrategy::requestFinish(bool report)
