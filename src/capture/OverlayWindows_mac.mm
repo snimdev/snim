@@ -110,6 +110,9 @@ void configureSelectionHud(QWidget *widget)
     [window orderFrontRegardless];
 }
 
+// The ScreenCaptureKit filter already leaves the whole app out of the recording.
+void excludeFromCapture(QWidget *) {}
+
 quint64 nativeWindowId(QWidget *widget)
 {
     if (!widget)

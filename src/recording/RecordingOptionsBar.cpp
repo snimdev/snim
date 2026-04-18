@@ -345,6 +345,7 @@ void RecordingOptionsBar::showEvent(QShowEvent *event)
             move(avail.center().x() - width() / 2, avail.bottom() - height() - 24);
         }
         Capture::configureSelectionHud(this);   // above the shielding-level overlay
+        Capture::excludeFromCapture(this);
         return;
     }
 

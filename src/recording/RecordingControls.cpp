@@ -129,6 +129,7 @@ void RecordingControls::showEvent(QShowEvent *event)
     // Persistent, non-activating HUD: stays visible across Spaces and when the user
     // clicks other apps mid-recording, without stealing focus from them.
     Capture::configureRecordingHud(this);
+    Capture::excludeFromCapture(this);
 }
 
 } // namespace Recording

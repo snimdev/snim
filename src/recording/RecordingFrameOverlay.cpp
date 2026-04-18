@@ -101,6 +101,7 @@ void RecordingFrameOverlay::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
     Capture::configureRecordingHud(this);   // float across Spaces, non-activating
+    Capture::excludeFromCapture(this);
 }
 
 } // namespace Recording

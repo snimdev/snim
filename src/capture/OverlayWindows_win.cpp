@@ -88,6 +88,15 @@ void configureSelectionHud(QWidget *widget)
     raiseTopmost(hwnd, /*activate=*/false);
 }
 
+void excludeFromCapture(QWidget *widget)
+{
+    HWND hwnd = topLevelHandle(widget);
+    if (!hwnd)
+        return;
+    // Fails before Windows 10 2004, where recording is unavailable anyway.
+    SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
+}
+
 quint64 nativeWindowId(QWidget *widget)
 {
     HWND hwnd = widget ? topLevelHandle(widget->window()) : nullptr;

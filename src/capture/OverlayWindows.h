@@ -45,6 +45,14 @@ void configureRecordingHud(QWidget *widget);
 void configureSelectionHud(QWidget *widget);
 
 /**
+ * Keep an own top-level window out of screen recordings (and other apps' screen
+ * captures) while it stays visible on screen. Windows: WDA_EXCLUDEFROMCAPTURE,
+ * Windows 10 2004 or later. A no-op elsewhere: the macOS recorder already filters
+ * out the whole app. The webcam bubble must never get this, so it is recorded.
+ */
+void excludeFromCapture(QWidget *widget);
+
+/**
  * The native window id backing a shown top-level widget (macOS: the CGWindowID,
  * i.e. NSWindow windowNumber; Windows: the HWND), or 0 if unavailable. Used so the recorder can keep a
  * specific own-app window (the webcam bubble) in the capture while excluding the

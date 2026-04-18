@@ -6,6 +6,7 @@ namespace Capture {
 void configureOverlayWindow(QWidget *) {}
 void configureRecordingHud(QWidget *) {}
 void configureSelectionHud(QWidget *) {}
+void excludeFromCapture(QWidget *) {}
 
 quint64 nativeWindowId(QWidget *)
 {
