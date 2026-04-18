@@ -1107,6 +1107,28 @@ if(WIN32)
             endif()
         endforeach()")
 
+    # vcpkg's tesseract ships no language data. This is tessdata 4.1.0, the model Debian's
+    # tesseract-ocr-eng carries; it lands in <build>/tessdata, where snim.exe also finds it.
+    set(SNIM_ENG_TRAINEDDATA "" CACHE FILEPATH "Local eng.traineddata to bundle (offline builds)")
+    set(_snim_traineddata_sha256 daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047)
+    set(_snim_traineddata "${CMAKE_BINARY_DIR}/tessdata/eng.traineddata")
+    if(SNIM_ENG_TRAINEDDATA)
+        file(SHA256 "${SNIM_ENG_TRAINEDDATA}" _snim_traineddata_actual)
+        if(NOT _snim_traineddata_actual STREQUAL _snim_traineddata_sha256)
+            message(FATAL_ERROR "SNIM_ENG_TRAINEDDATA does not match tessdata 4.1.0 eng.traineddata")
+        endif()
+        file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tessdata")
+        file(COPY_FILE "${SNIM_ENG_TRAINEDDATA}" "${_snim_traineddata}" ONLY_IF_DIFFERENT)
+    else()
+        # Skipped when the cached file already has the expected hash.
+        file(DOWNLOAD
+                "https://raw.githubusercontent.com/tesseract-ocr/tessdata/4767ea922bcc460e70b87b1d303ebdfed0897da8/eng.traineddata"
+                "${_snim_traineddata}"
+                EXPECTED_HASH SHA256=${_snim_traineddata_sha256}
+                TLS_VERIFY ON)
+    endif()
+    install(FILES "${_snim_traineddata}" DESTINATION tessdata)
+
     set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION .)
     include(InstallRequiredSystemLibraries)
 
