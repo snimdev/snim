@@ -28,6 +28,9 @@
 #ifdef Q_OS_MACOS
 #include "core/MacTrayWorkaround.h"
 #endif
+#ifdef Q_OS_WIN
+#include "core/SingleInstance.h"
+#endif
 #include "hotkeys/GlobalHotkeyManager.h"
 #include "hotkeys/HotkeyBindings.h"
 #include "editor/image/ImageEditor.h"
@@ -117,6 +120,14 @@ namespace Core {
                 });
 
         setupSystemTray();
+
+#ifdef Q_OS_WIN
+        // main() lets one Snim run per session; a second launch pings this one instead.
+        SingleInstance::listen(this, [this] {
+            if (m_trayIcon)
+                m_trayIcon->showMessage(tr("Snim"), tr("Snim is already running"));
+        });
+#endif
 
         // Deferred: the backends register against a running event loop.
         QTimer::singleShot(0, this, [this] {

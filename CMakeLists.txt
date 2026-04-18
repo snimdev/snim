@@ -679,7 +679,9 @@ elseif(WIN32)
             src/capture/WindowEnumerator_win.cpp
             src/capture/OverlayWindows_win.cpp
             # Credential Manager backing for upload secrets (advapi32, linked by default)
-            src/core/KeychainStore_win.cpp)
+            src/core/KeychainStore_win.cpp
+            src/core/SingleInstance.h
+            src/core/SingleInstance_win.cpp)
 else()
     target_sources(snim_lib PRIVATE
             src/capture/WindowEnumerator_stub.cpp

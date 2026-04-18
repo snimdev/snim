@@ -11,6 +11,7 @@
 #include <string_view>
 
 #ifdef Q_OS_WIN
+#include "core/SingleInstance.h"
 #include <cstdio>
 #include <cstdlib>
 #include <windows.h>
@@ -84,6 +85,15 @@ int main(int argc, char *argv[]) {
             return 0;
         }
     }
+
+#ifdef Q_OS_WIN
+    // After the flags above, which must still work while Snim runs, and before any settings.
+    if (!Core::SingleInstance::claim()) {
+        QCoreApplication pinger(argc, argv);
+        Core::SingleInstance::notifyRunningInstance();
+        return 0;
+    }
+#endif
 
     QLoggingCategory::setFilterRules(
         "qt.*.debug=false\n"
