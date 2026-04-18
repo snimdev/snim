@@ -3,6 +3,7 @@
 #include "media/ffmpeg/FfmpegEncoder.h"
 #include "recording/PauseAwareClock.h"
 #include "recording/PcmMixBuffer.h"
+#include "capture/WinScreenMap.h"
 #include "recording/RecordingGeometry.h"
 #include "recording/strategies/windows/WasapiAudioSource.h"
 #include "recording/strategies/windows/WgcFrameSource.h"
@@ -15,6 +16,7 @@
 #include <QtGui/qscreen_platform.h>
 
 #include <windows.h>
+#include <dwmapi.h>
 #include <objbase.h>
 
 #include <atomic>
@@ -41,6 +43,35 @@ constexpr std::int64_t kMixResyncFrames = 2400;
 // Frames waiting for the encoder; past this the capture side drops new ones.
 constexpr int kMaxPendingFrames = 3;
 constexpr int kDurationIntervalMs = 200;
+
+QVector<Capture::WinScreenMap::Screen> screenMap()
+{
+    QVector<Capture::WinScreenMap::Screen> map;
+    for (QScreen *screen : QGuiApplication::screens()) {
+        auto *native = screen->nativeInterface<QNativeInterface::QWindowsScreen>();
+        MONITORINFO info{};
+        info.cbSize = sizeof(info);
+        if (!native || !GetMonitorInfoW(native->handle(), &info))
+            continue;
+        const RECT &m = info.rcMonitor;
+        map.append({QRect(m.left, m.top, m.right - m.left, m.bottom - m.top),
+                    screen->geometry().topLeft(), screen->devicePixelRatio()});
+    }
+    return map;
+}
+
+// Logical size over physical size for a window, through the screens it lies on.
+QSizeF logicalScale(HWND window)
+{
+    RECT r{};
+    if (FAILED(DwmGetWindowAttribute(window, DWMWA_EXTENDED_FRAME_BOUNDS, &r, sizeof(r))))
+        GetWindowRect(window, &r);
+    const QRect physical(r.left, r.top, r.right - r.left, r.bottom - r.top);
+    const QRect logical = Capture::WinScreenMap::toLogical(physical, screenMap());
+    if (physical.isEmpty() || logical.isEmpty())
+        return {1.0, 1.0};
+    return {qreal(logical.width()) / physical.width(), qreal(logical.height()) / physical.height()};
+}
 
 // Runs tasks one after another on its own thread, draining the queue before it quits.
 class SerialQueue
@@ -106,7 +137,8 @@ struct Setup {
     quint64 generation = 0;
     QString path;
     WgcFrameSource::Target video;
-    QSize outputPx;
+    QSize outputPx;               // empty for a window: its captured size times windowScale
+    QSizeF windowScale{1.0, 1.0};
     int fps = 30;
     bool systemAudio = false;
     bool mic = false;
@@ -212,7 +244,11 @@ void WindowsRecordingStrategy::Engine::begin(const Setup &setup)
     }
 
     // A window records at the size it has now; later resizes are scaled to fit.
-    const QSize outputPx = setup.outputPx.isEmpty() ? video.itemSize() : setup.outputPx;
+    const QSize itemPx = video.itemSize();
+    const QSize outputPx = setup.outputPx.isEmpty()
+        ? QSize(qMax(2, qRound(itemPx.width() * setup.windowScale.width())),
+                qMax(2, qRound(itemPx.height() * setup.windowScale.height())))
+        : setup.outputPx;
     FfmpegEncoderSettings settings;
     settings.path = path;
     settings.video.width = outputPx.width();
@@ -464,6 +500,8 @@ void WindowsRecordingStrategy::start(const RecordTarget &target, const QString &
             return;
         }
         setup.video.window = quintptr(window);
+        if (!target.retinaCapture)
+            setup.windowScale = logicalScale(window);
         launch(setup);
         return;
     }
@@ -481,8 +519,9 @@ void WindowsRecordingStrategy::start(const RecordTarget &target, const QString &
     }
     const QSize monitorPx(monitor.rcMonitor.right - monitor.rcMonitor.left,
                           monitor.rcMonitor.bottom - monitor.rcMonitor.top);
+    // Without HiDPI capture the encoder scales the native crop down to logical pixels.
     const StreamCrop crop = portalStreamCrop(region, screen->geometry(), monitorPx,
-                                             /*retinaCapture=*/true);
+                                             target.retinaCapture);
     if (!crop.valid) {
         failSoon(QStringLiteral("The selected region is outside the display."));
         return;
