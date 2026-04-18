@@ -72,7 +72,7 @@ endif()
 
 # The FFmpeg media layer is built on Windows only.
 if(WIN32)
-    list(APPEND SNIM_TESTS tst_h264encoderchain tst_ffmpegencoder)
+    list(APPEND SNIM_TESTS tst_h264encoderchain tst_ffmpegencoder tst_windowsrecorder)
 endif()
 
 foreach(test_name ${SNIM_TESTS})
@@ -125,6 +125,8 @@ endif()
 if(WIN32)
     target_link_libraries(tst_h264encoderchain PRIVATE snim_media_ffmpeg)
     target_link_libraries(tst_ffmpegencoder PRIVATE snim_media_ffmpeg)
+    # Graphics Capture needs real screens; the test skips where there is no desktop.
+    set_tests_properties(tst_windowsrecorder PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=windows")
 endif()
 
 # FFmpeg must stay static in snim.exe, or it would clash with Qt Multimedia's DLLs.
