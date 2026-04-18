@@ -34,6 +34,9 @@ public:
     [[nodiscard]] bool isAvailable() const override;
     [[nodiscard]] QString name() const override { return QStringLiteral("Graphics Capture"); }
 
+    // Why recording cannot run on this system, or empty when it can.
+    [[nodiscard]] static QString unavailableReason();
+
 private:
     struct Engine;   // capture sources and the encoder thread, defined in the .cpp
 

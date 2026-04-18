@@ -193,14 +193,25 @@ WgcFrameSource::~WgcFrameSource()
     stop();
 }
 
-bool WgcFrameSource::isSupported()
+bool WgcFrameSource::isWindowsVersionSupported()
 {
     static const bool supported = [] {
         try {
             // Contract 10 is Windows 10 2004: cursor control and capture exclusion.
             return winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(
-                       L"Windows.Foundation.UniversalApiContract", 10)
-                   && wgc::GraphicsCaptureSession::IsSupported();
+                L"Windows.Foundation.UniversalApiContract", 10);
+        } catch (const winrt::hresult_error &) {
+            return false;
+        }
+    }();
+    return supported;
+}
+
+bool WgcFrameSource::isSupported()
+{
+    static const bool supported = [] {
+        try {
+            return isWindowsVersionSupported() && wgc::GraphicsCaptureSession::IsSupported();
         } catch (const winrt::hresult_error &) {
             return false;
         }

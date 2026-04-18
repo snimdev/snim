@@ -49,6 +49,8 @@ public:
 
     // Graphics Capture with cursor control (Windows 10 2004 or later).
     [[nodiscard]] static bool isSupported();
+    // Whether the Windows version is new enough, whatever the hardware or session allows.
+    [[nodiscard]] static bool isWindowsVersionSupported();
 
     // Handlers run on capture threads, never after stop() returns. onClosed fires
     // when the captured window or monitor goes away.

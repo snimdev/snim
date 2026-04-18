@@ -462,6 +462,17 @@ bool WindowsRecordingStrategy::isAvailable() const
     return WgcFrameSource::isSupported();
 }
 
+QString WindowsRecordingStrategy::unavailableReason()
+{
+    if (!WgcFrameSource::isWindowsVersionSupported())
+        return QStringLiteral("Screen recording requires Windows 10 version 2004 or later");
+    if (!WgcFrameSource::isSupported())
+        return QStringLiteral("Screen recording needs Windows Graphics Capture, which is "
+                              "unavailable on this system (it can be missing in remote or "
+                              "virtual sessions)");
+    return {};
+}
+
 void WindowsRecordingStrategy::start(const RecordTarget &target, const QString &outputPath)
 {
     if (m_active)

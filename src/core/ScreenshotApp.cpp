@@ -34,6 +34,9 @@
 #include "editor/video/VideoEditor.h"
 #include "recording/RecordingController.h"
 #include "recording/RecordingControls.h"
+#ifdef SNIM_HAVE_WIN_RECORDER
+#include "recording/strategies/windows/WindowsRecordingStrategy.h"
+#endif
 #include "upload/Uploader.h"
 #include "upload/UploaderFactory.h"
 #include <QClipboard>
@@ -198,8 +201,10 @@ namespace Core {
 #elif defined(Q_OS_LINUX)
             const QString reason = "Screen recording requires the ScreenCast portal and "
                                    "GStreamer (with an H.264 encoder)";
-#elif defined(Q_OS_WIN)
-            const QString reason = "Screen recording and trimming come to Windows in a later release";
+#elif defined(SNIM_HAVE_WIN_RECORDER)
+            QString reason = Recording::WindowsRecordingStrategy::unavailableReason();
+            if (reason.isEmpty())
+                reason = "Screen recording could not start its Windows recorder";
 #else
             const QString reason = "Screen recording is not supported on this platform yet";
 #endif
