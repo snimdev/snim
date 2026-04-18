@@ -1089,6 +1089,40 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # ---------------------------------------------------------------------------
+# Windows install rules
+# ---------------------------------------------------------------------------
+# `cmake --install` stages a self-contained folder: snim.exe at the root, the vcpkg DLLs,
+# the MSVC runtime, then everything windeployqt adds. The installer and the portable zip
+# both package this tree.
+if(WIN32)
+    install(TARGETS Snim RUNTIME DESTINATION .)
+
+    # Applocal deployment already copied the DLLs snim.exe needs beside it: mirror that set.
+    install(CODE "
+        file(GLOB _snim_vcpkg_dlls \"${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/*.dll\")
+        foreach(_snim_dll IN LISTS _snim_vcpkg_dlls)
+            get_filename_component(_snim_dll_name \"\${_snim_dll}\" NAME)
+            if(EXISTS \"$<TARGET_FILE_DIR:Snim>/\${_snim_dll_name}\")
+                file(INSTALL \"\${_snim_dll}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}\")
+            endif()
+        endforeach()")
+
+    set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION .)
+    include(InstallRequiredSystemLibraries)
+
+    get_target_property(_qmake_executable Qt6::qmake IMPORTED_LOCATION)
+    get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}" REQUIRED)
+
+    # The CRT is installed above, so windeployqt must not drop vc_redist.x64.exe in too.
+    install(CODE "
+        execute_process(
+                COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" --release --no-translations
+                        --no-compiler-runtime \"\${CMAKE_INSTALL_PREFIX}/snim.exe\"
+                COMMAND_ERROR_IS_FATAL ANY)")
+endif()
+
+# ---------------------------------------------------------------------------
 # Tests (Qt Test + CTest). Configure with -DSNIM_BUILD_TESTS=OFF to skip.
 # Run with: ctest --test-dir <build> --output-on-failure
 # ---------------------------------------------------------------------------
