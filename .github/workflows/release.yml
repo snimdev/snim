@@ -482,7 +482,12 @@ jobs:
           git -C $root fetch --quiet --depth 1 https://github.com/microsoft/vcpkg $baseline
           git -C $root checkout --quiet FETCH_HEAD
           & "$root\bootstrap-vcpkg.bat" -disableMetrics
-          $cache = "$env:RUNNER_TEMP\vcpkg-cache"
+          if ($env:RUNNER_ENVIRONMENT -eq 'self-hosted') {
+            # A persistent local cache (see scripts/windows-runner-bootstrap.ps1) replaces actions/cache.
+            $cache = if ($env:SNIM_VCPKG_CACHE) { $env:SNIM_VCPKG_CACHE } else { 'C:\snim-ci\vcpkg-cache' }
+          } else {
+            $cache = "$env:RUNNER_TEMP\vcpkg-cache"
+          }
           New-Item -ItemType Directory -Force $cache | Out-Null
           "VCPKG_ROOT=$root" >> $env:GITHUB_ENV
           "VCPKG_BINARY_SOURCES=clear;files,$cache,readwrite" >> $env:GITHUB_ENV
@@ -490,6 +495,7 @@ jobs:
           "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
 
       - name: Cache vcpkg packages
+        if: runner.environment != 'self-hosted'
         uses: actions/cache@v4
         with:
           path: ${{ steps.vcpkg.outputs.cache }}
@@ -527,8 +533,12 @@ jobs:
           NUMERIC: ${{ steps.version.outputs.numeric }}
           STAGE: ${{ steps.stage.outputs.dir }}
         run: |
-          $candidates = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe")
+          $candidates = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe", "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe")
           $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc -and $env:RUNNER_ENVIRONMENT -eq 'self-hosted') {
+            Write-Output "::error title=No Inno Setup::ISCC.exe is not installed on this self-hosted runner; run scripts/windows-runner-bootstrap.ps1 on it"
+            exit 1
+          }
           if (-not $iscc) {
             choco install innosetup --no-progress -y
             $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
