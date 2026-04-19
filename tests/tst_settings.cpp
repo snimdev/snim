@@ -159,6 +159,35 @@ private slots:
         for (const QString &k : keys)
             QVERIFY(!k.contains("Secret", Qt::CaseInsensitive));
     }
+
+    void portableFileIn_needsSnimIni()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QVERIFY(Settings::portableFileIn(dir.path()).isEmpty());
+
+        QFile ini(dir.filePath("snim.ini"));
+        QVERIFY(ini.open(QIODevice::WriteOnly));
+        ini.close();
+        QCOMPARE(Settings::portableFileIn(dir.path()), dir.filePath("snim.ini"));
+    }
+
+    void portableFile_keepsThePlatformStoreUntouched()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString ini = dir.filePath("snim.ini");
+        Settings::setImageFormat("png");
+
+        Settings::setPortableFile(ini);
+        Settings::setImageFormat("webp");
+        QCOMPARE(Settings::imageFormat(), QStringLiteral("webp"));
+        QCOMPARE(QSettings(ini, QSettings::IniFormat).value("General/ImageFormat").toString(),
+                 QStringLiteral("webp"));
+
+        Settings::setPortableFile(QString());
+        QCOMPARE(Settings::imageFormat(), QStringLiteral("png"));
+    }
 };
 
 QTEST_MAIN(tst_Settings)

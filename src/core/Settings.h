@@ -4,6 +4,9 @@
 #include <QString>
 #include <QByteArray>
 #include <QColor>
+#include <memory>
+
+class QSettings;
 
 namespace Core {
 
@@ -16,6 +19,15 @@ namespace Core {
  */
 class Settings {
 public:
+    // Portable mode: every setting lives in this INI file instead of the platform store.
+    // Set before the first setting is read; an empty path restores the platform store.
+    static void setPortableFile(const QString &iniPath);
+    static QString portableFile();
+    // <dir>/snim.ini when that file exists, otherwise empty.
+    static QString portableFileIn(const QString &dir);
+    // The short-lived QSettings every accessor goes through.
+    static std::unique_ptr<QSettings> store();
+
     // General
     static QString screenshotFolder();                 // default: <Pictures>/Screenshots
     static void setScreenshotFolder(const QString &path);

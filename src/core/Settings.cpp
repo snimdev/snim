@@ -1,5 +1,6 @@
 #include "core/Settings.h"
 
+#include <QFileInfo>
 #include <QSettings>
 #include <QStandardPaths>
 
@@ -48,124 +49,142 @@ QString animationKey(const QString &format, const char *field)
 {
     return QStringLiteral("Animation/%1/%2").arg(format, QLatin1String(field));
 }
+
+QString portablePath;
+}
+
+void Settings::setPortableFile(const QString &iniPath) { portablePath = iniPath; }
+QString Settings::portableFile() { return portablePath; }
+
+QString Settings::portableFileIn(const QString &dir)
+{
+    const QString path = dir + QStringLiteral("/snim.ini");
+    return QFileInfo(path).isFile() ? path : QString();
+}
+
+std::unique_ptr<QSettings> Settings::store()
+{
+    if (portablePath.isEmpty())
+        return std::make_unique<QSettings>();
+    return std::make_unique<QSettings>(portablePath, QSettings::IniFormat);
 }
 
 QString Settings::screenshotFolder()
 {
     const QString def = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
                         + "/Screenshots";
-    return QSettings().value(kScreenshotFolder, def).toString();
+    return store()->value(kScreenshotFolder, def).toString();
 }
-void Settings::setScreenshotFolder(const QString &path) { QSettings().setValue(kScreenshotFolder, path); }
+void Settings::setScreenshotFolder(const QString &path) { store()->setValue(kScreenshotFolder, path); }
 
-QString Settings::imageFormat() { return QSettings().value(kImageFormat, "png").toString(); }
-void Settings::setImageFormat(const QString &fmt) { QSettings().setValue(kImageFormat, fmt); }
+QString Settings::imageFormat() { return store()->value(kImageFormat, "png").toString(); }
+void Settings::setImageFormat(const QString &fmt) { store()->setValue(kImageFormat, fmt); }
 
 QString Settings::recordingFolder()
 {
     const QString def = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation)
                         + "/Snim";
-    return QSettings().value(kRecordingFolder, def).toString();
+    return store()->value(kRecordingFolder, def).toString();
 }
-void Settings::setRecordingFolder(const QString &path) { QSettings().setValue(kRecordingFolder, path); }
+void Settings::setRecordingFolder(const QString &path) { store()->setValue(kRecordingFolder, path); }
 
-QString Settings::recordingFormat() { return QSettings().value(kRecordingFormat, "mp4").toString(); }
-void Settings::setRecordingFormat(const QString &fmt) { QSettings().setValue(kRecordingFormat, fmt); }
+QString Settings::recordingFormat() { return store()->value(kRecordingFormat, "mp4").toString(); }
+void Settings::setRecordingFormat(const QString &fmt) { store()->setValue(kRecordingFormat, fmt); }
 
-int Settings::recordingFps() { return QSettings().value(kRecordingFps, 30).toInt(); }
-void Settings::setRecordingFps(int fps) { QSettings().setValue(kRecordingFps, fps); }
+int Settings::recordingFps() { return store()->value(kRecordingFps, 30).toInt(); }
+void Settings::setRecordingFps(int fps) { store()->setValue(kRecordingFps, fps); }
 
-bool Settings::recordingCaptureCursor() { return QSettings().value(kRecordingCaptureCursor, true).toBool(); }
-void Settings::setRecordingCaptureCursor(bool on) { QSettings().setValue(kRecordingCaptureCursor, on); }
+bool Settings::recordingCaptureCursor() { return store()->value(kRecordingCaptureCursor, true).toBool(); }
+void Settings::setRecordingCaptureCursor(bool on) { store()->setValue(kRecordingCaptureCursor, on); }
 
-bool Settings::recordingRetina() { return QSettings().value(kRecordingRetina, true).toBool(); }
-void Settings::setRecordingRetina(bool on) { QSettings().setValue(kRecordingRetina, on); }
+bool Settings::recordingRetina() { return store()->value(kRecordingRetina, true).toBool(); }
+void Settings::setRecordingRetina(bool on) { store()->setValue(kRecordingRetina, on); }
 
-int Settings::animationFps(const QString &format) { return QSettings().value(animationKey(format, "Fps"), 10).toInt(); }
-void Settings::setAnimationFps(const QString &format, int fps) { QSettings().setValue(animationKey(format, "Fps"), fps); }
-int Settings::animationMaxWidth(const QString &format) { return QSettings().value(animationKey(format, "MaxWidth"), 1200).toInt(); }
-void Settings::setAnimationMaxWidth(const QString &format, int px) { QSettings().setValue(animationKey(format, "MaxWidth"), px); }
-int Settings::animationQuality(const QString &format) { return QSettings().value(animationKey(format, "Quality"), 75).toInt(); }
-void Settings::setAnimationQuality(const QString &format, int quality) { QSettings().setValue(animationKey(format, "Quality"), quality); }
-bool Settings::animationLossless(const QString &format) { return QSettings().value(animationKey(format, "Lossless"), false).toBool(); }
-void Settings::setAnimationLossless(const QString &format, bool on) { QSettings().setValue(animationKey(format, "Lossless"), on); }
-int Settings::animationLoopCount(const QString &format) { return QSettings().value(animationKey(format, "LoopCount"), 0).toInt(); }
-void Settings::setAnimationLoopCount(const QString &format, int count) { QSettings().setValue(animationKey(format, "LoopCount"), count); }
-bool Settings::animationOptionsSkip() { return QSettings().value(kAnimationOptionsSkip, false).toBool(); }
-void Settings::setAnimationOptionsSkip(bool on) { QSettings().setValue(kAnimationOptionsSkip, on); }
+int Settings::animationFps(const QString &format) { return store()->value(animationKey(format, "Fps"), 10).toInt(); }
+void Settings::setAnimationFps(const QString &format, int fps) { store()->setValue(animationKey(format, "Fps"), fps); }
+int Settings::animationMaxWidth(const QString &format) { return store()->value(animationKey(format, "MaxWidth"), 1200).toInt(); }
+void Settings::setAnimationMaxWidth(const QString &format, int px) { store()->setValue(animationKey(format, "MaxWidth"), px); }
+int Settings::animationQuality(const QString &format) { return store()->value(animationKey(format, "Quality"), 75).toInt(); }
+void Settings::setAnimationQuality(const QString &format, int quality) { store()->setValue(animationKey(format, "Quality"), quality); }
+bool Settings::animationLossless(const QString &format) { return store()->value(animationKey(format, "Lossless"), false).toBool(); }
+void Settings::setAnimationLossless(const QString &format, bool on) { store()->setValue(animationKey(format, "Lossless"), on); }
+int Settings::animationLoopCount(const QString &format) { return store()->value(animationKey(format, "LoopCount"), 0).toInt(); }
+void Settings::setAnimationLoopCount(const QString &format, int count) { store()->setValue(animationKey(format, "LoopCount"), count); }
+bool Settings::animationOptionsSkip() { return store()->value(kAnimationOptionsSkip, false).toBool(); }
+void Settings::setAnimationOptionsSkip(bool on) { store()->setValue(kAnimationOptionsSkip, on); }
 
-bool Settings::cameraEnabled() { return QSettings().value(kCameraEnabled, false).toBool(); }
-void Settings::setCameraEnabled(bool on) { QSettings().setValue(kCameraEnabled, on); }
-QByteArray Settings::cameraDeviceId() { return QSettings().value(kCameraDeviceId).toByteArray(); }
-void Settings::setCameraDeviceId(const QByteArray &id) { QSettings().setValue(kCameraDeviceId, id); }
+bool Settings::cameraEnabled() { return store()->value(kCameraEnabled, false).toBool(); }
+void Settings::setCameraEnabled(bool on) { store()->setValue(kCameraEnabled, on); }
+QByteArray Settings::cameraDeviceId() { return store()->value(kCameraDeviceId).toByteArray(); }
+void Settings::setCameraDeviceId(const QByteArray &id) { store()->setValue(kCameraDeviceId, id); }
 
-bool Settings::micEnabled() { return QSettings().value(kMicEnabled, false).toBool(); }
-void Settings::setMicEnabled(bool on) { QSettings().setValue(kMicEnabled, on); }
-QByteArray Settings::micDeviceId() { return QSettings().value(kMicDeviceId).toByteArray(); }
-void Settings::setMicDeviceId(const QByteArray &id) { QSettings().setValue(kMicDeviceId, id); }
+bool Settings::micEnabled() { return store()->value(kMicEnabled, false).toBool(); }
+void Settings::setMicEnabled(bool on) { store()->setValue(kMicEnabled, on); }
+QByteArray Settings::micDeviceId() { return store()->value(kMicDeviceId).toByteArray(); }
+void Settings::setMicDeviceId(const QByteArray &id) { store()->setValue(kMicDeviceId, id); }
 
-bool Settings::systemAudioEnabled() { return QSettings().value(kSystemAudioEnabled, true).toBool(); }
-void Settings::setSystemAudioEnabled(bool on) { QSettings().setValue(kSystemAudioEnabled, on); }
+bool Settings::systemAudioEnabled() { return store()->value(kSystemAudioEnabled, true).toBool(); }
+void Settings::setSystemAudioEnabled(bool on) { store()->setValue(kSystemAudioEnabled, on); }
 
-bool Settings::recordingFrameEnabled() { return QSettings().value(kRecordingFrameEnabled, true).toBool(); }
-void Settings::setRecordingFrameEnabled(bool on) { QSettings().setValue(kRecordingFrameEnabled, on); }
+bool Settings::recordingFrameEnabled() { return store()->value(kRecordingFrameEnabled, true).toBool(); }
+void Settings::setRecordingFrameEnabled(bool on) { store()->setValue(kRecordingFrameEnabled, on); }
 
-bool Settings::uploadEnabled() { return QSettings().value(kUploadEnabled, false).toBool(); }
-void Settings::setUploadEnabled(bool on) { QSettings().setValue(kUploadEnabled, on); }
-QString Settings::uploadEndpoint() { return QSettings().value(kUploadEndpoint, "s3.amazonaws.com").toString(); }
-void Settings::setUploadEndpoint(const QString &v) { QSettings().setValue(kUploadEndpoint, v); }
-QString Settings::uploadRegion() { return QSettings().value(kUploadRegion, "us-east-1").toString(); }
-void Settings::setUploadRegion(const QString &v) { QSettings().setValue(kUploadRegion, v); }
-QString Settings::uploadBucket() { return QSettings().value(kUploadBucket).toString(); }
-void Settings::setUploadBucket(const QString &v) { QSettings().setValue(kUploadBucket, v); }
-QString Settings::uploadAccessKeyId() { return QSettings().value(kUploadAccessKeyId).toString(); }
-void Settings::setUploadAccessKeyId(const QString &v) { QSettings().setValue(kUploadAccessKeyId, v); }
-QString Settings::uploadKeyPrefix() { return QSettings().value(kUploadKeyPrefix).toString(); }
-void Settings::setUploadKeyPrefix(const QString &v) { QSettings().setValue(kUploadKeyPrefix, v); }
-QString Settings::uploadPublicBaseUrl() { return QSettings().value(kUploadPublicBaseUrl).toString(); }
-void Settings::setUploadPublicBaseUrl(const QString &v) { QSettings().setValue(kUploadPublicBaseUrl, v); }
-bool Settings::uploadForcePathStyle() { return QSettings().value(kUploadForcePathStyle, false).toBool(); }
-void Settings::setUploadForcePathStyle(bool on) { QSettings().setValue(kUploadForcePathStyle, on); }
-QString Settings::uploadProfilesJson() { return QSettings().value(kUploadProfilesJson).toString(); }
-void Settings::setUploadProfilesJson(const QString &json) { QSettings().setValue(kUploadProfilesJson, json); }
-QString Settings::uploadDefaultProfileId() { return QSettings().value(kUploadDefaultProfileId).toString(); }
-void Settings::setUploadDefaultProfileId(const QString &id) { QSettings().setValue(kUploadDefaultProfileId, id); }
-QString Settings::uploadKnownHostKeys() { return QSettings().value(kUploadKnownHostKeys).toString(); }
-void Settings::setUploadKnownHostKeys(const QString &json) { QSettings().setValue(kUploadKnownHostKeys, json); }
+bool Settings::uploadEnabled() { return store()->value(kUploadEnabled, false).toBool(); }
+void Settings::setUploadEnabled(bool on) { store()->setValue(kUploadEnabled, on); }
+QString Settings::uploadEndpoint() { return store()->value(kUploadEndpoint, "s3.amazonaws.com").toString(); }
+void Settings::setUploadEndpoint(const QString &v) { store()->setValue(kUploadEndpoint, v); }
+QString Settings::uploadRegion() { return store()->value(kUploadRegion, "us-east-1").toString(); }
+void Settings::setUploadRegion(const QString &v) { store()->setValue(kUploadRegion, v); }
+QString Settings::uploadBucket() { return store()->value(kUploadBucket).toString(); }
+void Settings::setUploadBucket(const QString &v) { store()->setValue(kUploadBucket, v); }
+QString Settings::uploadAccessKeyId() { return store()->value(kUploadAccessKeyId).toString(); }
+void Settings::setUploadAccessKeyId(const QString &v) { store()->setValue(kUploadAccessKeyId, v); }
+QString Settings::uploadKeyPrefix() { return store()->value(kUploadKeyPrefix).toString(); }
+void Settings::setUploadKeyPrefix(const QString &v) { store()->setValue(kUploadKeyPrefix, v); }
+QString Settings::uploadPublicBaseUrl() { return store()->value(kUploadPublicBaseUrl).toString(); }
+void Settings::setUploadPublicBaseUrl(const QString &v) { store()->setValue(kUploadPublicBaseUrl, v); }
+bool Settings::uploadForcePathStyle() { return store()->value(kUploadForcePathStyle, false).toBool(); }
+void Settings::setUploadForcePathStyle(bool on) { store()->setValue(kUploadForcePathStyle, on); }
+QString Settings::uploadProfilesJson() { return store()->value(kUploadProfilesJson).toString(); }
+void Settings::setUploadProfilesJson(const QString &json) { store()->setValue(kUploadProfilesJson, json); }
+QString Settings::uploadDefaultProfileId() { return store()->value(kUploadDefaultProfileId).toString(); }
+void Settings::setUploadDefaultProfileId(const QString &id) { store()->setValue(kUploadDefaultProfileId, id); }
+QString Settings::uploadKnownHostKeys() { return store()->value(kUploadKnownHostKeys).toString(); }
+void Settings::setUploadKnownHostKeys(const QString &json) { store()->setValue(kUploadKnownHostKeys, json); }
 
 // The default only applies when the key is absent; a stored "" stays "unbound".
-QString Settings::hotkeyCaptureArea() { return QSettings().value(kHotkeyCaptureArea, "Ctrl+Shift+A").toString(); }
-void Settings::setHotkeyCaptureArea(const QString &seq) { QSettings().setValue(kHotkeyCaptureArea, seq); }
-QString Settings::hotkeyCaptureWindow() { return QSettings().value(kHotkeyCaptureWindow, "Ctrl+Shift+W").toString(); }
-void Settings::setHotkeyCaptureWindow(const QString &seq) { QSettings().setValue(kHotkeyCaptureWindow, seq); }
-QString Settings::hotkeyCaptureFullScreen() { return QSettings().value(kHotkeyCaptureFullScreen, "").toString(); }
-void Settings::setHotkeyCaptureFullScreen(const QString &seq) { QSettings().setValue(kHotkeyCaptureFullScreen, seq); }
-QString Settings::hotkeyOcrTextSnip() { return QSettings().value(kHotkeyOcrTextSnip, "Ctrl+Shift+T").toString(); }
-void Settings::setHotkeyOcrTextSnip(const QString &seq) { QSettings().setValue(kHotkeyOcrTextSnip, seq); }
-QString Settings::hotkeyRecordArea() { return QSettings().value(kHotkeyRecordArea, "Ctrl+Shift+R").toString(); }
-void Settings::setHotkeyRecordArea(const QString &seq) { QSettings().setValue(kHotkeyRecordArea, seq); }
-QString Settings::hotkeyRecordWindow() { return QSettings().value(kHotkeyRecordWindow, "").toString(); }
-void Settings::setHotkeyRecordWindow(const QString &seq) { QSettings().setValue(kHotkeyRecordWindow, seq); }
+QString Settings::hotkeyCaptureArea() { return store()->value(kHotkeyCaptureArea, "Ctrl+Shift+A").toString(); }
+void Settings::setHotkeyCaptureArea(const QString &seq) { store()->setValue(kHotkeyCaptureArea, seq); }
+QString Settings::hotkeyCaptureWindow() { return store()->value(kHotkeyCaptureWindow, "Ctrl+Shift+W").toString(); }
+void Settings::setHotkeyCaptureWindow(const QString &seq) { store()->setValue(kHotkeyCaptureWindow, seq); }
+QString Settings::hotkeyCaptureFullScreen() { return store()->value(kHotkeyCaptureFullScreen, "").toString(); }
+void Settings::setHotkeyCaptureFullScreen(const QString &seq) { store()->setValue(kHotkeyCaptureFullScreen, seq); }
+QString Settings::hotkeyOcrTextSnip() { return store()->value(kHotkeyOcrTextSnip, "Ctrl+Shift+T").toString(); }
+void Settings::setHotkeyOcrTextSnip(const QString &seq) { store()->setValue(kHotkeyOcrTextSnip, seq); }
+QString Settings::hotkeyRecordArea() { return store()->value(kHotkeyRecordArea, "Ctrl+Shift+R").toString(); }
+void Settings::setHotkeyRecordArea(const QString &seq) { store()->setValue(kHotkeyRecordArea, seq); }
+QString Settings::hotkeyRecordWindow() { return store()->value(kHotkeyRecordWindow, "").toString(); }
+void Settings::setHotkeyRecordWindow(const QString &seq) { store()->setValue(kHotkeyRecordWindow, seq); }
 
-QColor Settings::editorForeground() { return QSettings().value(kForeground, QColor(Qt::red)).value<QColor>(); }
-void Settings::setEditorForeground(const QColor &c) { QSettings().setValue(kForeground, c); }
+QColor Settings::editorForeground() { return store()->value(kForeground, QColor(Qt::red)).value<QColor>(); }
+void Settings::setEditorForeground(const QColor &c) { store()->setValue(kForeground, c); }
 
-QColor Settings::editorBackground() { return QSettings().value(kBackground, QColor(Qt::transparent)).value<QColor>(); }
-void Settings::setEditorBackground(const QColor &c) { QSettings().setValue(kBackground, c); }
+QColor Settings::editorBackground() { return store()->value(kBackground, QColor(Qt::transparent)).value<QColor>(); }
+void Settings::setEditorBackground(const QColor &c) { store()->setValue(kBackground, c); }
 
 bool Settings::desktopIntegrationPromptDismissed()
 {
-    return QSettings().value(kDesktopIntegrationDismissed, false).toBool();
+    return store()->value(kDesktopIntegrationDismissed, false).toBool();
 }
 void Settings::setDesktopIntegrationPromptDismissed(bool on)
 {
-    QSettings().setValue(kDesktopIntegrationDismissed, on);
+    store()->setValue(kDesktopIntegrationDismissed, on);
 }
 
-QString Settings::backdropPresetsJson() { return QSettings().value(kBackdropPresets).toString(); }
-void Settings::setBackdropPresetsJson(const QString &json) { QSettings().setValue(kBackdropPresets, json); }
+QString Settings::backdropPresetsJson() { return store()->value(kBackdropPresets).toString(); }
+void Settings::setBackdropPresetsJson(const QString &json) { store()->setValue(kBackdropPresets, json); }
 
-QString Settings::backdropDefaultName() { return QSettings().value(kBackdropDefault).toString(); }
-void Settings::setBackdropDefaultName(const QString &name) { QSettings().setValue(kBackdropDefault, name); }
+QString Settings::backdropDefaultName() { return store()->value(kBackdropDefault).toString(); }
+void Settings::setBackdropDefaultName(const QString &name) { store()->setValue(kBackdropDefault, name); }
 
 } // namespace Core

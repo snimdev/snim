@@ -1,6 +1,7 @@
 #include "src/core/ScreenshotApp.h"
 #include "core/AppScope.h"
 #include "core/SelfTest.h"
+#include "core/Settings.h"
 #include "core/Version.h"
 #include <QApplication>
 #include <QLoggingCategory>
@@ -12,8 +13,10 @@
 
 #ifdef Q_OS_WIN
 #include "core/SingleInstance.h"
+#include <QFileInfo>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <windows.h>
 #include <shobjidl.h>
 #endif
@@ -21,8 +24,8 @@
 // Carry settings over from the pre-rebrand scope, once, if Snim has none yet.
 static void migrateLegacySettings()
 {
-    QSettings current;
-    if (!current.allKeys().isEmpty())
+    const auto current = Core::Settings::store();
+    if (!current->allKeys().isEmpty())
         return;
 
     QSettings legacy(QStringLiteral("Screenshot Tools"), QStringLiteral("Screenshot App"));
@@ -31,8 +34,8 @@ static void migrateLegacySettings()
         return;
 
     for (const QString &key : keys)
-        current.setValue(key, legacy.value(key));
-    current.sync();
+        current->setValue(key, legacy.value(key));
+    current->sync();
 }
 
 #ifdef Q_OS_WIN
@@ -49,6 +52,13 @@ static void attachParentConsole()
     freopen_s(&stream, "CONOUT$", "w", stderr);
     std::cout.clear();
     std::cerr.clear();
+}
+
+static QString exeDirectory()
+{
+    std::wstring path(32768, L'\0');
+    const DWORD length = GetModuleFileNameW(nullptr, path.data(), DWORD(path.size()));
+    return QFileInfo(QString::fromWCharArray(path.data(), int(length))).absolutePath();
 }
 #else
 static void attachParentConsole() {}
@@ -113,8 +123,14 @@ int main(int argc, char *argv[]) {
     SetCurrentProcessExplicitAppUserModelID(L"dev.snim.Snim");
 #endif
 
+#ifdef Q_OS_WIN
+    // The portable zip ships an empty snim.ini beside snim.exe: then the registry stays untouched.
+    Core::Settings::setPortableFile(Core::Settings::portableFileIn(exeDirectory()));
+#endif
+
     // Must run before the app object exists: its ctor already reads settings.
-    migrateLegacySettings();
+    if (Core::Settings::portableFile().isEmpty())
+        migrateLegacySettings();
 
     Core::ScreenshotApp app(argc, argv);
 
