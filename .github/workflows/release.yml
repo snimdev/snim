@@ -554,6 +554,70 @@ jobs:
           & "$env:SystemRoot\System32\tar.exe" -a -c -f "dist\Snim-$env:VERSION-windows-x64.zip" -C "$env:RUNNER_TEMP\zip" Snim
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Smoke-test a silent install
+        timeout-minutes: 10
+        # Only System32 on PATH and no Qt variables, so anything missing from the installed
+        # bundle fails here. snim.exe is a GUI exe whose stdout PowerShell never captures,
+        # hence the explicit redirects.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $env:PATH = "$env:SystemRoot\System32"
+          Remove-Item Env:QT_PLUGIN_PATH, Env:QML2_IMPORT_PATH, Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+          $dir = "$env:RUNNER_TEMP\installed"
+          $p = Start-Process "$pwd\dist\Snim-$env:VERSION-windows-x64-setup.exe" -Wait -PassThru `
+            -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', '/NORESTART', "/DIR=`"$dir`""
+          if ($p.ExitCode -ne 0) {
+            Write-Output "::error title=Setup failed::the silent install exited with $($p.ExitCode)"
+            exit 1
+          }
+          $out = "$env:RUNNER_TEMP\installed-self-test.txt"
+          $p = Start-Process "$dir\snim.exe" -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out
+          Get-Content $out
+          if ($p.ExitCode -ne 0) {
+            Write-Output "::error title=Installed self-test failed::snim.exe --self-test exited with $($p.ExitCode)"
+            exit 1
+          }
+          $out = "$env:RUNNER_TEMP\installed-version.txt"
+          $p = Start-Process "$dir\snim.exe" -ArgumentList '--version' -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out
+          $actual = (Get-Content $out -Raw).TrimEnd("`r", "`n")
+          if ($p.ExitCode -ne 0 -or $actual -cne "Snim $env:VERSION") {
+            Write-Output "::error title=Wrong version::expected 'Snim $env:VERSION', got '$actual' (exit $($p.ExitCode))"
+            exit 1
+          }
+          $p = Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Write-Output "::error title=Uninstall failed::unins000.exe exited with $($p.ExitCode)"
+            exit 1
+          }
+          # The uninstaller hands off to a copy of itself in %TEMP% and returns early.
+          $deadline = (Get-Date).AddMinutes(2)
+          while ((Test-Path $dir) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 1 }
+          if (Test-Path $dir) {
+            Write-Output "::error title=Uninstall left files behind::$dir still exists"
+            Get-ChildItem -Recurse -Force $dir | ForEach-Object FullName
+            exit 1
+          }
+          Write-Output "$actual installed, passed its self-test and uninstalled cleanly."
+
+      - name: Smoke-test the portable zip
+        timeout-minutes: 5
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $root = "$env:RUNNER_TEMP\unzipped"
+          Expand-Archive "dist\Snim-$env:VERSION-windows-x64.zip" $root
+          if (-not (Test-Path "$root\Snim\snim.ini")) {
+            Write-Output "::error title=Zip is not portable::Snim\snim.ini is missing from the zip"
+            exit 1
+          }
+          $env:PATH = "$env:SystemRoot\System32"
+          Remove-Item Env:QT_PLUGIN_PATH, Env:QML2_IMPORT_PATH, Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+          $out = "$env:RUNNER_TEMP\zip-self-test.txt"
+          $p = Start-Process "$root\Snim\snim.exe" -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out
+          Get-Content $out
+          exit $p.ExitCode
+
       - uses: actions/upload-artifact@v5
         with:
           name: windows
