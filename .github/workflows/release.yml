@@ -432,9 +432,139 @@ jobs:
           path: Snim-*-macos-arm64.dmg
           if-no-files-found: error
 
+  windows:
+    name: Installer and zip (Windows x64)
+    runs-on: windows-2022
+    timeout-minutes: 120  # a cold vcpkg cache builds every dependency, FFmpeg included
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:EVENT -eq 'push') { $version = $env:GITHUB_REF_NAME -replace '^v', '' } else { $version = $env:INPUT_VERSION }
+          # The installer's file version takes numbers only, so 1.0.0-alpha.9 stamps 1.0.0.
+          if ($version -notmatch '^(\d+\.\d+\.\d+)') {
+            Write-Output "::error title=Unusable version::'$version' does not start with X.Y.Z"
+            exit 1
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "numeric=$($Matches[1])" >> $env:GITHUB_OUTPUT
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtmultimedia qtimageformats'
+          cache: true
+
+      - name: Set up vcpkg
+        id: vcpkg
+        # Same pinning and cache key as the CI job, so a release reuses its packages.
+        run: |
+          $baseline = (Get-Content vcpkg.json | ConvertFrom-Json).'builtin-baseline'
+          $root = "$env:RUNNER_TEMP\vcpkg"
+          git init --quiet $root
+          git -C $root fetch --quiet --depth 1 https://github.com/microsoft/vcpkg $baseline
+          git -C $root checkout --quiet FETCH_HEAD
+          & "$root\bootstrap-vcpkg.bat" -disableMetrics
+          $cache = "$env:RUNNER_TEMP\vcpkg-cache"
+          New-Item -ItemType Directory -Force $cache | Out-Null
+          "VCPKG_ROOT=$root" >> $env:GITHUB_ENV
+          "VCPKG_BINARY_SOURCES=clear;files,$cache,readwrite" >> $env:GITHUB_ENV
+          "cache=$cache" >> $env:GITHUB_OUTPUT
+          "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.vcpkg.outputs.cache }}
+          key: vcpkg-${{ runner.os }}-${{ steps.vcpkg.outputs.image }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/vcpkg-ports/**', 'cmake/vcpkg-triplets/**') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
+      - name: Configure
+        run: >
+          cmake --preset windows-msvc
+          -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+          -DSNIM_VERSION="${{ steps.version.outputs.version }}"
+
+      - name: Build
+        run: cmake --build --preset windows-msvc
+
+      - name: Test
+        working-directory: build
+        # Windows has no rpath: the tests find Qt and the vcpkg DLLs through PATH.
+        run: |
+          $env:PATH = "$env:QT_ROOT_DIR\bin;$pwd\vcpkg_installed\x64-windows-snim\bin;$env:PATH"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          ctest --output-on-failure --timeout 120
+
+      - name: Install into a stage
+        id: stage
+        run: |
+          $stage = "$env:RUNNER_TEMP\stage"
+          cmake --install build --prefix $stage
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "dir=$stage" >> $env:GITHUB_OUTPUT
+
+      - name: Build the installer
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          NUMERIC: ${{ steps.version.outputs.numeric }}
+          STAGE: ${{ steps.stage.outputs.dir }}
+        run: |
+          $candidates = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe")
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            choco install innosetup --no-progress -y
+            $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $iscc) {
+            Write-Output "::error title=No Inno Setup::ISCC.exe is neither preinstalled nor installable"
+            exit 1
+          }
+          & $iscc /Q "/DAppVersion=$env:VERSION" "/DAppVersionNumeric=$env:NUMERIC" "/DSourceDir=$env:STAGE" "/O$pwd\dist" packaging\windows\snim.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Pack the portable zip
+        # An empty snim.ini beside snim.exe switches Snim to keeping its settings there.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          STAGE: ${{ steps.stage.outputs.dir }}
+        run: |
+          $root = "$env:RUNNER_TEMP\zip\Snim"
+          New-Item -ItemType Directory -Force $root | Out-Null
+          Copy-Item -Recurse "$env:STAGE\*" $root
+          New-Item -ItemType File "$root\snim.ini" | Out-Null
+          # Windows' own bsdtar, since .NET's zip writer can store backslash paths.
+          & "$env:SystemRoot\System32\tar.exe" -a -c -f "dist\Snim-$env:VERSION-windows-x64.zip" -C "$env:RUNNER_TEMP\zip" Snim
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows
+          path: |
+            dist/Snim-*-windows-x64-setup.exe
+            dist/Snim-*-windows-x64.zip
+          if-no-files-found: error
+
   release:
     name: Publish the GitHub release
-    needs: [linux-appimage, macos-dmg, portability]
+    needs: [linux-appimage, macos-dmg, portability, windows]
     # workflow_dispatch builds the artifacts but never publishes a release.
     if: github.event_name == 'push'
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -473,6 +603,8 @@ jobs:
             "artifacts/Snim-x86_64.AppImage.zsync" \
             "artifacts/Snim-x86_64.tar.gz" \
             "artifacts/Snim-$VERSION-macos-arm64.dmg" \
+            "artifacts/Snim-$VERSION-windows-x64-setup.exe" \
+            "artifacts/Snim-$VERSION-windows-x64.zip" \
             "artifacts/sha256sums.txt"
 
       - name: Refresh the rolling alpha release
@@ -485,8 +617,8 @@ jobs:
           NOTES="$(printf '%s\n\n%s\n' \
             "Rolling pointer to the newest alpha build, so AppImageUpdate has one stable zsync URL to follow. The AppImage here is replaced by every new alpha." \
             "Release notes live on the versioned prerelease: https://github.com/snimdev/snim/releases/tag/$GITHUB_REF_NAME")"
-          # Only the Linux artifacts: the DMG has no zsync mechanism, so it stays on the
-          # versioned release alone.
+          # Only the Linux artifacts: the DMG and the Windows files have no zsync
+          # mechanism, so they stay on the versioned release alone.
           gh release delete alpha --yes --cleanup-tag || true
           gh release create alpha \
             --prerelease \
