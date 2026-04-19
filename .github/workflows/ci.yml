@@ -198,6 +198,8 @@ jobs:
           arch: 'win64_msvc2022_64'
           modules: 'qtmultimedia qtimageformats'
           cache: true
+          # setup-python needs admin to install on Windows; the bootstrap script puts Python on PATH.
+          setup-python: ${{ runner.environment != 'self-hosted' }}
 
       - name: Set up vcpkg
         id: vcpkg
