@@ -36,6 +36,18 @@ xattr -cr /Applications/Snim.app
 
 The DMG is Apple Silicon only (arm64); there is no Intel build.
 
+**Windows** (Windows 10 2004 or newer, x64): the recommended `-setup.exe`
+installs for your user alone, without admin rights. The portable `.zip` runs from any
+folder and keeps its settings in the `snim.ini` beside `snim.exe`. Or install from
+PowerShell:
+
+```powershell
+irm https://snim.dev/install.ps1 | iex
+```
+
+The builds are not code-signed yet, so SmartScreen warns on the first launch: click
+**More info**, then **Run anyway**.
+
 **Linux**: the AppImage is self-updating. Point
 [AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) at it and it
 pulls the next release from the embedded zsync info, no reinstall needed.
@@ -56,6 +68,8 @@ EOF
             printf 'AppImage builds from the alpha channel update themselves through '
             printf 'AppImageUpdate, pulling each new alpha as it lands; installing a stable '
             printf 'release later switches the app to the stable channel.\n'
+            printf '\nThe PowerShell one-liner installs the latest stable release; for this alpha, run:\n\n'
+            printf '```powershell\n& ([scriptblock]::Create((irm https://snim.dev/install.ps1))) -Alpha\n```\n'
             ;;
     esac
 }

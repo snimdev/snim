@@ -1,6 +1,6 @@
 # Snim
 
-Screenshot, screen recording, OCR and upload tool for Linux and macOS, built with Qt 6. From Macedonian "snimi": capture.
+Screenshot, screen recording, OCR and upload tool for Linux, macOS and Windows, built with Qt 6. From Macedonian "snimi": capture.
 
 ## Features
 
@@ -34,6 +34,8 @@ ctest --test-dir build -R tst_recordinggeometry --output-on-failure
 ```
 
 For Homebrew Qt, add `-DCMAKE_PREFIX_PATH="$(brew --prefix qt)"` when configuring. Optional dependencies (Tesseract, GStreamer, LayerShellQt, libcurl, libssh2) are auto-detected; missing ones disable features but never break the build.
+
+On Windows, dependencies come from vcpkg: from an x64 Native Tools prompt, with `VCPKG_ROOT` set and Qt 6.8 `msvc2022_64` on `CMAKE_PREFIX_PATH`, run `cmake --preset windows-msvc` then `cmake --build --preset windows-msvc`.
 
 ## License
 
