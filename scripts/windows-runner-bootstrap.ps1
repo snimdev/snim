@@ -174,7 +174,7 @@ if ($userExists) {
 # Persistent cache
 
 Write-Step "Creating the persistent cache under $CacheRoot"
-foreach ($dir in @($CacheRoot, "$CacheRoot\vcpkg-cache")) {
+foreach ($dir in @($CacheRoot, "$CacheRoot\vcpkg-cache", "$CacheRoot\vcpkg-downloads")) {
     if (Test-Path $dir) { Write-Skip "$dir exists" }
     else { Invoke-Action "create $dir" { New-Item -ItemType Directory -Force $dir | Out-Null } }
 }
@@ -261,5 +261,5 @@ Write-Host @"
        WINDOWS_RUNNER = ["self-hosted","windows","x64","snim-win"]
   3. Re-run the Windows checks on the open pull request. The first build is cold (vcpkg builds every
      dependency into $CacheRoot\vcpkg-cache); later ones reuse it.
-  To move the cache, set SNIM_VCPKG_CACHE in $RunnerDir\.env and restart the runner service.
+  To move the caches, set SNIM_VCPKG_CACHE and SNIM_VCPKG_DOWNLOADS in $RunnerDir\.env and restart the runner service.
 "@

@@ -487,6 +487,10 @@ jobs:
           if ($env:RUNNER_ENVIRONMENT -eq 'self-hosted') {
             # A persistent local cache (see scripts/windows-runner-bootstrap.ps1) replaces actions/cache.
             $cache = if ($env:SNIM_VCPKG_CACHE) { $env:SNIM_VCPKG_CACHE } else { 'C:\snim-ci\vcpkg-cache' }
+            # Source archives too, so a package rebuild skips the download.
+            $downloads = if ($env:SNIM_VCPKG_DOWNLOADS) { $env:SNIM_VCPKG_DOWNLOADS } else { 'C:\snim-ci\vcpkg-downloads' }
+            New-Item -ItemType Directory -Force $downloads | Out-Null
+            "VCPKG_DOWNLOADS=$downloads" >> $env:GITHUB_ENV
           } else {
             $cache = "$env:RUNNER_TEMP\vcpkg-cache"
           }
