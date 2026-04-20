@@ -2,17 +2,44 @@
 
 extern "C" {
 #include <libavutil/dict.h>
+#include <libavutil/log.h>
 }
 
 #include <QDebug>
 #include <QtGlobal>
 
 #include <algorithm>
+#include <cstdarg>
+#include <mutex>
 #include <utility>
 
 namespace Media::Ffmpeg {
 
 namespace {
+
+// Per thread, since av_log_set_level is global and another thread may be encoding for real.
+thread_local int t_quietDepth = 0;
+
+void filteredLogCallback(void *avcl, int level, const char *format, va_list args)
+{
+    if (t_quietDepth == 0)
+        av_log_default_callback(avcl, level, format, args);
+}
+
+// Silences FFmpeg's log on this thread while a probe runs; the chain logs its own verdict.
+class QuietFfmpegLog
+{
+public:
+    QuietFfmpegLog()
+    {
+        static std::once_flag installed;
+        std::call_once(installed, [] { av_log_set_callback(filteredLogCallback); });
+        ++t_quietDepth;
+    }
+    ~QuietFfmpegLog() { --t_quietDepth; }
+    QuietFfmpegLog(const QuietFfmpegLog &) = delete;
+    QuietFfmpegLog &operator=(const QuietFfmpegLog &) = delete;
+};
 
 // YUV420P is what H.264 decoders hand a transcode; Quick Sync only takes NV12.
 AVPixelFormat pickPixelFormat(const AVCodec *codec)
@@ -117,12 +144,17 @@ private:
 
         AVDictionary *options = nullptr;
         setEncoderOptions(m_name, settings, &options);
-        const int result = avcodec_open2(context.get(), codec, &options);
+        int result = 0;
+        {
+            const QuietFfmpegLog quiet;
+            result = avcodec_open2(context.get(), codec, &options);
+        }
         av_dict_free(&options);
         if (result < 0) {
             qDebug() << "H.264 encoder did not open:" << m_name << errorString(result);
             return nullptr;
         }
+        qDebug() << "H.264 encoder opened:" << m_name;
         return context;
     }
 
