@@ -8,6 +8,10 @@
 
 #include <QCoreApplication>
 #include <QDebug>
+#include <QOperatingSystemVersion>
+
+#include <algorithm>
+#include <optional>
 
 #include <windows.h>
 
@@ -16,6 +20,35 @@
 #endif
 
 namespace Hotkeys {
+
+namespace {
+
+std::optional<quint32> printScreenSnippingSetting()
+{
+    DWORD value = 0;
+    DWORD size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Keyboard",
+                     L"PrintScreenKeyForSnippingEnabled", RRF_RT_REG_DWORD, nullptr, &value,
+                     &size) != ERROR_SUCCESS)
+        return std::nullopt;
+    return quint32(value);
+}
+
+// QOperatingSystemVersion reads the real build via RtlGetVersion, unaffected by manifests.
+quint32 windowsBuildNumber()
+{
+    return quint32(std::max(0, QOperatingSystemVersion::current().microVersion()));
+}
+
+QString snippingToolClashReason()
+{
+    return WindowsHotkeyBackend::tr(
+        "Windows gives Print Screen to Snipping Tool; turn off \"Use the Print "
+        "screen key to open screen capture\" in Settings > Accessibility > "
+        "Keyboard, then restart Snim");
+}
+
+} // namespace
 
 WindowsHotkeyBackend::WindowsHotkeyBackend(QObject *parent) : HotkeyBackend(parent)
 {
@@ -45,17 +78,13 @@ void WindowsHotkeyBackend::registerAll(const QList<HotkeyBinding> &bindings)
         }
 
         ++id;
+        const bool barePrintScreen = hotkey->virtualKey == VK_SNAPSHOT && hotkey->modifiers == 0;
         // MOD_NOREPEAT: a held-down chord fires once, not once per auto-repeat.
         if (!RegisterHotKey(nullptr, id, hotkey->modifiers | MOD_NOREPEAT, hotkey->virtualKey)) {
             const DWORD error = GetLastError();
             // Best effort: a rejected sequence must not cost the remaining ones.
-            if (error == ERROR_HOTKEY_ALREADY_REGISTERED && hotkey->virtualKey == VK_SNAPSHOT
-                && hotkey->modifiers == 0)
-                emit registrationFailed(
-                    binding.action,
-                    tr("Windows gives Print Screen to Snipping Tool; turn off \"Use the Print "
-                       "screen key to open screen capture\" in Settings > Accessibility > "
-                       "Keyboard, then restart Snim"));
+            if (error == ERROR_HOTKEY_ALREADY_REGISTERED && barePrintScreen)
+                emit registrationFailed(binding.action, snippingToolClashReason());
             else if (error == ERROR_HOTKEY_ALREADY_REGISTERED)
                 emit registrationFailed(binding.action,
                                         tr("already in use by another application"));
@@ -66,6 +95,10 @@ void WindowsHotkeyBackend::registerAll(const QList<HotkeyBinding> &bindings)
         }
 
         m_registered.insert(id, binding.action);
+        // Kept registered, so it works as soon as the user turns the setting off.
+        if (barePrintScreen && snippingToolOwnsPrintScreen(printScreenSnippingSetting(),
+                                                           windowsBuildNumber()))
+            emit registrationFailed(binding.action, snippingToolClashReason());
     }
 }
 

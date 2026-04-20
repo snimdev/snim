@@ -149,6 +149,21 @@ private slots:
         QVERIFY(!toWinHotkey(QKeySequence(Qt::ControlModifier | Qt::Key_F25)).has_value());   // past VK_F24
     }
 
+    void winSnippingToolPrintScreenOwnership()
+    {
+        // An explicit setting wins on any build.
+        QVERIFY(snippingToolOwnsPrintScreen(1u, 19045));
+        QVERIFY(snippingToolOwnsPrintScreen(1u, 26100));
+        QVERIFY(!snippingToolOwnsPrintScreen(0u, 26100));
+        QVERIFY(!snippingToolOwnsPrintScreen(0u, 19045));
+
+        // Absent: the OS default, on from Windows 11 22H2.
+        QVERIFY(!snippingToolOwnsPrintScreen(std::nullopt, 19045));   // Windows 10 22H2
+        QVERIFY(!snippingToolOwnsPrintScreen(std::nullopt, 22000));   // Windows 11 21H2
+        QVERIFY(snippingToolOwnsPrintScreen(std::nullopt, 22621));
+        QVERIFY(snippingToolOwnsPrintScreen(std::nullopt, 26200));
+    }
+
     // --- Linux / xdg-desktop-portal -----------------------------------------
 
     void portalTriggerSpelling()

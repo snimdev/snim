@@ -26,6 +26,15 @@ struct WinHotkey {
  */
 [[nodiscard]] std::optional<WinHotkey> toWinHotkey(const QKeySequence &seq);
 
+/**
+ * Whether Windows hands bare Print Screen to Snipping Tool, from the DWORD at
+ * HKCU\Control Panel\Keyboard\PrintScreenKeyForSnippingEnabled (nullopt when absent)
+ * and the OS build number. Absent means the OS default: on from Windows 11 22H2
+ * (build 22621), off before. RegisterHotKey still succeeds then; the key never arrives.
+ */
+[[nodiscard]] bool snippingToolOwnsPrintScreen(std::optional<quint32> setting,
+                                               quint32 buildNumber);
+
 } // namespace Hotkeys
 
 #endif // HOTKEYS_WINKEYMAPPING_H

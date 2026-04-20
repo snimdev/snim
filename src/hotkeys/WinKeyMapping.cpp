@@ -109,4 +109,11 @@ std::optional<WinHotkey> toWinHotkey(const QKeySequence &seq)
     return WinHotkey{*vk, winMods};
 }
 
+bool snippingToolOwnsPrintScreen(std::optional<quint32> setting, quint32 buildNumber)
+{
+    if (setting)
+        return *setting != 0;
+    return buildNumber >= 22621;
+}
+
 } // namespace Hotkeys
