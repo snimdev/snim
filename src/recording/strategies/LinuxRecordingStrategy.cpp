@@ -458,7 +458,7 @@ void LinuxRecordingStrategy::handleSessionClosed()
 bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
 {
     const QString encoder = Media::Gst::h264EncoderChain(
-        {Media::Gst::EncoderTuning::Live, m_target.fps * 2});
+        {Media::Gst::EncoderTuning::Live, m_target.fps});
     if (encoder.isEmpty()) {
         *error = tr("No H.264 encoder is installed.");
         return false;
@@ -541,6 +541,7 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
     g_object_set(src, "fd", m_pipewireFd,
                  "path", QByteArray::number(nodeId).constData(), nullptr);
     g_object_set(sink, "location", m_outputPath.toUtf8().constData(), nullptr);
+    Media::Gst::configureRecordingOutput(muxer, sink);
 
     if (GstElement *micsrc = gst_bin_get_by_name(GST_BIN(m_pipeline), "micsrc")) {
         // Under Qt's pulse backend QAudioDevice::id() is the pulse source name.

@@ -77,6 +77,20 @@ QString h264EncoderChain(const EncoderTuning &tuning)
     return {};
 }
 
+void configureRecordingOutput(GstElement *mux, GstElement *filesink)
+{
+    // Each fragment reaches the disk whole, instead of partly waiting in a 64 KiB buffer.
+    gst_util_set_object_arg(G_OBJECT(filesink), "buffer-mode", "unbuffered");
+
+    GObjectClass *klass = G_OBJECT_GET_CLASS(mux);
+    if (!g_object_class_find_property(klass, "fragment-duration"))
+        return;
+    g_object_set(mux, "fragment-duration", guint(kFragmentIntervalMs), nullptr);
+    // Not first-moov-then-finalise: with audio, a killed file keeps only its first fragment.
+    if (g_object_class_find_property(klass, "fragment-mode"))
+        gst_util_set_object_arg(G_OBJECT(mux), "fragment-mode", "dash-or-mss");
+}
+
 QString errorText(const GError *error)
 {
     return error && error->message ? QString::fromUtf8(error->message) : QString();

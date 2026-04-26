@@ -36,6 +36,12 @@ struct EncoderTuning {
 // encoder, then OpenH264 as the last resort. Empty when none is installed.
 [[nodiscard]] QString h264EncoderChain(const EncoderTuning &tuning);
 
+// How often a recording's MP4 closes a fragment: at most this much is lost to a crash.
+inline constexpr int kFragmentIntervalMs = 1000;
+
+// Sets up a recording's qtmux or mp4mux and filesink so a killed recording stays readable.
+void configureRecordingOutput(GstElement *mux, GstElement *filesink);
+
 // The message of a GError, or an empty string for none.
 [[nodiscard]] QString errorText(const GError *error);
 
