@@ -55,6 +55,7 @@ signals:
     void recordingStateChanged(bool recording);   // drives tray text + the Stop widget
     void recordingFinished(const QString &path);   // success: file written (temp path)
     void recordingFailed(const QString &error);
+    void partialRecordingKept(const QString &path);   // precedes recordingFailed when footage survived
     void recordingDuration(qint64 ms);             // elapsed, forwarded to the Stop widget
     void recordingPausedChanged(bool paused);      // pause/resume, for the controls
     void recordingWarning(const QString &message); // non-fatal (e.g. camera denied); recording proceeds
@@ -87,6 +88,7 @@ private:
 
     std::unique_ptr<RecordingStrategy> m_strategy;
     State m_state = State::Idle;
+    QString m_outputPath;                     // file of the recording in progress
     CameraBubble *m_cameraBubble = nullptr;   // shown while a camera-enabled recording is set up/running
     RecordingFrameOverlay *m_frameOverlay = nullptr;   // recording frame, shown while recording a region
     QRect m_activeRegion;                     // region of the recording being started (virtual coords)

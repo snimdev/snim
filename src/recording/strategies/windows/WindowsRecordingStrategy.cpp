@@ -10,6 +10,7 @@
 
 #include <QDebug>
 #include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QScreen>
 #include <QTimer>
@@ -428,7 +429,8 @@ void WindowsRecordingStrategy::Engine::finishEncoding(bool report)
         encoder.reset();
         mixer.reset();
         lastFrame.reset();
-        if (!ok)
+        // A fragmented file keeps what was recorded before the failure.
+        if (!ok && (lastVideoUs < 0 || QFileInfo(path).size() == 0))
             QFile::remove(path);
         if (!report)
             return;

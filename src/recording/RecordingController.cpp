@@ -14,6 +14,7 @@
 
 #include <QDir>
 #include <QDateTime>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QScreen>
 #include <QGuiApplication>
@@ -23,7 +24,14 @@
 #include <QWindow>
 #include <QList>
 
+#include <utility>
+
 namespace Recording {
+
+namespace {
+// Smaller than this, a file holds headers at most and no footage.
+constexpr qint64 kMinPartialBytes = 1024;
+} // namespace
 
 RecordingController::RecordingController(QObject *parent)
     : RecordingController(RecordingFactory::createStrategy(RecordingFactory::StrategyType::Auto),
@@ -116,7 +124,8 @@ void RecordingController::startRecording(const RecordTarget &target)
         return;
     }
     m_state = State::Starting;        // becomes Recording once the backend signals started()
-    m_strategy->start(target, makeOutputPath());
+    m_outputPath = makeOutputPath();
+    m_strategy->start(target, m_outputPath);
 }
 
 void RecordingController::stop()
@@ -421,6 +430,7 @@ void RecordingController::wireStrategy()
     });
     connect(m_strategy.get(), &RecordingStrategy::finished, this, [this](const QString &path) {
         m_state = State::Idle;
+        m_outputPath.clear();
         destroyCameraBubble();
         destroyFrameOverlay();
         emit recordingStateChanged(false);
@@ -428,9 +438,12 @@ void RecordingController::wireStrategy()
     });
     connect(m_strategy.get(), &RecordingStrategy::failed, this, [this](const QString &error) {
         m_state = State::Idle;
+        const QString partial = std::exchange(m_outputPath, QString());
         destroyCameraBubble();
         destroyFrameOverlay();
         emit recordingStateChanged(false);
+        if (!partial.isEmpty() && QFileInfo(partial).size() >= kMinPartialBytes)
+            emit partialRecordingKept(partial);
         emit recordingFailed(error);
     });
     connect(m_strategy.get(), &RecordingStrategy::durationChanged,

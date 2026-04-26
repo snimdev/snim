@@ -632,7 +632,8 @@ void LinuxRecordingStrategy::fail(const QString &error)
 {
     const QString path = m_outputPath;
     teardown();
-    if (!path.isEmpty())
+    // A fragmented file keeps what was recorded before the failure.
+    if (!path.isEmpty() && QFileInfo(path).size() == 0)
         QFile::remove(path);
     emit failed(error);
 }

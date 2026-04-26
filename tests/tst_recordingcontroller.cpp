@@ -103,6 +103,35 @@ private slots:
         QCOMPARE(failedSpy.count(), 1);
         QVERIFY(!ctrl.isRecording());
     }
+
+    void failureReportsTheFootageThatSurvived()
+    {
+        auto fake = std::make_unique<FakeRecordingStrategy>();
+        FakeRecordingStrategy *f = fake.get();
+        RecordingController ctrl(std::move(fake));
+
+        QSignalSpy keptSpy(&ctrl, &RecordingController::partialRecordingKept);
+        QSignalSpy failedSpy(&ctrl, &RecordingController::recordingFailed);
+        RecordTarget t;
+        t.regionVirtual = QRect(0, 0, 50, 50);
+
+        // Nothing on disk: a plain failure.
+        ctrl.startRecording(t);
+        f->emitFailed("boom");
+        QCOMPARE(keptSpy.count(), 0);
+        QCOMPARE(failedSpy.count(), 1);
+
+        ctrl.startRecording(t);
+        QFile file(f->lastPath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QByteArray(4096, 'x'));
+        file.close();
+        f->emitFailed("boom");
+        QCOMPARE(keptSpy.count(), 1);
+        QCOMPARE(keptSpy.at(0).at(0).toString(), f->lastPath);
+        QCOMPARE(failedSpy.count(), 2);
+        QFile::remove(f->lastPath);
+    }
 };
 
 QTEST_MAIN(tst_RecordingController)
