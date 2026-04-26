@@ -223,6 +223,10 @@ jobs:
 
   windows:
     name: Build & test (Windows)
+    # Off until a Windows runner exists: setting the WINDOWS_RUNNER repo variable turns it on.
+    if: >-
+      vars.WINDOWS_RUNNER != '' && (github.event_name == 'push' ||
+      (!github.event.pull_request.draft && github.event.action != 'labeled'))
     runs-on: ${{ vars.WINDOWS_RUNNER && fromJSON(vars.WINDOWS_RUNNER) || 'windows-2022' }}
     timeout-minutes: 120  # a cold vcpkg cache builds every dependency, FFmpeg included
 
