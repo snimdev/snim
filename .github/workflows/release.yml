@@ -434,6 +434,8 @@ jobs:
 
   windows:
     name: Installer and zip (Windows x64)
+    # Off until a Windows runner exists: setting the WINDOWS_RUNNER repo variable turns it on.
+    if: vars.WINDOWS_RUNNER != ''
     runs-on: ${{ vars.WINDOWS_RUNNER && fromJSON(vars.WINDOWS_RUNNER) || 'windows-2022' }}
     timeout-minutes: 120  # a cold vcpkg cache builds every dependency, FFmpeg included
 
@@ -645,8 +647,13 @@ jobs:
   release:
     name: Publish the GitHub release
     needs: [linux-appimage, macos-dmg, portability, windows]
-    # workflow_dispatch builds the artifacts but never publishes a release.
-    if: github.event_name == 'push'
+    # workflow_dispatch builds the artifacts but never publishes a release. A skipped
+    # Windows job (no runner configured) still ships Linux and macOS.
+    if: >-
+      !cancelled() && github.event_name == 'push' &&
+      needs.linux-appimage.result == 'success' && needs.macos-dmg.result == 'success' &&
+      needs.portability.result == 'success' &&
+      contains(fromJSON('["success", "skipped"]'), needs.windows.result)
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
 
@@ -671,6 +678,7 @@ jobs:
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           FLAGS=(--title "Snim $VERSION" --notes-file notes.md)
@@ -678,14 +686,19 @@ jobs:
           case "$VERSION" in
             *-*) FLAGS+=(--prerelease) ;;
           esac
-          gh release create "$GITHUB_REF_NAME" "${FLAGS[@]}" \
-            "artifacts/Snim-x86_64.AppImage" \
-            "artifacts/Snim-x86_64.AppImage.zsync" \
-            "artifacts/Snim-x86_64.tar.gz" \
-            "artifacts/Snim-$VERSION-macos-arm64.dmg" \
-            "artifacts/Snim-$VERSION-windows-x64-setup.exe" \
-            "artifacts/Snim-$VERSION-windows-x64.zip" \
-            "artifacts/sha256sums.txt"
+          FILES=(
+            "artifacts/Snim-x86_64.AppImage"
+            "artifacts/Snim-x86_64.AppImage.zsync"
+            "artifacts/Snim-x86_64.tar.gz"
+            "artifacts/Snim-$VERSION-macos-arm64.dmg"
+          )
+          if [ "$WINDOWS_RESULT" = success ]; then
+            FILES+=(
+              "artifacts/Snim-$VERSION-windows-x64-setup.exe"
+              "artifacts/Snim-$VERSION-windows-x64.zip"
+            )
+          fi
+          gh release create "$GITHUB_REF_NAME" "${FLAGS[@]}" "${FILES[@]}" "artifacts/sha256sums.txt"
 
       - name: Refresh the rolling alpha release
         # The tag must stay literally `alpha`: it is baked into every alpha AppImage's
