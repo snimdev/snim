@@ -8,19 +8,56 @@ on:
     paths-ignore: ['**.md', 'LICENSE']
   # ready_for_review: drafts skip CI, so marking one ready is what first tests it.
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    # labeled: the ci:macos label runs the macOS job on a PR that would otherwise skip it.
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
     paths-ignore: ['**.md', 'LICENSE']
 
 # One run per ref: a new push supersedes the one still going. Never cancel on main,
 # where each run is the record for a merged commit.
+# A label run gets its own group so it never cancels the code run it follows.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'labeled' && 'label' || 'code' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  changes:
+    name: Detect macOS changes
+    # Pull requests only: main always runs the macOS job.
+    if: >-
+      github.event_name == 'pull_request' && !github.event.pull_request.draft &&
+      github.event.action != 'labeled'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      macos: ${{ steps.filter.outputs.macos }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        id: filter
+        with:
+          filters: |
+            macos:
+              - '**/*.mm'
+              - '**/*_mac.*'
+              - 'src/**/Mac*'
+              - 'cmake/macos_*'
+              - 'cmake/Info.plist.in'
+              - 'CMakeLists.txt'
+              - 'tests/CMakeLists.txt'
+              - '.github/workflows/**'
+
   build-and-test:
     name: Build & test (macOS)
-    if: github.event_name == 'push' || !github.event.pull_request.draft
+    needs: changes
+    # macOS minutes are the costly ones: on a PR, only for macOS-relevant changes or the
+    # ci:macos label. Main always runs it, so anything missed here surfaces on merge.
+    if: >-
+      !cancelled() && (github.event_name == 'push' ||
+      (!github.event.pull_request.draft && (
+        (github.event.action == 'labeled' && github.event.label.name == 'ci:macos') ||
+        (github.event.action != 'labeled' && (needs.changes.outputs.macos == 'true' ||
+          contains(github.event.pull_request.labels.*.name, 'ci:macos'))))))
     runs-on: blacksmith-6vcpu-macos-15   # Apple Silicon, matches the /opt/homebrew dev environment
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
 
@@ -90,7 +127,9 @@ jobs:
 
   linux:
     name: Build & test (Linux)
-    if: github.event_name == 'push' || !github.event.pull_request.draft
+    if: >-
+      github.event_name == 'push' ||
+      (!github.event.pull_request.draft && github.event.action != 'labeled')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
 
