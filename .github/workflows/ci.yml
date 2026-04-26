@@ -5,9 +5,11 @@ on:
   # whole matrix a second time for every PR commit.
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'LICENSE']
   # ready_for_review: drafts skip CI, so marking one ready is what first tests it.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ['**.md', 'LICENSE']
 
 # One run per ref: a new push supersedes the one still going. Never cancel on main,
 # where each run is the record for a merged commit.
