@@ -62,7 +62,7 @@ set(SNIM_TESTS
 
 # The dlopened Linux modules only exist where they are built.
 if(GSTREAMER_AVAILABLE)
-    list(APPEND SNIM_TESTS tst_linuxrecordermodule tst_gstvideoexporter)
+    list(APPEND SNIM_TESTS tst_linuxrecordermodule tst_gstvideoexporter tst_recordingrecovery)
 endif()
 
 # Round-trips the real Credential Manager, so it only exists on Windows.
@@ -111,6 +111,21 @@ if(GSTREAMER_AVAILABLE)
     endif()
     target_link_libraries(tst_gstvideoexporter PRIVATE ${GSTREAMER_LIBRARIES})
     set_tests_properties(tst_gstvideoexporter PROPERTIES ENVIRONMENT
+            "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
+
+    # Kills a recording child mid-write with the recorder's own muxer setup, so it
+    # compiles GstSupport in; the trim module then reads back what survived.
+    target_sources(tst_recordingrecovery PRIVATE ${CMAKE_SOURCE_DIR}/src/media/gst/GstSupport.cpp)
+    add_dependencies(tst_recordingrecovery snim_video_linux)
+    target_compile_definitions(tst_recordingrecovery PRIVATE
+            SNIM_VIDEO_MODULE_PATH="$<TARGET_FILE:snim_video_linux>")
+    set_target_properties(tst_recordingrecovery PROPERTIES ENABLE_EXPORTS ON)
+    target_include_directories(tst_recordingrecovery PRIVATE ${GSTREAMER_INCLUDE_DIRS})
+    if(GSTREAMER_LIBRARY_DIRS)
+        target_link_directories(tst_recordingrecovery PRIVATE ${GSTREAMER_LIBRARY_DIRS})
+    endif()
+    target_link_libraries(tst_recordingrecovery PRIVATE ${GSTREAMER_LIBRARIES})
+    set_tests_properties(tst_recordingrecovery PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
 
     # The exporter contract runs against the same module.
