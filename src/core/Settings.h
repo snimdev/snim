@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QByteArray>
+#include <QStringList>
 #include <QColor>
 #include <memory>
 
@@ -45,6 +46,8 @@ public:
     static void setRecordingCaptureCursor(bool on);
     static bool recordingRetina();                     // default: true (capture at native pixel scale)
     static void setRecordingRetina(bool on);
+    static QStringList recordingsInProgress();         // RecordingJournal's entries
+    static void setRecordingsInProgress(const QStringList &paths);
 
     // Animation export options per format key ("gif" / "webp"); defaults match AnimationParams.
     static int animationFps(const QString &format);             // default: 10

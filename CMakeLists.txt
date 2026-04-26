@@ -550,6 +550,8 @@ add_library(snim_lib STATIC
         src/recording/RecordingFactory.h
         src/recording/RecordingController.cpp
         src/recording/RecordingController.h
+        src/recording/RecordingJournal.cpp
+        src/recording/RecordingJournal.h
         src/recording/RecordingControls.cpp
         src/recording/RecordingControls.h
         src/recording/RecordingFrameOverlay.cpp

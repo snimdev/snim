@@ -1,6 +1,7 @@
 #include "recording/RecordingController.h"
 
 #include "recording/RecordingFactory.h"
+#include "recording/RecordingJournal.h"
 #include "recording/RecordingStrategy.h"
 #include "recording/CameraBubble.h"
 #include "recording/RecordingFrameOverlay.h"
@@ -14,7 +15,6 @@
 
 #include <QDir>
 #include <QDateTime>
-#include <QFileInfo>
 #include <QStandardPaths>
 #include <QScreen>
 #include <QGuiApplication>
@@ -27,11 +27,6 @@
 #include <utility>
 
 namespace Recording {
-
-namespace {
-// Smaller than this, a file holds headers at most and no footage.
-constexpr qint64 kMinPartialBytes = 1024;
-} // namespace
 
 RecordingController::RecordingController(QObject *parent)
     : RecordingController(RecordingFactory::createStrategy(RecordingFactory::StrategyType::Auto),
@@ -125,6 +120,7 @@ void RecordingController::startRecording(const RecordTarget &target)
     }
     m_state = State::Starting;        // becomes Recording once the backend signals started()
     m_outputPath = makeOutputPath();
+    RecordingJournal::add(m_outputPath);
     m_strategy->start(target, m_outputPath);
 }
 
@@ -442,7 +438,7 @@ void RecordingController::wireStrategy()
         destroyCameraBubble();
         destroyFrameOverlay();
         emit recordingStateChanged(false);
-        if (!partial.isEmpty() && QFileInfo(partial).size() >= kMinPartialBytes)
+        if (!partial.isEmpty() && RecordingJournal::isRecoverable(partial))
             emit partialRecordingKept(partial);
         emit recordingFailed(error);
     });

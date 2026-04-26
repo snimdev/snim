@@ -24,6 +24,7 @@ constexpr auto kMicDeviceId            = "Recording/MicDeviceId";
 constexpr auto kSystemAudioEnabled     = "Recording/SystemAudioEnabled";
 constexpr auto kRecordingFrameEnabled  = "Recording/FrameEnabled";
 constexpr auto kRecordingRetina        = "Recording/RetinaCapture";
+constexpr auto kRecordingsInProgress   = "Recording/InProgress";
 constexpr auto kUploadEnabled          = "Upload/Enabled";
 constexpr auto kUploadEndpoint         = "Upload/Endpoint";
 constexpr auto kUploadRegion           = "Upload/Region";
@@ -99,6 +100,9 @@ void Settings::setRecordingCaptureCursor(bool on) { store()->setValue(kRecording
 
 bool Settings::recordingRetina() { return store()->value(kRecordingRetina, true).toBool(); }
 void Settings::setRecordingRetina(bool on) { store()->setValue(kRecordingRetina, on); }
+
+QStringList Settings::recordingsInProgress() { return store()->value(kRecordingsInProgress).toStringList(); }
+void Settings::setRecordingsInProgress(const QStringList &paths) { store()->setValue(kRecordingsInProgress, paths); }
 
 int Settings::animationFps(const QString &format) { return store()->value(animationKey(format, "Fps"), 10).toInt(); }
 void Settings::setAnimationFps(const QString &format, int fps) { store()->setValue(animationKey(format, "Fps"), fps); }
