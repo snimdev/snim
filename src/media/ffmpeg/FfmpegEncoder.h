@@ -18,10 +18,12 @@ struct FfmpegEncoderSettings {
     QStringList videoEncoders;    // chain order; empty uses H264EncoderChain::fromEnvironment()
     int sampleRate = 48000;
     int channels = 2;             // 0 writes no audio track
+    bool fragmented = false;      // recordings: a crash loses at most the last fragment
 };
 
 /**
- * Encodes frames into an H.264 + AAC MP4 or MOV with the index up front (+faststart).
+ * Encodes frames into an H.264 + AAC MP4 or MOV with the index up front (+faststart),
+ * or as one-second fragments that stay readable if the process dies mid-write.
  * Takes BGRA pixels and interleaved float PCM (a recorder's output) or any decoded
  * AVFrame (a transcode's). Timestamps are microseconds on the caller's clock; video
  * PTS are kept strictly increasing and audio runs on from its first timestamp by

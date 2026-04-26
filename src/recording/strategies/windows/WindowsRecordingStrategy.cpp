@@ -284,6 +284,7 @@ void WindowsRecordingStrategy::Engine::begin(const Setup &setup)
     settings.videoEncoders = encoders;
     settings.sampleRate = kMixRate;
     settings.channels = audioSources > 0 ? kMixChannels : 0;
+    settings.fragmented = true;
     encoder = std::make_unique<FfmpegEncoder>();
     if (!encoder->open(settings))
         failWith(encoder->errorString());

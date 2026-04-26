@@ -96,7 +96,14 @@ bool FfmpegEncoder::open(const FfmpegEncoderSettings &settings)
         return fail(QStringLiteral("Cannot write %1").arg(settings.path), result);
 
     AVDictionary *options = nullptr;
-    av_dict_set(&options, "movflags", "+faststart", 0);
+    if (m_settings.fragmented) {
+        av_dict_set(&options, "movflags", "+frag_keyframe+empty_moov+default_base_moof", 0);
+        av_dict_set(&options, "frag_duration", "1000000", 0);
+        // Each finished fragment goes straight to the file, not into the I/O buffer.
+        m_format->flush_packets = 1;
+    } else {
+        av_dict_set(&options, "movflags", "+faststart", 0);
+    }
     result = avformat_write_header(m_format.get(), &options);
     av_dict_free(&options);
     if (result < 0)

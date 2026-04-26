@@ -130,7 +130,9 @@ private:
         context->time_base = settings.timeBase;
         context->framerate = settings.frameRate;
         context->pix_fmt = format;
-        context->gop_size = std::max(1, int(av_q2d(settings.frameRate) * 2));
+        // A keyframe a second lets a recording close a fragment every second.
+        const double gopSeconds = settings.tuning == H264EncoderSettings::Live ? 1.0 : 2.0;
+        context->gop_size = std::max(1, int(av_q2d(settings.frameRate) * gopSeconds));
         context->bit_rate = settings.bitRate > 0 ? settings.bitRate : derivedBitRate(settings);
         context->color_range = settings.colorRange;
         context->color_primaries = settings.colorPrimaries;

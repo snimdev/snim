@@ -131,6 +131,23 @@ private slots:
         QCOMPARE(info.tracks.size(), 2);
     }
 
+    void writesFragmentsForARecording()
+    {
+        const QString path = m_dir.filePath(QStringLiteral("fragmented.mp4"));
+        FfmpegEncoderSettings settings = settingsFor(path);
+        settings.fragmented = true;
+        FfmpegEncoder encoder;
+        QVERIFY2(encoder.open(settings), qPrintable(encoder.errorString()));
+        QVERIFY2(encodeOneSecond(encoder, 160, 120, kChannels), qPrintable(encoder.errorString()));
+
+        const Mp4Info info = readMp4(path);
+        const qsizetype moov = info.topLevel.indexOf("moov");
+        const qsizetype moof = info.topLevel.indexOf("moof");
+        QVERIFY2(moov >= 0 && moof > moov,
+                 qPrintable(QString::fromLatin1(info.topLevel.join(' '))));
+        QCOMPARE(info.tracks.size(), 2);
+    }
+
     void writesVideoOnlyWithoutChannels()
     {
         const QString path = m_dir.filePath(QStringLiteral("silent.mp4"));
