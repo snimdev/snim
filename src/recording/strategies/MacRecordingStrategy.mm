@@ -616,6 +616,13 @@ void MacRecordingStrategy::start(const RecordTarget &target, const QString &outp
                 if ([writer canAddInput:audioInput])
                     [writer addInput:audioInput];
             }
+            // Fragments keep a killed recording readable; a writer that refuses them raises.
+            @try {
+                writer.movieFragmentInterval = CMTimeMakeWithSeconds(1, 600);
+            } @catch (NSException *exception) {
+                qWarning("Recording without movie fragments: %s",
+                         qPrintable(QString::fromNSString(exception.reason)));
+            }
             [writer startWriting];
             impl->writer = writer;
             impl->videoInput = input;
