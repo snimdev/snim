@@ -31,6 +31,7 @@ set(SNIM_TESTS
         tst_recordtarget
         tst_recordinggeometry
         tst_recordingcontroller
+        tst_recordingjournal
         tst_recordingoptionsbar
         tst_pcmmixbuffer
         tst_pauseawareclock
