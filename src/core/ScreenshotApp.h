@@ -9,6 +9,7 @@
 #include <QSystemTrayIcon>
 #include <QMenu>
 #include <QAction>
+#include <QMessageBox>
 #include <functional>
 #include <memory>
 
@@ -76,6 +77,11 @@ private slots:
 
 private:
     void setupSystemTray();
+
+    // Recordings a crash or a failure left unsaved: open each in the editor, or discard it.
+    void offerUnsavedRecordings();
+    void offerRecording(const QString &path, QMessageBox::Icon icon, const QString &title,
+                        const QString &text);
     void openImageEditor(const QPixmap &image, const Editor::AnnotationSet &annotations);
 
     // KWin refused ScreenShot2: offer to install the desktop entry that authorizes it,
@@ -118,6 +124,7 @@ private:
     std::unique_ptr<OCR::TextSnipCapture> m_textSnipCapture;
     std::unique_ptr<Recording::RecordingController> m_recordingController;
     Recording::RecordingControls *m_recordingControls = nullptr;   // shown only while recording
+    QString m_partialRecording;   // footage the failing recording kept, until recordingFailed
     Upload::Uploader *m_uploader = nullptr;   // current upload (one at a time), parented to this
 };
 

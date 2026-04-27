@@ -15,6 +15,7 @@
 #include <QPalette>
 #include <QFile>
 #include <QFileInfo>
+#include <QLocale>
 #include <QFileDialog>
 
 #include "core/Settings.h"
@@ -37,6 +38,7 @@
 #include "editor/video/VideoEditor.h"
 #include "recording/RecordingController.h"
 #include "recording/RecordingControls.h"
+#include "recording/RecordingJournal.h"
 #ifdef SNIM_HAVE_WIN_RECORDER
 #include "recording/strategies/windows/WindowsRecordingStrategy.h"
 #endif
@@ -46,6 +48,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <algorithm>
+#include <utility>
 
 namespace Core {
     namespace {
@@ -109,6 +112,8 @@ namespace Core {
                 this, &ScreenshotApp::onRecordingStateChanged);
         connect(m_recordingController.get(), &Recording::RecordingController::recordingFinished,
                 this, &ScreenshotApp::onRecordingFinished);
+        connect(m_recordingController.get(), &Recording::RecordingController::partialRecordingKept,
+                this, [this](const QString &path) { m_partialRecording = path; });
         connect(m_recordingController.get(), &Recording::RecordingController::recordingFailed,
                 this, &ScreenshotApp::onRecordingFailed);
         // Non-fatal setup problems (e.g. camera/mic access denied): a tray balloon,
@@ -150,6 +155,9 @@ namespace Core {
             m_hotkeyManager->applyBindings();
             refreshActionShortcuts();
         });
+
+        // Deferred so startup completes before a dialog blocks it.
+        QTimer::singleShot(0, this, &ScreenshotApp::offerUnsavedRecordings);
     }
 
     ScreenshotApp::~ScreenshotApp() {
@@ -671,7 +679,44 @@ namespace Core {
     }
 
     void ScreenshotApp::onRecordingFailed(const QString &error) {
-        QMessageBox::warning(nullptr, "Recording Failed", error);
+        const QString partial = std::exchange(m_partialRecording, QString());
+        if (partial.isEmpty()) {
+            QMessageBox::warning(nullptr, "Recording Failed", error);
+            return;
+        }
+        offerRecording(partial, QMessageBox::Warning, tr("Recording Failed"),
+                       tr("The recording stopped early: %1\n\nWhat was recorded until then was kept.")
+                           .arg(error));
+    }
+
+    void ScreenshotApp::offerUnsavedRecordings() {
+        Recording::RecordingJournal::prune();
+        const QStringList unsaved = Recording::RecordingJournal::recoverable();
+        for (const QString &path : unsaved) {
+            offerRecording(path, QMessageBox::Question, tr("Unsaved recording"),
+                           tr("Snim closed before this recording was saved."));
+        }
+    }
+
+    void ScreenshotApp::offerRecording(const QString &path, QMessageBox::Icon icon,
+                                       const QString &title, const QString &text) {
+        const QFileInfo info(path);
+        QMessageBox box;
+        box.setIcon(icon);
+        box.setWindowTitle(title);
+        box.setText(text);
+        box.setInformativeText(tr("%1 (%2)").arg(info.fileName(),
+                                                 QLocale().formattedDataSize(info.size())));
+        QPushButton *open = box.addButton(tr("Open in editor"), QMessageBox::AcceptRole);
+        QPushButton *discard = box.addButton(tr("Discard"), QMessageBox::DestructiveRole);
+        // Later (or Esc) keeps it journaled, so the next start offers it again.
+        box.addButton(tr("Later"), QMessageBox::RejectRole);
+        box.setDefaultButton(open);
+        box.exec();
+        if (box.clickedButton() == open)
+            onRecordingFinished(path);
+        else if (box.clickedButton() == discard)
+            Recording::RecordingJournal::discard(path);
     }
 
     void ScreenshotApp::quit() {
