@@ -49,6 +49,11 @@ public:
     void togglePause();   // pause if recording, resume if paused
 
     [[nodiscard]] bool isRecording() const { return m_state == State::Recording; }
+    // Starting or recording: a stop() now ends in recordingFinished or recordingFailed.
+    [[nodiscard]] bool isActive() const
+    {
+        return m_state == State::Starting || m_state == State::Recording;
+    }
     [[nodiscard]] bool isAvailable() const;
 
 signals:

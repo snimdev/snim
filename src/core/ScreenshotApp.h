@@ -73,7 +73,7 @@ private slots:
     void showSettings();
     void checkForUpdates();
     static void showAbout();
-    static void quit();
+    void quit();
 
 private:
     void setupSystemTray();

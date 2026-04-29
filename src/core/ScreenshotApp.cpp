@@ -6,6 +6,7 @@
 #include "../capture/CaptureFactory.h"
 #include "../capture/strategies/CaptureStrategy.h"
 #include <QTimer>
+#include <QEventLoop>
 #include <QCursor>
 #include <QKeyEvent>
 #include <QMessageBox>
@@ -720,6 +721,29 @@ namespace Core {
     }
 
     void ScreenshotApp::quit() {
+        if (m_recordingController && m_recordingController->isActive()) {
+            if (m_quitAction)
+                m_quitAction->setEnabled(false);
+            Recording::RecordingController *controller = m_recordingController.get();
+            // No editor while quitting: the finished file stays journaled for the next start.
+            disconnect(controller, &Recording::RecordingController::recordingFinished,
+                       this, &ScreenshotApp::onRecordingFinished);
+            disconnect(controller, &Recording::RecordingController::recordingFailed,
+                       this, &ScreenshotApp::onRecordingFailed);
+            QEventLoop loop;
+            bool done = false;   // stop() may already report, before the loop runs
+            const auto finish = [&loop, &done] {
+                done = true;
+                loop.quit();
+            };
+            connect(controller, &Recording::RecordingController::recordingFinished, &loop, finish);
+            connect(controller, &Recording::RecordingController::recordingFailed, &loop, finish);
+            // Just past the Linux recorder's own 5 s EOS timeout.
+            QTimer::singleShot(6000, &loop, &QEventLoop::quit);
+            controller->stop();
+            if (!done)
+                loop.exec();
+        }
         QApplication::quit();
     }
 
