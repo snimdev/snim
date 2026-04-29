@@ -58,7 +58,8 @@ jobs:
         (github.event.action == 'labeled' && github.event.label.name == 'ci:macos') ||
         (github.event.action != 'labeled' && (needs.changes.outputs.macos == 'true' ||
           contains(github.event.pull_request.labels.*.name, 'ci:macos'))))))
-    runs-on: blacksmith-6vcpu-macos-15   # Apple Silicon, matches the /opt/homebrew dev environment
+    # The MACOS_RUNNER repo variable (a JSON label list) moves it to a self-hosted Mac.
+    runs-on: ${{ vars.MACOS_RUNNER && fromJSON(vars.MACOS_RUNNER) || 'blacksmith-6vcpu-macos-15' }}
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
 
     # brew install runs a full brew update first unless told not to, which is most
@@ -66,6 +67,7 @@ jobs:
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_INSTALL_CLEANUP: 1
+      HOMEBREW_NO_INSTALL_UPGRADE: 1   # a self-hosted Mac keeps its own versions
       HOMEBREW_NO_ANALYTICS: 1
       # Set explicitly: ccache's default cache location differs between versions.
       CCACHE_DIR: ${{ github.workspace }}/.ccache
