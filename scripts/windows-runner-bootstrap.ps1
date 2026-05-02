@@ -191,7 +191,7 @@ if ($userExists) {
 # Persistent cache
 
 Write-Step "Creating the persistent cache under $CacheRoot"
-foreach ($dir in @($CacheRoot, "$CacheRoot\vcpkg-cache", "$CacheRoot\vcpkg-downloads")) {
+foreach ($dir in @($CacheRoot, "$CacheRoot\vcpkg-cache", "$CacheRoot\vcpkg-downloads", "$CacheRoot\qt")) {
     if (Test-Path $dir) { Write-Skip "$dir exists" }
     else { Invoke-Action "create $dir" { New-Item -ItemType Directory -Force $dir | Out-Null } }
 }
