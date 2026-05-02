@@ -14,7 +14,7 @@
  * started some other way and tarball users have none, so the app repairs it itself.
  *
  * Linux-only behaviour; the header compiles everywhere and reports NotApplicable
- * elsewhere. No UI lives here: ScreenshotApp owns the prompt and the tray action.
+ * elsewhere. No UI lives here: App::CaptureWorkflow owns the prompt and the tray action.
  */
 namespace Core::DesktopIntegration {
 
@@ -34,6 +34,9 @@ enum class Status {
 [[nodiscard]] QString desktopEntryContents(const QString &execPath);
 
 [[nodiscard]] Status status();
+
+// The AppImage runtime exports $APPIMAGE; an extracted install never has it.
+[[nodiscard]] bool runningFromAppImage();
 
 // Writes the entry (Exec = this executable, quoted when the path has spaces) plus the
 // icon, then refreshes the desktop caches best effort. Under an AppImage the Exec and the

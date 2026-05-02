@@ -2,7 +2,7 @@
 #define RECORDING_RECORDINGCONTROLLER_H
 
 #include "recording/RecordTarget.h"
-#include "capture/FrozenFrameGrabber.h"
+#include "screen/FrozenFrameGrabber.h"
 
 #include <QObject>
 #include <QString>
@@ -22,7 +22,7 @@ class RecordingFrameOverlay;
  * recordings folder -> stop() finalizes it -> recordingFinished(path).
  *
  * This class is deliberately UI-free and platform-free so it is unit-testable with
- * a fake strategy; the app layer (ScreenshotApp) owns the tray/notification/Stop
+ * a fake strategy; the app layer (App::RecordingWorkflow) owns the tray/notification/Stop
  * widget and reacts to the signals here. Selection (showing the AreaSelector to
  * build a RecordTarget) is layered on top in a later phase.
  */
@@ -99,7 +99,7 @@ private:
     QRect m_activeRegion;                     // region of the recording being started (virtual coords)
     // Owned by value: it can never outlive the controller, so its callback may
     // capture a plain `this`. Async on Wayland, synchronous everywhere else.
-    Capture::FrozenFrameGrabber m_frameGrabber;
+    Screen::FrozenFrameGrabber m_frameGrabber;
 
     // Permission requests fired for the current selection attempt. Guarantees the
     // pre-selection TCC gate asks each permission at most ONCE per attempt, even if

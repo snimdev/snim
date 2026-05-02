@@ -12,12 +12,48 @@
 #include <QGraphicsScene>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
+#include <QKeySequence>
+#include <QLatin1StringView>
 #include <QPainter>
+#include <QTransform>
 #include <QUndoStack>
+#include <algorithm>
 
 namespace Capture {
 
 using Editor::Commands::AddItemCommand;
+using Screen::SelectionContext;
+
+namespace {
+    // Tools the overlay offers, in strip order.
+    constexpr QLatin1StringView kOverlayTools[] = {
+        QLatin1StringView("arrow"), QLatin1StringView("rectangle"),
+        QLatin1StringView("ellipse"), QLatin1StringView("freehand"),
+        QLatin1StringView("highlight"), QLatin1StringView("text"),
+        QLatin1StringView("step"), QLatin1StringView("blur"),
+    };
+    const QString kUndoSlot = QStringLiteral("undo");
+    const QString kRedoSlot = QStringLiteral("redo");
+
+    QString keyText(QKeySequence::StandardKey k)
+    {
+        return QKeySequence(k).toString(QKeySequence::NativeText);
+    }
+
+    // Hook arrow in the SVG's 24-unit box, mirrored for redo.
+    QPainterPath historyGlyph(bool redo)
+    {
+        QPainterPath path;
+        path.moveTo(9, 7);
+        path.lineTo(4, 12);
+        path.lineTo(9, 17);
+        path.moveTo(4, 12);
+        path.lineTo(15, 12);
+        path.cubicTo(17.76, 12, 20, 14.24, 20, 17);
+        path.lineTo(20, 18);
+        return redo ? QTransform(-1, 0, 0, 1, 24, 0).map(path) : path;
+    }
+}
 
 void OverlayAnnotations::UndoStackSink::commit(QGraphicsItem *item, const QString &toolId)
 {
@@ -29,7 +65,7 @@ void OverlayAnnotations::UndoStackSink::commit(QGraphicsItem *item, const QStrin
 
 OverlayAnnotations::OverlayAnnotations(const QPixmap &frame, const QRect &virtualGeometry,
                                        QObject *parent)
-    : QObject(parent)
+    : Screen::SelectionLayer(parent)
     , m_frame(frame)
     , m_virtualGeometry(virtualGeometry)
     , m_scene(std::make_unique<QGraphicsScene>())
@@ -271,6 +307,149 @@ Editor::AnnotationSet OverlayAnnotations::snapshot(const QRect &virtArea)
         set.add(cmd->toolId(), *cmd->item(), cmd->item()->pos() - sceneArea.topLeft());
     }
     return set;
+}
+
+// ---- Screen::SelectionLayer ------------------------------------------------
+
+std::optional<QString> OverlayAnnotations::hint() const
+{
+    if (isEditingText())
+        return QStringLiteral("Type your text  ·  Esc to finish");
+    if (!isArmed())
+        return std::nullopt;
+    const QString verb = m_activeTool == QLatin1String("text") ? QStringLiteral("Click to type")
+                       : m_activeTool == QLatin1String("step") ? QStringLiteral("Click to place a step")
+                       : QStringLiteral("Drag to draw");
+    return QStringLiteral("%1  ·  %2 to undo  ·  Esc to stop drawing").arg(verb, keyText(QKeySequence::Undo));
+}
+
+QVector<Screen::SelectionLayer::ToolbarSlot> OverlayAnnotations::toolbarSlots() const
+{
+    QVector<ToolbarSlot> out;
+    for (QLatin1StringView id : kOverlayTools) {
+        ToolbarSlot slot;
+        slot.id = QString(id);
+        if (const Editor::ToolSpec *spec = Editor::ToolRegistry::find(slot.id)) {
+            slot.iconPath = spec->iconPath;
+            slot.glyph = QString(spec->shortcut);
+            slot.tooltip = QStringLiteral("%1 (%2)").arg(spec->tooltip, QString(spec->shortcut));
+        }
+        slot.checked = slot.id == m_activeTool;
+        out.append(slot);
+    }
+
+    ToolbarSlot undo;
+    undo.id = kUndoSlot;
+    undo.iconPath = QStringLiteral(":/icons/icons/undo.svg");
+    undo.glyphPath = historyGlyph(false);
+    undo.tooltip = QStringLiteral("Undo (%1)").arg(keyText(QKeySequence::Undo));
+    undo.group = 1;
+    undo.enabled = canUndo();
+    out.append(undo);
+
+    ToolbarSlot redo;
+    redo.id = kRedoSlot;
+    redo.iconPath = QStringLiteral(":/icons/icons/redo.svg");
+    redo.glyphPath = historyGlyph(true);
+    redo.tooltip = QStringLiteral("Redo (%1)").arg(keyText(QKeySequence::Redo));
+    redo.group = 1;
+    redo.enabled = canRedo();
+    out.append(redo);
+    return out;
+}
+
+void OverlayAnnotations::activateSlot(const QString &id)
+{
+    if (id == kUndoSlot)
+        undo();
+    else if (id == kRedoSlot)
+        redo();
+    else
+        toggleTool(id);
+}
+
+void OverlayAnnotations::toggleTool(const QString &id)
+{
+    setActiveTool(m_activeTool == id ? QString() : id);
+}
+
+bool OverlayAnnotations::handleKey(QKeyEvent *event, SelectionContext &context)
+{
+    // While text is being typed every key belongs to it; Esc commits the text.
+    if (isEditingText()) {
+        if (event->key() == Qt::Key_Escape)
+            commitPendingText();
+        else
+            forwardKey(event);
+        return true;
+    }
+    if (event->key() == Qt::Key_Escape && isDrawing()) {
+        cancelStroke();
+        return true;
+    }
+    return handleToolKey(event, context);
+}
+
+bool OverlayAnnotations::handleToolKey(QKeyEvent *event, SelectionContext &context)
+{
+    if (!context.actionsAvailable()) return false;
+
+    if (event->matches(QKeySequence::Undo)) {
+        undo();
+        return true;
+    }
+    if (event->matches(QKeySequence::Redo)) {
+        redo();
+        return true;
+    }
+
+    if (event->key() == Qt::Key_Escape) {
+        if (m_activeTool.isEmpty()) return false;
+        setActiveTool({});
+    } else {
+        if (event->modifiers() != Qt::NoModifier || event->key() < Qt::Key_A || event->key() > Qt::Key_Z)
+            return false;
+        const Editor::ToolSpec *spec = Editor::ToolRegistry::findByShortcut(QChar(event->key()));
+        if (!spec || std::find(std::begin(kOverlayTools), std::end(kOverlayTools), spec->id)
+                         == std::end(kOverlayTools))
+            return false;
+        if (event->isAutoRepeat()) return true;
+        toggleTool(spec->id);
+    }
+    context.refreshCursor();
+    return true;
+}
+
+bool OverlayAnnotations::handleMouse(MouseAction action, const QPoint &virt, Qt::MouseButton button,
+                                     SelectionContext &context)
+{
+    const bool left = button == Qt::LeftButton;
+    // With a tool armed, presses inside the selection draw instead of moving or committing.
+    const bool armed = isArmed() && context.adjusting();
+    switch (action) {
+        case MouseAction::Press: {
+            if (!left || !armed) return false;
+            const SelectionContext::Hit hit = context.hitTest(virt);
+            if (hit == SelectionContext::Hit::Handle) return false;   // handles still resize
+            // Outside the selection the press only ends typing: no fresh selection while drawing.
+            const bool reachesSession = hit == SelectionContext::Hit::Inside || isEditingText();
+            if (reachesSession && press(virt))
+                context.setCursor(cursor());
+            return true;
+        }
+        case MouseAction::Move:
+            if (!isDrawing()) return false;
+            move(virt);
+            return true;
+        case MouseAction::Release:
+            if (!left || !isDrawing()) return false;
+            release(virt);
+            return true;
+        case MouseAction::DoubleClick:
+            // The platform already delivered this click's press, so only keep it from committing.
+            return left && armed;
+    }
+    return false;
 }
 
 } // namespace Capture

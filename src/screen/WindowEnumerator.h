@@ -1,11 +1,11 @@
-#ifndef CAPTURE_WINDOWENUMERATOR_H
-#define CAPTURE_WINDOWENUMERATOR_H
+#ifndef SCREEN_WINDOWENUMERATOR_H
+#define SCREEN_WINDOWENUMERATOR_H
 
 #include <QVector>
 #include <QRect>
 #include <QtGlobal>
 
-namespace Capture {
+namespace Screen {
 
 /**
  * One on-screen, user-visible window: its rectangle in VIRTUAL-DESKTOP LOGICAL
@@ -41,6 +41,6 @@ inline QVector<QRect> enumerateWindows()
     return rects;
 }
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_WINDOWENUMERATOR_H
+#endif // SCREEN_WINDOWENUMERATOR_H

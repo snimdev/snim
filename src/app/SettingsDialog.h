@@ -1,5 +1,5 @@
-#ifndef CORE_SETTINGSDIALOG_H
-#define CORE_SETTINGSDIALOG_H
+#ifndef APP_SETTINGSDIALOG_H
+#define APP_SETTINGSDIALOG_H
 
 #include <QDialog>
 #include <QTabWidget>
@@ -28,7 +28,7 @@
 
 namespace Upload { class Uploader; }
 
-namespace Core {
+namespace App {
 
 class SettingsDialog : public QDialog
 {
@@ -183,6 +183,6 @@ private:
     QPushButton *m_resetButton;
 };
 
-} // namespace Core
+} // namespace App
 
-#endif // CORE_SETTINGSDIALOG_H
+#endif // APP_SETTINGSDIALOG_H

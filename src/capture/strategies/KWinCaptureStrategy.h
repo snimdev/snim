@@ -9,9 +9,11 @@
 #include <QVariantMap>
 #include <functional>
 
-namespace Capture {
-
+namespace Screen {
 class AreaSelector;
+} // namespace Screen
+
+namespace Capture {
 
 /**
  * KDE Plasma capture strategy using KWin's org.kde.KWin.ScreenShot2 D-Bus interface.

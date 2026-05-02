@@ -1,5 +1,5 @@
-#ifndef RECORDING_LAYERSHELLSUPPORT_H
-#define RECORDING_LAYERSHELLSUPPORT_H
+#ifndef SCREEN_LAYERSHELLSUPPORT_H
+#define SCREEN_LAYERSHELLSUPPORT_H
 
 #include <QGuiApplication>
 #include <QMargins>
@@ -10,7 +10,7 @@
 #include <LayerShellQt/window.h>
 #endif
 
-namespace Recording {
+namespace Screen {
 
 /**
  * Wayland overlay-layer helper shared by the recording/selection overlays. Without
@@ -100,6 +100,6 @@ inline void attachOverlayLayerSurface(QWindow *w, int anchors, int exclusiveZone
 #endif
 }
 
-} // namespace Recording
+} // namespace Screen
 
-#endif // RECORDING_LAYERSHELLSUPPORT_H
+#endif // SCREEN_LAYERSHELLSUPPORT_H

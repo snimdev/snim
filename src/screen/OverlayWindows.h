@@ -1,11 +1,11 @@
-#ifndef CAPTURE_OVERLAYWINDOWS_H
-#define CAPTURE_OVERLAYWINDOWS_H
+#ifndef SCREEN_OVERLAYWINDOWS_H
+#define SCREEN_OVERLAYWINDOWS_H
 
 #include <QtGlobal>
 
 class QWidget;
 
-namespace Capture {
+namespace Screen {
 
 /**
  * Facade over the native window-manager tweaks the capture overlays and recording
@@ -60,6 +60,6 @@ void excludeFromCapture(QWidget *widget);
  */
 quint64 nativeWindowId(QWidget *widget);
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_OVERLAYWINDOWS_H
+#endif // SCREEN_OVERLAYWINDOWS_H

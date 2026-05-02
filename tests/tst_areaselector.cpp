@@ -12,7 +12,7 @@
 #include <QSignalSpy>
 #include <memory>
 
-#include "capture/AreaSelector.h"
+#include "screen/AreaSelector.h"
 #include "capture/OverlayAnnotations.h"
 #include "editor/annotations/ToolRegistry.h"
 #include "editor/annotations/tools/HighlightTool.h"
@@ -21,6 +21,7 @@
 #include "editor/annotations/tools/TextTool.h"
 
 using namespace Capture;
+using namespace Screen;
 
 // The overlay's keyboard slice: Ctrl+C and Ctrl+S reach the same terminal actions as the
 // Copy and Save toolbar buttons, and stay inert wherever the toolbar itself is unavailable.
@@ -42,7 +43,7 @@ private:
     QSharedPointer<OverlayAnnotations> attachSession()
     {
         auto session = QSharedPointer<OverlayAnnotations>::create(m_shot, m_screen);
-        m_sel->setAnnotations(session);
+        m_sel->setLayer(session);
         return session;
     }
 

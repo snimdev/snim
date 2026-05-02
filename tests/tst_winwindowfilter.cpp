@@ -1,8 +1,8 @@
 #include <QtTest>
 
-#include "capture/WinWindowFilter.h"
+#include "screen/WinWindowFilter.h"
 
-using namespace Capture;
+using namespace Screen;
 using WinWindowFilter::Candidate;
 
 // Which top-level windows the Windows picker offers. The Win32 reads stay in

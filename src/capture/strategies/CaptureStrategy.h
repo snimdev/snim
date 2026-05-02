@@ -8,9 +8,12 @@
 #include <QSharedPointer>
 #include "editor/annotations/AnnotationSet.h"
 
+namespace Screen {
+class AreaSelector;
+} // namespace Screen
+
 namespace Capture {
 
-class AreaSelector;
 class OverlayAnnotations;
 
 /**
@@ -66,7 +69,7 @@ protected:
 
     // Area selection only: one session shared by all the selectors, null when quick
     // actions are off. Terminal handlers keep a copy until they have used it.
-    QSharedPointer<OverlayAnnotations> attachAnnotations(const QList<AreaSelector*> &selectors,
+    QSharedPointer<OverlayAnnotations> attachAnnotations(const QList<Screen::AreaSelector*> &selectors,
                                                          const QPixmap &frame,
                                                          const QRect &virtualGeometry);
 

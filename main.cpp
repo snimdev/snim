@@ -1,4 +1,4 @@
-#include "src/core/ScreenshotApp.h"
+#include "src/app/Application.h"
 #include "core/AppScope.h"
 #include "core/SelfTest.h"
 #include "core/Settings.h"
@@ -66,7 +66,7 @@ static void attachParentConsole() {}
 
 int main(int argc, char *argv[]) {
 
-    // Scanned before the app object exists: ScreenshotApp is a QApplication and raises a
+    // Scanned before the app object exists: Application is a QApplication and raises a
     // tray icon in its constructor, which no version query should do.
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg(argv[i]);
@@ -111,13 +111,13 @@ int main(int argc, char *argv[]) {
         "Snim.perf.debug=true\n"
         "default.debug=true"  // For qDebug() without category
     );
-    // Static setters, set before construction: ScreenshotApp's constructor already
+    // Static setters, set before construction: Application's constructor already
     // reads QSettings, which resolves its scope from these names.
-    Core::ScreenshotApp::setApplicationName("Snim");
-    Core::ScreenshotApp::setApplicationVersion(QString::fromLatin1(Core::Version::kVersion));
-    Core::ScreenshotApp::setOrganizationName("darkog");
+    App::Application::setApplicationName("Snim");
+    App::Application::setApplicationVersion(QString::fromLatin1(Core::Version::kVersion));
+    App::Application::setOrganizationName("darkog");
     // Wayland matches windows to the installed desktop entry by this name.
-    Core::ScreenshotApp::setDesktopFileName(QStringLiteral("dev.snim.Snim"));
+    App::Application::setDesktopFileName(QStringLiteral("dev.snim.Snim"));
 #ifdef Q_OS_WIN
     // Before any window or tray icon exists, so the taskbar and toasts group under it.
     SetCurrentProcessExplicitAppUserModelID(L"dev.snim.Snim");
@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
     if (Core::Settings::portableFile().isEmpty())
         migrateLegacySettings();
 
-    Core::ScreenshotApp app(argc, argv);
+    App::Application app(argc, argv);
 
 #ifdef Q_OS_LINUX
     // Earliest point that works: the session bus wants a QCoreApplication, and the portals

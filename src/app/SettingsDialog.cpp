@@ -1,4 +1,4 @@
-#include "SettingsDialog.h"
+#include "app/SettingsDialog.h"
 #include "core/Settings.h"
 #include "core/KeychainStore.h"
 #include "hotkeys/HotkeyBackendFactory.h"
@@ -22,7 +22,7 @@
 #include <QPermissions>
 #include <algorithm>
 
-namespace Core {
+namespace App {
 
 SettingsDialog::SettingsDialog(QWidget *parent)
     : QDialog(parent)
@@ -850,7 +850,7 @@ void SettingsDialog::onUploadTestConnection()
     if (!staged.isEmpty()) {
         cfg.secretKey = staged;
     } else if (const auto stored =
-                   KeychainStore::retrieve(Upload::keychainServiceFor(p.type), p.id)) {
+                   Core::KeychainStore::retrieve(Upload::keychainServiceFor(p.type), p.id)) {
         cfg.secretKey = *stored;
     }
 
@@ -1073,32 +1073,32 @@ void SettingsDialog::updateBackgroundButtonStyle()
 
 void SettingsDialog::loadSettings()
 {
-    m_screenshotFolderEdit->setText(Settings::screenshotFolder());
+    m_screenshotFolderEdit->setText(Core::Settings::screenshotFolder());
 
-    int formatIndex = m_imageFormatCombo->findData(Settings::imageFormat());
+    int formatIndex = m_imageFormatCombo->findData(Core::Settings::imageFormat());
     if (formatIndex != -1) {
         m_imageFormatCombo->setCurrentIndex(formatIndex);
     }
 
-    m_foregroundColor = Settings::editorForeground();
-    m_backgroundColor = Settings::editorBackground();
+    m_foregroundColor = Core::Settings::editorForeground();
+    m_backgroundColor = Core::Settings::editorBackground();
     updateForegroundButtonStyle();
     updateBackgroundButtonStyle();
 
-    m_cameraEnabledCheck->setChecked(Settings::cameraEnabled());
-    int camIdx = m_cameraCombo->findData(Settings::cameraDeviceId());
+    m_cameraEnabledCheck->setChecked(Core::Settings::cameraEnabled());
+    int camIdx = m_cameraCombo->findData(Core::Settings::cameraDeviceId());
     if (camIdx != -1)
         m_cameraCombo->setCurrentIndex(camIdx);
     m_cameraCombo->setEnabled(m_cameraEnabledCheck->isChecked());
 
-    m_micEnabledCheck->setChecked(Settings::micEnabled());
-    int micIdx = m_micCombo->findData(Settings::micDeviceId());
+    m_micEnabledCheck->setChecked(Core::Settings::micEnabled());
+    int micIdx = m_micCombo->findData(Core::Settings::micDeviceId());
     if (micIdx != -1)
         m_micCombo->setCurrentIndex(micIdx);
     m_micCombo->setEnabled(m_micEnabledCheck->isChecked());
 
-    m_systemAudioCheck->setChecked(Settings::systemAudioEnabled());
-    m_frameCheck->setChecked(Settings::recordingFrameEnabled());
+    m_systemAudioCheck->setChecked(Core::Settings::systemAudioEnabled());
+    m_frameCheck->setChecked(Core::Settings::recordingFrameEnabled());
 
     for (const HotkeyRow &row : m_hotkeyRows)
         row.edit->setKeySequence(Hotkeys::HotkeyBindings::sequence(row.action));
@@ -1106,7 +1106,7 @@ void SettingsDialog::loadSettings()
 
     // Upload - load the working copy of all profiles (this also runs the one-time
     // legacy single-config migration the first time). Secrets stay in the keychain.
-    m_uploadEnabledCheck->setChecked(Settings::uploadEnabled());
+    m_uploadEnabledCheck->setChecked(Core::Settings::uploadEnabled());
     m_uploadWorking = Upload::UploadProfiles::all();
     m_uploadDefaultId = Upload::UploadProfiles::defaultId();
     m_uploadNewSecrets.clear();
@@ -1120,17 +1120,17 @@ void SettingsDialog::loadSettings()
 
 void SettingsDialog::saveSettings()
 {
-    Settings::setScreenshotFolder(m_screenshotFolderEdit->text());
-    Settings::setImageFormat(m_imageFormatCombo->currentData().toString());
-    Settings::setEditorForeground(m_foregroundColor);
-    Settings::setEditorBackground(m_backgroundColor);
+    Core::Settings::setScreenshotFolder(m_screenshotFolderEdit->text());
+    Core::Settings::setImageFormat(m_imageFormatCombo->currentData().toString());
+    Core::Settings::setEditorForeground(m_foregroundColor);
+    Core::Settings::setEditorBackground(m_backgroundColor);
 
-    Settings::setCameraEnabled(m_cameraEnabledCheck->isChecked());
-    Settings::setCameraDeviceId(m_cameraCombo->currentData().toByteArray());
-    Settings::setMicEnabled(m_micEnabledCheck->isChecked());
-    Settings::setMicDeviceId(m_micCombo->currentData().toByteArray());
-    Settings::setSystemAudioEnabled(m_systemAudioCheck->isChecked());
-    Settings::setRecordingFrameEnabled(m_frameCheck->isChecked());
+    Core::Settings::setCameraEnabled(m_cameraEnabledCheck->isChecked());
+    Core::Settings::setCameraDeviceId(m_cameraCombo->currentData().toByteArray());
+    Core::Settings::setMicEnabled(m_micEnabledCheck->isChecked());
+    Core::Settings::setMicDeviceId(m_micCombo->currentData().toByteArray());
+    Core::Settings::setSystemAudioEnabled(m_systemAudioCheck->isChecked());
+    Core::Settings::setRecordingFrameEnabled(m_frameCheck->isChecked());
 
     for (const HotkeyRow &row : m_hotkeyRows)
         Hotkeys::HotkeyBindings::setSequence(
@@ -1139,7 +1139,7 @@ void SettingsDialog::saveSettings()
     // Upload - commit the working profiles. Secrets go to the keychain (keyed by
     // profile id), never to QSettings.
     flushUploadForm(m_uploadCurrentRow);
-    Settings::setUploadEnabled(m_uploadEnabledCheck->isChecked());
+    Core::Settings::setUploadEnabled(m_uploadEnabledCheck->isChecked());
 
     // Profiles dropped this session (present originally, absent now): erase their secrets
     // from the service their type used.
@@ -1148,7 +1148,7 @@ void SettingsDialog::saveSettings()
         workingIds.insert(p.id);
     for (const Upload::UploadProfile &o : Upload::UploadProfiles::all())
         if (!workingIds.contains(o.id))
-            KeychainStore::erase(Upload::keychainServiceFor(o.type), o.id);
+            Core::KeychainStore::erase(Upload::keychainServiceFor(o.type), o.id);
 
     // Newly-entered secrets for surviving profiles. The service depends on the profile's
     // type, so resolve it in the working copy (a removed one is skipped by workingIds).
@@ -1160,7 +1160,7 @@ void SettingsDialog::saveSettings()
                                               return p.id == it.key();
                                           });
         if (profile != m_uploadWorking.cend())
-            KeychainStore::store(Upload::keychainServiceFor(profile->type), it.key(), it.value());
+            Core::KeychainStore::store(Upload::keychainServiceFor(profile->type), it.key(), it.value());
     }
 
     Upload::UploadProfiles::setAll(m_uploadWorking, m_uploadDefaultId);
@@ -1223,4 +1223,4 @@ void SettingsDialog::resetSettings()
     validateHotkeys();
 }
 
-} // namespace Core
+} // namespace App

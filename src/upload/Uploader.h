@@ -15,7 +15,7 @@ namespace Upload {
  *
  * Async, single-shot: upload() returns immediately; exactly one of uploaded()/failed()
  * fires later on this object's (GUI) thread. Lives on the GUI thread (QNetworkAccessManager
- * is not thread-safe) and is owned by ScreenshotApp so it can outlive the editor window.
+ * is not thread-safe) and is owned by App::UploadWorkflow so it can outlive the editor window.
  */
 class Uploader : public QObject
 {

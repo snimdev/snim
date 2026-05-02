@@ -1,13 +1,13 @@
 #include "recording/RecordingFrameOverlay.h"
 #include "recording/RecordingGeometry.h"
-#include "recording/LayerShellSupport.h"
+#include "screen/LayerShellSupport.h"
 
 #include <QGuiApplication>
 #include <QPainter>
 #include <QScreen>
 #include <QWindow>
 
-#include "capture/OverlayWindows.h"
+#include "screen/OverlayWindows.h"
 
 namespace Recording {
 
@@ -71,7 +71,8 @@ void RecordingFrameOverlay::applyLayerShell()
 {
     // Zone -1 covers panels too: the surface must be the whole screen, or the
     // compositor shrinks it and m_hole (screen-local) no longer lands on the region.
-    attachOverlayLayerSurface(windowHandle(), OverlayAnchorAll, -1, OverlayKeyboard::None);
+    Screen::attachOverlayLayerSurface(windowHandle(), Screen::OverlayAnchorAll, -1,
+                                      Screen::OverlayKeyboard::None);
 }
 
 void RecordingFrameOverlay::paintEvent(QPaintEvent *)
@@ -100,8 +101,8 @@ void RecordingFrameOverlay::paintEvent(QPaintEvent *)
 void RecordingFrameOverlay::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
-    Capture::configureRecordingHud(this);   // float across Spaces, non-activating
-    Capture::excludeFromCapture(this);
+    Screen::configureRecordingHud(this);   // float across Spaces, non-activating
+    Screen::excludeFromCapture(this);
 }
 
 } // namespace Recording

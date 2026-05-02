@@ -1,20 +1,10 @@
 // Private to AreaSelector: the overlay's input chain (Chain of Responsibility).
-#ifndef CAPTURE_AREASELECTORINPUT_H
-#define CAPTURE_AREASELECTORINPUT_H
+#ifndef SCREEN_AREASELECTORINPUT_H
+#define SCREEN_AREASELECTORINPUT_H
 
-#include "capture/AreaSelector.h"
+#include "screen/AreaSelector.h"
 
-#include <QLatin1StringView>
-
-namespace Capture {
-
-// Tools the overlay offers, in strip order.
-inline constexpr QLatin1StringView kOverlayTools[] = {
-    QLatin1StringView("arrow"), QLatin1StringView("rectangle"),
-    QLatin1StringView("ellipse"), QLatin1StringView("freehand"),
-    QLatin1StringView("highlight"), QLatin1StringView("text"),
-    QLatin1StringView("step"), QLatin1StringView("blur"),
-};
+namespace Screen {
 
 // One link of the chain; returning true stops the event there.
 class AreaSelector::InputHandler
@@ -42,16 +32,8 @@ public:
     bool mousePress(QMouseEvent *event) override;
 };
 
-// While text is being typed every key belongs to it; Esc commits the text.
-class AreaSelector::TextEditingHandler : public AreaSelector::InputHandler
-{
-public:
-    using InputHandler::InputHandler;
-    bool keyPress(QKeyEvent *event) override;
-};
-
-// With a tool armed, presses inside the selection draw instead of moving or committing.
-class AreaSelector::StrokeHandler : public AreaSelector::InputHandler
+// Adapter handing input to the layer, and the selector's side of its SelectionContext.
+class AreaSelector::LayerHandler : public AreaSelector::InputHandler, public SelectionContext
 {
 public:
     using InputHandler::InputHandler;
@@ -61,16 +43,14 @@ public:
     bool mouseRelease(QMouseEvent *event) override;
     bool mouseDoubleClick(QMouseEvent *event) override;
 
-private:
-    [[nodiscard]] bool armed() const;
-};
+    [[nodiscard]] bool adjusting() const override;
+    [[nodiscard]] bool actionsAvailable() const override;
+    [[nodiscard]] Hit hitTest(const QPoint &virt) const override;
+    void setCursor(const QCursor &cursor) override;
+    void refreshCursor() override;
 
-// Tool letters, undo and redo, and Esc to disarm.
-class AreaSelector::ToolHandler : public AreaSelector::InputHandler
-{
-public:
-    using InputHandler::InputHandler;
-    bool keyPress(QKeyEvent *event) override;
+private:
+    bool forward(SelectionLayer::MouseAction action, QMouseEvent *event);
 };
 
 // Selecting, adjusting and the terminal actions; last in the chain.
@@ -89,6 +69,6 @@ private:
     bool   m_interiorMoved = false;  // whether an interior drag actually moved
 };
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_AREASELECTORINPUT_H
+#endif // SCREEN_AREASELECTORINPUT_H

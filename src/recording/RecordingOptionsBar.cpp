@@ -19,7 +19,7 @@
 #include <QToolButton>
 #include <QWindow>
 
-#include "capture/OverlayWindows.h"
+#include "screen/OverlayWindows.h"
 
 namespace Recording {
 
@@ -344,8 +344,8 @@ void RecordingOptionsBar::showEvent(QShowEvent *event)
             const QRect avail = screen->availableGeometry();
             move(avail.center().x() - width() / 2, avail.bottom() - height() - 24);
         }
-        Capture::configureSelectionHud(this);   // above the shielding-level overlay
-        Capture::excludeFromCapture(this);
+        Screen::configureSelectionHud(this);   // above the shielding-level overlay
+        Screen::excludeFromCapture(this);
         return;
     }
 

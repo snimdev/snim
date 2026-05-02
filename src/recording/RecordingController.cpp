@@ -5,13 +5,13 @@
 #include "recording/RecordingStrategy.h"
 #include "recording/CameraBubble.h"
 #include "recording/RecordingFrameOverlay.h"
-#include "recording/LayerShellSupport.h"
+#include "screen/LayerShellSupport.h"
 #include "recording/RecordingOptionsBar.h"
-#include "capture/AreaSelector.h"
-#include "capture/WindowEnumerator.h"
+#include "screen/AreaSelector.h"
+#include "screen/WindowEnumerator.h"
 #include "core/FileNames.h"
 #include "core/Settings.h"
-#include "capture/OverlayWindows.h"
+#include "screen/OverlayWindows.h"
 
 #include <QDir>
 #include <QDateTime>
@@ -99,7 +99,7 @@ void RecordingController::destroyFrameOverlay()
 quint64 RecordingController::cameraBubbleWindowId() const
 {
     if (m_cameraBubble)
-        return Capture::nativeWindowId(m_cameraBubble);
+        return Screen::nativeWindowId(m_cameraBubble);
     return 0;
 }
 
@@ -238,19 +238,19 @@ void RecordingController::presentSelection(bool windowPick)
 
         const QList<QScreen*> screens = QGuiApplication::screens();
         // Window-pick needs each candidate window's rect + id for true window capture.
-        const QVector<Capture::WindowInfo> windowInfos =
-            windowPick ? Capture::enumerateWindowInfos() : QVector<Capture::WindowInfo>{};
-        auto *selectors = new QList<Capture::AreaSelector*>();
+        const QVector<Screen::WindowInfo> windowInfos =
+            windowPick ? Screen::enumerateWindowInfos() : QVector<Screen::WindowInfo>{};
+        auto *selectors = new QList<Screen::AreaSelector*>();
 
         // One overlay per screen, frozen-frame backdrop (mirrors the screenshot path).
         for (QScreen *screen : screens) {
             const QRect screenGeometry = screen->geometry();
-            auto *selector = new Capture::AreaSelector();
+            auto *selector = new Screen::AreaSelector();
             selector->setScreenshot(frozen);
             selector->setVirtualGeometry(virtualGeometry);
             selector->setScreenOffset(screenGeometry.topLeft());
             if (windowPick) {
-                selector->setMode(Capture::AreaSelector::Mode::WindowPick);
+                selector->setMode(Screen::AreaSelector::Mode::WindowPick);
                 selector->setWindowInfos(windowInfos);
             }
             selector->setActionsEnabled(false);   // recording has no Edit/Copy/Save toolbar
@@ -261,13 +261,14 @@ void RecordingController::presentSelection(bool windowPick)
                 // Without this the compositor shrinks the overlay to the work area,
                 // so the panel strip is unselectable. Exclusive keyboard keeps
                 // Enter/Esc working while the overlay is up.
-                attachOverlayLayerSurface(wh, OverlayAnchorAll, /*exclusiveZone=*/-1,
-                                          OverlayKeyboard::Exclusive);
+                Screen::attachOverlayLayerSurface(wh, Screen::OverlayAnchorAll,
+                                                  /*exclusiveZone=*/-1,
+                                                  Screen::OverlayKeyboard::Exclusive);
             }
             selector->show();
             selector->raise();
             selector->activateWindow();
-            Capture::configureOverlayWindow(selector);
+            Screen::configureOverlayWindow(selector);
             selectors->append(selector);
         }
 
@@ -280,7 +281,7 @@ void RecordingController::presentSelection(bool windowPick)
 #else
         // QCursor::pos() is (0,0) on Wayland, so start on the primary screen and let the
         // first hover reparent the bar to the overlay the user is actually working on.
-        Capture::AreaSelector *barParent = selectors->isEmpty() ? nullptr : selectors->first();
+        Screen::AreaSelector *barParent = selectors->isEmpty() ? nullptr : selectors->first();
         QScreen *primary = QGuiApplication::primaryScreen();
         for (int i = 0; i < screens.size() && i < selectors->size(); ++i)
             if (screens.at(i) == primary)
@@ -302,7 +303,7 @@ void RecordingController::presentSelection(bool windowPick)
         connect(optionsBar, &RecordingOptionsBar::recordRequested, this, [selectors] {
             // All overlays share the synced selection; the first one in Adjusting
             // commits (which tears everything down, so iterate over a copy).
-            const QList<Capture::AreaSelector *> sels = *selectors;
+            const QList<Screen::AreaSelector *> sels = *selectors;
             for (auto *sel : sels)
                 if (sel->commitCurrentSelection())
                     break;
@@ -317,7 +318,7 @@ void RecordingController::presentSelection(bool windowPick)
         // window visible, which would bury the bar beneath the shielding-level overlay
         // if we only configured from showEvent (same reason configureOverlayWindow is
         // applied to the selectors post-show above).
-        Capture::configureSelectionHud(optionsBar);
+        Screen::configureSelectionHud(optionsBar);
 
         auto teardown = [selectors, optionsBar]() {
             optionsBar->hide();
@@ -333,7 +334,7 @@ void RecordingController::presentSelection(bool windowPick)
         };
 
         for (auto *selector : *selectors) {
-            connect(selector, &Capture::AreaSelector::areaSelected, this,
+            connect(selector, &Screen::AreaSelector::areaSelected, this,
                     [this, teardown, windowPick](const QRect &area) {
                         teardown();
                         m_state = State::Idle;
@@ -346,7 +347,7 @@ void RecordingController::presentSelection(bool windowPick)
                         beginRecordingForSelection(area, /*windowId=*/0, /*isWindow=*/false);
                     });
             if (windowPick) {
-                connect(selector, &Capture::AreaSelector::windowPicked, this,
+                connect(selector, &Screen::AreaSelector::windowPicked, this,
                         [this, teardown](const QRect &area, quint64 windowId) {
                             teardown();
                             m_state = State::Idle;
@@ -360,7 +361,7 @@ void RecordingController::presentSelection(bool windowPick)
             // Multi-monitor: mirror the live selection onto the other overlays. Also
             // park the webcam bubble in the selection's corner as it is adjusted (2 ==
             // Phase::Adjusting), so it previews exactly where it will be recorded.
-            connect(selector, &Capture::AreaSelector::liveStateChanged, this,
+            connect(selector, &Screen::AreaSelector::liveStateChanged, this,
                     [this, selectors, selector, bar = QPointer<RecordingOptionsBar>(optionsBar)](
                         const QRect &sel, int phase, int mode, const QPoint &cursor) {
 #ifndef Q_OS_MACOS

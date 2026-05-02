@@ -2,7 +2,7 @@
 #define CAPTURE_NATIVECAPTURESTRATEGY_H
 
 #include "CaptureStrategy.h"
-#include "../CaptureGeometry.h"
+#include "capture/CaptureGeometry.h"
 #include <QScreen>
 #include <QApplication>
 #include <QTimer>
@@ -11,9 +11,11 @@
 #include <QList>
 #include <utility>
 
-namespace Capture {
-
+namespace Screen {
 class AreaSelector;
+} // namespace Screen
+
+namespace Capture {
 
 /**
  * Native Qt capture strategy using QScreen for X11/traditional systems
@@ -39,7 +41,7 @@ private:
     QPixmap captureAllScreens();
     void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry,
                           bool windowPick = false, const QVector<QRect> &windows = {});
-    void teardownSelectors(QList<AreaSelector*> *selectors);
+    void teardownSelectors(QList<Screen::AreaSelector*> *selectors);
     void onCopyRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
     void onSaveRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
     // The frame and its geometry to crop area from: one screen's own grab when it holds area.

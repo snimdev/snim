@@ -3,7 +3,7 @@
 #include "media/ffmpeg/FfmpegEncoder.h"
 #include "recording/PauseAwareClock.h"
 #include "recording/PcmMixBuffer.h"
-#include "capture/WinScreenMap.h"
+#include "screen/WinScreenMap.h"
 #include "recording/RecordingGeometry.h"
 #include "recording/strategies/windows/WasapiAudioSource.h"
 #include "recording/strategies/windows/WgcFrameSource.h"
@@ -64,9 +64,9 @@ QStringList encoderOrder(const H264EncoderSettings &probe)
     return chain.mid(chain.indexOf(picked));
 }
 
-QVector<Capture::WinScreenMap::Screen> screenMap()
+QVector<Screen::WinScreenMap::Screen> screenMap()
 {
-    QVector<Capture::WinScreenMap::Screen> map;
+    QVector<Screen::WinScreenMap::Screen> map;
     for (QScreen *screen : QGuiApplication::screens()) {
         auto *native = screen->nativeInterface<QNativeInterface::QWindowsScreen>();
         MONITORINFO info{};
@@ -87,7 +87,7 @@ QSizeF logicalScale(HWND window)
     if (FAILED(DwmGetWindowAttribute(window, DWMWA_EXTENDED_FRAME_BOUNDS, &r, sizeof(r))))
         GetWindowRect(window, &r);
     const QRect physical(r.left, r.top, r.right - r.left, r.bottom - r.top);
-    const QRect logical = Capture::WinScreenMap::toLogical(physical, screenMap());
+    const QRect logical = Screen::WinScreenMap::toLogical(physical, screenMap());
     if (physical.isEmpty() || logical.isEmpty())
         return {1.0, 1.0};
     return {qreal(logical.width()) / physical.width(), qreal(logical.height()) / physical.height()};

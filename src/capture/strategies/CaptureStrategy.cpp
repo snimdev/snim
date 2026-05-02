@@ -1,7 +1,7 @@
 #include "CaptureStrategy.h"
-#include "../AreaSelector.h"
-#include "../CaptureGeometry.h"
-#include "../OverlayAnnotations.h"
+#include "screen/AreaSelector.h"
+#include "capture/CaptureGeometry.h"
+#include "capture/OverlayAnnotations.h"
 #include "core/FileNames.h"
 #include "core/Settings.h"
 
@@ -40,15 +40,15 @@ void CaptureStrategy::emitSelection(const QPixmap &shot, const QRect &virtualGeo
 }
 
 QSharedPointer<OverlayAnnotations> CaptureStrategy::attachAnnotations(
-    const QList<AreaSelector*> &selectors, const QPixmap &frame, const QRect &virtualGeometry)
+    const QList<Screen::AreaSelector*> &selectors, const QPixmap &frame, const QRect &virtualGeometry)
 {
     if (!quickActionsEnabled())
         return {};
     // deleteLater: the last reference can drop inside one of the session's own signals.
     QSharedPointer<OverlayAnnotations> session(new OverlayAnnotations(frame, virtualGeometry),
                                                &QObject::deleteLater);
-    for (AreaSelector *selector : selectors)
-        selector->setAnnotations(session);
+    for (Screen::AreaSelector *selector : selectors)
+        selector->setLayer(session);
     return session;
 }
 

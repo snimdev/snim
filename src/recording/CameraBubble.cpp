@@ -1,5 +1,5 @@
 #include "recording/CameraBubble.h"
-#include "recording/LayerShellSupport.h"
+#include "screen/LayerShellSupport.h"
 #include "recording/RecordingGeometry.h"
 
 #include <QMediaCaptureSession>
@@ -20,7 +20,7 @@
 #include <QWindow>
 #include <QDebug>
 
-#include "capture/OverlayWindows.h"
+#include "screen/OverlayWindows.h"
 
 namespace Recording {
 
@@ -32,7 +32,7 @@ bool waylandSession()
 } // namespace
 
 CameraBubble::CameraBubble(QWidget *parent)
-    : QWidget(parent), m_layerMode(overlayLayerSurfacesAvailable())
+    : QWidget(parent), m_layerMode(Screen::overlayLayerSurfacesAvailable())
 {
     // The layer surface replaces the toplevel hints, and KWin withholds input from
     // layer surfaces carrying popup-like flags, so set these only off the layer path.
@@ -248,8 +248,8 @@ void CameraBubble::attachLayerSurface()
     handle->setScreen(screen);
     // Zone -1 so panels do not shift the surface and screen-local coords stay valid;
     // OnDemand because KWin withholds the pointer from keyboard-less layer surfaces.
-    attachOverlayLayerSurface(handle, OverlayAnchorAll, /*exclusiveZone=*/-1,
-                              OverlayKeyboard::OnDemand);
+    Screen::attachOverlayLayerSurface(handle, Screen::OverlayAnchorAll, /*exclusiveZone=*/-1,
+                                      Screen::OverlayKeyboard::OnDemand);
     m_layerAttached = true;
     m_circleRect.moveTopLeft(m_screenPos);
     updateCircleMask();
@@ -386,7 +386,7 @@ void CameraBubble::showEvent(QShowEvent *event)
 
     ensurePlacement();   // no-op once a region park or a drag has placed the bubble
 
-    Capture::configureRecordingHud(this);   // float across Spaces, non-activating
+    Screen::configureRecordingHud(this);   // float across Spaces, non-activating
 }
 
 } // namespace Recording

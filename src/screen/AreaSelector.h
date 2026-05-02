@@ -13,16 +13,15 @@
 #include <QSharedPointer>
 #include <memory>
 #include <vector>
-#include "capture/WindowEnumerator.h"
+#include "screen/SelectionLayer.h"
+#include "screen/WindowEnumerator.h"
 
 class QEvent;
 class QInputMethodEvent;
 class QShowEvent;
 class QResizeEvent;
 
-namespace Capture {
-
-    class OverlayAnnotations;
+namespace Screen {
 
     /**
      * Full-screen overlay that lets the user interactively select a region of a
@@ -67,9 +66,10 @@ namespace Capture {
         // leaves it off.
         void setActionsEnabled(bool enabled) { m_actionsEnabled = enabled; }
 
-        // Quick-annotation session shared by every overlay of one area capture; null
-        // (the default) for recording, OCR and window pick.
-        void setAnnotations(QSharedPointer<OverlayAnnotations> session);
+        // Layer drawn and edited over the selection (the capture's quick annotations),
+        // shared by every overlay of one capture; null (the default) for recording,
+        // OCR and window pick.
+        void setLayer(QSharedPointer<SelectionLayer> layer);
 
         // Multi-monitor: mirror the live selection from a peer overlay on another
         // screen so this overlay renders its portion of a spanning selection.
@@ -81,7 +81,7 @@ namespace Capture {
         bool commitCurrentSelection();
         void cancelSelection() { cancel(); }
 
-        // Answers for the text box being typed, so an IME's popup sits at its caret.
+        // Answers for the layer's text box, so an IME's popup sits at its caret.
         QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
 
     signals:
@@ -112,9 +112,7 @@ namespace Capture {
         // Input chain of responsibility, defined in AreaSelectorInput.h.
         class InputHandler;
         class ToolbarHandler;
-        class TextEditingHandler;
-        class StrokeHandler;
-        class ToolHandler;
+        class LayerHandler;
         class SelectionHandler;
 
         enum class Phase { Idle, Dragging, Adjusting };
@@ -135,13 +133,12 @@ namespace Capture {
         // so they appear on the right monitor, even during a grabbed cross-monitor drag.
         bool   cursorOnThisScreen() const { return QRect(m_screenOffset, size()).contains(m_cursorVirt); }
 
-        // Floating toolbar shown during Adjusting: [tools] | [undo redo] | [actions].
+        // Floating toolbar shown during Adjusting: [layer groups] | [actions].
         enum ToolButton { BtnEdit = 0, BtnCopy, BtnSave, BtnCancel, BtnCount };
         struct BarSlot {
-            enum class Kind { Tool, Undo, Redo, Action };
-            Kind    kind = Kind::Action;
-            QString toolId;     // Tool
-            int     action = -1; // Action: a ToolButton
+            SelectionLayer::ToolbarSlot layer;  // when action is -1
+            int     action = -1;                // a ToolButton
+            int     group = 0;
             QRect   rect;
         };
         // No anchor test, so the keyboard path works on whichever overlay has focus.
@@ -152,14 +149,13 @@ namespace Capture {
         int    toolbarButtonAt(const QPoint &local) const;   // index into toolbarSlots()
         void   triggerToolbarButton(int index);              // a ToolButton action
         void   activateBarSlot(const BarSlot &slot);
-        void   toggleTool(const QString &id);
         QIcon  barIcon(const QString &path);
         QString barTooltip(const BarSlot &slot) const;
         void   paintBarGlyph(QPainter &p, const BarSlot &slot, const QRect &r);
         void   paintToolbar(QPainter &p);
-        void   onAnnotationsChanged();
+        void   onLayerChanged();
         void   updateCursorShape(const QPoint &local);
-        bool   toolArmed() const;
+        bool   layerArmed() const;
         void   applyHandleDrag(const QPoint &cursorVirt);
         void   commitSelection();
         void   cancel();
@@ -198,7 +194,7 @@ namespace Capture {
         quint64 m_hoverWindowId = 0;    // id of the window currently under the cursor
 
         bool   m_actionsEnabled = false; // show the action toolbar
-        QSharedPointer<OverlayAnnotations> m_annotations;
+        QSharedPointer<SelectionLayer> m_layer;
         int    m_hoveredButton = -1;     // toolbar slot under cursor (-1 = none)
         QHash<QString, QIcon> m_barIcons; // white toolbar icons by resource path
 
@@ -208,6 +204,6 @@ namespace Capture {
         static constexpr int kHandleHit  = 12;
     };
 
-} // namespace Capture
+} // namespace Screen
 
 #endif // AREASELECTOR_H

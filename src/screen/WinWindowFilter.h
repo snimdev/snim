@@ -1,11 +1,11 @@
-#ifndef CAPTURE_WINWINDOWFILTER_H
-#define CAPTURE_WINWINDOWFILTER_H
+#ifndef SCREEN_WINWINDOWFILTER_H
+#define SCREEN_WINWINDOWFILTER_H
 
 #include <QRect>
 #include <QString>
 #include <QtGlobal>
 
-namespace Capture::WinWindowFilter {
+namespace Screen::WinWindowFilter {
 
 /**
  * What the Windows window picker knows about one top-level window, read from
@@ -35,6 +35,6 @@ inline bool isPickable(const Candidate &w, quint32 ownProcessId)
     return !w.bounds.isEmpty();
 }
 
-} // namespace Capture::WinWindowFilter
+} // namespace Screen::WinWindowFilter
 
-#endif // CAPTURE_WINWINDOWFILTER_H
+#endif // SCREEN_WINWINDOWFILTER_H

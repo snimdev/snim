@@ -1,6 +1,6 @@
-#include "WindowEnumerator.h"
+#include "screen/WindowEnumerator.h"
 
-namespace Capture {
+namespace Screen {
 
 // Platforms without a native window enumerator (e.g. Linux/Wayland, where global
 // window geometry is unavailable).
@@ -11,4 +11,4 @@ QVector<WindowInfo> enumerateWindowInfos()
     return {};
 }
 
-} // namespace Capture
+} // namespace Screen

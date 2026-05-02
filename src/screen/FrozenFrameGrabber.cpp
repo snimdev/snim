@@ -1,4 +1,4 @@
-#include "capture/FrozenFrameGrabber.h"
+#include "screen/FrozenFrameGrabber.h"
 
 #include <QGuiApplication>
 #include <QList>
@@ -17,7 +17,7 @@
 #include <QtDBus/QDBusReply>
 #endif
 
-namespace Capture {
+namespace Screen {
 
 FrozenFrameGrabber::FrozenFrameGrabber(QObject *parent)
     : QObject(parent)
@@ -176,4 +176,4 @@ void FrozenFrameGrabber::handlePortalResponse(uint status, QVariantMap results)
 }
 #endif // Q_OS_LINUX
 
-} // namespace Capture
+} // namespace Screen

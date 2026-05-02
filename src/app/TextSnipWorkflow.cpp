@@ -1,4 +1,4 @@
-#include "ocr/TextSnipCapture.h"
+#include "app/TextSnipWorkflow.h"
 #include "capture/CaptureFactory.h"
 #include "capture/strategies/CaptureStrategy.h"
 #include "ocr/OCRService.h"
@@ -7,9 +7,9 @@
 #include <QClipboard>
 #include <QMessageBox>
 
-namespace OCR {
+namespace App {
 
-TextSnipCapture::TextSnipCapture(QObject *parent)
+TextSnipWorkflow::TextSnipWorkflow(QObject *parent)
     : QObject(parent)
 {
     // Initialize capture strategy using factory
@@ -22,7 +22,7 @@ TextSnipCapture::TextSnipCapture(QObject *parent)
     m_captureStrategy->setQuickActionsEnabled(false);
 
     connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotReady,
-            this, &TextSnipCapture::onScreenCaptured);
+            this, &TextSnipWorkflow::onScreenCaptured);
     connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotFailed,
             this, [this](const QString &error) {
                 emit errorOccurred(error);
@@ -30,18 +30,18 @@ TextSnipCapture::TextSnipCapture(QObject *parent)
             });
 }
 
-TextSnipCapture::~TextSnipCapture() {
+TextSnipWorkflow::~TextSnipWorkflow() {
     // Never leak the wait cursor if we die mid OCR
     if (m_ocrInFlight) {
         QGuiApplication::restoreOverrideCursor();
     }
 }
 
-bool TextSnipCapture::isOCRAvailable() {
-    return OCRService::isAvailable();
+bool TextSnipWorkflow::isOCRAvailable() {
+    return OCR::OCRService::isAvailable();
 }
 
-void TextSnipCapture::startTextSnip() {
+void TextSnipWorkflow::startTextSnip() {
     // One snip at a time now that OCR is async
     if (m_ocrInFlight) {
         return;
@@ -65,7 +65,7 @@ void TextSnipCapture::startTextSnip() {
     m_captureStrategy->captureArea();
 }
 
-void TextSnipCapture::onScreenCaptured(const QPixmap &screenshot) {
+void TextSnipWorkflow::onScreenCaptured(const QPixmap &screenshot) {
     qDebug() << "Screen captured for text snip, size:" << screenshot.size();
 
     // The screenshot from capture strategy is already the selected area
@@ -73,7 +73,7 @@ void TextSnipCapture::onScreenCaptured(const QPixmap &screenshot) {
     performOCR(screenshot);
 }
 
-void TextSnipCapture::performOCR(const QPixmap &selectedRegion) {
+void TextSnipWorkflow::performOCR(const QPixmap &selectedRegion) {
     if (selectedRegion.isNull()) {
         emit errorOccurred("No screenshot available for OCR");
         return;
@@ -91,7 +91,7 @@ void TextSnipCapture::performOCR(const QPixmap &selectedRegion) {
     // A QPixmap must not cross threads, so the worker gets a QImage
     const QImage image = selectedRegion.toImage();
 
-    OCRService::performOCRAsync(image, "eng", this, [this](const OCRResult &result) {
+    OCR::OCRService::performOCRAsync(image, "eng", this, [this](const OCR::OCRResult &result) {
         QGuiApplication::restoreOverrideCursor();
         m_ocrInFlight = false;
 
@@ -137,4 +137,4 @@ void TextSnipCapture::performOCR(const QPixmap &selectedRegion) {
     });
 }
 
-} // namespace OCR
+} // namespace App

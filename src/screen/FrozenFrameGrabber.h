@@ -1,5 +1,5 @@
-#ifndef CAPTURE_FROZENFRAMEGRABBER_H
-#define CAPTURE_FROZENFRAMEGRABBER_H
+#ifndef SCREEN_FROZENFRAMEGRABBER_H
+#define SCREEN_FROZENFRAMEGRABBER_H
 
 #include <QObject>
 #include <QPixmap>
@@ -8,7 +8,7 @@
 #include <QVariantMap>
 #include <functional>
 
-namespace Capture {
+namespace Screen {
 
 /**
  * Freezes every screen into one virtual-desktop pixmap so a selection overlay has a
@@ -48,6 +48,6 @@ private:
     Done m_done;             // non-null only while a portal request is in flight
 };
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_FROZENFRAMEGRABBER_H
+#endif // SCREEN_FROZENFRAMEGRABBER_H

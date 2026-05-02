@@ -1,11 +1,11 @@
-#include "WindowEnumerator.h"
+#include "screen/WindowEnumerator.h"
 
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreFoundation/CoreFoundation.h>
 
 #include <unistd.h> // getpid
 
-namespace Capture {
+namespace Screen {
 
 QVector<WindowInfo> enumerateWindowInfos()
 {
@@ -69,4 +69,4 @@ QVector<WindowInfo> enumerateWindowInfos()
     return result; // CGWindowList already returns front-to-back order
 }
 
-} // namespace Capture
+} // namespace Screen

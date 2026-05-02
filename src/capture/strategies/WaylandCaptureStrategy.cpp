@@ -23,9 +23,8 @@
 #include <QFile>
 #include <QMessageBox>
 
-#include "../AreaSelector.h"
-#include "../CaptureGeometry.h"
-#include "../../core/ScreenshotDialog.h"
+#include "screen/AreaSelector.h"
+#include "capture/CaptureGeometry.h"
 
 namespace Capture {
     WaylandCaptureStrategy::WaylandCaptureStrategy(QObject *parent)
@@ -238,7 +237,7 @@ namespace Capture {
 
     // Every terminal action (accept, cancel, copy, save) tears down ALL per-screen
     // overlays first, so nothing is left covering the screen or the save dialog.
-    static void tearDownSelectors(QList<Capture::AreaSelector*> *selectors) {
+    static void tearDownSelectors(QList<Screen::AreaSelector*> *selectors) {
         for (auto *sel : *selectors) {
             sel->blockSignals(true);  // Block any further signals
             sel->disconnect();         // Disconnect all signals
@@ -257,14 +256,14 @@ namespace Capture {
         qDebug() << "All screens:";
 
         QList<QScreen*> screens = QGuiApplication::screens();
-        QList<Capture::AreaSelector*> *selectors = new QList<Capture::AreaSelector*>();
+        QList<Screen::AreaSelector*> *selectors = new QList<Screen::AreaSelector*>();
 
         // Create one AreaSelector widget per screen
         for (QScreen *screen : screens) {
             QRect screenGeometry = screen->geometry();
             qDebug() << "  - Creating selector for" << screen->name() << screenGeometry;
 
-            auto *selector = new Capture::AreaSelector();
+            auto *selector = new Screen::AreaSelector();
             selector->setScreenshot(screenshot);
             selector->setVirtualGeometry(virtualGeometry);
             selector->setScreenOffset(screenGeometry.topLeft());
@@ -286,7 +285,7 @@ namespace Capture {
         // Connect all selectors to the same handler - use a shared pointer approach
         for (auto *selector : *selectors) {
             // Each handler copies the session first: teardown disconnects its own lambda.
-            connect(selector, &Capture::AreaSelector::areaSelected,
+            connect(selector, &Screen::AreaSelector::areaSelected,
                     this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
                         const auto session = annotations;
                         // Tear every overlay down first, to prevent multiple triggers
@@ -307,13 +306,13 @@ namespace Capture {
 
                         emitSelection(screenshot, virtualGeometry, area, session);
                     });
-            connect(selector, &Capture::AreaSelector::copyRequested,
+            connect(selector, &Screen::AreaSelector::copyRequested,
                     this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
                         const auto session = annotations;
                         tearDownSelectors(selectors);
                         copyAreaToClipboard(screenshot, virtualGeometry, area, session);
                     });
-            connect(selector, &Capture::AreaSelector::saveRequested,
+            connect(selector, &Screen::AreaSelector::saveRequested,
                     this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
                         const auto session = annotations;
                         // Teardown first, or the save dialog opens behind the overlay.

@@ -1,12 +1,12 @@
-#ifndef CAPTURE_WINSCREENMAP_H
-#define CAPTURE_WINSCREENMAP_H
+#ifndef SCREEN_WINSCREENMAP_H
+#define SCREEN_WINSCREENMAP_H
 
 #include <QPoint>
 #include <QRect>
 #include <QVector>
 #include <QtMath>
 
-namespace Capture::WinScreenMap {
+namespace Screen::WinScreenMap {
 
 /**
  * Maps Win32 physical-pixel rects (DWMWA_EXTENDED_FRAME_BOUNDS) into Qt's
@@ -83,6 +83,6 @@ inline QRect toLogical(const QRect &physical, const QVector<Screen> &screens)
     return QRect(tl, QSize(br.x() - tl.x(), br.y() - tl.y()));
 }
 
-} // namespace Capture::WinScreenMap
+} // namespace Screen::WinScreenMap
 
-#endif // CAPTURE_WINSCREENMAP_H
+#endif // SCREEN_WINSCREENMAP_H

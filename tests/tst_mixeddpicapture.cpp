@@ -4,9 +4,10 @@
 #include <QTemporaryDir>
 
 #include "capture/CaptureGeometry.h"
-#include "capture/FrozenFrameGrabber.h"
+#include "screen/FrozenFrameGrabber.h"
 
 using namespace Capture;
+using namespace Screen;
 
 // The capture geometry on a mixed-DPI desktop, laid out by the offscreen platform
 // the way Qt lays out Windows under per-monitor DPI awareness: a 100% screen, a

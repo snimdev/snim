@@ -1,5 +1,5 @@
-#ifndef OCR_TEXTSNIPCAPTURE_H
-#define OCR_TEXTSNIPCAPTURE_H
+#ifndef APP_TEXTSNIPWORKFLOW_H
+#define APP_TEXTSNIPWORKFLOW_H
 
 #include <QObject>
 #include <QPixmap>
@@ -9,7 +9,7 @@ namespace Capture {
 class CaptureStrategy;
 }
 
-namespace OCR {
+namespace App {
 
 /**
  * @brief Handles text snipping functionality using OCR
@@ -18,13 +18,13 @@ namespace OCR {
  * text from screen regions. It uses AreaSelector for user interaction and
  * OCRService for text extraction.
  */
-class TextSnipCapture : public QObject
+class TextSnipWorkflow : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit TextSnipCapture(QObject *parent = nullptr);
-    ~TextSnipCapture() override;
+    explicit TextSnipWorkflow(QObject *parent = nullptr);
+    ~TextSnipWorkflow() override;
 
     /**
      * @brief Start the text snipping process
@@ -61,6 +61,6 @@ private:
     bool m_ocrInFlight = false;
 };
 
-} // namespace OCR
+} // namespace App
 
-#endif // OCR_TEXTSNIPCAPTURE_H
+#endif // APP_TEXTSNIPWORKFLOW_H

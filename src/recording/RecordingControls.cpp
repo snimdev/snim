@@ -1,5 +1,5 @@
 #include "recording/RecordingControls.h"
-#include "recording/LayerShellSupport.h"
+#include "screen/LayerShellSupport.h"
 
 #include <QFontMetrics>
 #include <QHBoxLayout>
@@ -11,7 +11,7 @@
 #include <QTime>
 #include <QWindow>
 
-#include "capture/OverlayWindows.h"
+#include "screen/OverlayWindows.h"
 
 namespace Recording {
 
@@ -20,7 +20,7 @@ RecordingControls::RecordingControls(QWidget *parent)
 {
     // The layer surface replaces the toplevel hints, and KWin withholds input from
     // layer surfaces carrying popup-like flags, so set these only off the layer path.
-    if (!overlayLayerSurfacesAvailable()) {
+    if (!Screen::overlayLayerSurfacesAvailable()) {
         setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
         setAttribute(Qt::WA_ShowWithoutActivating);
     }
@@ -80,7 +80,7 @@ RecordingControls::RecordingControls(QWidget *parent)
 
 void RecordingControls::setVisible(bool visible)
 {
-    if (visible && !m_layerSurface && overlayLayerSurfacesAvailable()) {
+    if (visible && !m_layerSurface && Screen::overlayLayerSurfacesAvailable()) {
         // Anchored to the top edge only: the compositor then centers the surface
         // along that edge, which replaces the move() the Wayland session ignores.
         QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
@@ -91,8 +91,9 @@ void RecordingControls::setVisible(bool visible)
         createWinId();
         if (QWindow *wh = windowHandle(); wh && screen)
             wh->setScreen(screen);
-        attachOverlayLayerSurface(windowHandle(), OverlayAnchorTop, /*exclusiveZone=*/0,
-                                  OverlayKeyboard::OnDemand, QMargins(0, 12, 0, 0), sizeHint());
+        Screen::attachOverlayLayerSurface(windowHandle(), Screen::OverlayAnchorTop,
+                                          /*exclusiveZone=*/0, Screen::OverlayKeyboard::OnDemand,
+                                          QMargins(0, 12, 0, 0), sizeHint());
         m_layerSurface = true;
     }
     QWidget::setVisible(visible);
@@ -128,8 +129,8 @@ void RecordingControls::showEvent(QShowEvent *event)
 
     // Persistent, non-activating HUD: stays visible across Spaces and when the user
     // clicks other apps mid-recording, without stealing focus from them.
-    Capture::configureRecordingHud(this);
-    Capture::excludeFromCapture(this);
+    Screen::configureRecordingHud(this);
+    Screen::excludeFromCapture(this);
 }
 
 } // namespace Recording

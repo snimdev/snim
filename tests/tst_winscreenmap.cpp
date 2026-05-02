@@ -1,9 +1,8 @@
 #include <QtTest>
 
-#include "capture/WinScreenMap.h"
+#include "screen/WinScreenMap.h"
 
-using namespace Capture;
-using WinScreenMap::Screen;
+using namespace Screen;
 
 // Physical window rects (DWM frame bounds) to Qt logical space. Pure, so the
 // mixed-DPI layouts nobody can reproduce by hand run on every host.
@@ -13,7 +12,7 @@ class tst_WinScreenMap : public QObject
 
     // A 100% primary, a 150% screen to its right, and a 150% screen up and to the
     // left (negative origin). Qt keeps each origin and scales only the extent.
-    static QVector<Screen> layout()
+    static QVector<WinScreenMap::Screen> layout()
     {
         return {
             { QRect(0, 0, 1920, 1080), QPoint(0, 0), 1.0 },

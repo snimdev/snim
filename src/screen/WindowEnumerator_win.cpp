@@ -1,6 +1,6 @@
-#include "WindowEnumerator.h"
-#include "WinScreenMap.h"
-#include "WinWindowFilter.h"
+#include "screen/WindowEnumerator.h"
+#include "screen/WinScreenMap.h"
+#include "screen/WinWindowFilter.h"
 
 #include <QGuiApplication>
 #include <QScreen>
@@ -11,7 +11,7 @@
 #include <windows.h>
 #include <dwmapi.h>
 
-namespace Capture {
+namespace Screen {
 
 namespace {
 
@@ -93,4 +93,4 @@ QVector<WindowInfo> enumerateWindowInfos()
     return result;
 }
 
-} // namespace Capture
+} // namespace Screen

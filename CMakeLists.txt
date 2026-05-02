@@ -348,9 +348,24 @@ endif()
 # All cross-platform sources live in a static library so both the executable and
 # the test suite can link them. main.cpp + the .app bundle stay on the executable.
 add_library(snim_lib STATIC
+        # Application: tray, workflows, settings UI
+        src/app/Application.cpp
+        src/app/Application.h
+        src/app/CaptureWorkflow.cpp
+        src/app/CaptureWorkflow.h
+        src/app/Notifier.h
+        src/app/RecordingWorkflow.cpp
+        src/app/RecordingWorkflow.h
+        src/app/SettingsDialog.cpp
+        src/app/SettingsDialog.h
+        src/app/TextSnipWorkflow.cpp
+        src/app/TextSnipWorkflow.h
+        src/app/TrayMenu.cpp
+        src/app/TrayMenu.h
+        src/app/UploadWorkflow.cpp
+        src/app/UploadWorkflow.h
+
         # Core application files
-        src/core/ScreenshotApp.cpp
-        src/core/ScreenshotApp.h
         src/core/Settings.cpp
         src/core/Settings.h
         src/core/IconUtil.cpp
@@ -358,10 +373,6 @@ add_library(snim_lib STATIC
         src/core/Perf.cpp
         src/core/Perf.h
         src/core/FileNames.h
-        src/core/ScreenshotDialog.cpp
-        src/core/ScreenshotDialog.h
-        src/core/SettingsDialog.cpp
-        src/core/SettingsDialog.h
         src/core/KeychainStore.h
         # GitHub releases lookup behind the tray's "Check for updates" action.
         src/core/UpdateCheck.cpp
@@ -404,24 +415,29 @@ add_library(snim_lib STATIC
         src/upload/strategies/StubUploader.cpp
         src/upload/strategies/StubUploader.h
 
+        # Screen: selection overlay, window enumeration, native overlay tweaks
+        src/screen/AreaSelector.cpp
+        src/screen/AreaSelector.h
+        src/screen/AreaSelectorInput.cpp
+        src/screen/AreaSelectorInput.h
+        src/screen/SelectionLayer.h
+        src/screen/WinScreenMap.h
+        src/screen/WinWindowFilter.h
+        # Frozen backdrop for the selection overlays (portal-based on Wayland).
+        src/screen/FrozenFrameGrabber.cpp
+        src/screen/FrozenFrameGrabber.h
+        src/screen/WindowEnumerator.h
+        # Facade over native overlay tweaks; the per-platform file is added below.
+        src/screen/OverlayWindows.h
+        # Wayland layer-shell helper for the overlays (no-op without LayerShellQt).
+        src/screen/LayerShellSupport.h
+
         # Capture functionality
-        src/capture/AreaSelector.cpp
-        src/capture/AreaSelector.h
-        src/capture/AreaSelectorInput.cpp
-        src/capture/AreaSelectorInput.h
         src/capture/CaptureFactory.cpp
         src/capture/CaptureFactory.h
         src/capture/CaptureGeometry.h
-        src/capture/WinScreenMap.h
-        src/capture/WinWindowFilter.h
         src/capture/OverlayAnnotations.cpp
         src/capture/OverlayAnnotations.h
-        # Frozen backdrop for the selection overlays (portal-based on Wayland).
-        src/capture/FrozenFrameGrabber.cpp
-        src/capture/FrozenFrameGrabber.h
-        src/capture/WindowEnumerator.h
-        # Facade over native overlay tweaks; the per-platform file is added below.
-        src/capture/OverlayWindows.h
         src/capture/strategies/CaptureStrategy.cpp
         src/capture/strategies/CaptureStrategy.h
         src/capture/strategies/NativeCaptureStrategy.cpp
@@ -506,8 +522,6 @@ add_library(snim_lib STATIC
         src/ocr/OCRService.cpp
         src/ocr/OCRService.h
         src/ocr/OCRResult.h
-        src/ocr/TextSnipCapture.cpp
-        src/ocr/TextSnipCapture.h
 
         # Editor::Video - post-recording trim editor (preview + cut + save). The
         # macOS AVAssetExportSession exporter is added in the APPLE block below;
@@ -556,7 +570,6 @@ add_library(snim_lib STATIC
         src/recording/RecordingControls.h
         src/recording/RecordingFrameOverlay.cpp
         src/recording/RecordingFrameOverlay.h
-        src/recording/LayerShellSupport.h
         src/recording/RecordingOptionsBar.cpp
         src/recording/RecordingOptionsBar.h
         src/recording/CameraBubble.cpp
@@ -617,8 +630,8 @@ endif()
 if(APPLE)
     enable_language(OBJCXX)
     target_sources(snim_lib PRIVATE
-            src/capture/WindowEnumerator_mac.mm
-            src/capture/OverlayWindows_mac.mm
+            src/screen/WindowEnumerator_mac.mm
+            src/screen/OverlayWindows_mac.mm
             # macOS screen-recording backend (ScreenCaptureKit + AVAssetWriter)
             src/recording/strategies/MacRecordingStrategy.h
             src/recording/strategies/MacRecordingStrategy.mm
@@ -678,16 +691,16 @@ if(APPLE)
 elseif(WIN32)
     target_sources(snim_lib PRIVATE
             # EnumWindows + DWM frame bounds for the window picker
-            src/capture/WindowEnumerator_win.cpp
-            src/capture/OverlayWindows_win.cpp
+            src/screen/WindowEnumerator_win.cpp
+            src/screen/OverlayWindows_win.cpp
             # Credential Manager backing for upload secrets (advapi32, linked by default)
             src/core/KeychainStore_win.cpp
             src/core/SingleInstance.h
             src/core/SingleInstance_win.cpp)
 else()
     target_sources(snim_lib PRIVATE
-            src/capture/WindowEnumerator_stub.cpp
-            src/capture/OverlayWindows_stub.cpp
+            src/screen/WindowEnumerator_stub.cpp
+            src/screen/OverlayWindows_stub.cpp
             src/core/KeychainStore_stub.cpp)
 endif()
 

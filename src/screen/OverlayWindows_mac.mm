@@ -1,4 +1,4 @@
-#include "OverlayWindows.h"
+#include "screen/OverlayWindows.h"
 
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -6,7 +6,7 @@
 #include <QGuiApplication>
 #include <QWidget>
 
-namespace Capture {
+namespace Screen {
 
 void configureOverlayWindow(QWidget *widget)
 {
@@ -122,4 +122,4 @@ quint64 nativeWindowId(QWidget *widget)
     return window ? static_cast<quint64>([window windowNumber]) : 0;
 }
 
-} // namespace Capture
+} // namespace Screen

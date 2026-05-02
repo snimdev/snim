@@ -149,6 +149,11 @@ Status status()
 #endif
 }
 
+bool runningFromAppImage()
+{
+    return qEnvironmentVariableIsSet("APPIMAGE");
+}
+
 bool install(QString *errorOut)
 {
     const auto fail = [errorOut](const QString &message) {

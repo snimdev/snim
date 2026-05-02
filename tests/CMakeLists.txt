@@ -18,6 +18,7 @@ set(SNIM_TESTS
         tst_backdrop_memento
         tst_layermanager
         tst_areaselector
+        tst_selectionlayer
         tst_overlayannotations
         tst_annotationhandoff
         tst_capturefactory
@@ -32,6 +33,7 @@ set(SNIM_TESTS
         tst_recordinggeometry
         tst_recordingcontroller
         tst_recordingjournal
+        tst_recordingworkflow
         tst_recordingoptionsbar
         tst_pcmmixbuffer
         tst_pauseawareclock
@@ -48,6 +50,7 @@ set(SNIM_TESTS
         tst_uploaderfactory
         tst_uploadprofiles
         tst_uploadconfig
+        tst_uploadworkflow
         tst_uploadutil
         tst_socketshim
         tst_hotkeyaction

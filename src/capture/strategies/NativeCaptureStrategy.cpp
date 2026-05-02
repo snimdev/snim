@@ -1,8 +1,8 @@
 #include "NativeCaptureStrategy.h"
-#include "../AreaSelector.h"
-#include "../WindowEnumerator.h"
-#include "../OverlayAnnotations.h"
-#include "../OverlayWindows.h"
+#include "screen/AreaSelector.h"
+#include "screen/WindowEnumerator.h"
+#include "capture/OverlayAnnotations.h"
+#include "screen/OverlayWindows.h"
 #include <QScreen>
 #include <QApplication>
 #include <QCursor>
@@ -58,7 +58,7 @@ void NativeCaptureStrategy::captureWindow()
         return;
     }
 
-    const QVector<QRect> windows = enumerateWindows();
+    const QVector<QRect> windows = Screen::enumerateWindows();
     QTimer::singleShot(0, [this, windows]() {
         showAreaSelector(m_fullScreenshot, m_virtualGeometry, /*windowPick=*/true, windows);
     });
@@ -227,19 +227,19 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
     qDebug() << "All screens:";
 
     QList<QScreen*> screens = QGuiApplication::screens();
-    QList<Capture::AreaSelector*> *selectors = new QList<Capture::AreaSelector*>();
+    QList<Screen::AreaSelector*> *selectors = new QList<Screen::AreaSelector*>();
 
     // Create one AreaSelector widget per screen
     for (QScreen *screen : screens) {
         QRect screenGeometry = screen->geometry();
         qDebug() << "  - Creating selector for" << screen->name() << screenGeometry;
 
-        auto *selector = new Capture::AreaSelector();
+        auto *selector = new Screen::AreaSelector();
         selector->setScreenshot(screenshot);
         selector->setVirtualGeometry(virtualGeometry);
         selector->setScreenOffset(screenGeometry.topLeft());
         if (windowPick) {
-            selector->setMode(Capture::AreaSelector::Mode::WindowPick);
+            selector->setMode(Screen::AreaSelector::Mode::WindowPick);
             selector->setWindows(windows);
         }
         // Action toolbar only for normal area capture (not window-pick, not OCR).
@@ -257,7 +257,7 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
         selector->show();
         selector->raise();
         selector->activateWindow();
-        configureOverlayWindow(selector);
+        Screen::configureOverlayWindow(selector);
 
         selectors->append(selector);
     }
@@ -274,19 +274,19 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
     //  - saveRequested -> crop & save to file (after teardown, so no overlay covers the dialog)
     for (auto *selector : *selectors) {
         // Each handler copies the session first: teardown disconnects its own lambda.
-        connect(selector, &Capture::AreaSelector::areaSelected,
+        connect(selector, &Screen::AreaSelector::areaSelected,
                 this, [this, selectors, annotations](const QRect &area) {
                     const auto session = annotations;
                     teardownSelectors(selectors);
                     onAreaSelected(area, session);
                 });
-        connect(selector, &Capture::AreaSelector::copyRequested,
+        connect(selector, &Screen::AreaSelector::copyRequested,
                 this, [this, selectors, annotations](const QRect &area) {
                     const auto session = annotations;
                     teardownSelectors(selectors);
                     onCopyRequested(area, session);
                 });
-        connect(selector, &Capture::AreaSelector::saveRequested,
+        connect(selector, &Screen::AreaSelector::saveRequested,
                 this, [this, selectors, annotations](const QRect &area) {
                     const auto session = annotations;
                     teardownSelectors(selectors);
@@ -294,7 +294,7 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
                 });
         // Multi-monitor: mirror the live selection to every other overlay so a
         // selection spanning screens is drawn on all of them.
-        connect(selector, &Capture::AreaSelector::liveStateChanged, this,
+        connect(selector, &Screen::AreaSelector::liveStateChanged, this,
                 [selectors, selector](const QRect &sel, int phase, int mode, const QPoint &cursor) {
                     for (auto *other : *selectors)
                         if (other != selector)
@@ -303,7 +303,7 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
     }
 }
 
-void NativeCaptureStrategy::teardownSelectors(QList<AreaSelector*> *selectors)
+void NativeCaptureStrategy::teardownSelectors(QList<Screen::AreaSelector*> *selectors)
 {
     for (auto *sel : *selectors) {
         sel->blockSignals(true);  // prevent re-entry from other selectors

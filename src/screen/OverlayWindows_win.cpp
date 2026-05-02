@@ -1,4 +1,4 @@
-#include "OverlayWindows.h"
+#include "screen/OverlayWindows.h"
 
 #include <QGuiApplication>
 #include <QWidget>
@@ -6,7 +6,7 @@
 #include <windows.h>
 #include <dwmapi.h>
 
-namespace Capture {
+namespace Screen {
 
 namespace {
 
@@ -103,4 +103,4 @@ quint64 nativeWindowId(QWidget *widget)
     return quint64(reinterpret_cast<quintptr>(hwnd));
 }
 
-} // namespace Capture
+} // namespace Screen

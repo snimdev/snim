@@ -1,9 +1,7 @@
-#include "AreaSelector.h"
-#include "capture/AreaSelectorInput.h"
-#include "capture/OverlayAnnotations.h"
+#include "screen/AreaSelector.h"
+#include "screen/AreaSelectorInput.h"
 #include "core/IconUtil.h"
 #include "core/Perf.h"
-#include "editor/annotations/ToolRegistry.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QApplication>
@@ -18,7 +16,7 @@
 #include <QFile>
 #include <QPolygonF>
 
-namespace Capture {
+namespace Screen {
 
 namespace {
     constexpr int kDimAlpha = 120;            // darkening of the un-selected area
@@ -46,9 +44,7 @@ AreaSelector::AreaSelector(QWidget *parent)
 
     // Order is behaviour: the first handler that consumes an event wins.
     m_inputChain.push_back(std::make_unique<ToolbarHandler>(*this));
-    m_inputChain.push_back(std::make_unique<TextEditingHandler>(*this));
-    m_inputChain.push_back(std::make_unique<StrokeHandler>(*this));
-    m_inputChain.push_back(std::make_unique<ToolHandler>(*this));
+    m_inputChain.push_back(std::make_unique<LayerHandler>(*this));
     m_inputChain.push_back(std::make_unique<SelectionHandler>(*this));
 }
 
@@ -63,23 +59,22 @@ void AreaSelector::setScreenshot(const QPixmap &screenshot)
     update();
 }
 
-void AreaSelector::setAnnotations(QSharedPointer<OverlayAnnotations> session)
+void AreaSelector::setLayer(QSharedPointer<SelectionLayer> layer)
 {
-    if (m_annotations)
-        m_annotations->disconnect(this);
-    m_annotations = std::move(session);
-    if (m_annotations) {
-        connect(m_annotations.data(), &OverlayAnnotations::changed,
-                this, &AreaSelector::onAnnotationsChanged);
-        m_annotations->setSelection(m_selectionVirt);
+    if (m_layer)
+        m_layer->disconnect(this);
+    m_layer = std::move(layer);
+    if (m_layer) {
+        connect(m_layer.data(), &SelectionLayer::changed, this, &AreaSelector::onLayerChanged);
+        m_layer->setSelection(m_selectionVirt);
     }
     update();
 }
 
-void AreaSelector::onAnnotationsChanged()
+void AreaSelector::onLayerChanged()
 {
     // Input methods only compose for a text box; tool letters must reach us raw.
-    setAttribute(Qt::WA_InputMethodEnabled, m_annotations && m_annotations->isEditingText());
+    setAttribute(Qt::WA_InputMethodEnabled, m_layer && m_layer->capturesKeyboard());
     update();
 }
 
@@ -185,18 +180,19 @@ bool AreaSelector::toolbarVisible() const
 
 QVector<AreaSelector::BarSlot> AreaSelector::toolbarSlots(QRect *barOut) const
 {
-    // Groups in bar order; tools and history only exist with a session.
+    // Groups in bar order: the layer's, then the actions.
     QVector<QVector<BarSlot>> groups;
-    if (m_annotations) {
-        QVector<BarSlot> tools;
-        for (QLatin1StringView id : kOverlayTools)
-            tools.append({BarSlot::Kind::Tool, QString(id), -1, {}});
-        groups.append(tools);
-        groups.append({{BarSlot::Kind::Undo, {}, -1, {}}, {BarSlot::Kind::Redo, {}, -1, {}}});
+    if (m_layer) {
+        const QVector<SelectionLayer::ToolbarSlot> layerSlots = m_layer->toolbarSlots();
+        for (int i = 0; i < layerSlots.size(); ++i) {
+            if (i == 0 || layerSlots[i].group != layerSlots[i - 1].group)
+                groups.append(QVector<BarSlot>());
+            groups.last().append(BarSlot{layerSlots[i], -1, int(groups.size()) - 1, {}});
+        }
     }
     QVector<BarSlot> actions;
     for (int i = 0; i < BtnCount; ++i)
-        actions.append({BarSlot::Kind::Action, {}, i, {}});
+        actions.append(BarSlot{{}, i, int(groups.size()), {}});
     groups.append(actions);
 
     const auto rowWidth = [&groups](int from, int to) {
@@ -268,17 +264,10 @@ void AreaSelector::triggerToolbarButton(int index)
 
 void AreaSelector::activateBarSlot(const BarSlot &slot)
 {
-    switch (slot.kind) {
-        case BarSlot::Kind::Tool:   toggleTool(slot.toolId);             break;
-        case BarSlot::Kind::Undo:   m_annotations->undo();               break;
-        case BarSlot::Kind::Redo:   m_annotations->redo();               break;
-        case BarSlot::Kind::Action: triggerToolbarButton(slot.action);   break;
-    }
-}
-
-void AreaSelector::toggleTool(const QString &id)
-{
-    m_annotations->setActiveTool(m_annotations->activeTool() == id ? QString() : id);
+    if (slot.action >= 0)
+        triggerToolbarButton(slot.action);
+    else if (m_layer)
+        m_layer->activateSlot(slot.layer.id);
 }
 
 QIcon AreaSelector::barIcon(const QString &path)
@@ -294,15 +283,8 @@ QIcon AreaSelector::barIcon(const QString &path)
 
 QString AreaSelector::barTooltip(const BarSlot &slot) const
 {
-    switch (slot.kind) {
-        case BarSlot::Kind::Tool:
-            if (const Editor::ToolSpec *spec = Editor::ToolRegistry::find(slot.toolId))
-                return QStringLiteral("%1 (%2)").arg(spec->tooltip, QString(spec->shortcut));
-            return {};
-        case BarSlot::Kind::Undo: return QStringLiteral("Undo (%1)").arg(keyText(QKeySequence::Undo));
-        case BarSlot::Kind::Redo: return QStringLiteral("Redo (%1)").arg(keyText(QKeySequence::Redo));
-        case BarSlot::Kind::Action: break;
-    }
+    if (slot.action < 0)
+        return slot.layer.tooltip;
     switch (slot.action) {
         case BtnEdit:   return QStringLiteral("Open in editor (Enter)");
         case BtnCopy:   return QStringLiteral("Copy to clipboard (%1)").arg(keyText(QKeySequence::Copy));
@@ -314,52 +296,34 @@ QString AreaSelector::barTooltip(const BarSlot &slot) const
 
 void AreaSelector::paintBarGlyph(QPainter &p, const BarSlot &slot, const QRect &r)
 {
-    const QColor glyphColor = (slot.kind == BarSlot::Kind::Action && slot.action == BtnCancel)
-                              ? QColor(255, 120, 120) : QColor(Qt::white);
+    const QColor glyphColor = slot.action == BtnCancel ? QColor(255, 120, 120) : QColor(Qt::white);
     p.setPen(QPen(glyphColor, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     p.setBrush(Qt::NoBrush);
     const QRectF g = QRectF(r).adjusted(11, 11, -11, -11); // glyph box
     QRect iconRect(0, 0, 20, 20);
     iconRect.moveCenter(r.center());
 
-    if (slot.kind == BarSlot::Kind::Tool) {
-        const Editor::ToolSpec *spec = Editor::ToolRegistry::find(slot.toolId);
-        const QIcon icon = spec ? barIcon(spec->iconPath) : QIcon();
+    if (slot.action < 0) {
+        const SelectionLayer::ToolbarSlot &item = slot.layer;
+        const QIcon icon = item.iconPath.isEmpty() ? QIcon() : barIcon(item.iconPath);
         if (!icon.isNull()) {
             icon.paint(&p, iconRect);
-        } else if (spec) {
+        } else if (!item.glyphPath.isEmpty()) {
+            p.save();
+            p.translate(QRectF(r).center());
+            p.scale(20.0 / 24.0, 20.0 / 24.0);
+            p.translate(-12, -12);
+            p.drawPath(item.glyphPath);
+            p.restore();
+        } else if (!item.glyph.isEmpty()) {
             p.save();
             QFont f = p.font();
             f.setPointSize(11);
             f.setBold(true);
             p.setFont(f);
-            p.drawText(r, Qt::AlignCenter, QString(spec->shortcut));
+            p.drawText(r, Qt::AlignCenter, item.glyph);
             p.restore();
         }
-        return;
-    }
-
-    if (slot.kind == BarSlot::Kind::Undo || slot.kind == BarSlot::Kind::Redo) {
-        const bool redo = slot.kind == BarSlot::Kind::Redo;
-        const QIcon icon = barIcon(redo ? QStringLiteral(":/icons/icons/redo.svg")
-                                        : QStringLiteral(":/icons/icons/undo.svg"));
-        if (!icon.isNull()) {
-            icon.paint(&p, iconRect);
-            return;
-        }
-        // Hook arrow in the SVG's 24-unit box, mirrored for redo.
-        p.save();
-        p.translate(QRectF(r).center());
-        p.scale(redo ? -20.0 / 24.0 : 20.0 / 24.0, 20.0 / 24.0);
-        p.translate(-12, -12);
-        p.drawPolyline(QPolygonF{QPointF(9, 7), QPointF(4, 12), QPointF(9, 17)});
-        QPainterPath tail;
-        tail.moveTo(4, 12);
-        tail.lineTo(15, 12);
-        tail.cubicTo(17.76, 12, 20, 14.24, 20, 17);
-        tail.lineTo(20, 18);
-        p.drawPath(tail);
-        p.restore();
         return;
     }
 
@@ -414,26 +378,18 @@ void AreaSelector::paintToolbar(QPainter &p)
     p.setBrush(Qt::NoBrush);
     p.drawPath(bg);
 
-    const QString armedTool = m_annotations ? m_annotations->activeTool() : QString();
-    const auto group = [](const BarSlot &slot) {
-        return slot.kind == BarSlot::Kind::Redo ? int(BarSlot::Kind::Undo) : int(slot.kind);
-    };
-
     for (int i = 0; i < buttons.size(); ++i) {
         const BarSlot &slot = buttons[i];
         const QRect r = slot.rect;
 
-        if (i > 0 && buttons[i - 1].rect.top() == r.top() && group(buttons[i - 1]) != group(slot)) {
+        if (i > 0 && buttons[i - 1].rect.top() == r.top() && buttons[i - 1].group != slot.group) {
             const qreal sx = (buttons[i - 1].rect.right() + r.left() + 1) / 2.0;
             p.setPen(QPen(QColor(255, 255, 255, 50), 1));
             p.drawLine(QPointF(sx, r.top() + 8), QPointF(sx, r.bottom() - 8));
         }
 
-        bool enabled = true;
-        if (slot.kind == BarSlot::Kind::Undo) enabled = m_annotations->canUndo();
-        if (slot.kind == BarSlot::Kind::Redo) enabled = m_annotations->canRedo();
-        const bool primary = (slot.kind == BarSlot::Kind::Action && slot.action == BtnEdit) ||
-                             (slot.kind == BarSlot::Kind::Tool && slot.toolId == armedTool);
+        const bool enabled = slot.action >= 0 || slot.layer.enabled;
+        const bool primary = slot.action == BtnEdit || (slot.action < 0 && slot.layer.checked);
         const bool hovered = enabled && (i == m_hoveredButton);
 
         if (primary || hovered) {
@@ -489,16 +445,16 @@ void AreaSelector::updateCursorShape(const QPoint &local)
         case Handle::Left:
         case Handle::Right:       setCursor(Qt::SizeHorCursor);   break;
         case Handle::Interior:
-            if (toolArmed()) setCursor(m_annotations->cursor());
-            else             setCursor(Qt::SizeAllCursor);
+            if (layerArmed()) setCursor(m_layer->cursor());
+            else              setCursor(Qt::SizeAllCursor);
             break;
         default:                  setCursor(Qt::CrossCursor);     break;
     }
 }
 
-bool AreaSelector::toolArmed() const
+bool AreaSelector::layerArmed() const
 {
-    return m_annotations && !m_annotations->activeTool().isEmpty();
+    return m_layer && m_layer->isArmed();
 }
 
 void AreaSelector::applyHandleDrag(const QPoint &c)
@@ -570,17 +526,17 @@ void AreaSelector::keyPressEvent(QKeyEvent *event)
 
 void AreaSelector::inputMethodEvent(QInputMethodEvent *event)
 {
-    if (m_annotations && m_annotations->isEditingText())
-        m_annotations->forwardInputMethod(event);
+    if (m_layer && m_layer->capturesKeyboard())
+        m_layer->forwardInputMethod(event);
     else
         QWidget::inputMethodEvent(event);
 }
 
 QVariant AreaSelector::inputMethodQuery(Qt::InputMethodQuery query) const
 {
-    if (query == Qt::ImEnabled || !m_annotations || !m_annotations->isEditingText())
+    if (query == Qt::ImEnabled || !m_layer || !m_layer->capturesKeyboard())
         return QWidget::inputMethodQuery(query);
-    const QVariant value = m_annotations->inputMethodQuery(query);
+    const QVariant value = m_layer->inputMethodQuery(query);
     if (value.typeId() == QMetaType::QRectF)
         return value.toRectF().translated(-m_screenOffset);
     return value;
@@ -615,8 +571,8 @@ bool AreaSelector::commitCurrentSelection()
 
 void AreaSelector::broadcastState()
 {
-    if (m_annotations)
-        m_annotations->setSelection(m_selectionVirt);
+    if (m_layer)
+        m_layer->setSelection(m_selectionVirt);
     emit liveStateChanged(m_selectionVirt, static_cast<int>(m_phase),
                           static_cast<int>(m_mode), m_cursorVirt);
 }
@@ -631,8 +587,8 @@ void AreaSelector::applyPeerState(const QRect &selectionVirt, int phase, int mod
     m_phase = static_cast<Phase>(phase);
     m_mode = static_cast<Mode>(mode);
     m_cursorVirt = cursorVirt;
-    if (m_annotations)
-        m_annotations->setSelection(m_selectionVirt);
+    if (m_layer)
+        m_layer->setSelection(m_selectionVirt);
     update();
 }
 
@@ -678,13 +634,13 @@ void AreaSelector::paintSelection(QPainter &p)
     // restore full brightness inside the selection
     p.drawPixmap(localSel, m_screenshot, virtToSource(m_selectionVirt));
 
-    if (m_annotations) {
-        // Every overlay renders its own screen's part of the one shared scene.
+    if (m_layer) {
+        // Every overlay renders its own screen's part of the one shared layer.
         p.save();
         p.setClipRect(localSel);
         p.setRenderHint(QPainter::Antialiasing, true);
         p.setRenderHint(QPainter::SmoothPixmapTransform, true);
-        m_annotations->render(&p, QRectF(rect()), QRect(m_screenOffset, size()));
+        m_layer->render(&p, QRectF(rect()), QRect(m_screenOffset, size()));
         p.restore();
     }
 
@@ -844,17 +800,8 @@ void AreaSelector::paintInstructions(QPainter &p)
             case Phase::Idle:      text = QStringLiteral("Drag to select  ·  Esc to cancel"); break;
             case Phase::Dragging:  text = QStringLiteral("Release to adjust"); break;
             case Phase::Adjusting:
-                if (m_annotations && m_annotations->isEditingText()) {
-                    text = QStringLiteral("Type your text  ·  Esc to finish");
-                    break;
-                }
-                if (toolArmed()) {
-                    const QString tool = m_annotations->activeTool();
-                    const QString verb = tool == QLatin1String("text") ? QStringLiteral("Click to type")
-                                       : tool == QLatin1String("step") ? QStringLiteral("Click to place a step")
-                                       : QStringLiteral("Drag to draw");
-                    text = QStringLiteral("%1  ·  %2 to undo  ·  Esc to stop drawing")
-                               .arg(verb, keyText(QKeySequence::Undo));
+                if (const std::optional<QString> hint = m_layer ? m_layer->hint() : std::nullopt) {
+                    text = *hint;
                     break;
                 }
                 text = m_actionsEnabled
@@ -949,4 +896,4 @@ void AreaSelector::leaveEvent(QEvent *event)
     QWidget::leaveEvent(event);
 }
 
-} // namespace Capture
+} // namespace Screen
