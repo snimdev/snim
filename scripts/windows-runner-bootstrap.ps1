@@ -97,6 +97,8 @@ Write-Skip 'winget is available'
 
 Write-Step 'Installing the toolchain'
 Install-WingetPackage 'Git.Git'
+# The runner's default shell is pwsh; without it, steps fall back to Windows PowerShell 5.1.
+Install-WingetPackage 'Microsoft.PowerShell'
 # Machine-wide and on PATH: install-qt-action runs aqtinstall with whatever python the service sees.
 Install-WingetPackage 'Python.Python.3.14' '/quiet InstallAllUsers=1 PrependPath=1 Include_test=0'
 Install-WingetPackage '7zip.7zip'
