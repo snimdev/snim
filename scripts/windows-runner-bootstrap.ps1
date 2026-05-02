@@ -98,7 +98,20 @@ Write-Skip 'winget is available'
 Write-Step 'Installing the toolchain'
 Install-WingetPackage 'Git.Git'
 # The runner's default shell is pwsh; without it, steps fall back to Windows PowerShell 5.1.
-Install-WingetPackage 'Microsoft.PowerShell'
+# The MSI directly: winget can reject every installer in the package for --scope machine.
+$pwsh = "$env:ProgramFiles\PowerShell\7\pwsh.exe"
+if (Test-Path $pwsh) {
+    Write-Skip 'PowerShell 7 is installed'
+} else {
+    Invoke-Action 'install PowerShell 7 from its MSI' {
+        $release = Invoke-RestMethod -UseBasicParsing 'https://api.github.com/repos/PowerShell/PowerShell/releases/latest'
+        $asset = $release.assets | Where-Object { $_.name -like '*-win-x64.msi' } | Select-Object -First 1
+        $msi = Join-Path $env:TEMP $asset.name
+        Invoke-WebRequest -UseBasicParsing $asset.browser_download_url -OutFile $msi
+        $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /quiet ADD_PATH=1" -Wait -PassThru
+        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "PowerShell 7 MSI exited with $($p.ExitCode)" }
+    }
+}
 # Machine-wide and on PATH: install-qt-action runs aqtinstall with whatever python the service sees.
 Install-WingetPackage 'Python.Python.3.14' '/quiet InstallAllUsers=1 PrependPath=1 Include_test=0'
 Install-WingetPackage '7zip.7zip'
