@@ -53,7 +53,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.3'
+          version: '6.11.2'
           modules: 'qtmultimedia qtimageformats'
           cache: true
 
@@ -474,7 +474,7 @@ jobs:
         if: runner.environment == 'self-hosted'
         # install-qt-action installs into <dir>\Qt; the marker shows an earlier install finished.
         env:
-          QT_VERSION: '6.8.3'
+          QT_VERSION: '6.11.2'
         run: |
           $dir = if ($env:SNIM_QT_DIR) { $env:SNIM_QT_DIR } else { 'C:\snim-ci\qt' }
           "dir=$dir" >> $env:GITHUB_OUTPUT
@@ -501,7 +501,7 @@ jobs:
         if: steps.qt.outputs.found != 'true'
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.3'
+          version: '6.11.2'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
