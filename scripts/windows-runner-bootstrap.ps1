@@ -118,14 +118,16 @@ if (Test-VcTools) {
 }
 
 Update-SessionPath
-$sevenZip = "$env:ProgramFiles\7-Zip"
-$machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
-if (($machinePath -split ';') -contains $sevenZip) {
-    Write-Skip '7-Zip is on the machine PATH'
-} else {
-    Invoke-Action "add $sevenZip to the machine PATH" {
-        [Environment]::SetEnvironmentVariable('Path', "$machinePath;$sevenZip", 'Machine')
-        Update-SessionPath
+# Git\bin for bash.exe: composite actions such as install-qt-action run `shell: bash` steps.
+foreach ($dir in @("$env:ProgramFiles\7-Zip", "$env:ProgramFiles\Git\bin")) {
+    $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+    if (($machinePath -split ';') -contains $dir) {
+        Write-Skip "$dir is on the machine PATH"
+    } else {
+        Invoke-Action "add $dir to the machine PATH" {
+            [Environment]::SetEnvironmentVariable('Path', "$machinePath;$dir", 'Machine')
+            Update-SessionPath
+        }
     }
 }
 
