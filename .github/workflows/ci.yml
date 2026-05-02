@@ -282,6 +282,8 @@ jobs:
           cache: ${{ runner.environment != 'self-hosted' }}
           # setup-python needs admin to install on Windows; the bootstrap script puts Python on PATH.
           setup-python: ${{ runner.environment != 'self-hosted' }}
+          # aqtinstall 3.3.0 cannot read the Qt 6.11 Windows layout; drop once a later release ships.
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
 
       - name: Mark the persistent Qt complete
         if: runner.environment == 'self-hosted' && steps.qt.outputs.found != 'true'
