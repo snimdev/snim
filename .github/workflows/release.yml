@@ -465,9 +465,7 @@ jobs:
           "numeric=$($Matches[1])" >> $env:GITHUB_OUTPUT
 
       - name: Set up MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        uses: snimdev/setup-msvc@a587ffc345ba125d37f7b210f4a520917730ec5a  # v1.0.0
 
       - name: Find the persistent Qt
         id: qt
