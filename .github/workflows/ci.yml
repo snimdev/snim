@@ -85,7 +85,7 @@ jobs:
         # Compilation only: linking the test binaries is never cached. Restore here but
         # save only on main (below), so a pull request downloads the cache and never
         # spends time uploading a near-identical copy of it.
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ github.workspace }}/.ccache
           key: ccache-${{ runner.os }}-
@@ -108,7 +108,7 @@ jobs:
       - name: Save the ccache
         # Only main refreshes it, so pull requests stay download-only.
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ github.workspace }}/.ccache
           key: ccache-${{ runner.os }}-${{ github.run_id }}
@@ -189,7 +189,7 @@ jobs:
         # Compilation only: linking the test binaries is never cached. Restore here but
         # save only on main (below), so a pull request downloads the cache and never
         # spends time uploading a near-identical copy of it.
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ github.workspace }}/.ccache
           key: ccache-${{ runner.os }}-
@@ -211,7 +211,7 @@ jobs:
       - name: Save the ccache
         # Only main refreshes it, so pull requests stay download-only.
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ github.workspace }}/.ccache
           key: ccache-${{ runner.os }}-${{ github.run_id }}
@@ -319,7 +319,7 @@ jobs:
 
       - name: Cache vcpkg packages
         if: runner.environment != 'self-hosted'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.vcpkg.outputs.cache }}
           key: vcpkg-${{ runner.os }}-${{ steps.vcpkg.outputs.image }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/vcpkg-ports/**', 'cmake/vcpkg-triplets/**') }}
@@ -366,7 +366,7 @@ jobs:
 
       - name: Upload the bundle
         # For manual testing; a pull request names it after its head commit, not the merge.
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: snim-windows-x64-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ steps.bundle.outputs.dir }}

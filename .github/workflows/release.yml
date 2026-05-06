@@ -266,7 +266,7 @@ jobs:
         # is the only thing KWin's ScreenShot2 authorization can match against.
         run: tar -czf Snim-x86_64.tar.gz -C AppDir .
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: appimage
           # Never renamed: the zsync file and UPDATE_INFORMATION both name this exact file.
@@ -308,7 +308,7 @@ jobs:
             setup: dnf install -y libglvnd-glx libglvnd-egl libglvnd-opengl fontconfig libwayland-client libwayland-cursor libwayland-egl glib2 gstreamer1 gstreamer1-plugins-base
 
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: appimage
 
@@ -431,7 +431,7 @@ jobs:
           ln -s /Applications dmg-root/Applications
           hdiutil create -volname Snim -srcfolder dmg-root -ov -format UDZO "Snim-$VERSION-macos-arm64.dmg"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: dmg
           path: Snim-*-macos-arm64.dmg
@@ -546,7 +546,7 @@ jobs:
 
       - name: Cache vcpkg packages
         if: runner.environment != 'self-hosted'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.vcpkg.outputs.cache }}
           key: vcpkg-${{ runner.os }}-${{ steps.vcpkg.outputs.image }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/vcpkg-ports/**', 'cmake/vcpkg-triplets/**') }}
@@ -678,7 +678,7 @@ jobs:
           Get-Content $out
           exit $p.ExitCode
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: windows
           path: |
@@ -704,7 +704,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
           merge-multiple: true
