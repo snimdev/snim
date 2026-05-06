@@ -1,0 +1,62 @@
+name: Set up Qt (Windows)
+description: Installs MSVC Qt with install-qt-action, kept in a persistent dir on the self-hosted runner.
+inputs:
+  version:
+    description: Qt version
+    required: true
+  modules:
+    description: Qt add-on modules, space separated
+    default: qtmultimedia qtimageformats
+runs:
+  using: composite
+  steps:
+    - name: Find the persistent Qt
+      id: qt
+      if: runner.environment == 'self-hosted'
+      # install-qt-action installs into <dir>\Qt; the marker shows an earlier install finished.
+      shell: pwsh
+      env:
+        QT_VERSION: ${{ inputs.version }}
+      run: |
+        $dir = if ($env:SNIM_QT_DIR) { $env:SNIM_QT_DIR } else { 'C:\snim-ci\qt' }
+        "dir=$dir" >> $env:GITHUB_OUTPUT
+        $qt = Get-ChildItem "$dir\Qt" -Directory -ErrorAction SilentlyContinue |
+          Where-Object Name -like $env:QT_VERSION |
+          ForEach-Object { "$($_.FullName)\msvc2022_64" } |
+          Where-Object { (Test-Path "$_\.snim-complete") -and (Test-Path "$_\bin\qmake.exe") -and
+            (Test-Path "$_\lib\cmake\Qt6Multimedia\Qt6MultimediaConfig.cmake") -and
+            (Test-Path "$_\plugins\imageformats\qwebp.dll") } |
+          Select-Object -First 1
+        if ($qt) {
+          # The same environment install-qt-action exports.
+          "QT_ROOT_DIR=$qt" >> $env:GITHUB_ENV
+          "QT_PLUGIN_PATH=$qt\plugins" >> $env:GITHUB_ENV
+          "QML2_IMPORT_PATH=$qt\qml" >> $env:GITHUB_ENV
+          "$qt\bin" >> $env:GITHUB_PATH
+          "found=true" >> $env:GITHUB_OUTPUT
+        } else {
+          # The action takes the first qmake it finds, so a partial or other version must go.
+          Remove-Item -Recurse -Force "$dir\Qt" -ErrorAction SilentlyContinue
+        }
+
+    - name: Install Qt
+      if: steps.qt.outputs.found != 'true'
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: ${{ inputs.version }}
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2022_64'
+        modules: ${{ inputs.modules }}
+        # An empty dir falls back to the action's default under RUNNER_WORKSPACE.
+        dir: ${{ steps.qt.outputs.dir }}
+        cache: ${{ runner.environment != 'self-hosted' }}
+        # setup-python needs admin to install on Windows; the bootstrap script puts Python on PATH.
+        setup-python: ${{ runner.environment != 'self-hosted' }}
+        # aqtinstall 3.3.0 cannot read the Qt 6.11 Windows layout; drop once a later release ships.
+        aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
+
+    - name: Mark the persistent Qt complete
+      if: runner.environment == 'self-hosted' && steps.qt.outputs.found != 'true'
+      shell: pwsh
+      run: New-Item -ItemType File -Force "$env:QT_ROOT_DIR\.snim-complete" | Out-Null
