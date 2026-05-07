@@ -40,7 +40,7 @@ namespace App {
         setQuitOnLastWindowClosed(false);
 
         if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-            QMessageBox::critical(nullptr, "Screenshot App",
+            QMessageBox::critical(nullptr, "Snim",
                                   "System tray is not available on this system.");
             return;
         }
