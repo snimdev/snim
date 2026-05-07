@@ -282,8 +282,11 @@ void CameraBubble::paintEvent(QPaintEvent *event)
     if (!m_frame.isNull()) {
         p.setClipPath(clip);
         // Mirror horizontally for a natural "selfie" view, then aspect-fill the circle.
-        // mirrored(), not flipped(): the latter only exists since Qt 6.9 and 6.5 is the floor.
-        const QImage img = m_frame.mirrored(true, false);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+        const QImage img = m_frame.flipped(Qt::Horizontal);
+#else
+        const QImage img = m_frame.mirrored(true, false);   // flipped() needs 6.9; 6.5 is the floor
+#endif
         const QImage scaled = img.scaled(m_circleRect.size(), Qt::KeepAspectRatioByExpanding,
                                          Qt::SmoothTransformation);
         p.drawImage(m_circleRect.topLeft()
