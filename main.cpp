@@ -5,7 +5,6 @@
 #include "core/Version.h"
 #include <QApplication>
 #include <QLoggingCategory>
-#include <QSettings>
 #include <QIcon>
 #include <QDebug>
 #include <iostream>
@@ -20,23 +19,6 @@
 #include <windows.h>
 #include <shobjidl.h>
 #endif
-
-// Carry settings over from the pre-rebrand scope, once, if Snim has none yet.
-static void migrateLegacySettings()
-{
-    const auto current = Core::Settings::store();
-    if (!current->allKeys().isEmpty())
-        return;
-
-    QSettings legacy(QStringLiteral("Screenshot Tools"), QStringLiteral("Screenshot App"));
-    const QStringList keys = legacy.allKeys();
-    if (keys.isEmpty())
-        return;
-
-    for (const QString &key : keys)
-        current->setValue(key, legacy.value(key));
-    current->sync();
-}
 
 #ifdef Q_OS_WIN
 // A GUI-subsystem exe starts without stdout; borrow the launching console, if any.
@@ -127,10 +109,6 @@ int main(int argc, char *argv[]) {
     // The portable zip ships an empty snim.ini beside snim.exe: then the registry stays untouched.
     Core::Settings::setPortableFile(Core::Settings::portableFileIn(exeDirectory()));
 #endif
-
-    // Must run before the app object exists: its ctor already reads settings.
-    if (Core::Settings::portableFile().isEmpty())
-        migrateLegacySettings();
 
     App::Application app(argc, argv);
 
