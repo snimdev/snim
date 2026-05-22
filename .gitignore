@@ -232,7 +232,6 @@ DRAWINGGRAPHICSVIEW_REFACTORING.md
 
 # Keep source code
 !src/
-!main.cpp
 !resources/
 
 # ============================================

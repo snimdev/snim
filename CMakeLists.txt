@@ -603,7 +603,7 @@ add_library(snim_lib STATIC
 # The executable: entry point + resources only. The qrc is kept on the exe (and
 # on the few tests that need it), NOT in the static lib, so AUTORCC's resource
 # initializer isn't stripped out of the archive.
-add_executable(Snim main.cpp resources/resources.qrc)
+add_executable(Snim src/main.cpp resources/resources.qrc)
 target_link_libraries(Snim PRIVATE snim_lib)
 
 # Lowercase binary everywhere but macOS, where the bundle must stay Snim.app.

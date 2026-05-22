@@ -1,4 +1,4 @@
-#include "src/app/Application.h"
+#include "app/Application.h"
 #include "core/AppScope.h"
 #include "core/SelfTest.h"
 #include "core/Settings.h"
