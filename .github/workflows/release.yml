@@ -16,15 +16,25 @@ permissions:
 
 jobs:
   linux-appimage:
-    name: AppImage (Linux x86_64)
-    # The oldest runner image still offered on purpose: an AppImage runs only on
-    # distributions whose glibc is at least as new as the one it was built against.
-    # When GitHub retires ubuntu-22.04, do NOT simply bump this to a newer image or
-    # the AppImage stops working on older systems; move the build into a container
-    # instead (`container: ubuntu:22.04` on the newest runner, plus sudo-less apt
-    # and a manual git/ca-certificates install).
-    runs-on: ubuntu-22.04
+    name: AppImage (Linux ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+
+    strategy:
+      matrix:
+        include:
+          # The oldest runner image still offered on purpose: an AppImage runs only on
+          # distributions whose glibc is at least as new as the one it was built against.
+          # When GitHub retires ubuntu-22.04, do NOT simply bump this to a newer image or
+          # the AppImage stops working on older systems; move the build into a container
+          # instead (`container: ubuntu:22.04` on the newest runner, plus sudo-less apt
+          # and a manual git/ca-certificates install).
+          - arch: x86_64
+            runner: ubuntu-22.04
+          # Qt's arm64 archives are built on Ubuntu 24.04 and need glibc 2.38, so an
+          # older runner cannot even link against them; that is this build's glibc floor.
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
 
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -149,9 +159,9 @@ jobs:
         # tool is a build that changes under us.
         run: |
           LD_TAG=1-alpha-20240109-1
-          curl -fsSLO "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LD_TAG/linuxdeploy-x86_64.AppImage"
-          curl -fsSLO "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/$LD_TAG/linuxdeploy-plugin-qt-x86_64.AppImage"
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+          curl -fsSLO "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LD_TAG/linuxdeploy-${{ matrix.arch }}.AppImage"
+          curl -fsSLO "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/$LD_TAG/linuxdeploy-plugin-qt-${{ matrix.arch }}.AppImage"
+          chmod +x linuxdeploy-${{ matrix.arch }}.AppImage linuxdeploy-plugin-qt-${{ matrix.arch }}.AppImage
 
       - name: Build AppImage
         env:
@@ -159,16 +169,18 @@ jobs:
           # Wayland sessions need these; the qt plugin deploys only the xcb platform by default.
           EXTRA_PLATFORM_PLUGINS: "libqwayland-generic.so;libqwayland-egl.so"
           VERSION: ${{ steps.version.outputs.version }}
-          OUTPUT: Snim-x86_64.AppImage
+          OUTPUT: Snim-${{ matrix.arch }}.AppImage
           # Lets AppImageUpdate pull the next release without a reinstall. The channel is
           # baked in for good: an alpha build follows the rolling `alpha` release, a stable
           # one follows `latest`, so installing a stable build switches channels.
-          UPDATE_INFORMATION: "gh-releases-zsync|snimdev|snim|${{ steps.version.outputs.channel }}|Snim-x86_64.AppImage.zsync"
+          # Runs the linuxdeploy tools without FUSE, which the Ubuntu 24.04 image may lack.
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          UPDATE_INFORMATION: "gh-releases-zsync|snimdev|snim|${{ steps.version.outputs.channel }}|Snim-${{ matrix.arch }}.AppImage.zsync"
         run: |
           export PATH="$PWD:$PATH"
           # linuxdeploy resolves NEEDED libs via the linker path; the source-built
           # LayerShellQt lives in the workspace prefix, not a system dir.
-          export LD_LIBRARY_PATH="${{ github.workspace }}/deps-prefix/lib:${{ github.workspace }}/deps-prefix/lib/x86_64-linux-gnu:$QT_ROOT_DIR/lib:${LD_LIBRARY_PATH:-}"
+          export LD_LIBRARY_PATH="${{ github.workspace }}/deps-prefix/lib:${{ github.workspace }}/deps-prefix/lib/${{ matrix.arch }}-linux-gnu:$QT_ROOT_DIR/lib:${LD_LIBRARY_PATH:-}"
           # GStreamer stays host-provided, core libraries and plugins alike: a
           # pipewiresrc frozen at build time cannot track an evolving PipeWire daemon
           # (a 1.20 build fails on a 1.6 daemon with "error alloc buffers"). Only the
@@ -192,7 +204,7 @@ jobs:
             mkdir -p "AppDir/usr/plugins/$plugins"
             cp -a "$QT_ROOT_DIR/plugins/$plugins/." "AppDir/usr/plugins/$plugins/"
           done
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+          ./linuxdeploy-${{ matrix.arch }}.AppImage --appdir AppDir \
             --desktop-file AppDir/usr/share/applications/dev.snim.Snim.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/dev.snim.Snim.png \
             --deploy-deps-only AppDir/usr/plugins/wayland-shell-integration \
@@ -247,7 +259,7 @@ jobs:
               exit 1
             fi
           done
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
+          ./linuxdeploy-${{ matrix.arch }}.AppImage --appdir AppDir \
             --exclude-library "libgst*" \
             --exclude-library "libglib-2.0.so*" \
             --exclude-library "libgthread-2.0.so*" \
@@ -264,28 +276,36 @@ jobs:
       - name: Pack the portable tarball
         # The same AppDir, unsquashed: an extracted install lives at a stable path, which
         # is the only thing KWin's ScreenShot2 authorization can match against.
-        run: tar -czf Snim-x86_64.tar.gz -C AppDir .
+        run: tar -czf Snim-${{ matrix.arch }}.tar.gz -C AppDir .
 
       - uses: actions/upload-artifact@v6
         with:
-          name: appimage
+          name: appimage-${{ matrix.arch }}
           # Never renamed: the zsync file and UPDATE_INFORMATION both name this exact file.
           path: |
-            Snim-x86_64.AppImage
-            Snim-x86_64.AppImage.zsync
-            Snim-x86_64.tar.gz
+            Snim-${{ matrix.arch }}.AppImage
+            Snim-${{ matrix.arch }}.AppImage.zsync
+            Snim-${{ matrix.arch }}.tar.gz
           if-no-files-found: error
 
   portability:
-    name: Portable tarball (${{ matrix.image }})
+    name: Portable tarball (${{ matrix.arch }}, ${{ matrix.image }})
     needs: [linux-appimage]
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     container: ${{ matrix.image }}
     timeout-minutes: 20
 
     strategy:
       fail-fast: false
       matrix:
+        arch: [x86_64, aarch64]
+        image: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:12', 'fedora:latest']
+        # Below the aarch64 build's glibc 2.38 floor (see linux-appimage).
+        exclude:
+          - arch: aarch64
+            image: ubuntu:22.04
+          - arch: aarch64
+            image: debian:12
         include:
           # Exactly the libraries the AppImage excludelist leaves to the host (linuxdeploy
           # bundles everything else), so this list is the whole contract a target must meet:
@@ -310,7 +330,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v7
         with:
-          name: appimage
+          name: appimage-${{ matrix.arch }}
 
       - name: Install the host libraries
         run: ${{ matrix.setup }}
@@ -318,7 +338,7 @@ jobs:
       - name: Extract the tarball
         run: |
           mkdir -p /opt/snim-test
-          tar -xzf Snim-x86_64.tar.gz -C /opt/snim-test
+          tar -xzf Snim-${{ matrix.arch }}.tar.gz -C /opt/snim-test
 
       - name: Every library resolves
         # The recorder and video modules too: they are dlopened at runtime, so a NEEDED
@@ -686,6 +706,9 @@ jobs:
             "artifacts/Snim-x86_64.AppImage"
             "artifacts/Snim-x86_64.AppImage.zsync"
             "artifacts/Snim-x86_64.tar.gz"
+            "artifacts/Snim-aarch64.AppImage"
+            "artifacts/Snim-aarch64.AppImage.zsync"
+            "artifacts/Snim-aarch64.tar.gz"
             "artifacts/Snim-$VERSION-macos-arm64.dmg"
           )
           if [ "$WINDOWS_RESULT" = success ]; then
@@ -715,4 +738,6 @@ jobs:
             --title "Snim alpha channel" \
             --notes "$NOTES" \
             "artifacts/Snim-x86_64.AppImage" \
-            "artifacts/Snim-x86_64.AppImage.zsync"
+            "artifacts/Snim-x86_64.AppImage.zsync" \
+            "artifacts/Snim-aarch64.AppImage" \
+            "artifacts/Snim-aarch64.AppImage.zsync"
