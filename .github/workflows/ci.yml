@@ -91,10 +91,19 @@ jobs:
         run: cmake --build build --target deploy
 
   linux:
-    name: Build & test (Linux)
+    name: Build & test (Linux ${{ matrix.arch }})
     if: github.event_name == 'push' || !github.event.pull_request.draft
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
 
     env:
       # Set explicitly: ccache's default cache location differs between versions.
@@ -153,8 +162,8 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ${{ github.workspace }}/.ccache
-          key: ccache-${{ runner.os }}-
-          restore-keys: ccache-${{ runner.os }}-
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-
+          restore-keys: ccache-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Configure
         run: >
@@ -175,7 +184,7 @@ jobs:
         uses: actions/cache/save@v5
         with:
           path: ${{ github.workspace }}/.ccache
-          key: ccache-${{ runner.os }}-${{ github.run_id }}
+          key: ccache-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
 
       - name: Test
         working-directory: build
