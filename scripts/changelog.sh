@@ -48,7 +48,8 @@ irm https://snim.dev/install.ps1 | iex
 The builds are not code-signed yet, so SmartScreen warns on the first launch: click
 **More info**, then **Run anyway**.
 
-**Linux**: the AppImage is self-updating. Point
+**Linux**: x86_64 builds run on glibc 2.35 or newer (Ubuntu 22.04, Debian 12), aarch64
+builds on glibc 2.38 or newer (Ubuntu 24.04, Debian 13). The AppImage is self-updating. Point
 [AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) at it and it
 pulls the next release from the embedded zsync info, no reinstall needed.
 
@@ -65,10 +66,10 @@ EOF
     case "$TAG" in
         *-*)
             printf '\nThis is a prerelease, published for early testing: expect rough edges.\n'
-            printf 'AppImage builds from the alpha channel update themselves through '
-            printf 'AppImageUpdate, pulling each new alpha as it lands; installing a stable '
+            printf 'Prerelease AppImages update themselves through AppImageUpdate, pulling '
+            printf 'each new alpha or beta as it lands; installing a stable '
             printf 'release later switches the app to the stable channel.\n'
-            printf '\nThe PowerShell one-liner installs the latest stable release; for this alpha, run:\n\n'
+            printf '\nThe PowerShell one-liner installs the latest stable release; for this prerelease, run:\n\n'
             printf '```powershell\n& ([scriptblock]::Create((irm https://snim.dev/install.ps1))) -Alpha\n```\n'
             ;;
     esac
