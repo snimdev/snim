@@ -288,7 +288,7 @@ jobs:
           if-no-files-found: error
 
   portability:
-    name: Portable tarball (${{ matrix.arch }}, ${{ matrix.image }})
+    name: Install on ${{ matrix.image }} (${{ matrix.arch }})
     needs: [linux-bundle]
     runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     container: ${{ matrix.image }}
@@ -298,7 +298,7 @@ jobs:
       fail-fast: false
       matrix:
         arch: [x86_64, aarch64]
-        image: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:12', 'fedora:latest']
+        image: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:12', 'debian:13', 'fedora:latest']
         # Below the aarch64 build's glibc 2.38 floor (see linux-bundle).
         exclude:
           - arch: aarch64
@@ -306,33 +306,25 @@ jobs:
           - arch: aarch64
             image: debian:12
         include:
-          # Exactly the libraries the excludelist leaves to the host (linuxdeploy
-          # bundles everything else), so this list is the whole contract a target must meet:
-          # GLVND, fontconfig, harfbuzz and libwayland-client. The base images already carry
-          # the rest of the excludelist (libstdc++, libz, libexpat, libcom_err, libgmp, ...).
-          # glib, Wayland and GStreamer joined that contract when the bundle stopped
-          # carrying them: Qt needs glib, the wayland platform plugin needs a libwayland
-          # that matches the compositor's protocol version, and the dlopened recorder
-          # needs the host's own GStreamer, whose pipeline elements (videocrop,
-          # videoconvert, capsfilter, valve) live in plugins-base. glib is listed even
-          # though GStreamer pulls it in, because the app must still start on a machine
-          # that has no GStreamer at all.
+          # No recommends or weak deps: the checks below must pass on the package's hard dependencies alone.
           - image: ubuntu:22.04
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libwayland-cursor0 libwayland-egl1 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
+            install: apt-get update && apt-get install -y --no-install-recommends ./snim_*.deb
           - image: ubuntu:24.04
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libwayland-cursor0 libwayland-egl1 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
+            install: apt-get update && apt-get install -y --no-install-recommends ./snim_*.deb
           - image: debian:12
-            setup: apt-get update && apt-get install -y --no-install-recommends libgl1 libopengl0 libegl1 libfontconfig1 libharfbuzz0b libwayland-client0 libwayland-cursor0 libwayland-egl1 libglib2.0-0 libgstreamer1.0-0 gstreamer1.0-plugins-base
+            install: apt-get update && apt-get install -y --no-install-recommends ./snim_*.deb
+          - image: debian:13
+            install: apt-get update && apt-get install -y --no-install-recommends ./snim_*.deb
           - image: fedora:latest
-            setup: dnf install -y libglvnd-glx libglvnd-egl libglvnd-opengl fontconfig libwayland-client libwayland-cursor libwayland-egl glib2 gstreamer1 gstreamer1-plugins-base
+            install: dnf install -y --setopt=install_weak_deps=False ./snim-*.rpm
 
     steps:
       - uses: actions/download-artifact@v7
         with:
           name: linux-${{ matrix.arch }}
 
-      - name: Install the host libraries
-        run: ${{ matrix.setup }}
+      - name: Install the package
+        run: ${{ matrix.install }}
 
       - name: Extract the tarball
         run: |
@@ -343,20 +335,20 @@ jobs:
         # The recorder and video modules too: they are dlopened at runtime, so a NEEDED
         # library they miss would only surface when the user hits record or trims.
         run: |
-          module=$(find /opt/snim-test/usr -name 'libsnim-recorder-linux.so' -print -quit)
-          test -n "$module" || { echo "::error title=No recorder module::libsnim-recorder-linux.so is not in the tarball"; exit 1; }
-          video_module=$(find /opt/snim-test/usr -name 'libsnim-video-linux.so' -print -quit)
-          test -n "$video_module" || { echo "::error title=No video module::libsnim-video-linux.so is not in the tarball"; exit 1; }
+          module=$(find /opt/snim/usr -name 'libsnim-recorder-linux.so' -print -quit)
+          test -n "$module" || { echo "::error title=No recorder module::libsnim-recorder-linux.so is not in the package"; exit 1; }
+          video_module=$(find /opt/snim/usr -name 'libsnim-video-linux.so' -print -quit)
+          test -n "$video_module" || { echo "::error title=No video module::libsnim-video-linux.so is not in the package"; exit 1; }
           # No Qt on these images, so the shell integration resolving at all proves the
           # bundle's own rpath carries it. Without it Qt drops to XWayland in silence.
-          shell_integration=/opt/snim-test/usr/plugins/wayland-shell-integration/libxdg-shell.so
-          test -e "$shell_integration" || { echo "::error title=No Wayland shell integration::$shell_integration is not in the tarball"; exit 1; }
+          shell_integration=/opt/snim/usr/plugins/wayland-shell-integration/libxdg-shell.so
+          test -e "$shell_integration" || { echo "::error title=No Wayland shell integration::$shell_integration is not in the package"; exit 1; }
           # The platform plugin too: it is what binds wl_compositor, so its libwayland
           # has to be the host's or the connection dies on the first surface event a
           # newer compositor sends.
-          wayland_platform=/opt/snim-test/usr/plugins/platforms/libqwayland.so
-          test -e "$wayland_platform" || { echo "::error title=No Wayland platform plugin::$wayland_platform is not in the tarball"; exit 1; }
-          for binary in /opt/snim-test/usr/bin/snim "$module" "$video_module" "$shell_integration" "$wayland_platform"; do
+          wayland_platform=/opt/snim/usr/plugins/platforms/libqwayland.so
+          test -e "$wayland_platform" || { echo "::error title=No Wayland platform plugin::$wayland_platform is not in the package"; exit 1; }
+          for binary in /opt/snim/usr/bin/snim "$module" "$video_module" "$shell_integration" "$wayland_platform"; do
             # -r resolves symbols too: a bundled library that is too old for a host
             # one shows up as an undefined symbol, never as "not found".
             ldd -r "$binary" > ldd.txt 2>&1 || true
@@ -379,19 +371,22 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           EXPECTED="Snim ${{ needs.linux-bundle.outputs.version }}"
-          # Only stdout carries the version; Qt logs probe warnings to stderr, and a
-          # bare container has no PipeWire for Qt Multimedia to find.
-          if ! ACTUAL="$(/opt/snim-test/usr/bin/snim --version 2>/tmp/snim-stderr.log)"; then
-            echo "::error title=Startup failed on ${{ matrix.image }}::snim --version exited non-zero"
+          # The packaged command, then the tarball's binary against the same host libraries.
+          for binary in /usr/bin/snim /opt/snim-test/usr/bin/snim; do
+            # Only stdout carries the version; Qt logs probe warnings to stderr, and a
+            # bare container has no PipeWire for Qt Multimedia to find.
+            if ! ACTUAL="$("$binary" --version 2>/tmp/snim-stderr.log)"; then
+              echo "::error title=Startup failed on ${{ matrix.image }}::$binary --version exited non-zero"
+              cat /tmp/snim-stderr.log
+              exit 1
+            fi
             cat /tmp/snim-stderr.log
-            exit 1
-          fi
-          cat /tmp/snim-stderr.log
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error title=Wrong version on ${{ matrix.image }}::expected '$EXPECTED', got '$ACTUAL'"
-            exit 1
-          fi
-          echo "$ACTUAL started on ${{ matrix.image }}."
+            if [ "$ACTUAL" != "$EXPECTED" ]; then
+              echo "::error title=Wrong version on ${{ matrix.image }}::$binary: expected '$EXPECTED', got '$ACTUAL'"
+              exit 1
+            fi
+            echo "$binary: $ACTUAL started on ${{ matrix.image }}."
+          done
 
   macos-dmg:
     name: DMG (macOS arm64)

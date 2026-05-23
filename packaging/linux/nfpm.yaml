@@ -40,7 +40,9 @@ contents:
     dst: /usr/share/doc/snim/copyright
     packager: deb
 
-# Exactly what the bundle leaves to the host (see the portability job); everything else is in /opt/snim.
+# Exactly what linuxdeploy leaves to the host; everything else is in /opt/snim. glib, libwayland
+# and GStreamer must be the host's: a bundled libwayland misses newer protocol events, and the
+# dlopened recorder binds the host's GStreamer (pipeline elements live in plugins-base).
 overrides:
   deb:
     depends:
