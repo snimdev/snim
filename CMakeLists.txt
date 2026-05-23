@@ -383,6 +383,9 @@ add_library(snim_lib STATIC
         # Transient systemd scope so the portals can read an app id off our cgroup (Linux).
         src/core/AppScope.cpp
         src/core/AppScope.h
+        # Flatpak detection, so sandbox-managed features step aside.
+        src/core/Sandbox.cpp
+        src/core/Sandbox.h
         # Points GStreamer and Tesseract at the resources beside a relocated binary.
         src/core/BundledPaths.cpp
         src/core/BundledPaths.h

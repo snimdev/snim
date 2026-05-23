@@ -61,6 +61,7 @@ set(SNIM_TESTS
         tst_screenshotapp
         tst_updatecheck
         tst_appscope
+        tst_sandbox
         tst_bundledpaths
 )
 
