@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Cuts a release by tagging main and pushing the tag; the release workflow does
-# everything else (build, AppImage, DMG, notes, GitHub release).
+# everything else (build, Linux packages, DMG, notes, GitHub release).
 #
 # Usage: scripts/release.sh alpha|stable|major|minor|patch
 #   alpha   next prerelease: v1.0.0-alpha.1 -> v1.0.0-alpha.2, v1.0.0 -> v1.0.1-alpha.1

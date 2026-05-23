@@ -48,27 +48,47 @@ irm https://snim.dev/install.ps1 | iex
 The builds are not code-signed yet, so SmartScreen warns on the first launch: click
 **More info**, then **Run anyway**.
 
-**Linux**: x86_64 builds run on glibc 2.35 or newer (Ubuntu 22.04, Debian 12), aarch64
-builds on glibc 2.38 or newer (Ubuntu 24.04, Debian 13). The AppImage is self-updating. Point
-[AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate) at it and it
-pulls the next release from the embedded zsync info, no reinstall needed.
+EOF
+
+    sed "s/@VERSION@/${TAG#v}/g" <<'EOF'
+
+**Linux**: on Ubuntu or Debian, install the `.deb`:
+
+```bash
+sudo apt install ./snim_@VERSION@_amd64.deb
+```
+
+On Fedora, the `.rpm`:
+
+```bash
+sudo dnf install ./snim-@VERSION@.x86_64.rpm
+```
+
+On ARM, take the `arm64` `.deb` or the `aarch64` `.rpm` instead. Any distribution can
+install the Flatpak from our own repository:
+
+```bash
+flatpak install https://dl.snim.dev/flatpak/snim.flatpakref
+```
+
+Elsewhere, extract the portable `Snim-x86_64.tar.gz` or `Snim-aarch64.tar.gz` anywhere
+and run `usr/bin/snim`. The packages and the tarball run on glibc 2.35 or newer on
+x86_64 (Ubuntu 22.04, Debian 12) and glibc 2.38 or newer on aarch64 (Ubuntu 24.04,
+Debian 13).
 
 Screen recording on Linux goes through the desktop portal, so it needs PipeWire and
 `xdg-desktop-portal` (plus your compositor's backend) installed and running.
 
-Recording uses your distribution's own GStreamer, so it also needs
-`gstreamer1.0-plugins-good`, `gstreamer1.0-plugins-bad` and `gstreamer1.0-pipewire`
-(Debian, Ubuntu) or `gstreamer1-plugins-good`, `gstreamer1-plugins-bad-free` and
-`pipewire-gstreamer` (Fedora).
+Recording uses your distribution's own GStreamer. The packages pull in its plugins; with
+the tarball, install `gstreamer1.0-plugins-good`, `gstreamer1.0-plugins-bad` and
+`gstreamer1.0-pipewire` (Debian, Ubuntu) or `gstreamer1-plugins-good`,
+`gstreamer1-plugins-bad-free` and `pipewire-gstreamer` (Fedora).
 EOF
 
     # A hyphen in the tag means a prerelease (v1.0.0-alpha.1), never a plain release.
     case "$TAG" in
         *-*)
             printf '\nThis is a prerelease, published for early testing: expect rough edges.\n'
-            printf 'Prerelease AppImages update themselves through AppImageUpdate, pulling '
-            printf 'each new alpha or beta as it lands; installing a stable '
-            printf 'release later switches the app to the stable channel.\n'
             printf '\nThe PowerShell one-liner installs the latest stable release; for this prerelease, run:\n\n'
             printf '```powershell\n& ([scriptblock]::Create((irm https://snim.dev/install.ps1))) -Alpha\n```\n'
             ;;
