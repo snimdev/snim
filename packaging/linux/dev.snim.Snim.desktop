@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Snim
+GenericName=Screenshot Tool
+Comment=Screenshot, screen recording, OCR and upload tool
+# Absolute and the real binary: KWin matches Exec against the process's executable.
+Exec=/opt/snim/usr/bin/snim
+Icon=dev.snim.Snim
+Terminal=false
+Categories=Utility;Qt;
+StartupWMClass=snim
+# KWin only authorizes ScreenShot2 for apps whose desktop entry declares it.
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2

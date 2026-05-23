@@ -1,0 +1,87 @@
+# Packages the release workflow's AppDir; run from the repository root with
+# SNIM_VERSION and SNIM_ARCH (amd64 or arm64) set.
+name: snim
+version: ${SNIM_VERSION}
+# Turns 1.0.0-beta.1 into 1.0.0~beta.1, which sorts below 1.0.0 in dpkg and rpm.
+version_schema: semver
+arch: ${SNIM_ARCH}
+platform: linux
+maintainer: Darko Gjorgjijoski <dg@darkog.com>
+vendor: Snim
+homepage: https://snim.dev
+license: GPL-3.0-or-later
+section: graphics
+description: |-
+  Screenshot, screen recording, OCR and upload tool
+  Snim captures areas, windows and screens, annotates them, records the screen
+  with an optional webcam bubble, copies recognized text and uploads to S3, SFTP
+  or FTP. Qt is bundled under /opt/snim; GStreamer and Wayland come from the system.
+
+contents:
+  - src: AppDir/
+    dst: /opt/snim
+    type: tree
+  - src: /opt/snim/usr/bin/snim
+    dst: /usr/bin/snim
+    type: symlink
+  - src: packaging/linux/dev.snim.Snim.desktop
+    dst: /usr/share/applications/dev.snim.Snim.desktop
+  - src: AppDir/usr/share/icons/hicolor/*/apps/dev.snim.Snim.*
+    dst: /usr/share/icons/hicolor
+  # A link rather than a copy, so packaging works whether or not the build installs metainfo.
+  - src: /opt/snim/usr/share/metainfo/dev.snim.Snim.metainfo.xml
+    dst: /usr/share/metainfo/dev.snim.Snim.metainfo.xml
+    type: symlink
+  - src: LICENSE
+    dst: /usr/share/licenses/snim/LICENSE
+    type: license
+    packager: rpm
+  - src: LICENSE
+    dst: /usr/share/doc/snim/copyright
+    packager: deb
+
+# Exactly what the bundle leaves to the host (see the portability job); everything else is in /opt/snim.
+overrides:
+  deb:
+    depends:
+      - libgl1
+      - libopengl0
+      - libegl1
+      - libfontconfig1
+      - libharfbuzz0b
+      - libwayland-client0
+      - libwayland-cursor0
+      - libwayland-egl1
+      - libglib2.0-0t64 | libglib2.0-0
+      - libgstreamer1.0-0
+      - libgstreamer-plugins-base1.0-0
+      - gstreamer1.0-plugins-base
+    recommends:
+      - gstreamer1.0-plugins-good
+      - gstreamer1.0-plugins-bad
+      - gstreamer1.0-pipewire
+      - xdg-desktop-portal
+  rpm:
+    depends:
+      - libglvnd-glx
+      - libglvnd-egl
+      - libglvnd-opengl
+      - fontconfig
+      - harfbuzz
+      - libwayland-client
+      - libwayland-cursor
+      - libwayland-egl
+      - glib2
+      - gstreamer1
+      - gstreamer1-plugins-base
+    recommends:
+      - gstreamer1-plugins-good
+      - gstreamer1-plugins-bad-free
+      - pipewire-gstreamer
+      - xdg-desktop-portal
+
+rpm:
+  compression: zstd
+deb:
+  # xz, not zstd: older dpkg releases cannot unpack zstd members.
+  compression: xz

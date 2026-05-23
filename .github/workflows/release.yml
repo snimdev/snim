@@ -260,11 +260,31 @@ jobs:
         # ScreenShot2 authorization can match against.
         run: tar -czf Snim-${{ matrix.arch }}.tar.gz -C AppDir .
 
+      - name: Build the .deb and .rpm
+        env:
+          SNIM_VERSION: ${{ steps.version.outputs.version }}
+          SNIM_ARCH: ${{ matrix.arch == 'aarch64' && 'arm64' || 'amd64' }}
+        # Pinned and checksum-verified; the sums come from the release's checksums.txt.
+        # File names keep the hyphenated version, since GitHub may rewrite a ~ in asset names.
+        run: |
+          NFPM_VERSION=2.47.0
+          case "${{ matrix.arch }}" in
+            x86_64) NFPM_ASSET=x86_64; NFPM_SHA256=0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783 ;;
+            aarch64) NFPM_ASSET=arm64; NFPM_SHA256=1c0f5f2999b9a974bfb04fdb0cc3306096de530ac5dbb25d739cc5f5219c919c ;;
+          esac
+          curl -fsSLo nfpm.tar.gz "https://github.com/goreleaser/nfpm/releases/download/v$NFPM_VERSION/nfpm_${NFPM_VERSION}_Linux_$NFPM_ASSET.tar.gz"
+          echo "$NFPM_SHA256  nfpm.tar.gz" | sha256sum -c -
+          tar -xzf nfpm.tar.gz nfpm
+          ./nfpm package -f packaging/linux/nfpm.yaml -p deb -t "snim_${SNIM_VERSION}_${SNIM_ARCH}.deb"
+          ./nfpm package -f packaging/linux/nfpm.yaml -p rpm -t "snim-${SNIM_VERSION}.${{ matrix.arch }}.rpm"
+
       - uses: actions/upload-artifact@v6
         with:
           name: linux-${{ matrix.arch }}
           path: |
             Snim-${{ matrix.arch }}.tar.gz
+            snim_*.deb
+            snim-*.rpm
           if-no-files-found: error
 
   portability:
@@ -668,7 +688,7 @@ jobs:
       - name: Write checksums
         # The install script verifies its download against this before touching $HOME.
         working-directory: artifacts
-        run: sha256sum Snim-* > sha256sums.txt
+        run: sha256sum Snim-* snim_*.deb snim-*.rpm > sha256sums.txt
 
       - name: Create the release
         env:
@@ -683,7 +703,11 @@ jobs:
           esac
           FILES=(
             "artifacts/Snim-x86_64.tar.gz"
+            "artifacts/snim_${VERSION}_amd64.deb"
+            "artifacts/snim-$VERSION.x86_64.rpm"
             "artifacts/Snim-aarch64.tar.gz"
+            "artifacts/snim_${VERSION}_arm64.deb"
+            "artifacts/snim-$VERSION.aarch64.rpm"
             "artifacts/Snim-$VERSION-macos-arm64.dmg"
           )
           if [ "$WINDOWS_RESULT" = success ]; then
