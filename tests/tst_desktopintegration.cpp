@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QTemporaryDir>
 
 #include "core/DesktopIntegration.h"
 
@@ -13,7 +14,8 @@ using namespace Core;
 // The KDE desktop-entry assistant. Test mode redirects GenericDataLocation, so
 // install() writes into a throwaway data home instead of ~/.local/share, and the
 // cache refreshers are skipped. applicationFilePath() is the test binary here,
-// which is exactly what install() writes and status() then has to match.
+// which is exactly what install() writes and status() then has to match. XDG_DATA_DIRS
+// points at a scratch tree that stands in for a package's /usr/share.
 class tst_DesktopIntegration : public QObject
 {
     Q_OBJECT
@@ -34,18 +36,38 @@ class tst_DesktopIntegration : public QObject
         return file.write(contents.toUtf8()) == contents.toUtf8().size();
     }
 
+    QString systemEntryPath() const
+    {
+        return m_systemDataDir.filePath("applications/dev.snim.Snim.desktop");
+    }
+
+    bool writeSystemEntry(const QString &contents) const
+    {
+        if (!QDir().mkpath(m_systemDataDir.filePath("applications")))
+            return false;
+        QFile file(systemEntryPath());
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+            return false;
+        return file.write(contents.toUtf8()) == contents.toUtf8().size();
+    }
+
+    QTemporaryDir m_systemDataDir;
+
 private slots:
     void initTestCase()
     {
         QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_desktopintegration");
         QStandardPaths::setTestModeEnabled(true);   // redirect the data home to a throwaway tree
+        QVERIFY(m_systemDataDir.isValid());
+        qputenv("XDG_DATA_DIRS", QFile::encodeName(m_systemDataDir.path()));
     }
 
     void init()
     {
         QFile::remove(DesktopIntegration::desktopFilePath());
         QFile::remove(DesktopIntegration::iconFilePath());
+        QFile::remove(systemEntryPath());
     }
 
     void cleanupTestCase()
@@ -170,6 +192,45 @@ private slots:
 #else
         const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
         QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents(appPath + " %U")));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
+#endif
+    }
+
+    void packagedEntry_forThisExecutable_isInstalled()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
+        QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents(appPath)));
+        QVERIFY(!QFile::exists(DesktopIntegration::desktopFilePath()));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
+#endif
+    }
+
+    void packagedEntry_forAnotherExecutable_isNotAccepted()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents("/opt/snim/usr/bin/snim")));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::ExecMismatch);
+#endif
+    }
+
+    void userEntry_shadowsThePackagedOne()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        // KWin sees only the user's entry, so a stale one breaks a correct package.
+        const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
+        QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents(appPath)));
+        QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents("/usr/bin/some-other-binary")));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::ExecMismatch);
+
+        // Writing the user's entry repairs it.
+        QVERIFY(DesktopIntegration::install(nullptr));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
 #endif
     }

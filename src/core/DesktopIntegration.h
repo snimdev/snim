@@ -10,8 +10,10 @@
  * desktop entry which both declares X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
  * and has an Exec resolving to the running binary; without it every non-interactive
  * ScreenShot2 call fails with NoAuthorized and KWinCaptureStrategy silently falls back
- * to the interactive portal path. dev-build.sh installs such an entry, but dev builds
- * started some other way and tarball users have none, so the app repairs it itself.
+ * to the interactive portal path. The .deb and .rpm ship such an entry system-wide and
+ * dev-build.sh installs one, but dev builds started some other way and tarball users
+ * have none, so the app repairs it itself. status() judges the entry the desktop actually
+ * uses: the user's own when present, else the first one on XDG_DATA_DIRS.
  *
  * Linux-only behaviour; the header compiles everywhere and reports NotApplicable
  * elsewhere. No UI lives here: App::CaptureWorkflow owns the prompt and the tray action.
@@ -22,7 +24,7 @@ enum class Status {
     Installed,                // entry present, authorization key set, Exec is this executable
     ExecMismatch,             // entry present but Exec points somewhere else
     MissingAuthorizationKey,  // entry present but does not declare the ScreenShot2 interface
-    NotInstalled,             // no entry in the user's local applications folder
+    NotInstalled,             // no entry in the user's or any system applications folder
     NotApplicable             // not Linux
 };
 

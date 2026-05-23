@@ -124,8 +124,11 @@ Status status()
 #ifndef Q_OS_LINUX
     return Status::NotApplicable;
 #else
-    QFile entry(desktopFilePath());
-    if (!entry.exists() || !entry.open(QIODevice::ReadOnly | QIODevice::Text))
+    // The first match is the one launchers and KWin see: the user's entry shadows a packaged one.
+    const QString entryPath =
+        QStandardPaths::locate(QStandardPaths::ApplicationsLocation, QLatin1String(kDesktopFileName));
+    QFile entry(entryPath);
+    if (entryPath.isEmpty() || !entry.open(QIODevice::ReadOnly | QIODevice::Text))
         return Status::NotInstalled;
     const QString contents = QString::fromUtf8(entry.readAll());
     entry.close();
