@@ -179,8 +179,8 @@ jobs:
       - name: Build AppImage
         env:
           QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
-          # Wayland sessions need these; the qt plugin deploys only the xcb platform by default.
-          EXTRA_PLATFORM_PLUGINS: "libqwayland-generic.so;libqwayland-egl.so"
+          # Wayland sessions need it; the qt plugin deploys only the xcb platform by default.
+          EXTRA_PLATFORM_PLUGINS: "libqwayland.so"
           VERSION: ${{ steps.version.outputs.version }}
           OUTPUT: Snim-${{ matrix.arch }}.AppImage
           # Lets AppImageUpdate pull the next release without a reinstall. The channel is
@@ -368,7 +368,7 @@ jobs:
           # The platform plugin too: it is what binds wl_compositor, so its libwayland
           # has to be the host's or the connection dies on the first surface event a
           # newer compositor sends.
-          wayland_platform=/opt/snim-test/usr/plugins/platforms/libqwayland-generic.so
+          wayland_platform=/opt/snim-test/usr/plugins/platforms/libqwayland.so
           test -e "$wayland_platform" || { echo "::error title=No Wayland platform plugin::$wayland_platform is not in the tarball"; exit 1; }
           for binary in /opt/snim-test/usr/bin/snim "$module" "$video_module" "$shell_integration" "$wayland_platform"; do
             # -r resolves symbols too: a bundled library that is too old for a host
