@@ -15,8 +15,8 @@ permissions:
   contents: write
 
 jobs:
-  linux-appimage:
-    name: AppImage (Linux ${{ matrix.arch }})
+  linux-bundle:
+    name: Linux bundle (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
 
@@ -25,10 +25,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The oldest runner image still offered on purpose: an AppImage runs only on
+          # The oldest runner image still offered on purpose: the bundle runs only on
           # distributions whose glibc is at least as new as the one it was built against.
           # When GitHub retires ubuntu-22.04, do NOT simply bump this to a newer image or
-          # the AppImage stops working on older systems; move the build into a container
+          # the bundle stops working on older systems; move the build into a container
           # instead (`container: ubuntu:22.04` on the newest runner, plus sudo-less apt
           # and a manual git/ca-certificates install).
           - arch: x86_64
@@ -55,12 +55,6 @@ jobs:
             VERSION="${{ inputs.version }}"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          # A hyphen means a prerelease, and those update from the rolling alpha release;
-          # anything else follows GitHub's own "latest", which skips prereleases.
-          case "$VERSION" in
-            *-*) echo "channel=alpha" >> "$GITHUB_OUTPUT" ;;
-            *) echo "channel=latest" >> "$GITHUB_OUTPUT" ;;
-          esac
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -157,15 +151,10 @@ jobs:
         run: cmake --install build --prefix AppDir/usr
 
       - name: Stage tessdata
-        # Tesseract finds no language pack inside an AppImage, so ship eng and point
-        # TESSDATA_PREFIX at it from an AppRun hook before the binary starts.
+        # Ship eng in ../share/tessdata beside the binary, where BundledPaths points TESSDATA_PREFIX.
         run: |
           mkdir -p AppDir/usr/share/tessdata
           cp /usr/share/tesseract-ocr/*/tessdata/eng.traineddata AppDir/usr/share/tessdata/
-          mkdir -p AppDir/apprun-hooks
-          cat > AppDir/apprun-hooks/tessdata.sh <<'HOOK'
-          export TESSDATA_PREFIX="$APPDIR/usr/share/tessdata"
-          HOOK
 
       - name: Fetch linuxdeploy
         # Pinned: linuxdeploy publishes rolling "continuous" builds, and an unpinned
@@ -176,19 +165,13 @@ jobs:
           curl -fsSLO "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/$LD_TAG/linuxdeploy-plugin-qt-${{ matrix.arch }}.AppImage"
           chmod +x linuxdeploy-${{ matrix.arch }}.AppImage linuxdeploy-plugin-qt-${{ matrix.arch }}.AppImage
 
-      - name: Build AppImage
+      - name: Bundle Qt into the AppDir
         env:
           QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
           # Wayland sessions need it; the qt plugin deploys only the xcb platform by default.
           EXTRA_PLATFORM_PLUGINS: "libqwayland.so"
-          VERSION: ${{ steps.version.outputs.version }}
-          OUTPUT: Snim-${{ matrix.arch }}.AppImage
-          # Lets AppImageUpdate pull the next release without a reinstall. The channel is
-          # baked in for good: an alpha build follows the rolling `alpha` release, a stable
-          # one follows `latest`, so installing a stable build switches channels.
-          # Runs the linuxdeploy tools without FUSE, which the Ubuntu 24.04 image may lack.
+          # linuxdeploy is itself an AppImage; this runs it without FUSE, which the image may lack.
           APPIMAGE_EXTRACT_AND_RUN: 1
-          UPDATE_INFORMATION: "gh-releases-zsync|snimdev|snim|${{ steps.version.outputs.channel }}|Snim-${{ matrix.arch }}.AppImage.zsync"
         run: |
           export PATH="$PWD:$PATH"
           # linuxdeploy resolves NEEDED libs via the linker path; the source-built
@@ -202,8 +185,7 @@ jobs:
           # host libgstreamer built against 2.88. The PipeWire client library stays
           # host-provided for the same reason, plus it dlopens SPA modules from its own
           # install prefix (a bundled copy means pw_loop_new fails and pipewiresrc
-          # segfaults). Deploy and package are separate passes so the checks below land
-          # before squashing.
+          # segfaults).
           #
           # The wayland platform plugin refuses to load without a shell integration, and
           # the pinned qt plugin deploys neither it nor the decorations, so they are
@@ -251,7 +233,7 @@ jobs:
           # the wayland plugin fails to load, the app runs under XWayland, and nothing
           # says so but a debug line.
           if [ ! -e AppDir/usr/plugins/wayland-shell-integration/libxdg-shell.so ]; then
-            echo "::error title=No Wayland shell integration::AppDir/usr/plugins/wayland-shell-integration/libxdg-shell.so is missing, so the AppImage would silently run under XWayland"
+            echo "::error title=No Wayland shell integration::AppDir/usr/plugins/wayland-shell-integration/libxdg-shell.so is missing, so the bundle would silently run under XWayland"
             ls -R AppDir/usr/plugins || true
             exit 1
           fi
@@ -272,38 +254,22 @@ jobs:
               exit 1
             fi
           done
-          ./linuxdeploy-${{ matrix.arch }}.AppImage --appdir AppDir \
-            --exclude-library "libgst*" \
-            --exclude-library "libglib-2.0.so*" \
-            --exclude-library "libgthread-2.0.so*" \
-            --exclude-library "libgobject-2.0.so*" \
-            --exclude-library "libgmodule-2.0.so*" \
-            --exclude-library "libgio-2.0.so*" \
-            --exclude-library "libwayland-*.so*" \
-            --exclude-library "libpipewire-0.3.so*" \
-            --output appimage
-          # Nothing may have put them back while packaging: the tarball is this AppDir.
-          test ! -e AppDir/usr/lib/libglib-2.0.so.0
-          test ! -e AppDir/usr/lib/libwayland-client.so.0
 
       - name: Pack the portable tarball
-        # The same AppDir, unsquashed: an extracted install lives at a stable path, which
-        # is the only thing KWin's ScreenShot2 authorization can match against.
+        # An extracted install lives at a stable path, which is the only thing KWin's
+        # ScreenShot2 authorization can match against.
         run: tar -czf Snim-${{ matrix.arch }}.tar.gz -C AppDir .
 
       - uses: actions/upload-artifact@v6
         with:
-          name: appimage-${{ matrix.arch }}
-          # Never renamed: the zsync file and UPDATE_INFORMATION both name this exact file.
+          name: linux-${{ matrix.arch }}
           path: |
-            Snim-${{ matrix.arch }}.AppImage
-            Snim-${{ matrix.arch }}.AppImage.zsync
             Snim-${{ matrix.arch }}.tar.gz
           if-no-files-found: error
 
   portability:
     name: Portable tarball (${{ matrix.arch }}, ${{ matrix.image }})
-    needs: [linux-appimage]
+    needs: [linux-bundle]
     runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     container: ${{ matrix.image }}
     timeout-minutes: 20
@@ -313,14 +279,14 @@ jobs:
       matrix:
         arch: [x86_64, aarch64]
         image: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:12', 'fedora:latest']
-        # Below the aarch64 build's glibc 2.38 floor (see linux-appimage).
+        # Below the aarch64 build's glibc 2.38 floor (see linux-bundle).
         exclude:
           - arch: aarch64
             image: ubuntu:22.04
           - arch: aarch64
             image: debian:12
         include:
-          # Exactly the libraries the AppImage excludelist leaves to the host (linuxdeploy
+          # Exactly the libraries the excludelist leaves to the host (linuxdeploy
           # bundles everything else), so this list is the whole contract a target must meet:
           # GLVND, fontconfig, harfbuzz and libwayland-client. The base images already carry
           # the rest of the excludelist (libstdc++, libz, libexpat, libcom_err, libgmp, ...).
@@ -343,7 +309,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v7
         with:
-          name: appimage-${{ matrix.arch }}
+          name: linux-${{ matrix.arch }}
 
       - name: Install the host libraries
         run: ${{ matrix.setup }}
@@ -392,7 +358,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          EXPECTED="Snim ${{ needs.linux-appimage.outputs.version }}"
+          EXPECTED="Snim ${{ needs.linux-bundle.outputs.version }}"
           # Only stdout carries the version; Qt logs probe warnings to stderr, and a
           # bare container has no PipeWire for Qt Multimedia to find.
           if ! ACTUAL="$(/opt/snim-test/usr/bin/snim --version 2>/tmp/snim-stderr.log)"; then
@@ -675,12 +641,12 @@ jobs:
 
   release:
     name: Publish the GitHub release
-    needs: [linux-appimage, macos-dmg, portability, windows]
+    needs: [linux-bundle, macos-dmg, portability, windows]
     # workflow_dispatch builds the artifacts but never publishes a release. A skipped
     # Windows job (no runner configured) still ships Linux and macOS.
     if: >-
       !cancelled() && github.event_name == 'push' &&
-      needs.linux-appimage.result == 'success' && needs.macos-dmg.result == 'success' &&
+      needs.linux-bundle.result == 'success' && needs.macos-dmg.result == 'success' &&
       needs.portability.result == 'success' &&
       contains(fromJSON('["success", "skipped"]'), needs.windows.result)
     runs-on: ubuntu-24.04
@@ -700,7 +666,7 @@ jobs:
         run: bash scripts/changelog.sh "$GITHUB_REF_NAME" > notes.md
 
       - name: Write checksums
-        # The install script verifies the AppImage against this before touching $HOME.
+        # The install script verifies its download against this before touching $HOME.
         working-directory: artifacts
         run: sha256sum Snim-* > sha256sums.txt
 
@@ -716,11 +682,7 @@ jobs:
             *-*) FLAGS+=(--prerelease) ;;
           esac
           FILES=(
-            "artifacts/Snim-x86_64.AppImage"
-            "artifacts/Snim-x86_64.AppImage.zsync"
             "artifacts/Snim-x86_64.tar.gz"
-            "artifacts/Snim-aarch64.AppImage"
-            "artifacts/Snim-aarch64.AppImage.zsync"
             "artifacts/Snim-aarch64.tar.gz"
             "artifacts/Snim-$VERSION-macos-arm64.dmg"
           )
@@ -731,26 +693,3 @@ jobs:
             )
           fi
           gh release create "$GITHUB_REF_NAME" "${FLAGS[@]}" "${FILES[@]}" "artifacts/sha256sums.txt"
-
-      - name: Refresh the rolling alpha release
-        # The tag must stay literally `alpha`: it is baked into every alpha AppImage's
-        # UPDATE_INFORMATION, so AppImageUpdate looks it up by that name forever.
-        if: contains(github.ref_name, '-')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          NOTES="$(printf '%s\n\n%s\n' \
-            "Rolling pointer to the newest alpha build, so AppImageUpdate has one stable zsync URL to follow. The AppImage here is replaced by every new alpha." \
-            "Release notes live on the versioned prerelease: https://github.com/snimdev/snim/releases/tag/$GITHUB_REF_NAME")"
-          # Only the Linux artifacts: the DMG and the Windows files have no zsync
-          # mechanism, so they stay on the versioned release alone.
-          gh release delete alpha --yes --cleanup-tag || true
-          gh release create alpha \
-            --prerelease \
-            --target "$GITHUB_SHA" \
-            --title "Snim alpha channel" \
-            --notes "$NOTES" \
-            "artifacts/Snim-x86_64.AppImage" \
-            "artifacts/Snim-x86_64.AppImage.zsync" \
-            "artifacts/Snim-aarch64.AppImage" \
-            "artifacts/Snim-aarch64.AppImage.zsync"
