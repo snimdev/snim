@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 90
 
     strategy:
+      # One architecture failing must not cancel the other's build and hide its result.
+      fail-fast: false
       matrix:
         include:
           # The oldest runner image still offered on purpose: an AppImage runs only on
