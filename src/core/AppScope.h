@@ -8,8 +8,8 @@
  * Portal app identity on Linux.
  *
  * xdg-desktop-portal derives the caller's app id server-side from the systemd unit that
- * owns the caller's cgroup, so a build started from a terminal or an AppImage sits in a
- * unit with no app id at all and the GlobalShortcuts portal refuses the session with
+ * owns the caller's cgroup, so a build started from a terminal or the portable tarball sits in
+ * a unit with no app id at all and the GlobalShortcuts portal refuses the session with
  * "An app id is required" - every global hotkey then fails. Moving ourselves into a
  * transient app-dev.snim.Snim-<pid>.scope, before any portal session exists, gives the
  * portal a unit name it can read the app id out of.

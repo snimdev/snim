@@ -76,12 +76,8 @@ namespace App {
 
     bool CaptureWorkflow::kwinPromptApplicable(const bool dismissed,
                                                const Core::DesktopIntegration::Status status,
-                                               const bool alreadyShown,
-                                               const bool fromAppImage) {
+                                               const bool alreadyShown) {
         if (dismissed)
-            return false;
-        // No desktop entry can point at a mount path that is gone by the next launch.
-        if (fromAppImage)
             return false;
         // Entry already correct: the refusal has another cause, so offering a rewrite helps nobody.
         if (status == Core::DesktopIntegration::Status::Installed)
@@ -90,17 +86,8 @@ namespace App {
     }
 
     void CaptureWorkflow::askForKWinAuthorization(const std::function<void(bool)> &resume) {
-        const bool fromAppImage = Core::DesktopIntegration::runningFromAppImage();
         if (!kwinPromptApplicable(Core::Settings::desktopIntegrationPromptDismissed(),
-                                  Core::DesktopIntegration::status(), m_kwinAuthPromptShown,
-                                  fromAppImage)) {
-            // Only when the AppImage is the reason, and only once: there is nothing to offer.
-            if (fromAppImage && !m_kwinAuthPromptShown) {
-                m_kwinAuthPromptShown = true;
-                qInfo() << "KWin matches the caller's real executable path, which an AppImage "
-                           "remounts at a new path every launch, so the fast path needs the "
-                           "extracted install";
-            }
+                                  Core::DesktopIntegration::status(), m_kwinAuthPromptShown)) {
             resume(false);
             return;
         }
@@ -147,9 +134,7 @@ namespace App {
         QString error;
         if (Core::DesktopIntegration::install(&error)) {
             QMessageBox::information(nullptr, tr("Desktop integration"),
-                                     Core::DesktopIntegration::runningFromAppImage()
-                                         ? tr("Done. Snim is in the application menu.")
-                                         : tr("Done. The next capture uses the fast path."));
+                                     tr("Done. The next capture uses the fast path."));
         } else {
             QMessageBox::warning(nullptr, tr("Desktop integration"),
                                  tr("Could not set up the desktop entry:\n%1").arg(error));

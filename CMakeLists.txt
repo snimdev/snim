@@ -1073,15 +1073,16 @@ endif()
 # Linux install rules
 # ---------------------------------------------------------------------------
 # `cmake --install` produces a normal FHS tree: the binary plus the desktop entry
-# and the hicolor icons every launcher indexes. The AppImage job installs into an
-# AppDir with the same rules, so the two layouts can never drift.
+# and the hicolor icons every launcher indexes. The release job installs into the
+# bundled tree that the packages put at /opt/snim and the portable tarball carries,
+# with the same rules, so the layouts can never drift.
 if(UNIX AND NOT APPLE)
     include(GNUInstallDirs)
 
     install(TARGETS Snim RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
     # The recorder module is dlopened, not linked, so no deployment tool finds it by
-    # walking the binary: it needs an install rule of its own for the AppImage and the
+    # walking the binary: it needs an install rule of its own for the packages and the
     # portable tarball to carry it (the loader looks in ../lib next to the binary).
     if(TARGET snim_recorder_linux)
         install(TARGETS snim_recorder_linux LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})

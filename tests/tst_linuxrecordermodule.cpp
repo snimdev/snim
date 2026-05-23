@@ -26,7 +26,7 @@ private slots:
         const QStringList paths = LinuxRecorderModule::candidatePaths(
             QStringLiteral("/opt/snim/usr/bin"));
         QCOMPARE(paths.first(), QStringLiteral("/opt/snim/usr/bin/libsnim-recorder-linux.so"));
-        // usr/bin + usr/lib is what the AppImage and the portable tarball install into.
+        // usr/bin + usr/lib is what /opt/snim and the portable tarball install into.
         QVERIFY(paths.contains(QStringLiteral("/opt/snim/usr/lib/libsnim-recorder-linux.so")));
         // The bare name last, so QLibrary's own search still finds a distro package.
         QCOMPARE(paths.last(), QStringLiteral("snim-recorder-linux"));

@@ -5,24 +5,23 @@
 #include <QStringList>
 
 /**
- * Self-location for a relocatable Linux install (an extracted AppImage, the portable
- * tarball, any prefix the user moved). Nothing but the binary's own location is known at
+ * Self-location for a relocatable Linux install (the packaged /opt/snim tree, the
+ * portable tarball, any prefix the user moved). Nothing but the binary's own location is known at
  * runtime, so every bundled resource is addressed relative to the directory holding it,
- * exactly where CMake's install() and the AppDir put them:
+ * exactly where CMake's install() and the bundled tree put them:
  *
  *   ../lib/gstreamer-1.0                                  GStreamer plugins
  *   ../lib/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner  its out-of-process scanner
  *   ../lib/gstreamer1.0/gstreamer-1.0/gst-ptp-helper      its PTP helper
  *   ../share/tessdata                                     Tesseract language packs
  *
- * An AppImage gets the same values from its AppRun hooks, but an extracted install has no
- * AppRun and the extracted install is the only one KWin can authorize for ScreenShot2, so
- * the binary has to configure its own environment. Rules, in order: an install into /usr
- * gets nothing at all (a distro package is already on every default search path, and on a
- * multilib system /usr/lib/gstreamer-1.0 holds the 32-bit plugins), a variable the
- * environment already sets always wins (AppRun, a packager, the user), a path that does
- * not exist is skipped, and only what is left gets exported. Harmless off Linux, where
- * none of those paths exist.
+ * There is no launcher script (KWin authorizes ScreenShot2 only for the real binary a
+ * desktop entry's Exec names), so the binary has to configure its own environment. Rules,
+ * in order: an install into /usr gets nothing at all (a distro package is already on every
+ * default search path, and on a multilib system /usr/lib/gstreamer-1.0 holds the 32-bit
+ * plugins), a variable the environment already sets always wins (a packager, the user), a
+ * path that does not exist is skipped, and only what is left gets exported. Harmless off
+ * Linux, where none of those paths exist.
  *
  * Windows ships a flat folder instead: no GStreamer, and the language packs in
  * <exe dir>/tessdata. forWindowsBinaryDir() describes it, forThisPlatform() picks one.

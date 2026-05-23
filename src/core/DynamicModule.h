@@ -20,7 +20,7 @@ struct DynamicModule {
     const char *entry;         // the exported factory function
 
     // Where the module is looked for, in order: beside the binary (a build tree), then the
-    // lib dir of an install beside it (usr/bin + usr/lib is what the AppImage and the
+    // lib dir of an install beside it (usr/bin + usr/lib is what /opt/snim and the
     // portable tarball lay out), then the bare name so QLibrary's own search (rpath,
     // ldconfig) still applies to a distro package. The override variable replaces the
     // whole list when set, a dev and test seam. Pure string work, so it needs no module

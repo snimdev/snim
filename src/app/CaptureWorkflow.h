@@ -34,11 +34,9 @@ public:
     ~CaptureWorkflow() override;
 
     // Is the KWin authorization offer worth making at all? Pure so it can be tested
-    // without a live capture; the caller supplies the four live facts. An AppImage can
-    // never be authorized (KWin matches /proc/PID/exe, which its mount point changes
-    // every launch), so there the offer is a promise Snim cannot keep.
+    // without a live capture; the caller supplies the three live facts.
     [[nodiscard]] static bool kwinPromptApplicable(bool dismissed, Core::DesktopIntegration::Status status,
-                                                   bool alreadyShown, bool fromAppImage);
+                                                   bool alreadyShown);
 
 public slots:
     void captureArea() const;

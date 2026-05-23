@@ -1,6 +1,5 @@
 #include "app/TrayMenu.h"
 #include "app/TextSnipWorkflow.h"
-#include "core/DesktopIntegration.h"
 #include "core/IconUtil.h"
 #include "hotkeys/HotkeyBindings.h"
 #ifdef Q_OS_MACOS
@@ -40,16 +39,9 @@ namespace App {
         m_settingsAction = new QAction("Settings", this);
 
 #ifdef Q_OS_LINUX
-        // An AppImage gets the menu entry but never the KWin fast path, so it promises only that.
-        if (Core::DesktopIntegration::runningFromAppImage()) {
-            m_desktopIntegrationAction = new QAction("Add Snim to the application menu...", this);
-            m_desktopIntegrationAction->setToolTip(
-                "Write Snim's desktop entry so it appears in the application menu");
-        } else {
-            m_desktopIntegrationAction = new QAction("Set up desktop integration...", this);
-            m_desktopIntegrationAction->setToolTip(
-                "Register Snim's desktop entry so KDE allows instant, dialog-free captures");
-        }
+        m_desktopIntegrationAction = new QAction("Set up desktop integration...", this);
+        m_desktopIntegrationAction->setToolTip(
+            "Register Snim's desktop entry so KDE allows instant, dialog-free captures");
 #endif
 
         m_quitAction = new QAction("Quit", this);

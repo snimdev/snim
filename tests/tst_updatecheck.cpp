@@ -221,8 +221,8 @@ void tst_UpdateCheck::skipsDrafts()
 
 void tst_UpdateCheck::skipsUnparsableTags()
 {
-    // The rolling "alpha" release exists only so AppImageUpdate has a stable zsync URL;
-    // its tag carries no version, so the in-app check must step over it.
+    // A rolling release such as "alpha" carries no version in its tag, so the in-app
+    // check must step over it.
     const QByteArray payload = R"([
         {
             "tag_name": "alpha",

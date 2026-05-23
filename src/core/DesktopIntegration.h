@@ -35,13 +35,8 @@ enum class Status {
 
 [[nodiscard]] Status status();
 
-// The AppImage runtime exports $APPIMAGE; an extracted install never has it.
-[[nodiscard]] bool runningFromAppImage();
-
 // Writes the entry (Exec = this executable, quoted when the path has spaces) plus the
-// icon, then refreshes the desktop caches best effort. Under an AppImage the Exec and the
-// status() comparison both use $APPIMAGE, since applicationFilePath() is a per-launch
-// mount path that is gone by the next run.
+// icon, then refreshes the desktop caches best effort.
 // Returns false and fills errorOut when the entry cannot be written.
 bool install(QString *errorOut = nullptr);
 

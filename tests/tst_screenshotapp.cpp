@@ -17,48 +17,36 @@ private slots:
     {
         // "Never ask again" outranks every other fact, including a broken entry.
         QVERIFY(!CaptureWorkflow::kwinPromptApplicable(true, DesktopIntegration::Status::NotInstalled,
-                                                       false, false));
+                                                       false));
         QVERIFY(!CaptureWorkflow::kwinPromptApplicable(true, DesktopIntegration::Status::ExecMismatch,
-                                                       false, false));
+                                                       false));
         QVERIFY(!CaptureWorkflow::kwinPromptApplicable(true, DesktopIntegration::Status::Installed,
-                                                       true, false));
+                                                       true));
     }
 
     void promptApplicable_neverWhenTheEntryIsInstalled()
     {
         // The refusal has another cause, so offering to rewrite the entry helps nobody.
         QVERIFY(!CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::Installed,
-                                                       false, false));
+                                                       false));
     }
 
     void promptApplicable_onlyOncePerRun()
     {
         QVERIFY(!CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled,
-                                                       true, false));
+                                                       true));
         QVERIFY(!CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch,
-                                                       true, false));
-    }
-
-    void promptApplicable_neverUnderAnAppImage()
-    {
-        // KWin resolves the caller's /proc/PID/exe, which an AppImage remounts somewhere
-        // new every launch, so no desktop entry can ever match it.
-        QVERIFY(!CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled,
-                                                       false, true));
-        QVERIFY(!CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch,
-                                                       false, true));
-        QVERIFY(!CaptureWorkflow::kwinPromptApplicable(
-            false, DesktopIntegration::Status::MissingAuthorizationKey, false, true));
+                                                       true));
     }
 
     void promptApplicable_whenTheEntryCannotAuthorize()
     {
         QVERIFY(CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled,
-                                                      false, false));
+                                                      false));
         QVERIFY(CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::ExecMismatch,
-                                                      false, false));
+                                                      false));
         QVERIFY(CaptureWorkflow::kwinPromptApplicable(
-            false, DesktopIntegration::Status::MissingAuthorizationKey, false, false));
+            false, DesktopIntegration::Status::MissingAuthorizationKey, false));
     }
 };
 
