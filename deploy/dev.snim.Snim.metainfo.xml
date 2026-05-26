@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.snim.Snim</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Snim</name>
+  <summary>Screenshot, screen recording, OCR and upload tool</summary>
+  <developer id="dev.snim">
+    <name>Darko Gjorgjijoski</name>
+  </developer>
+
+  <description>
+    <p>
+      Snim captures an area, a window or the whole screen from the tray or a global
+      hotkey, opens the shot in an annotation editor and uploads it to your own storage.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Annotation editor with arrows, shapes, freehand, text, highlight, blur and step numbers</li>
+      <li>Screen recording with a webcam bubble, a trim editor and GIF or WebP export</li>
+      <li>OCR text snip that copies recognized text straight to the clipboard</li>
+      <li>Uploads to S3-compatible storage, SFTP and FTP with named destination profiles</li>
+      <li>Global hotkeys for every capture action</li>
+      <li>Instant, dialog-free captures on KDE Plasma</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">dev.snim.Snim.desktop</launchable>
+
+  <url type="homepage">https://snim.dev</url>
+  <url type="bugtracker">https://github.com/snimdev/snim/issues</url>
+  <url type="vcs-browser">https://github.com/snimdev/snim</url>
+
+  <categories>
+    <category>Utility</category>
+  </categories>
+
+  <provides>
+    <binary>snim</binary>
+  </provides>
+
+  <content_rating type="oars-1.1"/>
+</component>

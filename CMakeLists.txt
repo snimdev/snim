@@ -1097,6 +1097,9 @@ if(UNIX AND NOT APPLE)
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/deploy/dev.snim.Snim.desktop"
             DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/deploy/dev.snim.Snim.metainfo.xml"
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app-icon.svg"
             DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
             RENAME dev.snim.Snim.svg)
