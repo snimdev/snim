@@ -1,5 +1,6 @@
 #include "app/Application.h"
 #include "core/AppScope.h"
+#include "core/Sandbox.h"
 #include "core/SelfTest.h"
 #include "core/Settings.h"
 #include "core/Version.h"
@@ -115,7 +116,8 @@ int main(int argc, char *argv[]) {
 #ifdef Q_OS_LINUX
     // Earliest point that works: the session bus wants a QCoreApplication, and the portals
     // read our app id off the cgroup on their first request, which cannot arrive before exec().
-    if (!Core::AppScope::inAppScope()) {
+    // Flatpak already gives the portals our app id, and its scope must stay as it is.
+    if (!Core::Sandbox::isFlatpak() && !Core::AppScope::inAppScope()) {
         QString scopeError;
         if (Core::AppScope::adoptAppScope(&scopeError))
             qInfo() << "[AppScope] adopted app scope for portal identity";

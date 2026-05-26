@@ -61,6 +61,7 @@ private slots:
         QStandardPaths::setTestModeEnabled(true);   // redirect the data home to a throwaway tree
         QVERIFY(m_systemDataDir.isValid());
         qputenv("XDG_DATA_DIRS", QFile::encodeName(m_systemDataDir.path()));
+        qunsetenv("FLATPAK_ID");   // a test run inside a Flatpak must not skew the results
     }
 
     void init()
@@ -68,6 +69,11 @@ private slots:
         QFile::remove(DesktopIntegration::desktopFilePath());
         QFile::remove(DesktopIntegration::iconFilePath());
         QFile::remove(systemEntryPath());
+    }
+
+    void cleanup()
+    {
+        qunsetenv("FLATPAK_ID");
     }
 
     void cleanupTestCase()
@@ -232,6 +238,25 @@ private slots:
         // Writing the user's entry repairs it.
         QVERIFY(DesktopIntegration::install(nullptr));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
+#endif
+    }
+
+    void flatpak_isNotApplicable()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        qputenv("FLATPAK_ID", "dev.snim.Snim");
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::NotApplicable);
+
+        // Even a broken user entry is left alone: the sandbox exports its own.
+        QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents("/usr/bin/some-other-binary")));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::NotApplicable);
+
+        QString error;
+        QVERIFY(!DesktopIntegration::install(&error));
+        QVERIFY(!error.isEmpty());
+        QVERIFY(readEntry().contains("Exec=/usr/bin/some-other-binary\n"));
 #endif
     }
 };

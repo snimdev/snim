@@ -31,6 +31,13 @@ private slots:
                                                        false));
     }
 
+    void promptApplicable_neverWhenNotApplicable()
+    {
+        // Off Linux or inside Flatpak there is no entry for Snim to write.
+        QVERIFY(!CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::NotApplicable,
+                                                       false));
+    }
+
     void promptApplicable_onlyOncePerRun()
     {
         QVERIFY(!CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled,

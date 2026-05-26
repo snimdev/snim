@@ -1,4 +1,5 @@
 #include "core/DesktopIntegration.h"
+#include "core/Sandbox.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -124,6 +125,10 @@ Status status()
 #ifndef Q_OS_LINUX
     return Status::NotApplicable;
 #else
+    // Flatpak exports its own desktop entry, and a host entry cannot point into the sandbox.
+    if (Sandbox::isFlatpak())
+        return Status::NotApplicable;
+
     // The first match is the one launchers and KWin see: the user's entry shadows a packaged one.
     const QString entryPath =
         QStandardPaths::locate(QStandardPaths::ApplicationsLocation, QLatin1String(kDesktopFileName));
@@ -155,6 +160,9 @@ bool install(QString *errorOut)
 #ifndef Q_OS_LINUX
     return fail(QStringLiteral("Desktop integration is only needed on Linux."));
 #else
+    if (Sandbox::isFlatpak())
+        return fail(QStringLiteral("Flatpak manages Snim's desktop entry."));
+
     const QString desktopPath = desktopFilePath();
     const QString applicationsDir = QFileInfo(desktopPath).absolutePath();
     if (!QDir().mkpath(applicationsDir))

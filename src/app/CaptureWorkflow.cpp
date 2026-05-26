@@ -79,8 +79,9 @@ namespace App {
                                                const bool alreadyShown) {
         if (dismissed)
             return false;
-        // Entry already correct: the refusal has another cause, so offering a rewrite helps nobody.
-        if (status == Core::DesktopIntegration::Status::Installed)
+        // Entry already correct (or not ours to write): the refusal has another cause.
+        if (status == Core::DesktopIntegration::Status::Installed
+            || status == Core::DesktopIntegration::Status::NotApplicable)
             return false;
         return !alreadyShown;
     }
@@ -145,8 +146,9 @@ namespace App {
     void CaptureWorkflow::refreshDesktopIntegrationAction() const {
         if (!m_desktopIntegrationAction)
             return;
-        m_desktopIntegrationAction->setVisible(
-            Core::DesktopIntegration::status() != Core::DesktopIntegration::Status::Installed);
+        const auto status = Core::DesktopIntegration::status();
+        m_desktopIntegrationAction->setVisible(status != Core::DesktopIntegration::Status::Installed
+                                               && status != Core::DesktopIntegration::Status::NotApplicable);
     }
 
     void CaptureWorkflow::onScreenshotReady(const QPixmap &screenshot,

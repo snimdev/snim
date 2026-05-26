@@ -1,6 +1,7 @@
 #include "app/TrayMenu.h"
 #include "app/TextSnipWorkflow.h"
 #include "core/IconUtil.h"
+#include "core/Sandbox.h"
 #include "hotkeys/HotkeyBindings.h"
 #ifdef Q_OS_MACOS
 #include "core/MacTrayWorkaround.h"
@@ -36,6 +37,8 @@ namespace App {
 
         m_aboutAction = new QAction("About", this);
         m_checkUpdatesAction = new QAction("Check for updates...", this);
+        // Flatpak updates through `flatpak update`, so a GitHub release link would only mislead.
+        m_checkUpdatesAction->setVisible(!Core::Sandbox::isFlatpak());
         m_settingsAction = new QAction("Settings", this);
 
 #ifdef Q_OS_LINUX

@@ -25,7 +25,7 @@ enum class Status {
     ExecMismatch,             // entry present but Exec points somewhere else
     MissingAuthorizationKey,  // entry present but does not declare the ScreenShot2 interface
     NotInstalled,             // no entry in the user's or any system applications folder
-    NotApplicable             // not Linux
+    NotApplicable             // not Linux, or inside Flatpak
 };
 
 // Where the user-local entry and its icon live (under XDG_DATA_HOME, so tests can redirect them).
