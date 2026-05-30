@@ -1,6 +1,7 @@
 #ifndef RECORDING_SCREENCASTPORTALSESSION_H
 #define RECORDING_SCREENCASTPORTALSESSION_H
 
+#include <QList>
 #include <QObject>
 #include <QRect>
 #include <QString>
@@ -21,14 +22,37 @@ public:
     explicit ScreenCastPortalSession(QObject *parent = nullptr);
     ~ScreenCastPortalSession() override;
 
+    struct Options {
+        bool captureCursor = false;
+        bool multiple = false;
+        // QSettings key holding the restore token; empty means the picker shows every time.
+        QString restoreTokenKey;
+    };
+
+    struct Stream {
+        quint32 nodeId = 0;
+        QRect rectLogical;   // null when the portal sent no geometry
+    };
+
     // Probe: reads the interface version, creating no session.
     [[nodiscard]] static bool isPortalAvailable();
 
+    // The ScreenCast interface version, 0 when the portal cannot be reached.
+    [[nodiscard]] static uint portalVersion();
+
+    // Restore tokens are single use: Start hands back the one to present next time.
+    [[nodiscard]] static QString restoreToken(const QString &key);
+    static void storeRestoreToken(const QString &key, const QVariantMap &startResults);
+
     void open(bool captureCursor);
+    void open(const Options &options);
     void close();
 
+    // Every stream Start returned, in portal order; valid once ready() fired.
+    [[nodiscard]] const QList<Stream> &streams() const { return m_streams; }
+
 signals:
-    // The receiver owns pipewireFd and must close() it.
+    // The first stream. The receiver owns pipewireFd and must close() it.
     void ready(quint32 nodeId, const QRect &streamRectLogical, int pipewireFd);
     void failed(const QString &error);
     void sessionClosed();
@@ -64,9 +88,8 @@ private:
     QString m_createRequestPath;
     QString m_selectRequestPath;
     QString m_startRequestPath;
-    bool m_captureCursor = false;
-    quint32 m_nodeId = 0;
-    QRect m_streamRect;
+    Options m_options;
+    QList<Stream> m_streams;
 };
 
 } // namespace Recording

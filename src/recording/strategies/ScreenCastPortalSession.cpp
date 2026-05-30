@@ -39,6 +39,9 @@ const char *const kClosedDetailsSlot = SLOT(handleSessionClosedWithDetails(QVari
 constexpr uint kSourceMonitor = 1;
 constexpr uint kCursorHidden = 1;
 constexpr uint kCursorEmbedded = 2;
+constexpr uint kPersistUntilRevoked = 2;
+// persist_mode and restore_token arrived with version 4 of the interface.
+constexpr uint kFirstPersistingVersion = 4;
 
 // The stream vardict carries position and size as (ii); a missing one leaves the rect
 // null and the caller infers the geometry from the stream's pixel size.
@@ -91,7 +94,35 @@ bool ScreenCastPortalSession::isPortalAvailable()
     return reply.type() == QDBusMessage::ReplyMessage;
 }
 
+uint ScreenCastPortalSession::portalVersion()
+{
+    return readUintProperty(QStringLiteral("version"));
+}
+
+QString ScreenCastPortalSession::restoreToken(const QString &key)
+{
+    return key.isEmpty() ? QString() : QSettings().value(key).toString();
+}
+
+void ScreenCastPortalSession::storeRestoreToken(const QString &key, const QVariantMap &startResults)
+{
+    if (key.isEmpty())
+        return;
+    const QString token = startResults.value(QStringLiteral("restore_token")).toString();
+    if (token.isEmpty())
+        QSettings().remove(key);
+    else
+        QSettings().setValue(key, token);
+}
+
 void ScreenCastPortalSession::open(bool captureCursor)
+{
+    Options options;
+    options.captureCursor = captureCursor;
+    open(options);
+}
+
+void ScreenCastPortalSession::open(const Options &options)
 {
     close();
 
@@ -103,7 +134,7 @@ void ScreenCastPortalSession::open(bool captureCursor)
     }();
     Q_UNUSED(tokenDropped)
 
-    m_captureCursor = captureCursor;
+    m_options = options;
     createSession();
 }
 
@@ -189,7 +220,7 @@ void ScreenCastPortalSession::selectSources()
         return;
     }
 
-    uint cursorMode = m_captureCursor ? kCursorEmbedded : kCursorHidden;
+    uint cursorMode = m_options.captureCursor ? kCursorEmbedded : kCursorHidden;
     const uint availableModes = readUintProperty(QStringLiteral("AvailableCursorModes"));
     if (availableModes != 0 && (availableModes & cursorMode) == 0)
         cursorMode = kCursorHidden;
@@ -197,8 +228,14 @@ void ScreenCastPortalSession::selectSources()
     QVariantMap options;
     options.insert(QStringLiteral("handle_token"), handleToken);
     options.insert(QStringLiteral("types"), kSourceMonitor);
-    options.insert(QStringLiteral("multiple"), false);
+    options.insert(QStringLiteral("multiple"), m_options.multiple);
     options.insert(QStringLiteral("cursor_mode"), cursorMode);
+    if (!m_options.restoreTokenKey.isEmpty() && portalVersion() >= kFirstPersistingVersion) {
+        options.insert(QStringLiteral("persist_mode"), kPersistUntilRevoked);
+        const QString token = restoreToken(m_options.restoreTokenKey);
+        if (!token.isEmpty())
+            options.insert(QStringLiteral("restore_token"), token);
+    }
 
     QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kScreenCast,
                                                       QStringLiteral("SelectSources"));
@@ -285,7 +322,9 @@ void ScreenCastPortalSession::handleStartResponse(uint response, const QVariantM
         return;
     }
 
-    bool haveStream = false;
+    storeRestoreToken(m_options.restoreTokenKey, results);
+
+    m_streams.clear();
     const QDBusArgument arg = streams.value<QDBusArgument>();
     arg.beginArray();
     while (!arg.atEnd()) {
@@ -306,16 +345,11 @@ void ScreenCastPortalSession::handleStartResponse(uint response, const QVariantM
         arg.endMap();
         arg.endStructure();
 
-        // Only the first stream is recorded; multiple was false.
-        if (!haveStream) {
-            m_nodeId = nodeId;
-            m_streamRect = rectFromStream(properties);
-            haveStream = true;
-        }
+        m_streams.append(Stream{nodeId, rectFromStream(properties)});
     }
     arg.endArray();
 
-    if (!haveStream) {
+    if (m_streams.isEmpty()) {
         fail(tr("The screen sharing portal returned no stream."));
         return;
     }
@@ -350,7 +384,13 @@ void ScreenCastPortalSession::openPipeWireRemote()
             return;
         }
 
-        emit ready(m_nodeId, m_streamRect, fd);
+        // A close() while the reply was in flight leaves nothing to hand out.
+        if (m_streams.isEmpty()) {
+            ::close(fd);
+            return;
+        }
+        const Stream first = m_streams.constFirst();
+        emit ready(first.nodeId, first.rectLogical, fd);
     });
 }
 
@@ -403,8 +443,7 @@ void ScreenCastPortalSession::reset()
         m_sessionPath.clear();
     }
 
-    m_nodeId = 0;
-    m_streamRect = QRect();
+    m_streams.clear();
 }
 
 bool ScreenCastPortalSession::connectResponse(const QString &path, const char *slot)
