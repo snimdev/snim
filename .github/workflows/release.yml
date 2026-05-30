@@ -10,6 +10,11 @@ on:
         description: 'Version to build (without the leading v)'
         required: false
         default: '0.0.0-test'
+      publish-flatpak-test:
+        description: 'Publish the Flatpak into the scratch flatpak/test-repo on R2'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -800,3 +805,60 @@ jobs:
             )
           fi
           gh release create "$GITHUB_REF_NAME" "${FLAGS[@]}" "${FILES[@]}" "artifacts/sha256sums.txt"
+
+  flatpak-repo:
+    name: Publish the Flatpak repository
+    needs: [release, flatpak]
+    # A tag publishes the live repo after its GitHub release; a manual run touches only
+    # flatpak/test-repo, and only when publish-flatpak-test is ticked.
+    if: >-
+      !cancelled() && needs.flatpak.result == 'success' && (
+        (github.event_name == 'push' && needs.release.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.publish-flatpak-test)
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Two interleaved publishes would each upload a summary missing the other's commit.
+    concurrency:
+      group: flatpak-repo
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install flatpak, ostree and rclone
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak ostree rclone
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: flatpak-*
+          path: bundles
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+          FLATPAK_GPG_KEY_ID: ${{ secrets.FLATPAK_GPG_KEY_ID }}
+          DL_BASE_URL: ${{ vars.DL_BASE_URL }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          REPO_NAME: ${{ github.event_name == 'push' && 'repo' || 'test-repo' }}
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          # The token is scoped to one bucket and may not list or create buckets.
+          RCLONE_CONFIG_R2_NO_CHECK_BUCKET: 'true'
+        run: |
+          if [ -z "$R2_BUCKET" ]; then
+            echo "::error title=No bucket::the R2_BUCKET repository variable is not set"
+            exit 1
+          fi
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          printf '%s\n' "$FLATPAK_GPG_PRIVATE_KEY" | gpg --batch --import
+          bash scripts/flatpak-repo.sh publish "r2:$R2_BUCKET/flatpak" "$REPO_NAME" \
+            bundles/Snim-x86_64.flatpak bundles/Snim-aarch64.flatpak
+          rm -rf "$GNUPGHOME"
