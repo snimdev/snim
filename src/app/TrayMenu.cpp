@@ -14,7 +14,8 @@
 #include <QApplication>
 #include <QCursor>
 #include <QMenu>
-#include <QPalette>
+#include <QPainter>
+#include <QSvgRenderer>
 
 namespace App {
 
@@ -120,11 +121,21 @@ namespace App {
         icon.setIsMask(true);
         return icon;
 #else
-        // Other platforms have no template-image concept: pick a tone from the palette.
-        const QColor windowColor = QApplication::palette().color(QPalette::Window);
-        const bool isDarkMode = windowColor.lightness() < 128;
-        const QColor iconColor(isDarkMode ? "#e0e0e0" : "#1a1a1a");
-        return Core::themedSvgIcon(iconPath, iconColor, 22);
+        // A panel's shade and slot size are unknowable here (Mint: dark panel, light windows),
+        // so use the colour app icon at every common size and let the panel pick its fit.
+        Q_UNUSED(iconPath)
+        QIcon icon;
+        QSvgRenderer renderer(QStringLiteral(":/icons/icons/app-icon.svg"));
+        for (const int size : {16, 20, 22, 24, 32, 40, 48, 64}) {
+            QPixmap pixmap(size, size);
+            pixmap.fill(Qt::transparent);
+            QPainter painter(&pixmap);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            renderer.render(&painter);
+            painter.end();
+            icon.addPixmap(pixmap);
+        }
+        return icon;
 #endif
     }
 
