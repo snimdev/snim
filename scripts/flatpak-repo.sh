@@ -57,22 +57,18 @@ cmd_publish() {
   work=$(mktemp -d)
   repo="$work/repo"
 
-  # Only a definite "not found" starts a fresh repository; any other error must not replace the live one.
-  local rc=0
-  rclone lsjson --stat "$dest/config" > /dev/null 2>&1 || rc=$?
-  case $rc in
-    0)
-      echo "Pulling $dest"
-      rclone copy "$dest" "$repo" --fast-list --exclude '/tmp/**'
-      # Object storage keeps no empty directories, and ostree expects these.
-      mkdir -p "$repo"/{objects,refs/heads,refs/mirrors,refs/remotes,state,tmp,extensions}
-      ;;
-    3|4)
-      echo "No repository at $dest yet, starting one"
-      ostree init --mode=archive-z2 --repo="$repo"
-      ;;
-    *) die "could not reach $dest (rclone exit $rc)" ;;
-  esac
+  # R2 reports success for missing objects, so list instead; a failed listing aborts.
+  local listing
+  listing=$(rclone lsf --files-only --max-depth 1 "$dest/") || die "could not list $dest"
+  if grep -qx config <<<"$listing"; then
+    echo "Pulling $dest"
+    rclone copy "$dest" "$repo" --fast-list --exclude '/tmp/**'
+    # Object storage keeps no empty directories, and ostree expects these.
+    mkdir -p "$repo"/{objects,refs/heads,refs/mirrors,refs/remotes,state,tmp,extensions}
+  else
+    echo "No repository at $dest yet, starting one"
+    ostree init --mode=archive-z2 --repo="$repo"
+  fi
 
   local bundle
   for bundle in "$@"; do
