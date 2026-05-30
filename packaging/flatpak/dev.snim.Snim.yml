@@ -1,0 +1,123 @@
+app-id: dev.snim.Snim
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+command: snim
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --socket=pulseaudio
+  - --share=network
+  - --device=dri
+  # Webcam overlay in recordings (V4L2)
+  - --device=all
+  - --talk-name=org.kde.StatusNotifierWatcher
+  # Experimental: dialog-free KWin capture, falls back to the Screenshot portal if denied
+  - --talk-name=org.kde.KWin.ScreenShot2
+  - --filesystem=xdg-pictures/Screenshots:create
+  - --filesystem=xdg-videos/Snim:create
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /lib/cmake
+  - /share/man
+  - /share/doc
+  - '*.a'
+  - '*.la'
+
+modules:
+  - name: leptonica
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DBUILD_PROG=OFF
+      - -DSW_BUILD=OFF
+    sources:
+      - type: archive
+        url: https://github.com/DanBloomberg/leptonica/releases/download/1.87.0/leptonica-1.87.0.tar.gz
+        sha256: c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7
+
+  - name: tesseract
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DBUILD_TRAINING_TOOLS=OFF
+      - -DBUILD_TESTS=OFF
+      - -DSW_BUILD=OFF
+      - -DOPENMP_BUILD=OFF
+      - -DGRAPHICS_DISABLED=ON
+      - -DDISABLE_ARCHIVE=ON
+      - -DDISABLE_CURL=ON
+      - -DENABLE_CCACHE=OFF
+      - -DINSTALL_CONFIGS=OFF
+    cleanup:
+      - /bin
+    sources:
+      - type: archive
+        url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.3.tar.gz
+        sha256: 9218e62793116d42a9f6d14cd9348518b27f382096eea3d0f2d1a24616bb5884
+
+  # tessdata 4.1.0, the same eng model the Windows build and Debian's tesseract-ocr-eng ship
+  - name: tessdata-eng
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 eng.traineddata /app/share/tessdata/eng.traineddata
+    sources:
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata/4767ea922bcc460e70b87b1d303ebdfed0897da8/eng.traineddata
+        sha256: daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047
+
+  # The 2.x C branch: 4.x is Rust and cannot build offline without vendored crates
+  - name: libimagequant
+    buildsystem: autotools
+    no-autogen: true
+    sources:
+      - type: archive
+        url: https://github.com/ImageOptim/libimagequant/archive/refs/tags/2.18.0.tar.gz
+        sha256: 790d2593a587f9a27cec6245ee7a212b34b0aa63cac6383e550eda01236be636
+
+  - name: libssh2
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DBUILD_STATIC_LIBS=OFF
+      - -DBUILD_EXAMPLES=OFF
+      - -DBUILD_TESTING=OFF
+      - -DCRYPTO_BACKEND=OpenSSL
+    sources:
+      - type: archive
+        url: https://libssh2.org/download/libssh2-1.11.1.tar.gz
+        sha256: d9ec76cbe34db98eec3539fe2c899d26b0c837cb3eb466a56b0f109cabf658f7
+
+  - name: layer-shell-qt
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+    cleanup:
+      - /lib/qml
+    sources:
+      - type: archive
+        url: https://download.kde.org/stable/plasma/6.4.6/layer-shell-qt-6.4.6.tar.xz
+        sha256: 1bb5bc881af2f5b74c014127c2f701ce346243ac01f897f1dea00f14f7d87993
+
+  - name: snim
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DSNIM_VERSION=1.0.0-beta.1
+      - -DSNIM_BUILD_TESTS=OFF
+    sources:
+      - type: dir
+        path: ../..
