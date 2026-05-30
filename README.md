@@ -39,7 +39,7 @@ On Windows, dependencies come from vcpkg: from an x64 Native Tools prompt, with 
 
 ## License
 
-Snim is free software released under the GNU General Public License version 3 (see [LICENSE](LICENSE)).
+Snim is free software released under the GNU General Public License, version 3 or (at your option) any later version (see [LICENSE](LICENSE)).
 
 ## Links
 
