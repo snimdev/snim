@@ -14,8 +14,6 @@ finish-args:
   # Webcam overlay in recordings (V4L2)
   - --device=all
   - --talk-name=org.kde.StatusNotifierWatcher
-  # Experimental: dialog-free KWin capture, falls back to the Screenshot portal if denied
-  - --talk-name=org.kde.KWin.ScreenShot2
   - --filesystem=xdg-pictures/Screenshots:create
   - --filesystem=xdg-videos/Snim:create
 
