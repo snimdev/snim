@@ -64,6 +64,7 @@ private:
     QTemporaryFile *m_tempFile;
     QProcess *m_fallbackProcess;
     bool m_captureArea;
+    bool m_interactiveRequest = false;
     QDBusConnection m_sessionBus;
 };
 

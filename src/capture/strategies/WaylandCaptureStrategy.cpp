@@ -123,6 +123,9 @@ namespace Capture {
         return portalChecker.isValid();
     }
 
+    // Set once a portal refuses a silent request, so later captures skip straight to its dialog.
+    static bool s_portalNeedsDialog = false;
+
     bool WaylandCaptureStrategy::usePortalCapture() {
         if (!m_portalInterface || !m_portalInterface->isValid()) {
             qDebug() << "Portal interface not available";
@@ -168,7 +171,9 @@ namespace Capture {
         // Prepare options
         QVariantMap options;
         options["handle_token"] = token;
-        options["interactive"] = true; // Required by newer portal backends (Fedora 42+)
+        // Silent first: KDE asks once and remembers; portals that refuse get the dialog instead.
+        m_interactiveRequest = s_portalNeedsDialog;
+        options["interactive"] = m_interactiveRequest;
         options["modal"] = false;
 
         // Call Screenshot with empty parent window
@@ -192,6 +197,13 @@ namespace Capture {
     void WaylandCaptureStrategy::handlePortalResponse(
         uint status,
         QVariantMap results) {
+        if (status != 0 && !m_interactiveRequest) {
+            qDebug() << "Silent portal screenshot refused, status:" << status << "- retrying with its dialog";
+            s_portalNeedsDialog = true;
+            if (!usePortalCapture())
+                emit screenshotFailed(QStringLiteral("Portal screenshot failed"));
+            return;
+        }
         if (status != 0) {
             qDebug() << "Portal request cancelled or failed, status:" << status;
             emit screenshotFailed(QString("Portal request failed (status: %1)").arg(status));
