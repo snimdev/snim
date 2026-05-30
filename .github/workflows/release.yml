@@ -388,6 +388,92 @@ jobs:
             echo "$binary: $ACTUAL started on ${{ matrix.image }}."
           done
 
+  flatpak:
+    name: Flatpak (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.11
+      # flatpak-builder sandboxes every build step with bubblewrap.
+      options: --privileged
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stamp the version into the manifest
+        # flatpak-builder has no variables; the copy stays beside the original so `path: ../..` still resolves.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sed "s|-DSNIM_VERSION=0.0.0-dev|-DSNIM_VERSION=$VERSION|" \
+            packaging/flatpak/dev.snim.Snim.yml > packaging/flatpak/dev.snim.Snim.release.yml
+          if ! grep -qF -- "-DSNIM_VERSION=$VERSION" packaging/flatpak/dev.snim.Snim.release.yml; then
+            echo "::error title=Version not stamped::the manifest lost its -DSNIM_VERSION=0.0.0-dev placeholder"
+            exit 1
+          fi
+
+      - name: Build
+        uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3  # v6.8
+        with:
+          manifest-path: packaging/flatpak/dev.snim.Snim.release.yml
+          arch: ${{ matrix.arch }}
+          cache-key: flatpak-builder-${{ matrix.arch }}-${{ hashFiles('packaging/flatpak/dev.snim.Snim.yml') }}
+          # The bundle needs --repo-url, which the action cannot pass, so it is built below.
+          build-bundle: false
+          upload-artifact: false
+
+      - name: It starts and reports its version
+        env:
+          EXPECTED: Snim ${{ steps.version.outputs.version }}
+        run: |
+          if ! ACTUAL="$(flatpak build --env=QT_QPA_PLATFORM=offscreen flatpak_app snim --version 2>/tmp/snim-stderr.log)"; then
+            echo "::error title=Startup failed::snim --version exited non-zero in the Flatpak sandbox"
+            cat /tmp/snim-stderr.log
+            exit 1
+          fi
+          cat /tmp/snim-stderr.log
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error title=Wrong version::expected '$EXPECTED', got '$ACTUAL'"
+            exit 1
+          fi
+          echo "$ACTUAL started in the Flatpak sandbox."
+
+      - name: Sign and bundle
+        env:
+          FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+          FLATPAK_GPG_KEY_ID: ${{ secrets.FLATPAK_GPG_KEY_ID }}
+          DL_BASE_URL: ${{ vars.DL_BASE_URL }}
+        run: |
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          printf '%s\n' "$FLATPAK_GPG_PRIVATE_KEY" | gpg --batch --import
+          bash scripts/flatpak-repo.sh bundle repo ${{ matrix.arch }} Snim-${{ matrix.arch }}.flatpak
+          rm -rf "$GNUPGHOME"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: flatpak-${{ matrix.arch }}
+          path: Snim-${{ matrix.arch }}.flatpak
+          if-no-files-found: error
+
   macos-dmg:
     name: DMG (macOS arm64)
     runs-on: ${{ vars.MACOS_RUNNER && fromJSON(vars.MACOS_RUNNER) || 'macos-15' }}
@@ -656,13 +742,13 @@ jobs:
 
   release:
     name: Publish the GitHub release
-    needs: [linux-bundle, macos-dmg, portability, windows]
+    needs: [linux-bundle, flatpak, macos-dmg, portability, windows]
     # workflow_dispatch builds the artifacts but never publishes a release. A skipped
     # Windows job (no runner configured) still ships Linux and macOS.
     if: >-
       !cancelled() && github.event_name == 'push' &&
       needs.linux-bundle.result == 'success' && needs.macos-dmg.result == 'success' &&
-      needs.portability.result == 'success' &&
+      needs.portability.result == 'success' && needs.flatpak.result == 'success' &&
       contains(fromJSON('["success", "skipped"]'), needs.windows.result)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -700,9 +786,11 @@ jobs:
             "artifacts/Snim-x86_64.tar.gz"
             "artifacts/snim_${VERSION}_amd64.deb"
             "artifacts/snim-$VERSION.x86_64.rpm"
+            "artifacts/Snim-x86_64.flatpak"
             "artifacts/Snim-aarch64.tar.gz"
             "artifacts/snim_${VERSION}_arm64.deb"
             "artifacts/snim-$VERSION.aarch64.rpm"
+            "artifacts/Snim-aarch64.flatpak"
             "artifacts/Snim-$VERSION-macos-arm64.dmg"
           )
           if [ "$WINDOWS_RESULT" = success ]; then

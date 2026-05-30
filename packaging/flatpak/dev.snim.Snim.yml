@@ -116,8 +116,14 @@ modules:
     builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
-      - -DSNIM_VERSION=1.0.0-beta.1
+      # CI stamps the release version over this placeholder
+      - -DSNIM_VERSION=0.0.0-dev
       - -DSNIM_BUILD_TESTS=OFF
     sources:
       - type: dir
         path: ../..
+        # The CI build and state dirs live in the checkout
+        skip:
+          - .flatpak-builder
+          - flatpak_app
+          - repo
