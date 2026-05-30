@@ -1,4 +1,5 @@
 #include "CaptureFactory.h"
+#include "core/Sandbox.h"
 #include "strategies/NativeCaptureStrategy.h"
 #ifdef Q_OS_LINUX
 #include "strategies/KWinCaptureStrategy.h"
@@ -56,8 +57,8 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
 CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()
 {
 #ifdef Q_OS_LINUX
-    // Prefer KWin on KDE Plasma (direct compositor access, no portal dialogs)
-    if (KWinCaptureStrategy::isKWinAvailable()) {
+    // Prefer KWin on KDE Plasma; it never authorizes a sandboxed app, so a Flatpak uses the portal.
+    if (!Core::Sandbox::isFlatpak() && KWinCaptureStrategy::isKWinAvailable()) {
         return StrategyType::KWin;
     }
 
