@@ -58,6 +58,8 @@ overrides:
       - libgstreamer1.0-0
       - libgstreamer-plugins-base1.0-0
       - gstreamer1.0-plugins-base
+      - libgpg-error0
+      - libcom-err2
     recommends:
       - gstreamer1.0-plugins-good
       - gstreamer1.0-plugins-bad
@@ -76,6 +78,8 @@ overrides:
       - glib2
       - gstreamer1
       - gstreamer1-plugins-base
+      - libgpg-error
+      - libcom_err
     recommends:
       - gstreamer1-plugins-good
       - gstreamer1-plugins-bad-free
