@@ -197,3 +197,13 @@ add_custom_target(check
         USES_TERMINAL
         COMMENT "Running all Snim tests")
 add_dependencies(check ${SNIM_TESTS} tst_imageeditor_smoke tst_videoeditor_smoke)
+
+# Manual ScreenCast capture check against the real portal; built, never run by ctest.
+if(GSTREAMER_AVAILABLE)
+    add_executable(snim_screencast_probe manual/screencast_probe.cpp)
+    target_link_libraries(snim_screencast_probe PRIVATE snim_lib)
+    add_dependencies(snim_screencast_probe snim_recorder_linux)
+    target_compile_definitions(snim_screencast_probe PRIVATE
+            SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
+    set_target_properties(snim_screencast_probe PROPERTIES ENABLE_EXPORTS ON)
+endif()
