@@ -16,6 +16,7 @@ public:
         Auto,           // Automatically select best available strategy
         KWin,           // KWin ScreenShot2 D-Bus (preferred on KDE Plasma)
         Wayland,        // Force Wayland strategy
+        Screencast,     // One frame from a restored ScreenCast portal session
         Native          // Force native Qt strategy
     };
 

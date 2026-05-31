@@ -2,6 +2,7 @@
 #include <memory>
 
 #include "capture/CaptureFactory.h"
+#include "capture/StrategySelection.h"
 #include "capture/strategies/CaptureStrategy.h"
 
 using namespace Capture;
@@ -37,6 +38,53 @@ private slots:
         QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::KWin));
         QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Wayland));
 #endif
+    }
+
+    void screencastIsPreferredWhereItBringsSilence()
+    {
+        using StrategySelection::prefersScreencast;
+        // GNOME asks on every Screenshot portal call, sandboxed or not.
+        QVERIFY(prefersScreencast(QStringLiteral("GNOME"), false));
+        QVERIFY(prefersScreencast(QStringLiteral("ubuntu:GNOME"), false));
+        QVERIFY(prefersScreencast(QStringLiteral("GNOME"), true));
+        // KDE: KWin natively, the silent Screenshot portal inside Flatpak.
+        QVERIFY(!prefersScreencast(QStringLiteral("KDE"), false));
+        QVERIFY(!prefersScreencast(QStringLiteral("KDE"), true));
+        // Any other desktop only when sandboxed; natively its own tools still apply.
+        QVERIFY(prefersScreencast(QStringLiteral("sway"), true));
+        QVERIFY(prefersScreencast(QString(), true));
+        QVERIFY(!prefersScreencast(QStringLiteral("sway"), false));
+        QVERIFY(!prefersScreencast(QStringLiteral("GNOME-Flashback"), false));
+    }
+
+    void parsesTheStrategyOverride()
+    {
+        using StrategySelection::parseOverride;
+        using Type = CaptureFactory::StrategyType;
+        QCOMPARE(parseOverride(QStringLiteral("screencast")), std::optional(Type::Screencast));
+        QCOMPARE(parseOverride(QStringLiteral(" KWin ")), std::optional(Type::KWin));
+        QCOMPARE(parseOverride(QStringLiteral("portal")), std::optional(Type::Wayland));
+        QCOMPARE(parseOverride(QStringLiteral("native")), std::optional(Type::Native));
+        QVERIFY(!parseOverride(QString()));
+        QVERIFY(!parseOverride(QStringLiteral("bogus")));
+    }
+
+    void theOverrideDecidesTheDefault()
+    {
+        qputenv("SNIM_CAPTURE_STRATEGY", "native");
+        QVERIFY(CaptureFactory::getDefaultStrategyType() == CaptureFactory::StrategyType::Native);
+        qunsetenv("SNIM_CAPTURE_STRATEGY");
+    }
+
+    void anUnavailableScreencastStillYieldsAStrategy()
+    {
+        // Offscreen is no Wayland session, so this must land on a fallback, never null.
+        qputenv("WAYLAND_DISPLAY", "");
+        qputenv("XDG_SESSION_TYPE", "x11");
+        QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Screencast));
+        auto s = CaptureFactory::createStrategy(CaptureFactory::StrategyType::Screencast);
+        QVERIFY(s);
+        QVERIFY(s->name() != QStringLiteral("ScreenCast Portal Capture"));
     }
 
     void quickActionsToggle()
