@@ -23,6 +23,7 @@ set(SNIM_TESTS
         tst_annotationhandoff
         tst_capturefactory
         tst_capturegeometry
+        tst_screencaststitch
         tst_winscreenmap
         tst_winwindowfilter
         tst_mixeddpicapture
