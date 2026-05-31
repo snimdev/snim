@@ -9,6 +9,9 @@
 #ifdef Q_OS_LINUX
 #include "capture/strategies/KWinCaptureStrategy.h"
 #endif
+#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
+#include "capture/strategies/ScreencastCaptureStrategy.h"
+#endif
 
 #include <QAction>
 #include <QDebug>
@@ -40,6 +43,14 @@ namespace App {
             kwin->setAuthorizationGate([this](const std::function<void(bool)> &resume) {
                 askForKWinAuthorization(resume);
             });
+
+#ifdef SNIM_HAVE_LINUX_RECORDER
+        if (auto *screencast = qobject_cast<Capture::ScreencastCaptureStrategy *>(m_captureStrategy.get()))
+            connect(screencast, &Capture::ScreencastCaptureStrategy::sourcePickerExpected, this, [&tray] {
+                tray.notify(tr("Choose screens once"),
+                            tr("Pick the screens Snim may capture; later screenshots will not ask again."));
+            });
+#endif
 
         connect(m_desktopIntegrationAction, &QAction::triggered,
                 this, &CaptureWorkflow::runDesktopIntegrationSetup);
