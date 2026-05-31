@@ -747,6 +747,8 @@ if(GSTREAMER_AVAILABLE)
             # into the binary doing the loading.
             src/recording/strategies/ScreenCastPortalSession.cpp
             src/recording/strategies/ScreenCastPortalSession.h
+            # One-frame grabs for the ScreenCast capture strategy.
+            src/recording/strategies/PipeWireFrameGrabber.cpp
             src/media/gst/GstSupport.cpp
             src/media/gst/GstSupport.h
             src/core/BundledPaths.cpp

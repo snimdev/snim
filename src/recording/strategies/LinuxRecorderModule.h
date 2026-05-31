@@ -3,6 +3,8 @@
 
 #include "recording/RecordingStrategy.h"
 
+#include <QImage>
+#include <QList>
 #include <QString>
 #include <QStringList>
 
@@ -24,10 +26,17 @@
 // `parent`); declared here so both sides of the dlopen agree on the signature.
 extern "C" Q_DECL_EXPORT Recording::RecordingStrategy *snimCreateLinuxRecorder(QObject *parent);
 
+// A second entry point for screenshots: one frame from each PipeWire node behind
+// pipewireFd (which stays the caller's), into frames[0..count). Blocking.
+extern "C" Q_DECL_EXPORT bool snimGrabPipeWireFrames(int pipewireFd, const quint32 *nodeIds,
+                                                     int count, int timeoutMs, QImage *frames,
+                                                     QString *error);
+
 namespace Recording::LinuxRecorderModule {
 
 inline constexpr char kEntryPoint[] = "snimCreateLinuxRecorder";
 inline constexpr char kBaseName[] = "snim-recorder-linux";
+inline constexpr char kGrabEntryPoint[] = "snimGrabPipeWireFrames";
 
 // Core::DynamicModule's search order; SNIM_RECORDER_MODULE replaces the whole list.
 [[nodiscard]] QStringList candidatePaths(const QString &binDir);
@@ -38,6 +47,13 @@ inline constexpr char kBaseName[] = "snim-recorder-linux";
 
 // Whether the module loads AND its strategy finds the portal, the plugins and an encoder.
 [[nodiscard]] bool isAvailable();
+
+// Whether the module loads and exports the frame grabber.
+[[nodiscard]] bool canGrabFrames();
+
+// One frame per node, in nodeIds order. Blocking, so call it off the GUI thread.
+[[nodiscard]] bool grabFrames(int pipewireFd, const QList<quint32> &nodeIds, int timeoutMs,
+                              QList<QImage> *frames, QString *error);
 
 } // namespace Recording::LinuxRecorderModule
 

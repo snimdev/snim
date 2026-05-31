@@ -47,6 +47,18 @@ private slots:
         QVERIFY2(library.load(), qPrintable(library.errorString()));
         QVERIFY2(library.resolve(LinuxRecorderModule::kEntryPoint),
                  qPrintable(library.errorString()));
+        QVERIFY2(library.resolve(LinuxRecorderModule::kGrabEntryPoint),
+                 qPrintable(library.errorString()));
+    }
+
+    void theFrameGrabberFailsCleanlyWithoutTheModule()
+    {
+        qputenv("SNIM_RECORDER_MODULE", "/nonexistent/libsnim-recorder-linux.so");
+        QVERIFY(!LinuxRecorderModule::canGrabFrames());
+        QList<QImage> frames;
+        QString error;
+        QVERIFY(!LinuxRecorderModule::grabFrames(-1, {1}, 10, &frames, &error));
+        QVERIFY(!error.isEmpty());
     }
 
     void fallsBackToTheStubWhenTheModuleCannotBeLoaded()
