@@ -734,7 +734,12 @@ endif()
 if(GSTREAMER_AVAILABLE)
     target_sources(snim_lib PRIVATE
             src/recording/strategies/LinuxRecorderModule.cpp
-            src/recording/strategies/LinuxRecorderModule.h)
+            src/recording/strategies/LinuxRecorderModule.h
+            # Screenshots from a ScreenCast session; the module grabs the frames.
+            src/capture/strategies/ScreencastCaptureStrategy.cpp
+            src/capture/strategies/ScreencastCaptureStrategy.h
+            src/recording/strategies/ScreenCastPortalSession.cpp
+            src/recording/strategies/ScreenCastPortalSession.h)
     # Activates the Linux branch of RecordingFactory + makes Auto pick the portal
     # recorder. PUBLIC because the tests check the macro.
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_LINUX_RECORDER)

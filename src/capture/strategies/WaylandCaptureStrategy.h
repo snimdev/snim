@@ -39,6 +39,9 @@ public:
     // Check if XDG Desktop Portal is available
     bool isPortalAvailable() const;
 
+protected:
+    void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry);
+
 private slots:
     void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void handlePortalResponse(uint status, QVariantMap results);
@@ -50,8 +53,6 @@ private:
     bool executeScreenshotTool(const QString &tool);
     void cleanupTempFile();
     void connectToPortalSignals();
-
-    void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry);
 
     static QPixmap cropToCurrentScreen(const QImage &fullImage);
 
