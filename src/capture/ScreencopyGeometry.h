@@ -218,55 +218,60 @@ inline QList<int> matchFramesToScreens(const QList<OutputFrame> &frames, const Q
     return match;
 }
 
-// The common DPR: the densest matched output, as the portal path derives it.
-inline qreal stitchedDevicePixelRatio(const QList<OutputFrame> &frames, const QList<ScreenSlot> &screens,
-                                      const QList<int> &match)
+// A frame's own DPR. The smaller axis wins: compositors truncate fractional logical sizes.
+inline qreal frameDevicePixelRatio(const QImage &image, const QRect &geometry)
 {
-    qreal dpr = 0.0;
-    for (qsizetype f = 0; f < frames.size(); ++f) {
-        if (match.value(f, -1) < 0 || frames[f].image.isNull())
-            continue;
-        const QRect geometry = screens[match[f]].geometry;
-        if (geometry.width() <= 0 || geometry.height() <= 0)
-            continue;
-        dpr = qMax(dpr, qMax(frames[f].image.width() / qreal(geometry.width()),
-                             frames[f].image.height() / qreal(geometry.height())));
-    }
-    return dpr;
+    if (image.isNull() || geometry.width() <= 0 || geometry.height() <= 0)
+        return 0.0;
+    return qMin(image.width() / qreal(geometry.width()), image.height() / qreal(geometry.height()));
 }
 
 /**
  * The virtual-desktop frame the selectors expect: every output at its screen's logical
- * place, at the densest output's DPR (sparser ones are scaled up), uncovered areas
- * black. Null when no frame matched a screen.
+ * place, at the densest output's DPR, uncovered areas black. Outputs at that DPR are
+ * copied pixel for pixel, sparser ones scaled up. Null when no frame matched a screen.
  */
 inline QImage stitchFrames(const QList<OutputFrame> &frames, const QList<ScreenSlot> &screens,
                            const QRect &virtualGeometry)
 {
     const QList<int> match = matchFramesToScreens(frames, screens);
-    const qreal dpr = stitchedDevicePixelRatio(frames, screens, match);
+    qreal dpr = 0.0;
+    for (qsizetype f = 0; f < frames.size(); ++f) {
+        if (match[f] >= 0)
+            dpr = qMax(dpr, frameDevicePixelRatio(frames[f].image, screens[match[f]].geometry));
+    }
     if (dpr <= 0.0 || virtualGeometry.isEmpty())
         return {};
 
-    QImage canvas(qRound(virtualGeometry.width() * dpr), qRound(virtualGeometry.height() * dpr),
-                  QImage::Format_RGB32);
-    canvas.fill(Qt::black);
-
-    QPainter painter(&canvas);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    struct Placement {
+        QRectF target;
+        const QImage *image;
+    };
+    QList<Placement> placements;
+    QRectF extent(0, 0, virtualGeometry.width() * dpr, virtualGeometry.height() * dpr);
     for (qsizetype f = 0; f < frames.size(); ++f) {
         if (match[f] < 0 || frames[f].image.isNull())
             continue;
         const QRect geometry = screens[match[f]].geometry;
-        const QRectF target((geometry.x() - virtualGeometry.x()) * dpr,
-                            (geometry.y() - virtualGeometry.y()) * dpr,
-                            geometry.width() * dpr, geometry.height() * dpr);
         const QImage &image = frames[f].image;
-        // Native-size frames are copied pixel for pixel; fractional rounding stays under a pixel.
-        if (qAbs(target.width() - image.width()) < 1.0 && qAbs(target.height() - image.height()) < 1.0)
-            painter.drawImage(target.topLeft().toPoint(), image);
+        const QPointF origin((geometry.x() - virtualGeometry.x()) * dpr,
+                             (geometry.y() - virtualGeometry.y()) * dpr);
+        const bool native = qAbs(frameDevicePixelRatio(image, geometry) - dpr) < 0.01;
+        const QRectF target = native ? QRectF(origin.toPoint(), QSizeF(image.size()))
+                                     : QRectF(origin, QSizeF(geometry.size()) * dpr);
+        placements.append({target, &image});
+        extent |= target;
+    }
+
+    QImage canvas(qCeil(extent.right() - 0.001), qCeil(extent.bottom() - 0.001), QImage::Format_RGB32);
+    canvas.fill(Qt::black);
+    QPainter painter(&canvas);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    for (const Placement &placement : placements) {
+        if (placement.target.size() == QSizeF(placement.image->size()))
+            painter.drawImage(placement.target.topLeft().toPoint(), *placement.image);
         else
-            painter.drawImage(target, image);
+            painter.drawImage(placement.target, *placement.image);
     }
     painter.end();
 

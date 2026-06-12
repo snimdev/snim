@@ -242,22 +242,23 @@ private slots:
 
     void stitchMixedAndFractionalScale()
     {
-        // 1920x1080 at scale 1 beside 1600x1200 at 1.5 (logical 1067x800), as sway lays them out.
+        // 1920x1080 at scale 1 beside 1600x1200 at 1.5: sway truncates 1066.67 to 1066.
         const QList<ScreenSlot> screens{
             {QStringLiteral("HEADLESS-1"), QRect(0, 0, 1920, 1080)},
-            {QStringLiteral("HEADLESS-2"), QRect(1920, 0, 1067, 800)},
+            {QStringLiteral("HEADLESS-2"), QRect(1920, 0, 1066, 800)},
         };
         const QList<OutputFrame> frames{
             {QStringLiteral("HEADLESS-1"), QPoint(0, 0), solid(1920, 1080, Qt::red)},
             {QStringLiteral("HEADLESS-2"), QPoint(1920, 0), solid(1600, 1200, Qt::blue)},
         };
-        const QRect virtualGeometry(0, 0, 2987, 1080);
+        const QRect virtualGeometry(0, 0, 2986, 1080);
 
         const QImage stitched = stitchFrames(frames, screens, virtualGeometry);
         QCOMPARE(stitched.devicePixelRatio(), 1.5);
-        QCOMPARE(stitched.size(), QSize(qRound(2987 * 1.5), 1620));
+        QCOMPARE(stitched.size(), QSize(4480, 1620));   // the dense output's last column survives
         QCOMPARE(stitched.pixelColor(2870, 1610), QColor(Qt::red));   // scale-1 output, scaled up
-        QCOMPARE(stitched.pixelColor(2885, 10), QColor(Qt::blue));
+        QCOMPARE(stitched.pixelColor(2880, 10), QColor(Qt::blue));
+        QCOMPARE(stitched.pixelColor(4479, 1199), QColor(Qt::blue));
         QCOMPARE(stitched.pixelColor(3500, 1300), QColor(Qt::black));
 
         // The selector's crop math lands on the right output.
