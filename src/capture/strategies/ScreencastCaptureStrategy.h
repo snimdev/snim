@@ -61,6 +61,7 @@ private:
     QElapsedTimer m_clock;
     bool m_busy = false;
     bool m_showSelector = false;
+    bool m_pickerExpected = false;
 };
 
 } // namespace Capture

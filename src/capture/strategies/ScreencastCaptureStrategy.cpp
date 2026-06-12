@@ -21,6 +21,10 @@ namespace {
 constexpr int kSessionTimeoutMs = 60000;
 constexpr int kFrameTimeoutMs = 3000;
 constexpr uint kFirstPersistingVersion = 4;
+// A silent restore answers in well under this; slower means the picker was on screen.
+constexpr qint64 kInteractiveHandshakeMs = 1000;
+// Lets the picker's close animation leave the screen before the frame is taken.
+constexpr unsigned long kPickerSettleMs = 600;
 
 using Session = Recording::ScreenCastPortalSession;
 
@@ -105,7 +109,8 @@ void ScreencastCaptureStrategy::begin(bool showSelector)
     m_showSelector = showSelector;
     m_clock.start();
 
-    if (!hasRestoreToken()) {
+    m_pickerExpected = !hasRestoreToken();
+    if (m_pickerExpected) {
         qInfo() << "ScreenCast capture: no screens remembered yet, the portal will ask once "
                    "which screens Snim may capture";
         emit sourcePickerExpected();
@@ -137,7 +142,10 @@ void ScreencastCaptureStrategy::handleReady(int pipewireFd)
         nodes.append(stream.nodeId);
 
     // pipewiresrc blocks until the first frame, so keep it off the GUI thread.
-    QThread *worker = QThread::create([result, nodes, pipewireFd] {
+    const unsigned long settleMs =
+        (m_pickerExpected || m_clock.elapsed() > kInteractiveHandshakeMs) ? kPickerSettleMs : 0;
+    QThread *worker = QThread::create([result, nodes, pipewireFd, settleMs] {
+        QThread::msleep(settleMs);
         result->ok = Recording::LinuxRecorderModule::grabFrames(pipewireFd, nodes, kFrameTimeoutMs,
                                                                 &result->frames, &result->error);
         ::close(pipewireFd);
