@@ -441,6 +441,7 @@ add_library(snim_lib STATIC
         src/capture/CaptureGeometry.h
         src/capture/ScreencastStitch.h
         src/capture/StrategySelection.h
+        src/capture/ScreencopyGeometry.h
         src/capture/OverlayAnnotations.cpp
         src/capture/OverlayAnnotations.h
         src/capture/strategies/CaptureStrategy.cpp

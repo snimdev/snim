@@ -24,6 +24,7 @@ set(SNIM_TESTS
         tst_capturefactory
         tst_capturegeometry
         tst_screencaststitch
+        tst_screencopygeometry
         tst_winscreenmap
         tst_winwindowfilter
         tst_mixeddpicapture
