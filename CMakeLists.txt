@@ -345,6 +345,28 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# Optional native Wayland screencopy (ext-image-copy-capture, wlr-screencopy): instant,
+# prompt-free captures on wlroots-family compositors. The protocol XMLs are vendored, so
+# only libwayland-client and wayland-scanner are needed.
+set(SCREENCOPY_AVAILABLE FALSE)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PkgConfig_FOUND)
+    pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client>=1.20)
+    pkg_get_variable(_wayland_scanner_pc wayland-scanner wayland_scanner)
+    find_program(WAYLAND_SCANNER_EXECUTABLE NAMES wayland-scanner HINTS "${_wayland_scanner_pc}")
+    if(WAYLAND_CLIENT_FOUND AND WAYLAND_SCANNER_EXECUTABLE)
+        set(SCREENCOPY_AVAILABLE TRUE)
+        message(STATUS "wayland-client found - enabling native Wayland screencopy")
+        message(STATUS "  Version: ${WAYLAND_CLIENT_VERSION}")
+        message(STATUS "  Scanner: ${WAYLAND_SCANNER_EXECUTABLE}")
+    endif()
+endif()
+
+if(NOT SCREENCOPY_AVAILABLE AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(STATUS "wayland-client or wayland-scanner not found - native Wayland screencopy disabled")
+    message(STATUS "  Install with: sudo apt install libwayland-dev / sudo dnf install wayland-devel")
+endif()
+
 # All cross-platform sources live in a static library so both the executable and
 # the test suite can link them. main.cpp + the .app bundle stay on the executable.
 add_library(snim_lib STATIC
@@ -725,6 +747,39 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             src/hotkeys/backends/PortalHotkeyBackend.cpp
             src/hotkeys/backends/PortalHotkeyBackend.h
     )
+endif()
+
+# Native Wayland screencopy: client code generated from the vendored protocols, kept in
+# its own library so the manual probe can link it without the rest of the app.
+if(SCREENCOPY_AVAILABLE)
+    set(_snim_protocol_dir "${CMAKE_CURRENT_SOURCE_DIR}/third_party/wayland-protocols")
+    set(_snim_protocol_out "${CMAKE_CURRENT_BINARY_DIR}/wayland-protocols")
+    file(MAKE_DIRECTORY "${_snim_protocol_out}")
+    set(_snim_protocol_sources)
+    # ext-image-capture-source references ext-foreign-toplevel-list, so its code links too.
+    foreach(_protocol ext-image-copy-capture-v1 ext-image-capture-source-v1
+                      ext-foreign-toplevel-list-v1 wlr-screencopy-unstable-v1)
+        set(_xml "${_snim_protocol_dir}/${_protocol}.xml")
+        set(_header "${_snim_protocol_out}/${_protocol}-client-protocol.h")
+        set(_code "${_snim_protocol_out}/${_protocol}-protocol.c")
+        add_custom_command(OUTPUT "${_header}"
+                COMMAND "${WAYLAND_SCANNER_EXECUTABLE}" client-header "${_xml}" "${_header}"
+                DEPENDS "${_xml}" VERBATIM)
+        add_custom_command(OUTPUT "${_code}"
+                COMMAND "${WAYLAND_SCANNER_EXECUTABLE}" private-code "${_xml}" "${_code}"
+                DEPENDS "${_xml}" VERBATIM)
+        list(APPEND _snim_protocol_sources "${_header}" "${_code}")
+    endforeach()
+
+    add_library(snim_screencopy STATIC
+            src/capture/ScreencopyClient.cpp
+            src/capture/ScreencopyClient.h
+            ${_snim_protocol_sources})
+    set_target_properties(snim_screencopy PROPERTIES AUTOMOC OFF)
+    target_include_directories(snim_screencopy
+            PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
+            PRIVATE "${_snim_protocol_out}")
+    target_link_libraries(snim_screencopy PUBLIC Qt::Gui PRIVATE PkgConfig::WAYLAND_CLIENT)
 endif()
 
 # Linux screen recording - compiled only where GStreamer exists, like the optional
