@@ -3,8 +3,11 @@
 
 #include <gst/gst.h>
 
+#include <QList>
 #include <QString>
+#include <QStringList>
 
+#include <functional>
 #include <memory>
 
 /**
@@ -56,6 +59,13 @@ struct EncoderTuning {
 
 // The chain for the best usable encoder installed here. Empty when there is none.
 [[nodiscard]] QString h264EncoderChain(const EncoderTuning &tuning);
+
+// What stops H.264 into MP4 here, for a user to install: the `required` elements `has`
+// lacks, grouped by the package that ships them, then the encoder or the parser it needs.
+// Empty when nothing is missing.
+[[nodiscard]] QStringList missingPieces(const QList<const char *> &required,
+                                        const std::function<bool(const char *)> &has,
+                                        const H264Plugins &h264);
 
 // How often a recording's MP4 closes a fragment: at most this much is lost to a crash.
 inline constexpr int kFragmentIntervalMs = 1000;

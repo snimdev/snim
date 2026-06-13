@@ -9,6 +9,9 @@
 #ifdef SNIM_HAVE_WIN_RECORDER
 #include "recording/strategies/windows/WindowsRecordingStrategy.h"
 #endif
+#ifdef SNIM_HAVE_LINUX_RECORDER
+#include "recording/strategies/LinuxRecorderModule.h"
+#endif
 
 #include <QAction>
 #include <QApplication>
@@ -142,6 +145,11 @@ namespace App {
     void TrayMenu::setRecordingUnavailable() {
 #if defined(Q_OS_MACOS)
         const QString reason = "Screen recording requires macOS 12.3 or later";
+#elif defined(SNIM_HAVE_LINUX_RECORDER)
+        const QStringList missing = Recording::LinuxRecorderModule::missingPieces();
+        const QString reason = missing.isEmpty()
+                               ? QString("Screen recording could not start its recorder")
+                               : "Screen recording needs " + missing.join("; ");
 #elif defined(Q_OS_LINUX)
         const QString reason = "Screen recording requires the ScreenCast portal and "
                                "GStreamer (with an H.264 encoder)";

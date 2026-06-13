@@ -42,8 +42,8 @@ std::unique_ptr<RecordingStrategy> RecordingFactory::createStrategy(StrategyType
                 qDebug() << "Created portal/GStreamer recording strategy";
                 return strategy;
             }
-            qWarning() << "Portal/GStreamer recorder unavailable (needs the ScreenCast portal, "
-                          "the distribution's GStreamer and an H.264 encoder), using stub";
+            qWarning().noquote() << "Portal/GStreamer recorder unavailable, using stub. Missing:"
+                                 << LinuxRecorderModule::missingPieces().join(QStringLiteral("; "));
 #endif
         }
         [[fallthrough]];

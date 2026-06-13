@@ -295,22 +295,25 @@ LinuxRecordingStrategy::~LinuxRecordingStrategy()
 
 bool LinuxRecordingStrategy::isAvailable() const
 {
-    if (m_available.has_value())
-        return *m_available;
-
-    using Media::Gst::hasFactory;
-    m_available = Media::Gst::ensureInitialized()
-                  && ScreenCastPortalSession::isPortalAvailable()
-                  && hasFactory("pipewiresrc")
-                  && hasFactory("videorate")
-                  && hasFactory("videocrop")
-                  && hasFactory("videoscale")
-                  && hasFactory("videoconvert")
-                  && hasFactory("capsfilter")
-                  && hasFactory("valve")
-                  && hasFactory("mp4mux")
-                  && Media::Gst::hasUsableH264Encoder();
+    if (!m_available.has_value())
+        m_available = missingPieces().isEmpty();
     return *m_available;
+}
+
+QStringList LinuxRecordingStrategy::missingPieces()
+{
+    if (!Media::Gst::ensureInitialized())
+        return {QStringLiteral("a working GStreamer (it failed to initialize)")};
+
+    QStringList pieces;
+    if (!ScreenCastPortalSession::isPortalAvailable()) {
+        pieces << QStringLiteral("the ScreenCast portal (xdg-desktop-portal and a backend "
+                                 "for this desktop)");
+    }
+    pieces << Media::Gst::missingPieces({"pipewiresrc", "videorate", "videocrop", "videoscale",
+                                         "videoconvert", "capsfilter", "valve", "mp4mux"},
+                                        Media::Gst::hasFactory, Media::Gst::probeH264Plugins());
+    return pieces;
 }
 
 void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &outputPath)
@@ -682,4 +685,9 @@ void LinuxRecordingStrategy::teardown()
 extern "C" Recording::RecordingStrategy *snimCreateLinuxRecorder(QObject *parent)
 {
     return new Recording::LinuxRecordingStrategy(parent);
+}
+
+extern "C" void snimLinuxRecorderMissingPieces(QStringList *pieces)
+{
+    *pieces = Recording::LinuxRecordingStrategy::missingPieces();
 }

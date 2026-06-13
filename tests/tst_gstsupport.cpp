@@ -124,6 +124,39 @@ private slots:
         QVERIFY(h264EncoderChain(H264Encoder::None, true, live).isEmpty());
     }
 
+    void missingPiecesNameThePackages()
+    {
+        const QList<const char *> required{"pipewiresrc", "mp4mux", "valve", "videocrop"};
+        const auto allBut = [](QList<QByteArray> absent) {
+            return [absent](const char *name) { return !absent.contains(QByteArray(name)); };
+        };
+
+        QVERIFY(missingPieces(required, allBut({}), plugins(true, false, false, true)).isEmpty());
+        // x264 needs no parser, so nothing is missing.
+        QVERIFY(missingPieces(required, allBut({}), plugins(true, false, false, false)).isEmpty());
+
+        QCOMPARE(missingPieces(required, allBut({"pipewiresrc", "mp4mux", "videocrop"}),
+                               plugins(false, false, false, false)),
+                 QStringList({
+                     QStringLiteral("pipewiresrc (gstreamer1.0-pipewire; "
+                                    "Fedora: pipewire-gstreamer)"),
+                     QStringLiteral("mp4mux, videocrop (gstreamer1.0-plugins-good; "
+                                    "Fedora: gstreamer1-plugins-good)"),
+                     QStringLiteral("an H.264 encoder (gstreamer1.0-plugins-ugly or "
+                                    "gstreamer1.0-plugins-bad; Fedora: "
+                                    "gstreamer1-plugin-openh264 and "
+                                    "gstreamer1-plugins-bad-free)"),
+                 }));
+
+        // OpenH264 without h264parse: the parser is all that is missing.
+        QCOMPARE(missingPieces(required, allBut({"valve"}), plugins(false, false, true, false)),
+                 QStringList({
+                     QStringLiteral("valve (libgstreamer1.0-0; Fedora: gstreamer1)"),
+                     QStringLiteral("h264parse (gstreamer1.0-plugins-bad; "
+                                    "Fedora: gstreamer1-plugins-bad-free)"),
+                 }));
+    }
+
     void encodesToMp4WithAndWithoutTheParser_data()
     {
         QTest::addColumn<int>("encoder");

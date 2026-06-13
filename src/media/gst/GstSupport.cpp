@@ -2,9 +2,38 @@
 
 #include "core/BundledPaths.h"
 
+#include <QByteArrayView>
 #include <QDebug>
 
 namespace Media::Gst {
+
+namespace {
+
+struct Package {
+    const char *debian;
+    const char *fedora;
+};
+
+Package packageOf(QByteArrayView element)
+{
+    if (element == "pipewiresrc")
+        return {"gstreamer1.0-pipewire", "pipewire-gstreamer"};
+    if (element == "h264parse")
+        return {"gstreamer1.0-plugins-bad", "gstreamer1-plugins-bad-free"};
+    for (const char *good : {"videocrop", "mp4mux", "qtmux", "qtdemux"}) {
+        if (element == good)
+            return {"gstreamer1.0-plugins-good", "gstreamer1-plugins-good"};
+    }
+    for (const char *base : {"videorate", "videoscale", "videoconvert", "audioconvert",
+                             "audioresample", "decodebin"}) {
+        if (element == base)
+            return {"gstreamer1.0-plugins-base", "gstreamer1-plugins-base"};
+    }
+    // capsfilter, valve, queue, filesrc and filesink live in GStreamer's core.
+    return {"libgstreamer1.0-0", "gstreamer1"};
+}
+
+} // namespace
 
 bool ensureInitialized()
 {
@@ -113,6 +142,47 @@ QString h264EncoderChain(const EncoderTuning &tuning)
 {
     const H264Plugins plugins = probeH264Plugins();
     return h264EncoderChain(chooseH264Encoder(plugins), plugins.parser, tuning);
+}
+
+QStringList missingPieces(const QList<const char *> &required,
+                          const std::function<bool(const char *)> &has, const H264Plugins &h264)
+{
+    QList<const char *> missing;
+    for (const char *element : required) {
+        if (!has(element))
+            missing << element;
+    }
+    const bool encoderMissing = chooseH264Encoder(h264) == H264Encoder::None;
+    // An encoder that only lacks the parser is one package away.
+    if (encoderMissing && (h264.va || h264.openh264))
+        missing << "h264parse";
+
+    QList<Package> packages;
+    QList<QStringList> elements;
+    for (const char *element : std::as_const(missing)) {
+        const Package package = packageOf(element);
+        qsizetype index = 0;
+        while (index < packages.size() && qstrcmp(packages[index].debian, package.debian) != 0)
+            ++index;
+        if (index == packages.size()) {
+            packages << package;
+            elements << QStringList();
+        }
+        elements[index] << QString::fromLatin1(element);
+    }
+
+    QStringList pieces;
+    for (qsizetype i = 0; i < packages.size(); ++i) {
+        pieces << QStringLiteral("%1 (%2; Fedora: %3)")
+                      .arg(elements[i].join(QStringLiteral(", ")),
+                           QLatin1String(packages[i].debian), QLatin1String(packages[i].fedora));
+    }
+    if (encoderMissing && !h264.va && !h264.openh264) {
+        pieces << QStringLiteral("an H.264 encoder (gstreamer1.0-plugins-ugly or "
+                                 "gstreamer1.0-plugins-bad; Fedora: gstreamer1-plugin-openh264 "
+                                 "and gstreamer1-plugins-bad-free)");
+    }
+    return pieces;
 }
 
 void configureRecordingOutput(GstElement *mux, GstElement *filesink)

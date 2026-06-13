@@ -7,6 +7,7 @@
 
 #include <QRect>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 #include <optional>
@@ -41,6 +42,8 @@ public:
     [[nodiscard]] bool isPaused() const override { return m_paused; }
     [[nodiscard]] bool isRecording() const override { return m_starting || m_recording; }
     [[nodiscard]] bool isAvailable() const override;
+    // What this host lacks to record, named with the packages to install. Empty when none.
+    [[nodiscard]] static QStringList missingPieces();
     [[nodiscard]] QString name() const override { return QStringLiteral("Portal/GStreamer"); }
 
     // Backend hooks: invoked by the GStreamer callbacks once they have marshalled onto

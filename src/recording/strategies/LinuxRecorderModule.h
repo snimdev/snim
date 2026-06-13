@@ -32,11 +32,16 @@ extern "C" Q_DECL_EXPORT bool snimGrabPipeWireFrames(int pipewireFd, const quint
                                                      int count, int timeoutMs, QImage *frames,
                                                      QString *error);
 
+// What the recorder lacks on this host, named with the packages to install. Empty when
+// it can record.
+extern "C" Q_DECL_EXPORT void snimLinuxRecorderMissingPieces(QStringList *pieces);
+
 namespace Recording::LinuxRecorderModule {
 
 inline constexpr char kEntryPoint[] = "snimCreateLinuxRecorder";
 inline constexpr char kBaseName[] = "snim-recorder-linux";
 inline constexpr char kGrabEntryPoint[] = "snimGrabPipeWireFrames";
+inline constexpr char kMissingEntryPoint[] = "snimLinuxRecorderMissingPieces";
 
 // Core::DynamicModule's search order; SNIM_RECORDER_MODULE replaces the whole list.
 [[nodiscard]] QStringList candidatePaths(const QString &binDir);
@@ -47,6 +52,10 @@ inline constexpr char kGrabEntryPoint[] = "snimGrabPipeWireFrames";
 
 // Whether the module loads AND its strategy finds the portal, the plugins and an encoder.
 [[nodiscard]] bool isAvailable();
+
+// What keeps recording from working here, for the tray and the log. A module that will
+// not load is itself the missing piece.
+[[nodiscard]] QStringList missingPieces();
 
 // Whether the module loads and exports the frame grabber.
 [[nodiscard]] bool canGrabFrames();

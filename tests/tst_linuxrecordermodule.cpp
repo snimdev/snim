@@ -49,6 +49,16 @@ private slots:
                  qPrintable(library.errorString()));
         QVERIFY2(library.resolve(LinuxRecorderModule::kGrabEntryPoint),
                  qPrintable(library.errorString()));
+        QVERIFY2(library.resolve(LinuxRecorderModule::kMissingEntryPoint),
+                 qPrintable(library.errorString()));
+    }
+
+    void namesTheModuleWhenItCannotBeLoaded()
+    {
+        qputenv("SNIM_RECORDER_MODULE", "/nonexistent/libsnim-recorder-linux.so");
+        const QStringList missing = LinuxRecorderModule::missingPieces();
+        QCOMPARE(missing.size(), 1);
+        QVERIFY(missing.first().contains(QStringLiteral("recorder module")));
     }
 
     void theFrameGrabberFailsCleanlyWithoutTheModule()
@@ -80,6 +90,15 @@ private slots:
         QVERIFY(RecordingFactory::createStrategy());
         // Built with Linux recording support, whether or not it can run here.
         QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Linux);
+    }
+
+    // Last: once the real module is loaded it stays loaded, whatever the variable says.
+    void missingPiecesAgreeWithAvailability()
+    {
+        qputenv("SNIM_RECORDER_MODULE", SNIM_RECORDER_MODULE_PATH);
+        const QStringList missing = LinuxRecorderModule::missingPieces();
+        qInfo() << "Missing here:" << missing;
+        QCOMPARE(missing.isEmpty(), LinuxRecorderModule::isAvailable());
     }
 };
 
