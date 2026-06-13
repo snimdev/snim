@@ -111,21 +111,26 @@ QString aacEncoderChain()
 
 QString h264EncoderChain(H264Encoder encoder, bool parser, const EncoderTuning &tuning)
 {
+    // 4:2:0 for the software encoders: from an RGB source x264 would pick 4:4:4, which
+    // browsers and most hardware decoders cannot play.
+    const QString i420 = QStringLiteral("capsfilter caps=video/x-raw,format=I420 ! ");
     QString chain;
     switch (encoder) {
     case H264Encoder::X264:
-        chain = tuning.mode == EncoderTuning::Live
-                    ? QStringLiteral("x264enc tune=zerolatency speed-preset=veryfast "
-                                     "pass=qual quantizer=22")
-                    : QStringLiteral("x264enc speed-preset=faster pass=qual quantizer=20");
+        chain = i420 + (tuning.mode == EncoderTuning::Live
+                            ? QStringLiteral("x264enc tune=zerolatency speed-preset=veryfast "
+                                             "pass=qual quantizer=22")
+                            : QStringLiteral("x264enc speed-preset=faster pass=qual "
+                                             "quantizer=20"));
         if (tuning.keyIntMax > 0)
             chain += QStringLiteral(" key-int-max=%1").arg(tuning.keyIntMax);
         break;
     case H264Encoder::Va:
+        // vah264enc only encodes 4:2:0 and vapostproc converts into what it takes.
         chain = QStringLiteral("vapostproc ! vah264enc");
         break;
     case H264Encoder::OpenH264:
-        chain = QStringLiteral("openh264enc complexity=0");
+        chain = i420 + QStringLiteral("openh264enc complexity=0");
         break;
     case H264Encoder::None:
         return {};

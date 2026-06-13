@@ -23,11 +23,13 @@ H264Plugins plugins(bool x264, bool va, bool openh264, bool parser)
     return p;
 }
 
-// Encodes kFrames test frames through `chain` into an MP4, then counts what qtdemux reads.
-int framesThrough(const QString &chain, const QString &path)
+// Encodes kFrames BGRx frames (what PipeWire hands over) through `chain` into an MP4,
+// then counts what qtdemux reads and the H.264 profile it reports.
+int framesThrough(const QString &chain, const QString &path, QByteArray *profile)
 {
     const QString encode = QStringLiteral(
-        "videotestsrc num-buffers=%1 ! video/x-raw,width=320,height=240,framerate=30/1 "
+        "videotestsrc num-buffers=%1 "
+        "! video/x-raw,format=BGRx,width=320,height=240,framerate=30/1 "
         "! videoconvert ! queue ! %2 ! queue ! mp4mux name=mux ! filesink name=sink")
         .arg(kFrames).arg(chain);
     GError *error = nullptr;
@@ -69,6 +71,17 @@ int framesThrough(const QString &chain, const QString &path)
                           ++*static_cast<int *>(data);
                           return GST_PAD_PROBE_OK;
                       }, &frames, nullptr);
+    gst_pad_add_probe(pad.get(), GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
+                      [](GstPad *, GstPadProbeInfo *info, gpointer data) {
+                          GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
+                          if (GST_EVENT_TYPE(event) == GST_EVENT_CAPS) {
+                              GstCaps *caps = nullptr;
+                              gst_event_parse_caps(event, &caps);
+                              *static_cast<QByteArray *>(data) = gst_structure_get_string(
+                                  gst_caps_get_structure(caps, 0), "profile");
+                          }
+                          return GST_PAD_PROBE_OK;
+                      }, profile, nullptr);
     return runToEos(reader.get()) ? frames : -1;
 }
 
@@ -112,15 +125,18 @@ private slots:
     {
         const EncoderTuning live{EncoderTuning::Live, 30};
         QCOMPARE(h264EncoderChain(H264Encoder::X264, true, live),
-                 QStringLiteral("x264enc tune=zerolatency speed-preset=veryfast pass=qual "
+                 QStringLiteral("capsfilter caps=video/x-raw,format=I420 ! x264enc "
+                                "tune=zerolatency speed-preset=veryfast pass=qual "
                                 "quantizer=22 key-int-max=30 ! h264parse"));
         QCOMPARE(h264EncoderChain(H264Encoder::X264, false, {EncoderTuning::Offline, 0}),
-                 QStringLiteral("x264enc speed-preset=faster pass=qual quantizer=20 "
+                 QStringLiteral("capsfilter caps=video/x-raw,format=I420 ! x264enc "
+                                "speed-preset=faster pass=qual quantizer=20 "
                                 "! capsfilter caps=video/x-h264,stream-format=avc,alignment=au"));
         QCOMPARE(h264EncoderChain(H264Encoder::Va, true, live),
                  QStringLiteral("vapostproc ! vah264enc ! h264parse"));
         QCOMPARE(h264EncoderChain(H264Encoder::OpenH264, true, live),
-                 QStringLiteral("openh264enc complexity=0 ! h264parse"));
+                 QStringLiteral("capsfilter caps=video/x-raw,format=I420 ! "
+                                "openh264enc complexity=0 ! h264parse"));
         QVERIFY(h264EncoderChain(H264Encoder::None, true, live).isEmpty());
     }
 
@@ -190,7 +206,13 @@ private slots:
                                                               &error));
         QVERIFY2(bin, qPrintable(errorText(error)));
         g_clear_error(&error);
-        QCOMPARE(framesThrough(chain, dir.filePath(QStringLiteral("out.mp4"))), kFrames);
+        QByteArray profile;
+        QCOMPARE(framesThrough(chain, dir.filePath(QStringLiteral("out.mp4")), &profile),
+                 kFrames);
+        // 4:2:0 profiles only; 4:4:4 does not play in browsers.
+        QVERIFY2(profile == "high" || profile == "main" || profile == "constrained-baseline"
+                     || profile == "baseline",
+                 profile.constData());
     }
 };
 
