@@ -782,6 +782,15 @@ if(SCREENCOPY_AVAILABLE)
     target_link_libraries(snim_screencopy PUBLIC Qt::Gui PRIVATE PkgConfig::WAYLAND_CLIENT)
 endif()
 
+if(SCREENCOPY_AVAILABLE)
+    target_sources(snim_lib PRIVATE
+            src/capture/strategies/ScreencopyCaptureStrategy.cpp
+            src/capture/strategies/ScreencopyCaptureStrategy.h)
+    target_link_libraries(snim_lib PUBLIC snim_screencopy)
+    # Activates the screencopy branch of CaptureFactory. PUBLIC because the tests check it.
+    target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_SCREENCOPY)
+endif()
+
 # Linux screen recording - compiled only where GStreamer exists, like the optional
 # upload transports. The backend is dlopened, never linked: GStreamer must be the
 # distribution's own (a pipewiresrc frozen at build time cannot track an evolving
