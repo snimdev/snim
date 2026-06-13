@@ -60,12 +60,13 @@ overrides:
       - gstreamer1.0-plugins-base
       # An H.264 encoder: x264 from ugly needs nothing else, OpenH264 and VA-API from bad.
       - gstreamer1.0-plugins-ugly | gstreamer1.0-plugins-bad
+      # Recording needs pipewiresrc, and mp4mux and videocrop from good.
+      - gstreamer1.0-plugins-good
+      - gstreamer1.0-pipewire
       - libgpg-error0
       - libcom-err2
     recommends:
-      - gstreamer1.0-plugins-good
       - gstreamer1.0-plugins-bad
-      - gstreamer1.0-pipewire
       - xdg-desktop-portal
   rpm:
     depends:
@@ -82,12 +83,12 @@ overrides:
       - gstreamer1-plugins-base
       # x264 is RPM Fusion only; OpenH264 is Fedora's and needs h264parse from bad-free.
       - ((gstreamer1-plugin-openh264 and gstreamer1-plugins-bad-free) or gstreamer1-plugins-ugly)
+      - gstreamer1-plugins-good
+      - pipewire-gstreamer
       - libgpg-error
       - libcom_err
     recommends:
-      - gstreamer1-plugins-good
       - gstreamer1-plugins-bad-free
-      - pipewire-gstreamer
       - xdg-desktop-portal
 
 rpm:
