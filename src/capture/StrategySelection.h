@@ -6,6 +6,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <optional>
 
 /**
@@ -32,6 +33,41 @@ inline bool prefersScreencast(const QString &currentDesktop, bool flatpak)
     if (desktopIs(currentDesktop, QStringLiteral("GNOME")))
         return true;
     return flatpak && !desktopIs(currentDesktop, QStringLiteral("KDE"));
+}
+
+// Native screencopy beats both portals wherever its globals show up, except on KWin and Mutter.
+inline bool prefersScreencopy(const QString &currentDesktop)
+{
+    return !desktopIs(currentDesktop, QStringLiteral("KDE"))
+           && !desktopIs(currentDesktop, QStringLiteral("GNOME"));
+}
+
+// What the session offers; each probe runs only when the choice reaches it, unset is false.
+struct Probes {
+    std::function<bool()> kwin;          // KWin ScreenShot2 is registered
+    std::function<bool()> screencopy;    // ext-image-copy-capture or wlr-screencopy advertised
+    std::function<bool()> screencast;    // a persisting ScreenCast portal and the frame grabber
+    std::function<bool()> portal;        // a Wayland session with the Screenshot portal or tools
+};
+
+inline bool probe(const std::function<bool()> &check)
+{
+    return check && check();
+}
+
+// The whole matrix; every pick still falls back to the Screenshot portal at runtime.
+inline CaptureFactory::StrategyType choose(const QString &currentDesktop, bool flatpak,
+                                           const Probes &probes)
+{
+    if (!flatpak && probe(probes.kwin))
+        return CaptureFactory::StrategyType::KWin;
+    if (prefersScreencopy(currentDesktop) && probe(probes.screencopy))
+        return CaptureFactory::StrategyType::Screencopy;
+    if (prefersScreencast(currentDesktop, flatpak) && probe(probes.screencast))
+        return CaptureFactory::StrategyType::Screencast;
+    if (probe(probes.portal))
+        return CaptureFactory::StrategyType::Wayland;
+    return CaptureFactory::StrategyType::Native;
 }
 
 // A SNIM_CAPTURE_STRATEGY value; nothing for an empty or unknown one.

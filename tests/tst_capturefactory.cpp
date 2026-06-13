@@ -87,6 +87,83 @@ private slots:
         QVERIFY(s->name() != QStringLiteral("ScreenCast Portal Capture"));
     }
 
+    void screencopyIsPreferredOffKdeAndGnome()
+    {
+        using StrategySelection::prefersScreencopy;
+        QVERIFY(prefersScreencopy(QStringLiteral("sway")));
+        QVERIFY(prefersScreencopy(QStringLiteral("Hyprland")));
+        QVERIFY(prefersScreencopy(QStringLiteral("niri")));
+        QVERIFY(prefersScreencopy(QStringLiteral("wayfire:wlroots")));
+        QVERIFY(prefersScreencopy(QStringLiteral("COSMIC")));
+        QVERIFY(prefersScreencopy(QString()));
+        QVERIFY(!prefersScreencopy(QStringLiteral("KDE")));
+        QVERIFY(!prefersScreencopy(QStringLiteral("ubuntu:GNOME")));
+    }
+
+    void selectionMatrix_data()
+    {
+        QTest::addColumn<QString>("desktop");
+        QTest::addColumn<bool>("flatpak");
+        QTest::addColumn<bool>("kwin");
+        QTest::addColumn<bool>("screencopy");
+        QTest::addColumn<bool>("screencast");
+        QTest::addColumn<bool>("portal");
+        QTest::addColumn<CaptureFactory::StrategyType>("expected");
+
+        using Type = CaptureFactory::StrategyType;
+        QTest::newRow("KDE native") << "KDE" << false << true << true << true << true << Type::KWin;
+        QTest::newRow("KDE Flatpak") << "KDE" << true << true << true << true << true << Type::Wayland;
+        QTest::newRow("GNOME native") << "GNOME" << false << false << true << true << true << Type::Screencast;
+        QTest::newRow("GNOME Flatpak") << "GNOME" << true << false << false << true << true << Type::Screencast;
+        QTest::newRow("GNOME no ScreenCast") << "GNOME" << false << false << false << false << true << Type::Wayland;
+        QTest::newRow("sway native") << "sway" << false << false << true << true << true << Type::Screencopy;
+        QTest::newRow("sway native, hidden globals") << "sway" << false << false << false << true << true << Type::Wayland;
+        QTest::newRow("sway Flatpak, globals shown") << "sway" << true << false << true << true << true << Type::Screencopy;
+        QTest::newRow("sway Flatpak") << "sway" << true << false << false << true << true << Type::Screencast;
+        QTest::newRow("sway Flatpak, old portal") << "sway" << true << false << false << false << true << Type::Wayland;
+        QTest::newRow("X11") << "XFCE" << false << false << false << false << false << Type::Native;
+    }
+
+    void selectionMatrix()
+    {
+        QFETCH(QString, desktop);
+        QFETCH(bool, flatpak);
+        QFETCH(bool, kwin);
+        QFETCH(bool, screencopy);
+        QFETCH(bool, screencast);
+        QFETCH(bool, portal);
+        QFETCH(CaptureFactory::StrategyType, expected);
+
+        StrategySelection::Probes probes;
+        probes.kwin = [kwin] { return kwin; };
+        probes.screencopy = [screencopy] { return screencopy; };
+        probes.screencast = [screencast] { return screencast; };
+        probes.portal = [portal] { return portal; };
+        QCOMPARE(StrategySelection::choose(desktop, flatpak, probes), expected);
+    }
+
+    void probesRunOnlyWhenReached()
+    {
+        // On KDE the Wayland globals are never even probed.
+        bool screencopyProbed = false;
+        StrategySelection::Probes probes;
+        probes.kwin = [] { return true; };
+        probes.screencopy = [&screencopyProbed] { return screencopyProbed = true; };
+        QCOMPARE(StrategySelection::choose(QStringLiteral("KDE"), true, probes),
+                 CaptureFactory::StrategyType::Native);
+        QVERIFY(!screencopyProbed);
+    }
+
+    void screencopyIsNeverPickedOffscreen()
+    {
+        // No Wayland connection here: the factory must fall back, never hand out a dead strategy.
+        QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Screencopy));
+        auto s = CaptureFactory::createStrategy(CaptureFactory::StrategyType::Screencopy);
+        QVERIFY(s);
+        QVERIFY(s->name() != QStringLiteral("Wayland Screencopy"));
+        QVERIFY(CaptureFactory::getDefaultStrategyType() != CaptureFactory::StrategyType::Screencopy);
+    }
+
     void quickActionsToggle()
     {
         auto s = CaptureFactory::createStrategy(CaptureFactory::StrategyType::Native);

@@ -66,31 +66,6 @@ private slots:
         QCOMPARE(pickProtocol(hasExt, hasWlr, forced), expected);
     }
 
-    void desktopGate_data()
-    {
-        QTest::addColumn<QString>("desktop");
-        QTest::addColumn<bool>("preferred");
-
-        QTest::newRow("sway") << "sway" << true;
-        QTest::newRow("hyprland") << "Hyprland" << true;
-        QTest::newRow("niri") << "niri" << true;
-        QTest::newRow("river") << "river" << true;
-        QTest::newRow("wayfire") << "wayfire:wlroots" << true;
-        QTest::newRow("cosmic") << "COSMIC" << true;
-        QTest::newRow("unset") << "" << true;
-        QTest::newRow("kde") << "KDE" << false;
-        QTest::newRow("gnome") << "GNOME" << false;
-        QTest::newRow("ubuntu gnome") << "ubuntu:GNOME" << false;
-        QTest::newRow("lowercase kde") << "kde" << false;
-    }
-
-    void desktopGate()
-    {
-        QFETCH(QString, desktop);
-        QFETCH(bool, preferred);
-        QCOMPARE(preferredOnDesktop(desktop), preferred);
-    }
-
     void fourccMatchesDrm()
     {
         QCOMPARE(ShmFormat::XBGR8888, 0x34324258u);

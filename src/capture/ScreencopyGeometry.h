@@ -7,7 +7,6 @@
 #include <QPoint>
 #include <QRect>
 #include <QString>
-#include <QStringList>
 #include <QTransform>
 #include <QtMath>
 #include <optional>
@@ -41,18 +40,6 @@ inline Protocol pickProtocol(bool hasExt, bool hasWlr, Protocol forced = Protoco
     if (hasWlr)
         return Protocol::WlrScreencopy;
     return Protocol::None;
-}
-
-// KWin and Mutter keep their own capture paths, whatever their globals say.
-inline bool preferredOnDesktop(const QString &xdgCurrentDesktop)
-{
-    const QStringList desktops = xdgCurrentDesktop.split(QLatin1Char(':'), Qt::SkipEmptyParts);
-    for (const QString &desktop : desktops) {
-        if (desktop.compare(QLatin1String("KDE"), Qt::CaseInsensitive) == 0
-            || desktop.compare(QLatin1String("GNOME"), Qt::CaseInsensitive) == 0)
-            return false;
-    }
-    return true;
 }
 
 constexpr quint32 fourcc(char a, char b, char c, char d)

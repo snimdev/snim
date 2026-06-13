@@ -9,6 +9,9 @@
 #if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
 #include "strategies/ScreencastCaptureStrategy.h"
 #endif
+#ifdef SNIM_HAVE_SCREENCOPY
+#include "strategies/ScreencopyCaptureStrategy.h"
+#endif
 #include <QtGlobal>
 #include <QDebug>
 #include <memory>
@@ -64,6 +67,18 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
             return createStrategy(StrategyType::Wayland, parent);
         }
 
+        case StrategyType::Screencopy: {
+#ifdef SNIM_HAVE_SCREENCOPY
+            auto strategy = std::make_unique<ScreencopyCaptureStrategy>(parent);
+            if (strategy->isAvailable()) {
+                qDebug() << "Created Wayland screencopy capture strategy";
+                return strategy;
+            }
+            qWarning() << "Screencopy strategy requested but not available, falling back to Wayland";
+#endif
+            return createStrategy(StrategyType::Wayland, parent);
+        }
+
         default:
             qWarning() << "Unknown strategy type, using native as fallback";
             return std::make_unique<NativeCaptureStrategy>(parent);
@@ -76,31 +91,22 @@ CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()
     if (const auto forced = StrategySelection::parseOverride(qEnvironmentVariable("SNIM_CAPTURE_STRATEGY")))
         return *forced;
 
+    StrategySelection::Probes probes;
 #ifdef Q_OS_LINUX
-    // Prefer KWin on KDE Plasma; it never authorizes a sandboxed app, so a Flatpak uses the portal.
-    if (!Core::Sandbox::isFlatpak() && KWinCaptureStrategy::isKWinAvailable()) {
-        return StrategyType::KWin;
-    }
-
-#ifdef SNIM_HAVE_LINUX_RECORDER
-    if (StrategySelection::prefersScreencast(qEnvironmentVariable("XDG_CURRENT_DESKTOP"),
-                                             Core::Sandbox::isFlatpak())
-        && ScreencastCaptureStrategy::isSupported()) {
-        return StrategyType::Screencast;
-    }
+    probes.kwin = [] { return KWinCaptureStrategy::isKWinAvailable(); };
+    probes.portal = [] {
+        return WaylandCaptureStrategy::isWaylandSession() && WaylandCaptureStrategy().isAvailable();
+    };
 #endif
-
-    // Fall back to Wayland portal if we're in a Wayland session
-    if (WaylandCaptureStrategy::isWaylandSession()) {
-        auto waylandStrategy = std::make_unique<WaylandCaptureStrategy>();
-        if (waylandStrategy->isAvailable()) {
-            return StrategyType::Wayland;
-        }
-    }
+#ifdef SNIM_HAVE_SCREENCOPY
+    probes.screencopy = [] { return ScreencopyCaptureStrategy::isScreencopyAvailable(); };
 #endif
-
-    // Fall back to native Qt capture (the only strategy on non-Linux platforms)
-    return StrategyType::Native;
+#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
+    probes.screencast = [] { return ScreencastCaptureStrategy::isSupported(); };
+#endif
+    // Without probes (macOS, Windows) this is always the native Qt capture.
+    return StrategySelection::choose(qEnvironmentVariable("XDG_CURRENT_DESKTOP"),
+                                     Core::Sandbox::isFlatpak(), probes);
 }
 
 bool CaptureFactory::isStrategyAvailable(StrategyType type)
@@ -124,6 +130,13 @@ bool CaptureFactory::isStrategyAvailable(StrategyType type)
         case StrategyType::Screencast: {
 #if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
             return ScreencastCaptureStrategy::isSupported();
+#else
+            return false;
+#endif
+        }
+        case StrategyType::Screencopy: {
+#ifdef SNIM_HAVE_SCREENCOPY
+            return ScreencopyCaptureStrategy::isScreencopyAvailable();
 #else
             return false;
 #endif
