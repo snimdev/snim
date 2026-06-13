@@ -65,6 +65,9 @@ private slots:
         QCOMPARE(parseOverride(QStringLiteral(" KWin ")), std::optional(Type::KWin));
         QCOMPARE(parseOverride(QStringLiteral("portal")), std::optional(Type::Wayland));
         QCOMPARE(parseOverride(QStringLiteral("native")), std::optional(Type::Native));
+        QCOMPARE(parseOverride(QStringLiteral(" Screencopy ")), std::optional(Type::Screencopy));
+        QCOMPARE(parseOverride(QStringLiteral("wlroots")), std::optional(Type::Screencopy));
+        QCOMPARE(parseOverride(QStringLiteral("wayland")), std::optional(Type::Wayland));
         QVERIFY(!parseOverride(QString()));
         QVERIFY(!parseOverride(QStringLiteral("bogus")));
     }
@@ -162,6 +165,15 @@ private slots:
         QVERIFY(s);
         QVERIFY(s->name() != QStringLiteral("Wayland Screencopy"));
         QVERIFY(CaptureFactory::getDefaultStrategyType() != CaptureFactory::StrategyType::Screencopy);
+    }
+
+    void theOverrideForcesScreencopy()
+    {
+        qputenv("SNIM_CAPTURE_STRATEGY", "wlroots");
+        QCOMPARE(CaptureFactory::getDefaultStrategyType(), CaptureFactory::StrategyType::Screencopy);
+        // Forced but unavailable still yields a working strategy.
+        QVERIFY(CaptureFactory::createStrategy());
+        qunsetenv("SNIM_CAPTURE_STRATEGY");
     }
 
     void quickActionsToggle()

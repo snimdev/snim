@@ -78,6 +78,8 @@ inline std::optional<CaptureFactory::StrategyType> parseOverride(const QString &
         return CaptureFactory::StrategyType::KWin;
     if (name == QLatin1String("screencast"))
         return CaptureFactory::StrategyType::Screencast;
+    if (name == QLatin1String("screencopy") || name == QLatin1String("wlroots"))
+        return CaptureFactory::StrategyType::Screencopy;
     if (name == QLatin1String("wayland") || name == QLatin1String("portal"))
         return CaptureFactory::StrategyType::Wayland;
     if (name == QLatin1String("native"))

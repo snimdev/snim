@@ -87,7 +87,7 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
 
 CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()
 {
-    // SNIM_CAPTURE_STRATEGY=kwin|screencast|wayland|native forces a strategy, for testing.
+    // SNIM_CAPTURE_STRATEGY=kwin|screencast|screencopy|wayland|native forces one, for testing.
     if (const auto forced = StrategySelection::parseOverride(qEnvironmentVariable("SNIM_CAPTURE_STRATEGY")))
         return *forced;
 
