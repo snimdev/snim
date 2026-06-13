@@ -308,9 +308,8 @@ bool LinuxRecordingStrategy::isAvailable() const
                   && hasFactory("videoconvert")
                   && hasFactory("capsfilter")
                   && hasFactory("valve")
-                  && hasFactory("h264parse")
                   && hasFactory("mp4mux")
-                  && Media::Gst::hasAnyH264Encoder();
+                  && Media::Gst::hasUsableH264Encoder();
     return *m_available;
 }
 
@@ -474,7 +473,7 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
                        "! videorate drop-only=true max-rate=%1 skip-to-first=true "
                        "! videocrop name=crop ! videoscale ! videoconvert "
                        "! capsfilter name=outcaps caps=video/x-raw,pixel-aspect-ratio=1/1 "
-                       "! queue ! %2 ! h264parse ! queue ! %3 name=mux ! filesink name=sink")
+                       "! queue ! %2 ! queue ! %3 name=mux ! filesink name=sink")
             .arg(QString::number(m_target.fps), encoder, mux);
 
     if (m_target.captureMic || m_target.captureSystemAudio) {

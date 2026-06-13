@@ -70,7 +70,7 @@ set(SNIM_TESTS
 # The dlopened Linux modules only exist where they are built.
 if(GSTREAMER_AVAILABLE)
     list(APPEND SNIM_TESTS tst_linuxrecordermodule tst_gstvideoexporter tst_recordingrecovery
-            tst_screencasttoken)
+            tst_screencasttoken tst_gstsupport)
 endif()
 
 # Round-trips the real Credential Manager, so it only exists on Windows.
@@ -135,6 +135,14 @@ if(GSTREAMER_AVAILABLE)
     target_link_libraries(tst_recordingrecovery PRIVATE ${GSTREAMER_LIBRARIES})
     set_tests_properties(tst_recordingrecovery PROPERTIES ENVIRONMENT
             "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
+
+    # The encoder and parser choice, plus real encodes through each chain.
+    target_sources(tst_gstsupport PRIVATE ${CMAKE_SOURCE_DIR}/src/media/gst/GstSupport.cpp)
+    target_include_directories(tst_gstsupport PRIVATE ${GSTREAMER_INCLUDE_DIRS})
+    if(GSTREAMER_LIBRARY_DIRS)
+        target_link_directories(tst_gstsupport PRIVATE ${GSTREAMER_LIBRARY_DIRS})
+    endif()
+    target_link_libraries(tst_gstsupport PRIVATE ${GSTREAMER_LIBRARIES})
 
     # The exporter contract runs against the same module.
     add_dependencies(tst_videoexportercontract snim_video_linux)

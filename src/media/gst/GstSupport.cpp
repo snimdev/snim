@@ -31,9 +31,30 @@ bool hasFactory(const char *name)
     return true;
 }
 
-bool hasAnyH264Encoder()
+H264Plugins probeH264Plugins()
 {
-    return hasFactory("x264enc") || hasFactory("vah264enc") || hasFactory("openh264enc");
+    H264Plugins plugins;
+    plugins.x264 = hasFactory("x264enc");
+    plugins.va = hasFactory("vapostproc") && hasFactory("vah264enc");
+    plugins.openh264 = hasFactory("openh264enc");
+    plugins.parser = hasFactory("h264parse");
+    return plugins;
+}
+
+H264Encoder chooseH264Encoder(const H264Plugins &plugins)
+{
+    if (plugins.x264)
+        return H264Encoder::X264;
+    if (plugins.va && plugins.parser)
+        return H264Encoder::Va;
+    if (plugins.openh264 && plugins.parser)
+        return H264Encoder::OpenH264;
+    return H264Encoder::None;
+}
+
+bool hasUsableH264Encoder()
+{
+    return chooseH264Encoder(probeH264Plugins()) != H264Encoder::None;
 }
 
 bool hasH264Decoder()
@@ -59,22 +80,39 @@ QString aacEncoderChain()
     return {};
 }
 
-QString h264EncoderChain(const EncoderTuning &tuning)
+QString h264EncoderChain(H264Encoder encoder, bool parser, const EncoderTuning &tuning)
 {
-    if (hasFactory("x264enc")) {
-        QString chain = tuning.mode == EncoderTuning::Live
-                            ? QStringLiteral("x264enc tune=zerolatency speed-preset=veryfast "
-                                             "pass=qual quantizer=22")
-                            : QStringLiteral("x264enc speed-preset=faster pass=qual quantizer=20");
+    QString chain;
+    switch (encoder) {
+    case H264Encoder::X264:
+        chain = tuning.mode == EncoderTuning::Live
+                    ? QStringLiteral("x264enc tune=zerolatency speed-preset=veryfast "
+                                     "pass=qual quantizer=22")
+                    : QStringLiteral("x264enc speed-preset=faster pass=qual quantizer=20");
         if (tuning.keyIntMax > 0)
             chain += QStringLiteral(" key-int-max=%1").arg(tuning.keyIntMax);
-        return chain;
+        break;
+    case H264Encoder::Va:
+        chain = QStringLiteral("vapostproc ! vah264enc");
+        break;
+    case H264Encoder::OpenH264:
+        chain = QStringLiteral("openh264enc complexity=0");
+        break;
+    case H264Encoder::None:
+        return {};
     }
-    if (hasFactory("vapostproc") && hasFactory("vah264enc"))
-        return QStringLiteral("vapostproc ! vah264enc");
-    if (hasFactory("openh264enc"))
-        return QStringLiteral("openh264enc complexity=0");
-    return {};
+    // Kept whenever installed: it also mends timestamps and headers for the muxer.
+    if (parser)
+        return chain + QStringLiteral(" ! h264parse");
+    // An element, not bare caps: a bin description cannot end in a caps link.
+    return chain
+           + QStringLiteral(" ! capsfilter caps=video/x-h264,stream-format=avc,alignment=au");
+}
+
+QString h264EncoderChain(const EncoderTuning &tuning)
+{
+    const H264Plugins plugins = probeH264Plugins();
+    return h264EncoderChain(chooseH264Encoder(plugins), plugins.parser, tuning);
 }
 
 void configureRecordingOutput(GstElement *mux, GstElement *filesink)

@@ -254,7 +254,7 @@ void onPadAdded(GstElement *decodebin, GstPad *pad, gpointer data)
         GstElement *convert = makeElement("videoconvert");
         progressAt = convert;
         built = addChain(session->pipeline, {head, convert, makeBin(session->videoEncoder),
-                                             makeElement("h264parse"), tail});
+                                             tail});
     } else {
         built = addChain(session->pipeline, {head, makeElement("audioconvert"),
                                              makeElement("audioresample"),
@@ -416,11 +416,10 @@ bool GstVideoExporter::isAvailable() const
                   && hasFactory("videoconvert")
                   && hasFactory("audioconvert")
                   && hasFactory("audioresample")
-                  && hasFactory("h264parse")
                   && hasFactory("mp4mux")
                   && hasFactory("qtmux")
                   && hasFactory("filesink")
-                  && Media::Gst::hasAnyH264Encoder()
+                  && Media::Gst::hasUsableH264Encoder()
                   && Media::Gst::hasH264Decoder();
     return *m_available;
 }

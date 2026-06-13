@@ -18,7 +18,24 @@ namespace Media::Gst {
 
 [[nodiscard]] bool hasFactory(const char *name);
 
-[[nodiscard]] bool hasAnyH264Encoder();
+// Which H.264 pieces are installed. va means both vapostproc and vah264enc.
+struct H264Plugins {
+    bool x264 = false;
+    bool va = false;
+    bool openh264 = false;
+    bool parser = false;   // h264parse
+};
+
+enum class H264Encoder { None, X264, Va, OpenH264 };
+
+[[nodiscard]] H264Plugins probeH264Plugins();
+
+// Software x264 first (predictable and always present when installed), then the VA-API
+// encoder, then OpenH264 as the last resort. VA and OpenH264 emit only byte-stream, which
+// mp4mux rejects, so they need h264parse; x264 can hand mp4mux avc on its own.
+[[nodiscard]] H264Encoder chooseH264Encoder(const H264Plugins &plugins);
+
+[[nodiscard]] bool hasUsableH264Encoder();
 
 // Whether decodebin can autoplug something that decodes H.264.
 [[nodiscard]] bool hasH264Decoder();
@@ -32,8 +49,12 @@ struct EncoderTuning {
     int keyIntMax = 0;   // 0 keeps the encoder's default
 };
 
-// Software x264 first (predictable and always present when installed), then the VA-API
-// encoder, then OpenH264 as the last resort. Empty when none is installed.
+// The encoder plus h264parse, or a caps filter asking for avc where there is no parser: a
+// chain that links straight into mp4mux or qtmux. Empty for None.
+[[nodiscard]] QString h264EncoderChain(H264Encoder encoder, bool parser,
+                                       const EncoderTuning &tuning);
+
+// The chain for the best usable encoder installed here. Empty when there is none.
 [[nodiscard]] QString h264EncoderChain(const EncoderTuning &tuning);
 
 // How often a recording's MP4 closes a fragment: at most this much is lost to a crash.
