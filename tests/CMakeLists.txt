@@ -208,3 +208,9 @@ if(GSTREAMER_AVAILABLE)
             SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
     set_target_properties(snim_screencast_probe PROPERTIES ENABLE_EXPORTS ON)
 endif()
+
+# Manual probe for a live wlroots-family compositor; built, never registered with ctest.
+if(SCREENCOPY_AVAILABLE)
+    add_executable(snim_screencopy_probe manual/screencopy_probe.cpp)
+    target_link_libraries(snim_screencopy_probe PRIVATE snim_screencopy)
+endif()
