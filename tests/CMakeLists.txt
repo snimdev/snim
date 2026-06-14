@@ -207,7 +207,7 @@ add_custom_target(check
         COMMENT "Running all Snim tests")
 add_dependencies(check ${SNIM_TESTS} tst_imageeditor_smoke tst_videoeditor_smoke)
 
-# Manual ScreenCast capture check against the real portal; built, never run by ctest.
+# Manual ScreenCast capture and recording checks against the real portal; never run by ctest.
 if(GSTREAMER_AVAILABLE)
     add_executable(snim_screencast_probe manual/screencast_probe.cpp)
     target_link_libraries(snim_screencast_probe PRIVATE snim_lib)
@@ -215,6 +215,13 @@ if(GSTREAMER_AVAILABLE)
     target_compile_definitions(snim_screencast_probe PRIVATE
             SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
     set_target_properties(snim_screencast_probe PROPERTIES ENABLE_EXPORTS ON)
+
+    add_executable(snim_recording_probe manual/recording_probe.cpp)
+    target_link_libraries(snim_recording_probe PRIVATE snim_lib)
+    add_dependencies(snim_recording_probe snim_recorder_linux)
+    target_compile_definitions(snim_recording_probe PRIVATE
+            SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
+    set_target_properties(snim_recording_probe PROPERTIES ENABLE_EXPORTS ON)
 endif()
 
 # Manual probe for a live wlroots-family compositor; built, never registered with ctest.
