@@ -270,13 +270,7 @@ LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent) : RecordingStrat
     m_durationTimer = new QTimer(this);
     m_durationTimer->setInterval(kDurationIntervalMs);
     connect(m_durationTimer, &QTimer::timeout, this, [this] {
-        gint64 position = 0;
-        if (m_pipeline && gst_element_query_position(m_pipeline, GST_FORMAT_TIME, &position)
-            && position >= 0) {
-            // The pipeline never stops, so the position includes every paused span.
-            const gint64 elapsed = qMax<gint64>(0, position - gint64(m_pausedTotal));
-            emit durationChanged(elapsed / GST_MSECOND);
-        }
+        emit durationChanged(m_elapsed.elapsed(PauseAwareClock::nowUs()) / 1000);
     });
 
     m_eosTimer = new QTimer(this);
@@ -380,6 +374,7 @@ void LinuxRecordingStrategy::pause()
     // ScreenCast stream and the way back to PLAYING never returns.
     m_pauseStartRt = gst_element_get_current_running_time(m_pipeline);
     setValvesDropping(true);
+    m_elapsed.pause(PauseAwareClock::nowUs());
 
     m_durationTimer->stop();
     m_paused = true;
@@ -402,6 +397,7 @@ void LinuxRecordingStrategy::resume()
     for (GstPad *pad : std::as_const(m_valvePads))
         gst_pad_set_offset(pad, -gint64(m_pausedTotal));
     setValvesDropping(false);
+    m_elapsed.resume(PauseAwareClock::nowUs());
 
     m_durationTimer->start();
     m_paused = false;
@@ -609,6 +605,7 @@ void LinuxRecordingStrategy::reportStarted(quint64 generation)
 
     m_starting = false;
     m_recording = true;
+    m_elapsed.start(PauseAwareClock::nowUs());
     m_durationTimer->start();
     emit started();
 }
@@ -656,6 +653,7 @@ void LinuxRecordingStrategy::teardown()
     m_valves.clear();
     m_pauseStartRt = 0;
     m_pausedTotal = 0;
+    m_elapsed.reset();
 
     if (m_pipeline) {
         // Blocks until the streaming threads are joined, so no probe or bus callback can

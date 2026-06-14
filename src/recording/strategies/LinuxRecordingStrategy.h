@@ -1,6 +1,7 @@
 #ifndef RECORDING_LINUXRECORDINGSTRATEGY_H
 #define RECORDING_LINUXRECORDINGSTRATEGY_H
 
+#include "recording/PauseAwareClock.h"
 #include "recording/RecordingGeometry.h"
 #include "recording/RecordingStrategy.h"
 #include "recording/RecordTarget.h"
@@ -80,6 +81,7 @@ private:
     QVector<GstPad *> m_valvePads;    // owned refs, the valve src pads carrying the offset
     quint64 m_pauseStartRt = 0;       // GstClockTime, kept gst-free for this header
     quint64 m_pausedTotal = 0;
+    PauseAwareClock m_elapsed;        // the timer's clock: buffer timestamps vary by portal
 
     bool m_starting = false;
     bool m_recording = false;
