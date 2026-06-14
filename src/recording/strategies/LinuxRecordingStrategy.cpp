@@ -2,6 +2,7 @@
 
 #include "media/gst/GstSupport.h"
 #include "recording/RecordingGeometry.h"
+#include "recording/StreamTimestamp.h"
 #include "recording/strategies/LinuxRecorderModule.h"
 #include "recording/strategies/ScreenCastPortalSession.h"
 
@@ -196,6 +197,43 @@ GstPadProbeReturn onCapsEvent(GstPad *pad, GstPadProbeInfo *info, gpointer data)
     gst_caps_unref(outCaps);
 
     return GST_PAD_PROBE_REMOVE;
+}
+
+struct RestampContext {
+    GstElement *src = nullptr;   // not owned: the probe dies with the element
+    quint64 previous = StreamTimestamp::kNone;
+};
+
+void freeRestampContext(gpointer data)
+{
+    delete static_cast<RestampContext *>(data);
+}
+
+GstPadProbeReturn onStreamBuffer(GstPad *pad, GstPadProbeInfo *info, gpointer data)
+{
+    Q_UNUSED(pad)
+
+    auto *ctx = static_cast<RestampContext *>(data);
+    GstBuffer *buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+    quint64 pts = StreamTimestamp::kNone;
+    GstClockTime now = 0;
+    GstClockTime base = 0;
+    // No clock yet means a preroll frame, which lands at running time 0.
+    if (GstClock *clock = gst_element_get_clock(ctx->src)) {
+        now = gst_clock_get_time(clock);
+        base = gst_element_get_base_time(ctx->src);
+        gst_object_unref(clock);
+        if (GST_BUFFER_PTS_IS_VALID(buffer))
+            pts = GST_BUFFER_PTS(buffer);
+    }
+    const quint64 running = StreamTimestamp::runningTime(pts, now, base, ctx->previous);
+    ctx->previous = running;
+
+    buffer = gst_buffer_make_writable(buffer);
+    GST_BUFFER_PTS(buffer) = running;
+    GST_BUFFER_DTS(buffer) = GST_CLOCK_TIME_NONE;
+    GST_PAD_PROBE_INFO_DATA(info) = buffer;
+    return GST_PAD_PROBE_OK;
 }
 
 GstPadProbeReturn onFirstBuffer(GstPad *pad, GstPadProbeInfo *info, gpointer data)
@@ -467,7 +505,7 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
                         ? QStringLiteral("qtmux") : QStringLiteral("mp4mux");
 
     QString description =
-        QStringLiteral("pipewiresrc name=src keepalive-time=1000 resend-last=true "
+        QStringLiteral("pipewiresrc name=src keepalive-time=1000 resend-last=true provide-clock=false "
                        "! valve name=videovalve drop=false "
                        "! videorate drop-only=true max-rate=%1 skip-to-first=true "
                        "! videocrop name=crop ! videoscale ! videoconvert "
@@ -548,7 +586,16 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         gst_object_unref(micsrc);
     }
 
+    // Not live, so basesrc never syncs on the producer's timestamps: one frame stamped 0
+    // by xdg-desktop-portal-wlr would park the source until the far future.
+    GstStructure *streamProps = gst_structure_new("props", "stream.is-live", G_TYPE_STRING,
+                                                  "false", nullptr);
+    g_object_set(src, "stream-properties", streamProps, nullptr);
+    gst_structure_free(streamProps);
+
     if (GstPad *srcPad = gst_element_get_static_pad(src, "src")) {
+        gst_pad_add_probe(srcPad, GST_PAD_PROBE_TYPE_BUFFER, onStreamBuffer,
+                          new RestampContext{src}, freeRestampContext);
         auto *cropCtx = new CropContext;
         cropCtx->strategy = this;
         cropCtx->generation = m_generation;

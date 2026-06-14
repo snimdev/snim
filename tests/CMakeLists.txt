@@ -39,6 +39,7 @@ set(SNIM_TESTS
         tst_recordingoptionsbar
         tst_pcmmixbuffer
         tst_pauseawareclock
+        tst_streamtimestamp
         tst_trimstate
         tst_timecode
         tst_animationparams
