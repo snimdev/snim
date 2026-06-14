@@ -17,6 +17,8 @@
 
 #include <unistd.h>
 
+#include <functional>
+#include <mutex>
 #include <utility>
 
 namespace Recording {
@@ -63,15 +65,38 @@ void collectStreamSources(QVector<StreamSource> *screens, StreamSource *virtualD
     virtualDesktop->sizePx = pixelSize(unionRect, desktopDpr);
 }
 
-// The strategy plus the pipeline it belongs to; callbacks run on GStreamer threads.
-struct CallbackContext {
+} // namespace
+
+// Cut by teardown(), so a pipeline still shutting down never reaches a dead strategy.
+struct StrategyLink {
+    std::mutex mutex;
     LinuxRecordingStrategy *strategy = nullptr;
     quint64 generation = 0;
 };
 
+namespace {
+
+// Queues function(strategy, generation) onto the strategy's thread, unless the link is cut.
+template <typename Function>
+void post(const std::shared_ptr<StrategyLink> &link, Function function)
+{
+    const std::lock_guard<std::mutex> lock(link->mutex);
+    LinuxRecordingStrategy *strategy = link->strategy;
+    if (!strategy)
+        return;
+    const quint64 generation = link->generation;
+    QMetaObject::invokeMethod(strategy, [strategy, generation, function] {
+        function(strategy, generation);
+    }, Qt::QueuedConnection);
+}
+
+// Callbacks run on GStreamer threads.
+struct CallbackContext {
+    std::shared_ptr<StrategyLink> link;
+};
+
 struct CropContext {
-    LinuxRecordingStrategy *strategy = nullptr;
-    quint64 generation = 0;
+    std::shared_ptr<StrategyLink> link;
     QRect regionVirtual;
     QRect streamRect;                // null when the portal sent no geometry
     QVector<StreamSource> screens;
@@ -170,14 +195,12 @@ GstPadProbeReturn onCapsEvent(GstPad *pad, GstPadProbeInfo *info, gpointer data)
     const StreamCrop crop = portalStreamCrop(ctx->regionVirtual, streamRect, capsPx,
                                              ctx->retina);
     if (!crop.valid) {
-        LinuxRecordingStrategy *strategy = ctx->strategy;
-        const quint64 generation = ctx->generation;
-        QMetaObject::invokeMethod(strategy, [strategy, generation] {
+        post(ctx->link, [](LinuxRecordingStrategy *strategy, quint64 generation) {
             strategy->reportError(generation,
                                   LinuxRecordingStrategy::tr(
                                       "The selected area is not on the shared screen. "
                                       "Pick the screen containing your selection."));
-        }, Qt::QueuedConnection);
+        });
         return GST_PAD_PROBE_REMOVE;
     }
 
@@ -241,12 +264,10 @@ GstPadProbeReturn onFirstBuffer(GstPad *pad, GstPadProbeInfo *info, gpointer dat
     Q_UNUSED(pad)
     Q_UNUSED(info)
 
-    auto *ctx = static_cast<CallbackContext *>(data);
-    LinuxRecordingStrategy *strategy = ctx->strategy;
-    const quint64 generation = ctx->generation;
-    QMetaObject::invokeMethod(strategy, [strategy, generation] {
-        strategy->reportStarted(generation);
-    }, Qt::QueuedConnection);
+    post(static_cast<CallbackContext *>(data)->link,
+         [](LinuxRecordingStrategy *strategy, quint64 generation) {
+             strategy->reportStarted(generation);
+         });
 
     return GST_PAD_PROBE_REMOVE;
 }
@@ -257,9 +278,7 @@ GstBusSyncReply onBusMessage(GstBus *bus, GstMessage *message, gpointer data)
 {
     Q_UNUSED(bus)
 
-    auto *ctx = static_cast<CallbackContext *>(data);
-    LinuxRecordingStrategy *strategy = ctx->strategy;
-    const quint64 generation = ctx->generation;
+    const std::shared_ptr<StrategyLink> &link = static_cast<CallbackContext *>(data)->link;
 
     switch (GST_MESSAGE_TYPE(message)) {
         case GST_MESSAGE_ERROR: {
@@ -284,21 +303,29 @@ GstBusSyncReply onBusMessage(GstBus *bus, GstMessage *message, gpointer data)
             g_free(debug);
             gst_message_unref(message);
 
-            QMetaObject::invokeMethod(strategy, [strategy, generation, text] {
+            post(link, [text](LinuxRecordingStrategy *strategy, quint64 generation) {
                 strategy->reportError(generation, text);
-            }, Qt::QueuedConnection);
+            });
             return GST_BUS_DROP;
         }
         case GST_MESSAGE_EOS: {
             gst_message_unref(message);
-            QMetaObject::invokeMethod(strategy, [strategy, generation] {
+            post(link, [](LinuxRecordingStrategy *strategy, quint64 generation) {
                 strategy->reportEos(generation);
-            }, Qt::QueuedConnection);
+            });
             return GST_BUS_DROP;
         }
         default:
             return GST_BUS_PASS;
     }
+}
+
+void runTask(gpointer data, gpointer userData)
+{
+    Q_UNUSED(userData)
+    auto *task = static_cast<std::function<void()> *>(data);
+    (*task)();
+    delete task;
 }
 
 } // namespace
@@ -399,7 +426,12 @@ void LinuxRecordingStrategy::stop()
 
     m_stopping = true;
     m_durationTimer->stop();
-    gst_element_send_event(m_pipeline, gst_event_new_eos());
+    // Sending EOS waits for the source's streaming thread, which a stalled pipeline holds.
+    GstElement *pipeline = GST_ELEMENT(gst_object_ref(m_pipeline));
+    runOnPipelineThread([pipeline] {
+        gst_element_send_event(pipeline, gst_event_new_eos());
+        gst_object_unref(pipeline);
+    });
     m_eosTimer->start();
 }
 
@@ -442,6 +474,13 @@ void LinuxRecordingStrategy::resume()
     emit pausedChanged(false);
 }
 
+void LinuxRecordingStrategy::runOnPipelineThread(std::function<void()> task)
+{
+    if (!m_runner)
+        m_runner = g_thread_pool_new(runTask, nullptr, 1, FALSE, nullptr);
+    g_thread_pool_push(m_runner, new std::function<void()>(std::move(task)), nullptr);
+}
+
 void LinuxRecordingStrategy::setValvesDropping(bool drop)
 {
     for (GstElement *valve : std::as_const(m_valves))
@@ -471,10 +510,18 @@ void LinuxRecordingStrategy::handleSessionReady(quint32 nodeId, const QRect &str
         return;
     }
 
-    if (gst_element_set_state(m_pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-        teardown();
-        emit failed(tr("The recording pipeline could not be started."));
-    }
+    // pipewiresrc waits for the stream on the way to PLAYING, for up to 30 s.
+    GstElement *pipeline = GST_ELEMENT(gst_object_ref(m_pipeline));
+    const std::shared_ptr<StrategyLink> link = m_link;
+    runOnPipelineThread([pipeline, link] {
+        if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+            post(link, [](LinuxRecordingStrategy *strategy, quint64 generation) {
+                strategy->reportError(generation,
+                                      tr("The recording pipeline could not be started."));
+            });
+        }
+        gst_object_unref(pipeline);
+    });
 }
 
 void LinuxRecordingStrategy::handleSessionFailed(const QString &error)
@@ -554,6 +601,9 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
     g_clear_error(&parseError);
 
     ++m_generation;
+    m_link = std::make_shared<StrategyLink>();
+    m_link->strategy = this;
+    m_link->generation = m_generation;
 
     GstElement *src = gst_bin_get_by_name(GST_BIN(m_pipeline), "src");
     GstElement *crop = gst_bin_get_by_name(GST_BIN(m_pipeline), "crop");
@@ -597,8 +647,7 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         gst_pad_add_probe(srcPad, GST_PAD_PROBE_TYPE_BUFFER, onStreamBuffer,
                           new RestampContext{src}, freeRestampContext);
         auto *cropCtx = new CropContext;
-        cropCtx->strategy = this;
-        cropCtx->generation = m_generation;
+        cropCtx->link = m_link;
         cropCtx->regionVirtual = m_target.regionVirtual;
         cropCtx->streamRect = m_streamRect;
         cropCtx->screens = m_screens;
@@ -630,14 +679,14 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
 
     // The first video buffer reaching the muxer is the moment capture is really live.
     if (GstPad *muxPad = videoSinkPad(muxer)) {
-        auto *bufferCtx = new CallbackContext{this, m_generation};
+        auto *bufferCtx = new CallbackContext{m_link};
         gst_pad_add_probe(muxPad, GST_PAD_PROBE_TYPE_BUFFER, onFirstBuffer, bufferCtx,
                           freeCallbackContext);
         gst_object_unref(muxPad);
     }
 
     GstBus *bus = gst_element_get_bus(m_pipeline);
-    auto *busCtx = new CallbackContext{this, m_generation};
+    auto *busCtx = new CallbackContext{m_link};
     gst_bus_set_sync_handler(bus, onBusMessage, busCtx, freeCallbackContext);
     gst_object_unref(bus);
 
@@ -702,18 +751,26 @@ void LinuxRecordingStrategy::teardown()
     m_pausedTotal = 0;
     m_elapsed.reset();
 
-    if (m_pipeline) {
-        // Blocks until the streaming threads are joined, so no probe or bus callback can
-        // still be running once this returns.
-        gst_element_set_state(m_pipeline, GST_STATE_NULL);
-        gst_object_unref(m_pipeline);
-        m_pipeline = nullptr;
+    if (m_link) {
+        const std::lock_guard<std::mutex> lock(m_link->mutex);
+        m_link->strategy = nullptr;
     }
+    m_link.reset();
 
-    if (m_pipewireFd >= 0) {
-        ::close(m_pipewireFd);
-        m_pipewireFd = -1;
+    // Shutting down can block on a stuck stream; pipewiresrc uses the fd until it is done.
+    const int fd = std::exchange(m_pipewireFd, -1);
+    if (GstElement *pipeline = std::exchange(m_pipeline, nullptr)) {
+        runOnPipelineThread([pipeline, fd] {
+            gst_element_set_state(pipeline, GST_STATE_NULL);
+            gst_object_unref(pipeline);
+            if (fd >= 0)
+                ::close(fd);
+        });
+    } else if (fd >= 0) {
+        ::close(fd);
     }
+    if (GThreadPool *runner = std::exchange(m_runner, nullptr))
+        g_thread_pool_free(runner, FALSE, FALSE);
 
     if (m_session)
         m_session->close();

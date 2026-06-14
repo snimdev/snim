@@ -11,16 +11,20 @@
 #include <QStringList>
 #include <QVector>
 
+#include <functional>
+#include <memory>
 #include <optional>
 
 typedef struct _GstElement GstElement;
 typedef struct _GstPad GstPad;
+typedef struct _GThreadPool GThreadPool;
 
 class QTimer;
 
 namespace Recording {
 
 class ScreenCastPortalSession;
+struct StrategyLink;
 
 /**
  * Linux recording backend: an xdg-desktop-portal ScreenCast stream fed into a
@@ -61,11 +65,15 @@ private:
 
     bool buildPipeline(quint32 nodeId, QString *error);
     void setValvesDropping(bool drop);
+    // Runs blocking GStreamer calls off the GUI thread, in submission order.
+    void runOnPipelineThread(std::function<void()> task);
     void teardown();
     void fail(const QString &error);
 
     ScreenCastPortalSession *m_session = nullptr;
     GstElement *m_pipeline = nullptr;
+    GThreadPool *m_runner = nullptr;
+    std::shared_ptr<StrategyLink> m_link;   // the current pipeline's way back to this object
     QTimer *m_durationTimer = nullptr;
     QTimer *m_eosTimer = nullptr;
 
