@@ -27,6 +27,8 @@ namespace {
 
 constexpr int kDurationIntervalMs = 250;
 constexpr int kEosTimeoutMs = 5000;
+// Past pipewiresrc's own 30 s wait for the stream.
+constexpr int kFirstFrameTimeoutMs = 35000;
 
 QSize pixelSize(const QRect &logical, qreal dpr)
 {
@@ -338,6 +340,16 @@ LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent) : RecordingStrat
         emit durationChanged(m_elapsed.elapsed(PauseAwareClock::nowUs()) / 1000);
     });
 
+    m_firstFrameTimer = new QTimer(this);
+    m_firstFrameTimer->setSingleShot(true);
+    m_firstFrameTimer->setInterval(kFirstFrameTimeoutMs);
+    connect(m_firstFrameTimer, &QTimer::timeout, this, [this] {
+        qWarning() << "No frame arrived from the screen share within" << kFirstFrameTimeoutMs
+                   << "ms";
+        fail(tr("The screen share sent no picture. Check that the desktop portal "
+                "(xdg-desktop-portal and its backend for this desktop) is working."));
+    });
+
     m_eosTimer = new QTimer(this);
     m_eosTimer->setSingleShot(true);
     m_eosTimer->setInterval(kEosTimeoutMs);
@@ -513,6 +525,7 @@ void LinuxRecordingStrategy::handleSessionReady(quint32 nodeId, const QRect &str
     // pipewiresrc waits for the stream on the way to PLAYING, for up to 30 s.
     GstElement *pipeline = GST_ELEMENT(gst_object_ref(m_pipeline));
     const std::shared_ptr<StrategyLink> link = m_link;
+    m_firstFrameTimer->start();
     runOnPipelineThread([pipeline, link] {
         if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
             post(link, [](LinuxRecordingStrategy *strategy, quint64 generation) {
@@ -699,6 +712,7 @@ void LinuxRecordingStrategy::reportStarted(quint64 generation)
     if (generation != m_generation || m_recording || m_stopping || m_paused)
         return;
 
+    m_firstFrameTimer->stop();
     m_starting = false;
     m_recording = true;
     m_elapsed.start(PauseAwareClock::nowUs());
@@ -739,6 +753,7 @@ void LinuxRecordingStrategy::teardown()
     ++m_generation;
 
     m_durationTimer->stop();
+    m_firstFrameTimer->stop();
     m_eosTimer->stop();
 
     for (GstPad *pad : std::as_const(m_valvePads))

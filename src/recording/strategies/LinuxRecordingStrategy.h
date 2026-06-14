@@ -75,6 +75,7 @@ private:
     GThreadPool *m_runner = nullptr;
     std::shared_ptr<StrategyLink> m_link;   // the current pipeline's way back to this object
     QTimer *m_durationTimer = nullptr;
+    QTimer *m_firstFrameTimer = nullptr;
     QTimer *m_eosTimer = nullptr;
 
     RecordTarget m_target;
