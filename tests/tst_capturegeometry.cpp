@@ -1,6 +1,7 @@
 #include <QtTest>
 
 #include "capture/CaptureGeometry.h"
+#include "capture/sources/DesktopFrameSource.h"
 
 using namespace Capture;
 
@@ -145,6 +146,23 @@ private slots:
         QPixmap untagged(2560, 1440);
         QVERIFY(!screenGrabFor({ { QRect(0, 0, 1707, 960), untagged } }, QRect(0, 0, 10, 10)));
         QVERIFY(!screenGrabFor({ { QRect(0, 0, 800, 600), QPixmap() } }, QRect(0, 0, 10, 10)));
+    }
+
+    void aFrameCoversItsGeometryAtItsDpr()
+    {
+        QVERIFY(frameCoversGeometry(QSize(3840, 2160), 2.0, QRect(0, 0, 1920, 1080)));
+        QVERIFY(frameCoversGeometry(QSize(4200, 900), 1.5, QRect(-1200, 0, 2800, 600)));
+        // A fractional scale rounds the physical size up by a pixel.
+        QVERIFY(frameCoversGeometry(QSize(2881, 1801), 1.5, QRect(0, 0, 1920, 1200)));
+    }
+
+    void aPartialFrameDoesNotCoverTheDesktop()
+    {
+        // One monitor of two, or a dragged region, from an interactive portal pick.
+        QVERIFY(!frameCoversGeometry(QSize(1920, 1080), 1.0, QRect(0, 0, 3840, 1080)));
+        QVERIFY(!frameCoversGeometry(QSize(800, 600), 1.0, QRect(0, 0, 1920, 1080)));
+        QVERIFY(!frameCoversGeometry(QSize(), 1.0, QRect(0, 0, 1920, 1080)));
+        QVERIFY(!frameCoversGeometry(QSize(1920, 1080), 1.0, QRect()));
     }
 };
 

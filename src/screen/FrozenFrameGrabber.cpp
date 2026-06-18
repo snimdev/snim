@@ -1,10 +1,8 @@
 #include "screen/FrozenFrameGrabber.h"
+#include "capture/sources/QtScreensFrameSource.h"
 
 #include <QGuiApplication>
-#include <QList>
-#include <QPainter>
 #include <QScreen>
-#include <algorithm>
 
 #ifdef Q_OS_LINUX
 #include <QFile>
@@ -22,35 +20,6 @@ namespace Screen {
 FrozenFrameGrabber::FrozenFrameGrabber(QObject *parent)
     : QObject(parent)
 {
-}
-
-QPixmap FrozenFrameGrabber::grabAllScreens(QRect &virtualGeometryOut)
-{
-    const QList<QScreen*> screens = QGuiApplication::screens();
-    if (screens.isEmpty())
-        return {};
-
-    QRect virtualDesktop;
-    for (QScreen *s : screens)
-        virtualDesktop = virtualDesktop.united(s->geometry());
-    virtualGeometryOut = virtualDesktop;
-
-    qreal dpr = 1.0;
-    for (QScreen *s : screens)
-        dpr = std::max(dpr, s->devicePixelRatio());
-
-    QPixmap full(virtualDesktop.size() * dpr);
-    full.setDevicePixelRatio(dpr);
-    full.fill(Qt::black);
-    QPainter painter(&full);
-    for (QScreen *s : screens) {
-        const QRect geo = s->geometry();
-        const QPixmap shot = s->grabWindow(0);
-        const QRect destLogical(geo.topLeft() - virtualDesktop.topLeft(), geo.size());
-        painter.drawPixmap(destLogical, shot, shot.rect());
-    }
-    painter.end();
-    return full;
 }
 
 void FrozenFrameGrabber::grab(Done done)
@@ -74,7 +43,7 @@ void FrozenFrameGrabber::grab(Done done)
 
     // Synchronous on every non-Wayland platform (macOS, X11, offscreen).
     QRect virtualGeometry;
-    QPixmap frozen = grabAllScreens(virtualGeometry);
+    QPixmap frozen = Capture::QtScreensFrameSource::grabNow(&virtualGeometry);
     done(frozen, virtualGeometry);
 }
 

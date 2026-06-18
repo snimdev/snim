@@ -37,7 +37,6 @@ private slots:
 #endif
 
 private:
-    static QPixmap grabAllScreens(QRect &virtualGeometryOut);
 #ifdef Q_OS_LINUX
     bool requestPortalFrame();
     void disconnectPortalResponse();

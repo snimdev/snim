@@ -466,6 +466,9 @@ add_library(snim_lib STATIC
         src/capture/ScreencopyGeometry.h
         src/capture/OverlayAnnotations.cpp
         src/capture/OverlayAnnotations.h
+        src/capture/sources/DesktopFrameSource.h
+        src/capture/sources/QtScreensFrameSource.cpp
+        src/capture/sources/QtScreensFrameSource.h
         src/capture/strategies/CaptureStrategy.cpp
         src/capture/strategies/CaptureStrategy.h
         src/capture/strategies/NativeCaptureStrategy.cpp
