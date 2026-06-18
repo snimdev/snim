@@ -72,6 +72,7 @@ private:
     void start();
     void openPipeWireRemote();
     void fail(const QString &error);
+    void failResponse(const char *step, uint response);
     void reset();
 
     bool connectResponse(const QString &path, const char *slot);

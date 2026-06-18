@@ -183,8 +183,7 @@ void ScreenCastPortalSession::handleCreateSessionResponse(uint response,
     m_createRequestPath.clear();
 
     if (response != 0) {
-        fail(response == 1 ? tr("Screen sharing was cancelled.")
-                           : tr("The desktop refused a screen sharing session."));
+        failResponse("CreateSession", response);
         return;
     }
 
@@ -263,8 +262,7 @@ void ScreenCastPortalSession::handleSelectSourcesResponse(uint response,
     m_selectRequestPath.clear();
 
     if (response != 0) {
-        fail(response == 1 ? tr("Screen sharing was cancelled.")
-                           : tr("The desktop refused the requested screen source."));
+        failResponse("SelectSources", response);
         return;
     }
 
@@ -310,8 +308,7 @@ void ScreenCastPortalSession::handleStartResponse(uint response, const QVariantM
     m_startRequestPath.clear();
 
     if (response != 0) {
-        fail(response == 1 ? tr("Screen sharing was cancelled.")
-                           : tr("The desktop refused to start screen sharing."));
+        failResponse("Start", response);
         return;
     }
 
@@ -421,6 +418,15 @@ void ScreenCastPortalSession::fail(const QString &error)
 {
     close();
     emit failed(error);
+}
+
+void ScreenCastPortalSession::failResponse(const char *step, uint response)
+{
+    qWarning() << "ScreenCast" << step << "answered" << response;
+    // 1 is the user's cancel; 2 is everything else, a broken backend included.
+    fail(response == 1 ? tr("Screen sharing was cancelled.")
+                       : tr("Screen sharing failed. Check that the desktop portal "
+                            "(xdg-desktop-portal and its backend for this desktop) is working."));
 }
 
 void ScreenCastPortalSession::reset()
