@@ -415,6 +415,7 @@ void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &ou
 
     // Window capture goes through regionVirtual too: there are no window ids to hand the
     // portal on Linux yet.
+    qInfo() << "Recording: asking the ScreenCast portal for" << target.regionVirtual;
     m_session->open(target.captureCursor);
 }
 
@@ -438,6 +439,7 @@ void LinuxRecordingStrategy::stop()
 
     m_stopping = true;
     m_durationTimer->stop();
+    qInfo() << "Recording: stopping, finalizing" << m_outputPath;
     // Sending EOS waits for the source's streaming thread, which a stalled pipeline holds.
     GstElement *pipeline = GST_ELEMENT(gst_object_ref(m_pipeline));
     runOnPipelineThread([pipeline] {
@@ -509,6 +511,7 @@ void LinuxRecordingStrategy::handleSessionReady(quint32 nodeId, const QRect &str
 
     m_pipewireFd = pipewireFd;
     m_streamRect = streamRectLogical;
+    qInfo() << "Recording: portal stream" << nodeId << "geometry" << streamRectLogical;
 
     // Portals that send no geometry leave the caps probe to infer it from these.
     m_screens.clear();
@@ -602,6 +605,7 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         }
     }
 
+    qDebug().noquote() << "Recording pipeline:" << description;
     GError *parseError = nullptr;
     m_pipeline = gst_parse_launch(description.toUtf8().constData(), &parseError);
     if (!m_pipeline) {
@@ -716,6 +720,7 @@ void LinuxRecordingStrategy::reportStarted(quint64 generation)
     m_starting = false;
     m_recording = true;
     m_elapsed.start(PauseAwareClock::nowUs());
+    qInfo() << "Recording: first frame in, recording to" << m_outputPath;
     m_durationTimer->start();
     emit started();
 }
@@ -726,6 +731,7 @@ void LinuxRecordingStrategy::reportEos(quint64 generation)
         return;
 
     const QString path = m_outputPath;
+    qInfo() << "Recording: finalized" << path;
     teardown();
     emit finished(path);
 }
@@ -739,6 +745,7 @@ void LinuxRecordingStrategy::reportError(quint64 generation, const QString &erro
 
 void LinuxRecordingStrategy::fail(const QString &error)
 {
+    qWarning() << "Recording failed:" << error;
     const QString path = m_outputPath;
     teardown();
     // A fragmented file keeps what was recorded before the failure.
