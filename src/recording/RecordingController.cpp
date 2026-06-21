@@ -228,7 +228,9 @@ void RecordingController::presentSelection(bool windowPick)
     m_frameGrabber.grab([this, windowPick](const QPixmap &frozen, const QRect &virtualGeometry) {
         if (frozen.isNull()) {
             m_state = State::Idle;
-            emit recordingFailed(tr("Could not capture the screen for selection."));
+            const QString why = m_frameGrabber.lastError();
+            emit recordingFailed(why.isEmpty() ? tr("Could not capture the screen for selection.")
+                                               : why);
             return;
         }
 
