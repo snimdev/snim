@@ -811,6 +811,8 @@ if(GSTREAMER_AVAILABLE)
             # Screenshots from a ScreenCast session; the module grabs the frames.
             src/capture/strategies/ScreencastCaptureStrategy.cpp
             src/capture/strategies/ScreencastCaptureStrategy.h
+            src/capture/sources/ScreencastFrameSource.cpp
+            src/capture/sources/ScreencastFrameSource.h
             src/recording/strategies/ScreenCastPortalSession.cpp
             src/recording/strategies/ScreenCastPortalSession.h)
     # Activates the Linux branch of RecordingFactory + makes Auto pick the portal
