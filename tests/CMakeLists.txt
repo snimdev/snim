@@ -226,6 +226,18 @@ if(GSTREAMER_AVAILABLE)
     set_target_properties(snim_recording_probe PROPERTIES ENABLE_EXPORTS ON)
 endif()
 
+# Manual frozen frame check for the recording selector on a live Linux desktop.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(snim_frozenframe_probe manual/frozenframe_probe.cpp)
+    target_link_libraries(snim_frozenframe_probe PRIVATE snim_lib)
+    set_target_properties(snim_frozenframe_probe PROPERTIES ENABLE_EXPORTS ON)
+    if(GSTREAMER_AVAILABLE)
+        add_dependencies(snim_frozenframe_probe snim_recorder_linux)
+        target_compile_definitions(snim_frozenframe_probe PRIVATE
+                SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
+    endif()
+endif()
+
 # Manual probe for a live wlroots-family compositor; built, never registered with ctest.
 if(SCREENCOPY_AVAILABLE)
     add_executable(snim_screencopy_probe manual/screencopy_probe.cpp)
