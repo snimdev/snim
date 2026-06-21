@@ -1,12 +1,17 @@
 #ifndef SCREEN_FROZENFRAMEGRABBER_H
 #define SCREEN_FROZENFRAMEGRABBER_H
 
+#include <QElapsedTimer>
+#include <QList>
 #include <QObject>
 #include <QPixmap>
 #include <QRect>
 #include <QString>
-#include <QVariantMap>
 #include <functional>
+
+namespace Capture {
+class DesktopFrameSource;
+} // namespace Capture
 
 namespace Screen {
 
@@ -16,9 +21,10 @@ namespace Screen {
  *
  * Everywhere but Wayland the frame comes from QScreen::grabWindow and the callback
  * runs synchronously, inside grab(). On Wayland grabWindow only ever returns black,
- * so the frame comes from a one-shot org.freedesktop.portal.Screenshot request and
- * the callback runs later, from the portal Response. A failed or cancelled grab
- * calls back with a null pixmap and an empty geometry.
+ * so the frame comes from the same frame sources the screenshot strategy would pick
+ * (KWin, ScreenCast, screencopy), then the Screenshot portal, tried in order until
+ * one delivers; the callback may then run later. A failed or cancelled grab calls
+ * back with a null pixmap and an empty geometry, and lastError() says why.
  */
 class FrozenFrameGrabber : public QObject
 {
@@ -28,23 +34,34 @@ public:
     using Done = std::function<void(QPixmap frozen, QRect virtualGeometry)>;
 
     explicit FrozenFrameGrabber(QObject *parent = nullptr);
+    ~FrozenFrameGrabber() override;
 
     void grab(Done done);
 
-#ifdef Q_OS_LINUX
-private slots:
-    void handlePortalResponse(uint status, QVariantMap results);
-#endif
+    // Why the last grab failed, worded for the user; empty after a success.
+    [[nodiscard]] QString lastError() const { return m_lastError; }
+
+    // The failure text for a desktop named like XDG_CURRENT_DESKTOP.
+    [[nodiscard]] static QString failureMessage(const QString &currentDesktop,
+                                                const QString &reason, bool cancelled);
 
 private:
+    void finish(const QPixmap &frozen, const QRect &virtualGeometry);
+    void fail(const QString &reason, bool cancelled);
 #ifdef Q_OS_LINUX
-    bool requestPortalFrame();
-    void disconnectPortalResponse();
+    void tryNextSource();
+    void sourceReady(const QPixmap &frame, const QRect &virtualGeometry);
+    void sourceFailed(const QString &reason, bool cancelled);
+    void dropSource();
 
-    QString m_requestPath;   // portal Request object we are subscribed to
+    QList<int> m_chain;   // CaptureFactory::StrategyType values still to try
+    Capture::DesktopFrameSource *m_source = nullptr;
+    QString m_lastReason;
+    QElapsedTimer m_clock;
 #endif
 
-    Done m_done;             // non-null only while a portal request is in flight
+    Done m_done;             // non-null only while an asynchronous grab is in flight
+    QString m_lastError;
 };
 
 } // namespace Screen
