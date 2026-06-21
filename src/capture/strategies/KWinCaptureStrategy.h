@@ -15,6 +15,8 @@ class AreaSelector;
 
 namespace Capture {
 
+class KWinFrameSource;
+
 /**
  * KDE Plasma capture strategy using KWin's org.kde.KWin.ScreenShot2 D-Bus interface.
  *
@@ -70,25 +72,19 @@ private:
     /// consult, meaning the caller must fall back itself.
     bool requestAuthorization(AuthorizationResume resume);
 
-    /// Read raw image data from pipe FD using metadata from D-Bus reply
-    static QImage readImageFromPipe(int fd, const QVariantMap &metadata);
-
-    /// Composite per-screen images into a single workspace image
-    static QImage compositeScreenImages(const QList<QImage> &images);
-
     /// Show AreaSelector overlay on captured screenshot
     void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry);
 
-    /// Build the options map for KWin calls
-    static QVariantMap buildOptions(bool includeCursor = true, bool nativeResolution = true);
-
-    /// Capture all screens by calling CaptureScreen per screen
+    /// Every screen through the KWin frame source
     void captureWorkspace(bool showSelector);
+    void workspaceFailed(const QString &reason, bool cancelled);
 
     /// Fallback to CaptureInteractive when permission is denied
     void fallbackToInteractive(bool showSelector, int kind = 1);
 
-    quint32 m_apiVersion = 0;
+    KWinFrameSource *m_workspace;
+    bool m_workspaceBusy = false;
+    bool m_workspaceSelector = false;
     AuthorizationGate m_authGate;
     bool m_gateConsumed = false;   // the gate is asked once per run, never per capture
 };
