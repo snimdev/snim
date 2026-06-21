@@ -1,8 +1,11 @@
 #include "CaptureFactory.h"
 #include "StrategySelection.h"
 #include "core/Sandbox.h"
+#include "sources/QtScreensFrameSource.h"
 #include "strategies/NativeCaptureStrategy.h"
 #ifdef Q_OS_LINUX
+#include "sources/KWinFrameSource.h"
+#include "sources/PortalFrameSource.h"
 #include "strategies/KWinCaptureStrategy.h"
 #include "strategies/WaylandCaptureStrategy.h"
 #endif
@@ -10,6 +13,7 @@
 #include "strategies/ScreencastCaptureStrategy.h"
 #endif
 #ifdef SNIM_HAVE_SCREENCOPY
+#include "sources/ScreencopyFrameSource.h"
 #include "strategies/ScreencopyCaptureStrategy.h"
 #endif
 #include <QtGlobal>
@@ -83,6 +87,44 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
             qWarning() << "Unknown strategy type, using native as fallback";
             return std::make_unique<NativeCaptureStrategy>(parent);
     }
+}
+
+std::unique_ptr<DesktopFrameSource> CaptureFactory::createFrameSource(StrategyType type, QObject *parent)
+{
+    switch (type) {
+    case StrategyType::Auto:
+        return createFrameSource(getDefaultStrategyType(), parent);
+    case StrategyType::KWin:
+#ifdef Q_OS_LINUX
+        if (KWinCaptureStrategy::isKWinAvailable()) {
+            auto source = std::make_unique<KWinFrameSource>(parent);
+            if (source->apiVersion() > 0)
+                return source;
+        }
+#endif
+        return nullptr;
+    case StrategyType::Screencast:
+#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
+        if (ScreencastFrameSource::isSupported())
+            return std::make_unique<ScreencastFrameSource>(parent);
+#endif
+        return nullptr;
+    case StrategyType::Screencopy:
+#ifdef SNIM_HAVE_SCREENCOPY
+        if (ScreencopyCaptureStrategy::isScreencopyAvailable())
+            return std::make_unique<ScreencopyFrameSource>(parent);
+#endif
+        return nullptr;
+    case StrategyType::Wayland:
+#ifdef Q_OS_LINUX
+        return std::make_unique<PortalFrameSource>(parent);
+#else
+        return nullptr;
+#endif
+    case StrategyType::Native:
+        return std::make_unique<QtScreensFrameSource>(parent);
+    }
+    return nullptr;
 }
 
 CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()

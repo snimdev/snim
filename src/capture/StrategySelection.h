@@ -3,6 +3,7 @@
 
 #include "CaptureFactory.h"
 
+#include <QList>
 #include <QString>
 #include <QStringList>
 
@@ -68,6 +69,25 @@ inline CaptureFactory::StrategyType choose(const QString &currentDesktop, bool f
     if (probe(probes.portal))
         return CaptureFactory::StrategyType::Wayland;
     return CaptureFactory::StrategyType::Native;
+}
+
+// Where a full-desktop frame comes from, in order: the screenshot pick's own source, then
+// the Screenshot portal, which asks with its dialog when a silent request is refused.
+inline QList<CaptureFactory::StrategyType> frameSourceChain(CaptureFactory::StrategyType chosen)
+{
+    using Type = CaptureFactory::StrategyType;
+    switch (chosen) {
+    case Type::KWin:
+    case Type::Screencast:
+    case Type::Screencopy:
+        return {chosen, Type::Wayland};
+    case Type::Native:
+        return {Type::Native};
+    case Type::Wayland:
+    case Type::Auto:
+        break;
+    }
+    return {Type::Wayland};
 }
 
 // A SNIM_CAPTURE_STRATEGY value; nothing for an empty or unknown one.

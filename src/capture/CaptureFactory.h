@@ -6,6 +6,8 @@
 
 namespace Capture {
 
+class DesktopFrameSource;
+
 /**
  * Creates the appropriate capture strategy for the current system
  */
@@ -28,6 +30,13 @@ public:
         StrategyType type = StrategyType::Auto,
         QObject *parent = nullptr
     );
+
+    /**
+     * The full-desktop frame source behind a strategy type, without any UI of Snim's
+     * own; null when it is not built in or not offered by this session
+     */
+    static std::unique_ptr<DesktopFrameSource> createFrameSource(StrategyType type,
+                                                                 QObject *parent = nullptr);
 
     /**
      * Get the default strategy type for the current system

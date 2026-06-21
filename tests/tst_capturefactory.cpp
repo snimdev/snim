@@ -3,6 +3,7 @@
 
 #include "capture/CaptureFactory.h"
 #include "capture/StrategySelection.h"
+#include "capture/sources/DesktopFrameSource.h"
 #include "capture/strategies/CaptureStrategy.h"
 
 using namespace Capture;
@@ -174,6 +175,44 @@ private slots:
         // Forced but unavailable still yields a working strategy.
         QVERIFY(CaptureFactory::createStrategy());
         qunsetenv("SNIM_CAPTURE_STRATEGY");
+    }
+
+    void theFrozenFrameFallsBackToTheScreenshotPortal_data()
+    {
+        using Type = CaptureFactory::StrategyType;
+        QTest::addColumn<Type>("chosen");
+        QTest::addColumn<QList<Type>>("chain");
+        QTest::newRow("KDE") << Type::KWin << QList<Type>{Type::KWin, Type::Wayland};
+        QTest::newRow("GNOME") << Type::Screencast << QList<Type>{Type::Screencast, Type::Wayland};
+        QTest::newRow("wlroots") << Type::Screencopy << QList<Type>{Type::Screencopy, Type::Wayland};
+        QTest::newRow("portal only") << Type::Wayland << QList<Type>{Type::Wayland};
+        QTest::newRow("unresolved") << Type::Auto << QList<Type>{Type::Wayland};
+        // X11, or a forced native grab: no portal behind Qt's own.
+        QTest::newRow("native") << Type::Native << QList<Type>{Type::Native};
+    }
+
+    void theFrozenFrameFallsBackToTheScreenshotPortal()
+    {
+        using Type = CaptureFactory::StrategyType;
+        QFETCH(Type, chosen);
+        QFETCH(QList<Type>, chain);
+        QCOMPARE(StrategySelection::frameSourceChain(chosen), chain);
+    }
+
+    void frameSourcesExistOnlyWhereTheyCanDeliver()
+    {
+        const auto native = CaptureFactory::createFrameSource(CaptureFactory::StrategyType::Native);
+        QVERIFY(native);
+        QCOMPARE(native->name(), QStringLiteral("Qt screen grab"));
+        // Offscreen and no Wayland session: no screencopy and no ScreenCast session.
+        qputenv("WAYLAND_DISPLAY", "");
+        qputenv("XDG_SESSION_TYPE", "x11");
+        QVERIFY(!CaptureFactory::createFrameSource(CaptureFactory::StrategyType::Screencopy));
+        QVERIFY(!CaptureFactory::createFrameSource(CaptureFactory::StrategyType::Screencast));
+#if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
+        QVERIFY(!CaptureFactory::createFrameSource(CaptureFactory::StrategyType::KWin));
+        QVERIFY(!CaptureFactory::createFrameSource(CaptureFactory::StrategyType::Wayland));
+#endif
     }
 
     void quickActionsToggle()
