@@ -15,6 +15,8 @@
 
 namespace Capture {
 
+class PortalFrameSource;
+
 /**
  * Wayland capture strategy using XDG Desktop Portal and fallback tools
  */
@@ -44,7 +46,6 @@ protected:
 
 private slots:
     void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
-    void handlePortalResponse(uint status, QVariantMap results);
 
 private:
     bool usePortalCapture();
@@ -61,12 +62,11 @@ private:
     QDBusInterface *m_portalInterface;
     QDBusInterface *m_sessionInterface;
     QString m_sessionHandle;
-    QString m_requestToken;
     QTemporaryFile *m_tempFile;
     QProcess *m_fallbackProcess;
     bool m_captureArea;
-    bool m_interactiveRequest = false;
     QDBusConnection m_sessionBus;
+    PortalFrameSource *m_portalSource;
 };
 
 } // namespace Capture

@@ -746,6 +746,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             src/capture/strategies/WaylandCaptureStrategy.h
             src/capture/strategies/KWinCaptureStrategy.cpp
             src/capture/strategies/KWinCaptureStrategy.h
+            src/capture/sources/PortalFrameSource.cpp
+            src/capture/sources/PortalFrameSource.h
             # Global hotkeys via the xdg-desktop-portal GlobalShortcuts session
             src/hotkeys/backends/PortalHotkeyBackend.cpp
             src/hotkeys/backends/PortalHotkeyBackend.h

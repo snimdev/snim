@@ -25,6 +25,7 @@
 
 #include "screen/AreaSelector.h"
 #include "capture/CaptureGeometry.h"
+#include "capture/sources/PortalFrameSource.h"
 
 namespace Capture {
     WaylandCaptureStrategy::WaylandCaptureStrategy(QObject *parent)
@@ -34,7 +35,19 @@ namespace Capture {
           , m_tempFile(nullptr)
           , m_fallbackProcess(nullptr)
           , m_captureArea(false)
-          , m_sessionBus(QDBusConnection::sessionBus()) {
+          , m_sessionBus(QDBusConnection::sessionBus())
+          , m_portalSource(new PortalFrameSource(this)) {
+        // Both full screen and area land in the selector on this path.
+        connect(m_portalSource, &DesktopFrameSource::frameReady, this,
+                [this](const QPixmap &frame, const QRect &virtualGeometry) {
+                    showAreaSelector(frame, virtualGeometry);
+                });
+        connect(m_portalSource, &DesktopFrameSource::frameFailed, this,
+                [this](const QString &reason, bool) {
+                    qDebug() << "Portal screenshot failed:" << reason;
+                    emit screenshotFailed(QStringLiteral("Portal screenshot failed: %1").arg(reason));
+                });
+
         // Initialize XDG Desktop Portal interface
         m_portalInterface = new QDBusInterface(
             "org.freedesktop.portal.Desktop",
@@ -123,128 +136,13 @@ namespace Capture {
         return portalChecker.isValid();
     }
 
-    // Set once a portal refuses a silent request, so later captures skip straight to its dialog.
-    static bool s_portalNeedsDialog = false;
-
     bool WaylandCaptureStrategy::usePortalCapture() {
         if (!m_portalInterface || !m_portalInterface->isValid()) {
             qDebug() << "Portal interface not available";
             return useFallbackCapture();
         }
-
-        // Generate unique token
-        QString token = QUuid::createUuid().toString()
-                .remove('-').remove('{').remove('}');
-
-        // Pre-create Request interface to avoid race condition
-        QString requestPath = "/org/freedesktop/portal/desktop/request/" +
-                              QDBusConnection::sessionBus().baseService()
-                              .remove(':').replace('.', '_') + "/" + token;
-
-        QDBusInterface requestInterface(
-            "org.freedesktop.portal.Desktop",
-            requestPath,
-            "org.freedesktop.portal.Request",
-            QDBusConnection::sessionBus()
-        );
-
-        if (!requestInterface.isValid()) {
-            qDebug() << "Failed to create request interface";
-            return false;
-        }
-
-        // Connect Response signal BEFORE making the call
-        bool connected = QDBusConnection::sessionBus().connect(
-            "org.freedesktop.portal.Desktop",
-            requestPath,
-            "org.freedesktop.portal.Request",
-            "Response",
-            this,
-            SLOT(handlePortalResponse(uint, QVariantMap))
-        );
-
-        if (!connected) {
-            qWarning() << "Failed to connect to portal Response signal on path:" << requestPath;
-            return false;
-        }
-
-        // Prepare options
-        QVariantMap options;
-        options["handle_token"] = token;
-        // Silent first: KDE asks once and remembers; portals that refuse get the dialog instead.
-        m_interactiveRequest = s_portalNeedsDialog;
-        options["interactive"] = m_interactiveRequest;
-        options["modal"] = false;
-
-        // Call Screenshot with empty parent window
-        QDBusReply<QDBusObjectPath> reply = m_portalInterface->call(
-            "Screenshot",
-            QString(""), // Empty parent window
-            QVariant::fromValue(options)
-        );
-
-        if (!reply.isValid()) {
-            qDebug() << "Screenshot call failed:" << reply.error().message();
-            return false;
-        }
-
-        // Wait for response (implement timeout if needed)
-        // Process the response in handlePortalResponse()
-
+        m_portalSource->grab();
         return true;
-    }
-
-    void WaylandCaptureStrategy::handlePortalResponse(
-        uint status,
-        QVariantMap results) {
-        if (status != 0 && !m_interactiveRequest) {
-            qDebug() << "Silent portal screenshot refused, status:" << status << "- retrying with its dialog";
-            s_portalNeedsDialog = true;
-            if (!usePortalCapture())
-                emit screenshotFailed(QStringLiteral("Portal screenshot failed"));
-            return;
-        }
-        if (status != 0) {
-            qDebug() << "Portal request cancelled or failed, status:" << status;
-            emit screenshotFailed(QString("Portal request failed (status: %1)").arg(status));
-            return;
-        }
-
-        QUrl uri = results["uri"].toString();
-        QString filePath = uri.toLocalFile();
-
-        QImage fullImage(filePath);
-        if (fullImage.isNull()) {
-            qDebug() << "Failed to load screenshot";
-            QFile::remove(filePath);
-            emit screenshotFailed("Failed to load screenshot");
-            return;
-        }
-
-        // Calculate virtual desktop geometry and DPR
-        QList<QScreen*> screens = QGuiApplication::screens();
-        QRect virtualDesktop;
-        for (QScreen *screen : screens) {
-            virtualDesktop = virtualDesktop.united(screen->geometry());
-        }
-
-        // Calculate DPR from image size vs logical size
-        qreal dprX = fullImage.width() * 1.0 / virtualDesktop.width();
-        qreal dprY = fullImage.height() * 1.0 / virtualDesktop.height();
-        qreal dpr = qMax(dprX, dprY);
-
-        qDebug() << "Virtual desktop (logical):" << virtualDesktop;
-        qDebug() << "Full image size (physical):" << fullImage.size();
-        qDebug() << "Calculated DPR:" << dpr;
-
-        // Convert to pixmap and set DPR
-        QPixmap fullScreenshot = QPixmap::fromImage(fullImage);
-        fullScreenshot.setDevicePixelRatio(dpr);
-
-        QFile::remove(filePath);
-
-        // Show area selector spanning all monitors
-        showAreaSelector(fullScreenshot, virtualDesktop);
     }
 
     // Every terminal action (accept, cancel, copy, save) tears down ALL per-screen
