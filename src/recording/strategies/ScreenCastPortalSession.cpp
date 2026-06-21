@@ -135,6 +135,7 @@ void ScreenCastPortalSession::open(const Options &options)
     Q_UNUSED(tokenDropped)
 
     m_options = options;
+    m_cancelled = false;
     createSession();
 }
 
@@ -424,6 +425,7 @@ void ScreenCastPortalSession::failResponse(const char *step, uint response)
 {
     qWarning() << "ScreenCast" << step << "answered" << response;
     // 1 is the user's cancel; 2 is everything else, a broken backend included.
+    m_cancelled = response == 1;
     fail(response == 1 ? tr("Screen sharing was cancelled.")
                        : tr("Screen sharing failed. Check that the desktop portal "
                             "(xdg-desktop-portal and its backend for this desktop) is working."));

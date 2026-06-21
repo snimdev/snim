@@ -51,6 +51,9 @@ public:
     // Every stream Start returned, in portal order; valid once ready() fired.
     [[nodiscard]] const QList<Stream> &streams() const { return m_streams; }
 
+    // Whether the last failed() came from the user dismissing the picker.
+    [[nodiscard]] bool wasCancelled() const { return m_cancelled; }
+
 signals:
     // The first stream. The receiver owns pipewireFd and must close() it.
     void ready(quint32 nodeId, const QRect &streamRectLogical, int pipewireFd);
@@ -91,6 +94,7 @@ private:
     QString m_startRequestPath;
     Options m_options;
     QList<Stream> m_streams;
+    bool m_cancelled = false;
 };
 
 } // namespace Recording
