@@ -1,10 +1,8 @@
 #include "ScreencopyCaptureStrategy.h"
 #include "capture/ScreencopyClient.h"
+#include "capture/sources/ScreencopyFrameSource.h"
 
 #include <QDebug>
-#include <QElapsedTimer>
-#include <QGuiApplication>
-#include <QScreen>
 #include <QTimer>
 
 namespace Capture {
@@ -39,35 +37,13 @@ void ScreencopyCaptureStrategy::captureArea()
 
 bool ScreencopyCaptureStrategy::captureOutputs(bool showSelector)
 {
-    const Screencopy::Globals globals = Screencopy::advertisedGlobals();
-    const Screencopy::Protocol protocol = Screencopy::pickProtocol(globals.ext, globals.wlr);
-
-    QElapsedTimer timer;
-    timer.start();
+    QRect virtualDesktop;
     QString error;
-    const QList<Screencopy::OutputFrame> frames = Screencopy::captureOutputs(protocol, &error);
-    if (frames.isEmpty()) {
+    const QPixmap screenshot = ScreencopyFrameSource::grabNow(&virtualDesktop, &error);
+    if (screenshot.isNull()) {
         qWarning() << "Screencopy failed:" << error << "- falling back to the portal";
         return false;
     }
-
-    QList<Screencopy::ScreenSlot> screens;
-    QRect virtualDesktop;
-    for (QScreen *screen : QGuiApplication::screens()) {
-        screens.append({screen->name(), screen->geometry()});
-        virtualDesktop = virtualDesktop.united(screen->geometry());
-    }
-
-    const QImage stitched = Screencopy::stitchFrames(frames, screens, virtualDesktop);
-    if (stitched.isNull()) {
-        qWarning() << "Screencopy frames match no screen - falling back to the portal";
-        return false;
-    }
-    qDebug() << "Screencopy captured" << frames.size() << "outputs in" << timer.elapsed() << "ms:"
-             << stitched.size() << "DPR" << stitched.devicePixelRatio();
-
-    QPixmap screenshot = QPixmap::fromImage(stitched);
-    screenshot.setDevicePixelRatio(stitched.devicePixelRatio());
 
     if (!showSelector) {
         emit screenshotReady(screenshot);
