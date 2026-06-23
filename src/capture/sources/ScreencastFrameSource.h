@@ -7,9 +7,9 @@
 
 class QTimer;
 
-namespace Recording {
+namespace Screen {
 class ScreenCastPortalSession;
-} // namespace Recording
+} // namespace Screen
 
 namespace Capture {
 
@@ -47,7 +47,7 @@ private:
     void handleReady(int pipewireFd);
     void fail(const QString &reason, bool cancelled = false);
 
-    Recording::ScreenCastPortalSession *m_session = nullptr;
+    Screen::ScreenCastPortalSession *m_session = nullptr;
     QTimer *m_timeout = nullptr;
     QElapsedTimer m_clock;
     bool m_busy = false;

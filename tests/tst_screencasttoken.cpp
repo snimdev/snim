@@ -1,9 +1,9 @@
 #include <QtTest>
 
 #include "capture/strategies/ScreencastCaptureStrategy.h"
-#include "recording/strategies/ScreenCastPortalSession.h"
+#include "screen/ScreenCastPortalSession.h"
 
-using Recording::ScreenCastPortalSession;
+using Screen::ScreenCastPortalSession;
 
 // Screenshot consent must never restore, or be wiped by, the recorder's session.
 class tst_ScreencastToken : public QObject

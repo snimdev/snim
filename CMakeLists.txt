@@ -815,8 +815,8 @@ if(GSTREAMER_AVAILABLE)
             src/capture/strategies/ScreencastCaptureStrategy.h
             src/capture/sources/ScreencastFrameSource.cpp
             src/capture/sources/ScreencastFrameSource.h
-            src/recording/strategies/ScreenCastPortalSession.cpp
-            src/recording/strategies/ScreenCastPortalSession.h)
+            src/screen/ScreenCastPortalSession.cpp
+            src/screen/ScreenCastPortalSession.h)
     # Activates the Linux branch of RecordingFactory + makes Auto pick the portal
     # recorder. PUBLIC because the tests check the macro.
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_LINUX_RECORDER)
@@ -828,8 +828,8 @@ if(GSTREAMER_AVAILABLE)
             # details of the recorder, so the module carries its own copies: a static
             # library hands an object out only when something else already pulled it
             # into the binary doing the loading.
-            src/recording/strategies/ScreenCastPortalSession.cpp
-            src/recording/strategies/ScreenCastPortalSession.h
+            src/screen/ScreenCastPortalSession.cpp
+            src/screen/ScreenCastPortalSession.h
             # One-frame grabs for the ScreenCast capture strategy.
             src/recording/strategies/PipeWireFrameGrabber.cpp
             src/media/gst/GstSupport.cpp

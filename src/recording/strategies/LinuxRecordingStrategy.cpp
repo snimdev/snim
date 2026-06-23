@@ -4,7 +4,7 @@
 #include "recording/RecordingGeometry.h"
 #include "recording/StreamTimestamp.h"
 #include "recording/strategies/LinuxRecorderModule.h"
-#include "recording/strategies/ScreenCastPortalSession.h"
+#include "screen/ScreenCastPortalSession.h"
 
 #include <gst/gst.h>
 
@@ -377,7 +377,7 @@ QStringList LinuxRecordingStrategy::missingPieces()
         return {QStringLiteral("a working GStreamer (it failed to initialize)")};
 
     QStringList pieces;
-    if (!ScreenCastPortalSession::isPortalAvailable()) {
+    if (!Screen::ScreenCastPortalSession::isPortalAvailable()) {
         pieces << QStringLiteral("the ScreenCast portal (xdg-desktop-portal and a backend "
                                  "for this desktop)");
     }
@@ -404,12 +404,12 @@ void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &ou
     m_stopping = false;
 
     if (!m_session) {
-        m_session = new ScreenCastPortalSession(this);
-        connect(m_session, &ScreenCastPortalSession::ready,
+        m_session = new Screen::ScreenCastPortalSession(this);
+        connect(m_session, &Screen::ScreenCastPortalSession::ready,
                 this, &LinuxRecordingStrategy::handleSessionReady);
-        connect(m_session, &ScreenCastPortalSession::failed,
+        connect(m_session, &Screen::ScreenCastPortalSession::failed,
                 this, &LinuxRecordingStrategy::handleSessionFailed);
-        connect(m_session, &ScreenCastPortalSession::sessionClosed,
+        connect(m_session, &Screen::ScreenCastPortalSession::sessionClosed,
                 this, &LinuxRecordingStrategy::handleSessionClosed);
     }
 

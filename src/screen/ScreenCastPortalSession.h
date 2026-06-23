@@ -1,5 +1,5 @@
-#ifndef RECORDING_SCREENCASTPORTALSESSION_H
-#define RECORDING_SCREENCASTPORTALSESSION_H
+#ifndef SCREEN_SCREENCASTPORTALSESSION_H
+#define SCREEN_SCREENCASTPORTALSESSION_H
 
 #include <QList>
 #include <QObject>
@@ -7,7 +7,7 @@
 #include <QString>
 #include <QVariantMap>
 
-namespace Recording {
+namespace Screen {
 
 /**
  * One xdg-desktop-portal ScreenCast handshake: CreateSession, SelectSources, Start and
@@ -97,6 +97,6 @@ private:
     bool m_cancelled = false;
 };
 
-} // namespace Recording
+} // namespace Screen
 
-#endif // RECORDING_SCREENCASTPORTALSESSION_H
+#endif // SCREEN_SCREENCASTPORTALSESSION_H

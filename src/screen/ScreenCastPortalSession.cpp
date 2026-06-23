@@ -1,4 +1,4 @@
-#include "recording/strategies/ScreenCastPortalSession.h"
+#include "screen/ScreenCastPortalSession.h"
 
 #include <QDBusArgument>
 #include <QDBusConnection>
@@ -15,7 +15,7 @@
 
 #include <unistd.h>
 
-namespace Recording {
+namespace Screen {
 
 namespace {
 
@@ -502,4 +502,4 @@ uint ScreenCastPortalSession::readUintProperty(const QString &name)
     return ok ? number : 0;
 }
 
-} // namespace Recording
+} // namespace Screen

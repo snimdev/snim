@@ -3,7 +3,7 @@
 #include "capture/ScreencastStitch.h"
 #include "capture/strategies/WaylandCaptureStrategy.h"
 #include "recording/strategies/LinuxRecorderModule.h"
-#include "recording/strategies/ScreenCastPortalSession.h"
+#include "screen/ScreenCastPortalSession.h"
 
 #include <QDebug>
 #include <QThread>
@@ -25,7 +25,7 @@ constexpr qint64 kInteractiveHandshakeMs = 1000;
 // Lets the picker's close animation leave the screen before the frame is taken.
 constexpr unsigned long kPickerSettleMs = 600;
 
-using Session = Recording::ScreenCastPortalSession;
+using Session = Screen::ScreenCastPortalSession;
 
 struct GrabResult {
     QList<Session::Stream> streams;

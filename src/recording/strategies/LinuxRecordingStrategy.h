@@ -21,9 +21,12 @@ typedef struct _GThreadPool GThreadPool;
 
 class QTimer;
 
+namespace Screen {
+class ScreenCastPortalSession;
+} // namespace Screen
+
 namespace Recording {
 
-class ScreenCastPortalSession;
 struct StrategyLink;
 
 /**
@@ -70,7 +73,7 @@ private:
     void teardown();
     void fail(const QString &error);
 
-    ScreenCastPortalSession *m_session = nullptr;
+    Screen::ScreenCastPortalSession *m_session = nullptr;
     GstElement *m_pipeline = nullptr;
     GThreadPool *m_runner = nullptr;
     std::shared_ptr<StrategyLink> m_link;   // the current pipeline's way back to this object
