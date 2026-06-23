@@ -164,6 +164,9 @@ void FrozenFrameGrabber::sourceReady(const QPixmap &frame, const QRect &virtualG
     qInfo().noquote() << "Frozen frame:" << name << "gave" << frame.width() << "x" << frame.height()
                       << "pixels at DPR" << frame.devicePixelRatio() << "over" << virtualGeometry
                       << "in" << m_clock.elapsed() << "ms";
+    // A ScreenCast pick of fewer monitors still works; the rest stay black under the overlay.
+    if (const QRect desktop = Capture::qtVirtualDesktop(); !virtualGeometry.contains(desktop))
+        qInfo().noquote() << "Frozen frame: it misses part of the" << desktop << "desktop";
     m_chain.clear();
     finish(frame, virtualGeometry);
 }
