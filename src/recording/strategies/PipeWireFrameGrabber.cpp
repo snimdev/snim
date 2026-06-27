@@ -1,4 +1,4 @@
-#include "recording/strategies/LinuxRecorderModule.h"
+#include "screen/PipeWireFrames.h"
 
 #include "media/gst/GstSupport.h"
 

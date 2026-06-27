@@ -2,9 +2,8 @@
 #define RECORDING_LINUXRECORDERMODULE_H
 
 #include "recording/RecordingStrategy.h"
+#include "screen/PipeWireFrames.h"
 
-#include <QImage>
-#include <QList>
 #include <QString>
 #include <QStringList>
 
@@ -26,11 +25,7 @@
 // `parent`); declared here so both sides of the dlopen agree on the signature.
 extern "C" Q_DECL_EXPORT Recording::RecordingStrategy *snimCreateLinuxRecorder(QObject *parent);
 
-// A second entry point for screenshots: one frame from each PipeWire node behind
-// pipewireFd (which stays the caller's), into frames[0..count). Blocking.
-extern "C" Q_DECL_EXPORT bool snimGrabPipeWireFrames(int pipewireFd, const quint32 *nodeIds,
-                                                     int count, int timeoutMs, QImage *frames,
-                                                     QString *error);
+// The module also exports snimGrabPipeWireFrames, declared in screen/PipeWireFrames.h.
 
 // What the recorder lacks on this host, named with the packages to install. Empty when
 // it can record.
@@ -39,8 +34,7 @@ extern "C" Q_DECL_EXPORT void snimLinuxRecorderMissingPieces(QStringList *pieces
 namespace Recording::LinuxRecorderModule {
 
 inline constexpr char kEntryPoint[] = "snimCreateLinuxRecorder";
-inline constexpr char kBaseName[] = "snim-recorder-linux";
-inline constexpr char kGrabEntryPoint[] = "snimGrabPipeWireFrames";
+inline constexpr const char *kBaseName = Screen::PipeWireFrames::kModuleBaseName;
 inline constexpr char kMissingEntryPoint[] = "snimLinuxRecorderMissingPieces";
 
 // Core::DynamicModule's search order; SNIM_RECORDER_MODULE replaces the whole list.
@@ -56,13 +50,6 @@ inline constexpr char kMissingEntryPoint[] = "snimLinuxRecorderMissingPieces";
 // What keeps recording from working here, for the tray and the log. A module that will
 // not load is itself the missing piece.
 [[nodiscard]] QStringList missingPieces();
-
-// Whether the module loads and exports the frame grabber.
-[[nodiscard]] bool canGrabFrames();
-
-// One frame per node, in nodeIds order. Blocking, so call it off the GUI thread.
-[[nodiscard]] bool grabFrames(int pipewireFd, const QList<quint32> &nodeIds, int timeoutMs,
-                              QList<QImage> *frames, QString *error);
 
 } // namespace Recording::LinuxRecorderModule
 

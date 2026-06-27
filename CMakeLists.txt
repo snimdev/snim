@@ -815,6 +815,8 @@ if(GSTREAMER_AVAILABLE)
             src/capture/strategies/ScreencastCaptureStrategy.h
             src/capture/sources/ScreencastFrameSource.cpp
             src/capture/sources/ScreencastFrameSource.h
+            src/screen/PipeWireFrames.cpp
+            src/screen/PipeWireFrames.h
             src/screen/ScreenCastPortalSession.cpp
             src/screen/ScreenCastPortalSession.h)
     # Activates the Linux branch of RecordingFactory + makes Auto pick the portal

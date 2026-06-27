@@ -9,12 +9,12 @@ namespace Recording::LinuxRecorderModule {
 namespace {
 
 using CreateFunction = RecordingStrategy *(*)(QObject *);
-using GrabFunction = bool (*)(int, const quint32 *, int, int, QImage *, QString *);
 using MissingFunction = void (*)(QStringList *);
 
-constexpr Core::DynamicModule kModule{kBaseName, "SNIM_RECORDER_MODULE", kEntryPoint};
-constexpr Core::DynamicModule kGrabber{kBaseName, "SNIM_RECORDER_MODULE", kGrabEntryPoint};
-constexpr Core::DynamicModule kMissing{kBaseName, "SNIM_RECORDER_MODULE", kMissingEntryPoint};
+using Screen::PipeWireFrames::kModuleOverride;
+
+constexpr Core::DynamicModule kModule{kBaseName, kModuleOverride, kEntryPoint};
+constexpr Core::DynamicModule kMissing{kBaseName, kModuleOverride, kMissingEntryPoint};
 
 } // namespace
 
@@ -48,25 +48,6 @@ QStringList missingPieces()
     QStringList pieces;
     reinterpret_cast<MissingFunction>(entry)(&pieces);
     return pieces;
-}
-
-bool canGrabFrames()
-{
-    return kGrabber.resolve() != nullptr;
-}
-
-bool grabFrames(int pipewireFd, const QList<quint32> &nodeIds, int timeoutMs,
-                QList<QImage> *frames, QString *error)
-{
-    const QFunctionPointer entry = kGrabber.resolve();
-    if (!entry) {
-        *error = QStringLiteral("The recorder module is not available");
-        return false;
-    }
-    frames->resize(nodeIds.size());
-    return reinterpret_cast<GrabFunction>(entry)(pipewireFd, nodeIds.constData(),
-                                                 int(nodeIds.size()), timeoutMs,
-                                                 frames->data(), error);
 }
 
 } // namespace Recording::LinuxRecorderModule

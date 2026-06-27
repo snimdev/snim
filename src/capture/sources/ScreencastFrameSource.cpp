@@ -2,7 +2,7 @@
 
 #include "capture/ScreencastStitch.h"
 #include "capture/strategies/WaylandCaptureStrategy.h"
-#include "recording/strategies/LinuxRecorderModule.h"
+#include "screen/PipeWireFrames.h"
 #include "screen/ScreenCastPortalSession.h"
 
 #include <QDebug>
@@ -69,7 +69,7 @@ bool ScreencastFrameSource::isSupported()
 {
     return WaylandCaptureStrategy::isWaylandSession()
            && Session::portalVersion() >= kFirstPersistingVersion
-           && Recording::LinuxRecorderModule::canGrabFrames();
+           && Screen::PipeWireFrames::canGrab();
 }
 
 bool ScreencastFrameSource::hasRestoreToken()
@@ -123,8 +123,8 @@ void ScreencastFrameSource::handleReady(int pipewireFd)
         (m_pickerExpected || m_clock.elapsed() > kInteractiveHandshakeMs) ? kPickerSettleMs : 0;
     QThread *worker = QThread::create([result, nodes, pipewireFd, settleMs] {
         QThread::msleep(settleMs);
-        result->ok = Recording::LinuxRecorderModule::grabFrames(pipewireFd, nodes, kFrameTimeoutMs,
-                                                                &result->frames, &result->error);
+        result->ok = Screen::PipeWireFrames::grab(pipewireFd, nodes, kFrameTimeoutMs,
+                                                  &result->frames, &result->error);
         ::close(pipewireFd);
     });
     connect(worker, &QThread::finished, worker, &QObject::deleteLater);
