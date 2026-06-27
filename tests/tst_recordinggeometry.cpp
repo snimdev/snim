@@ -226,6 +226,82 @@ private slots:
         QCOMPARE(clampBubbleTopLeft(bounds, QPoint(0, 0), bubble), QPoint(100, 50));
         QCOMPARE(clampBubbleTopLeft(bounds, QPoint(5000, 5000), bubble), QPoint(700, 450));
     }
+
+    void x11GrabAtUnitScale()
+    {
+        const X11Grab grab = x11Grab(QRect(100, 50, 640, 360),
+                                     {X11Screen{QRect(0, 0, 3840, 1080), 1.0}}, true);
+        QVERIFY(grab.valid);
+        QCOMPARE(grab.rootPx, QRect(100, 50, 640, 360));
+        QCOMPARE(grab.outputPx, QSize(640, 360));
+    }
+
+    void x11GrabFullScreenOfTheSecondMonitor()
+    {
+        const QVector<X11Screen> screens{X11Screen{QRect(0, 0, 1920, 1080), 1.0},
+                                         X11Screen{QRect(1920, 0, 1920, 1080), 1.0}};
+        const X11Grab grab = x11Grab(QRect(1920, 0, 1920, 1080), screens, true);
+        QVERIFY(grab.valid);
+        QCOMPARE(grab.rootPx, QRect(1920, 0, 1920, 1080));
+        QCOMPARE(grab.rootPx.right(), 3839);   // ximagesrc's inclusive endx
+    }
+
+    void x11GrabScalesFromTheScreenOrigin()
+    {
+        // QT_SCALE_FACTOR=2 over two 1920x1080 monitors: Qt keeps the second monitor at
+        // x=1920 and halves only its size, so the logical desktop has a gap.
+        const QVector<X11Screen> screens{X11Screen{QRect(0, 0, 960, 540), 2.0},
+                                         X11Screen{QRect(1920, 0, 960, 540), 2.0}};
+        const X11Grab grab = x11Grab(QRect(2020, 50, 320, 180), screens, true);
+        QVERIFY(grab.valid);
+        QCOMPARE(grab.rootPx, QRect(1920 + 200, 100, 640, 360));
+        QCOMPARE(grab.outputPx, QSize(640, 360));
+
+        const X11Grab logical = x11Grab(QRect(2020, 50, 320, 180), screens, false);
+        QCOMPARE(logical.rootPx, grab.rootPx);
+        QCOMPARE(logical.outputPx, QSize(320, 180));
+    }
+
+    void x11GrabFractionalScale()
+    {
+        // Xft.dpi 144: a 2560x1440 monitor shows as 1707x960 logical at 1.5.
+        const X11Grab grab = x11Grab(QRect(0, 0, 1707, 960),
+                                     {X11Screen{QRect(0, 0, 1707, 960), 1.5}}, true);
+        QVERIFY(grab.valid);
+        QCOMPARE(grab.rootPx, QRect(0, 0, 2560, 1440));
+        QCOMPARE(grab.outputPx, QSize(2560, 1440));
+    }
+
+    void x11GrabSpansMixedScaleMonitors()
+    {
+        // Left 1920x1080 at 1x, right 3840x2160 at 2x placed at x=1920.
+        const QVector<X11Screen> screens{X11Screen{QRect(0, 0, 1920, 1080), 1.0},
+                                         X11Screen{QRect(1920, 0, 1920, 1080), 2.0}};
+        const X11Grab grab = x11Grab(QRect(1820, 0, 200, 100), screens, true);
+        QVERIFY(grab.valid);
+        // 100 px on the left screen, 100 logical = 200 px on the right one.
+        QCOMPARE(grab.rootPx, QRect(1820, 0, 300, 200));
+    }
+
+    void x11GrabClipsToTheScreens()
+    {
+        const QVector<X11Screen> screens{X11Screen{QRect(0, 0, 1920, 1080), 1.0}};
+        const X11Grab grab = x11Grab(QRect(-100, 1000, 400, 300), screens, true);
+        QVERIFY(grab.valid);
+        QCOMPARE(grab.rootPx, QRect(0, 1000, 300, 80));
+
+        QVERIFY(!x11Grab(QRect(2000, 0, 100, 100), screens, true).valid);
+        QVERIFY(!x11Grab(QRect(), screens, true).valid);
+    }
+
+    void x11GrabRoundsDownToEven()
+    {
+        const X11Grab grab = x11Grab(QRect(11, 13, 301, 201),
+                                     {X11Screen{QRect(0, 0, 1920, 1080), 1.0}}, true);
+        QVERIFY(grab.valid);
+        QCOMPARE(grab.rootPx, QRect(11, 13, 300, 200));
+        QCOMPARE(grab.outputPx, QSize(300, 200));
+    }
 };
 
 QTEST_MAIN(tst_RecordingGeometry)

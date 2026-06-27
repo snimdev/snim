@@ -143,6 +143,68 @@ inline QRect resolveStreamRect(const QSize &capsPx,
     return {};
 }
 
+struct X11Screen {
+    QRect geometry;   // QScreen::geometry(), logical
+    qreal dpr = 1.0;  // QScreen::devicePixelRatio()
+};
+
+struct X11Grab {
+    QRect rootPx;     // area of the X11 root window to read, in physical pixels
+    QSize outputPx;   // final encoded size
+    bool  valid = false;
+};
+
+/**
+ * Map a virtual-desktop logical rect onto the X11 root window for ximagesrc. Qt's xcb
+ * scaling keeps each screen's top-left at its native position and scales only sizes and
+ * offsets within it, so every screen the rect touches maps its own piece with its own
+ * ratio and the grab is their bounding box. Without retinaCapture the output keeps the
+ * logical size. Sizes round down to even for H.264 4:2:0. Pure, so it's unit-tested.
+ */
+inline X11Grab x11Grab(const QRect &regionVirtual, const QVector<X11Screen> &screens,
+                       bool retinaCapture)
+{
+    X11Grab out;
+    QRect rootPx;
+    QRect logical;
+    for (const X11Screen &screen : screens) {
+        const QRect inter = regionVirtual.intersected(screen.geometry);
+        if (inter.isEmpty() || screen.dpr <= 0.0)
+            continue;
+
+        const QPoint origin = screen.geometry.topLeft();
+        const QRect local = inter.translated(-origin);
+        // Edges, not sizes, are scaled so neighbouring pieces meet without a seam.
+        const int left = qRound(local.left() * screen.dpr);
+        const int top = qRound(local.top() * screen.dpr);
+        const int right = qRound((local.left() + local.width()) * screen.dpr);
+        const int bottom = qRound((local.top() + local.height()) * screen.dpr);
+        const QRect screenPx(origin, QSize(qRound(screen.geometry.width() * screen.dpr),
+                                           qRound(screen.geometry.height() * screen.dpr)));
+        const QRect piece = QRect(origin + QPoint(left, top), QSize(right - left, bottom - top))
+                                .intersected(screenPx);
+        if (piece.isEmpty())
+            continue;
+        rootPx = rootPx.united(piece);
+        logical = logical.united(inter);
+    }
+
+    QSize outputPx = retinaCapture ? rootPx.size() : logical.size();
+    rootPx.setWidth(rootPx.width() & ~1);
+    rootPx.setHeight(rootPx.height() & ~1);
+    outputPx.setWidth(outputPx.width() & ~1);
+    outputPx.setHeight(outputPx.height() & ~1);
+
+    if (rootPx.width() < 2 || rootPx.height() < 2
+        || outputPx.width() < 2 || outputPx.height() < 2)
+        return out;
+
+    out.rootPx = rootPx;
+    out.outputPx = outputPx;
+    out.valid = true;
+    return out;
+}
+
 /**
  * Keep the webcam bubble wholly inside @p bounds: clamp @p proposedTopLeft for a bubble
  * of @p bubbleSize. Both are in the same coordinate space (screen-local on Wayland,
