@@ -4,29 +4,29 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
-namespace Capture {
+namespace Screen {
 
 QPixmap ScreencopyFrameSource::grabNow(QRect *virtualGeometryOut, QString *error)
 {
-    const Screen::Screencopy::Globals globals = Screen::Screencopy::advertisedGlobals();
-    const Screen::Screencopy::Protocol protocol = Screen::Screencopy::pickProtocol(globals.ext, globals.wlr);
-    if (protocol == Screen::Screencopy::Protocol::None) {
+    const Screencopy::Globals globals = Screencopy::advertisedGlobals();
+    const Screencopy::Protocol protocol = Screencopy::pickProtocol(globals.ext, globals.wlr);
+    if (protocol == Screencopy::Protocol::None) {
         *error = QStringLiteral("the compositor offers no screencopy protocol");
         return {};
     }
 
     QElapsedTimer timer;
     timer.start();
-    const QList<Screen::Screencopy::OutputFrame> frames = Screen::Screencopy::captureOutputs(protocol, error);
+    const QList<Screencopy::OutputFrame> frames = Screencopy::captureOutputs(protocol, error);
     if (frames.isEmpty())
         return {};
 
-    QList<Screen::Screencopy::ScreenSlot> screens;
+    QList<Screencopy::ScreenSlot> screens;
     for (QScreen *screen : QGuiApplication::screens())
         screens.append({screen->name(), screen->geometry()});
     const QRect virtualDesktop = qtVirtualDesktop();
 
-    const QImage stitched = Screen::Screencopy::stitchFrames(frames, screens, virtualDesktop);
+    const QImage stitched = Screencopy::stitchFrames(frames, screens, virtualDesktop);
     if (stitched.isNull()) {
         *error = QStringLiteral("the screencopy frames match no screen");
         return {};
@@ -52,4 +52,4 @@ void ScreencopyFrameSource::grab()
         emit frameReady(frame, virtualGeometry);
 }
 
-} // namespace Capture
+} // namespace Screen

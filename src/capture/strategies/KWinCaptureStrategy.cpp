@@ -1,7 +1,7 @@
 #include "KWinCaptureStrategy.h"
 #include "screen/AreaSelector.h"
 #include "capture/CaptureGeometry.h"
-#include "capture/sources/KWinFrameSource.h"
+#include "screen/sources/KWinFrameSource.h"
 
 #include <QApplication>
 #include <QDBusConnection>
@@ -37,9 +37,9 @@ static const QString kInterface = QStringLiteral("org.kde.KWin.ScreenShot2");
 
 KWinCaptureStrategy::KWinCaptureStrategy(QObject *parent)
     : CaptureStrategy(parent)
-    , m_workspace(new KWinFrameSource(this))
+    , m_workspace(new Screen::KWinFrameSource(this))
 {
-    connect(m_workspace, &DesktopFrameSource::frameReady, this,
+    connect(m_workspace, &Screen::DesktopFrameSource::frameReady, this,
             [this](const QPixmap &frame, const QRect &virtualGeometry) {
                 m_workspaceBusy = false;
                 if (m_workspaceSelector)
@@ -47,7 +47,7 @@ KWinCaptureStrategy::KWinCaptureStrategy(QObject *parent)
                 else
                     emit screenshotReady(frame);
             });
-    connect(m_workspace, &DesktopFrameSource::frameFailed, this,
+    connect(m_workspace, &Screen::DesktopFrameSource::frameFailed, this,
             [this](const QString &reason, bool cancelled) {
                 m_workspaceBusy = false;
                 workspaceFailed(reason, cancelled);
@@ -108,7 +108,7 @@ void KWinCaptureStrategy::captureWindow()
 {
     if (m_workspace->apiVersion() >= 2) {
         QVariantList args;
-        args << QVariant::fromValue(KWinFrameSource::buildOptions());
+        args << QVariant::fromValue(Screen::KWinFrameSource::buildOptions());
         callScreenShotMethod(QStringLiteral("CaptureActiveWindow"), args, false);
     } else {
         // Fallback: interactive window pick
@@ -254,7 +254,8 @@ void KWinCaptureStrategy::handleReply(QDBusPendingCallWatcher *watcher, int read
             }
         });
 
-        QFuture<QImage> future = QtConcurrent::run(KWinFrameSource::readImageFromPipe, readFd, metadata);
+        QFuture<QImage> future =
+            QtConcurrent::run(Screen::KWinFrameSource::readImageFromPipe, readFd, metadata);
         futureWatcher->setFuture(future);
     });
 }
@@ -266,7 +267,7 @@ void KWinCaptureStrategy::fallbackToInteractive(bool showSelector, int kind)
     qDebug() << "Using CaptureInteractive (kind:" << kind << "), no .desktop permissions needed";
 
     QVariantList args;
-    args << quint32(kind) << QVariant::fromValue(KWinFrameSource::buildOptions());
+    args << quint32(kind) << QVariant::fromValue(Screen::KWinFrameSource::buildOptions());
     callScreenShotMethod(QStringLiteral("CaptureInteractive"), args, showSelector, 60000);
 }
 

@@ -25,7 +25,7 @@
 
 #include "screen/AreaSelector.h"
 #include "capture/CaptureGeometry.h"
-#include "capture/sources/PortalFrameSource.h"
+#include "screen/sources/PortalFrameSource.h"
 
 namespace Capture {
     WaylandCaptureStrategy::WaylandCaptureStrategy(QObject *parent)
@@ -36,13 +36,13 @@ namespace Capture {
           , m_fallbackProcess(nullptr)
           , m_captureArea(false)
           , m_sessionBus(QDBusConnection::sessionBus())
-          , m_portalSource(new PortalFrameSource(this)) {
+          , m_portalSource(new Screen::PortalFrameSource(this)) {
         // Both full screen and area land in the selector on this path.
-        connect(m_portalSource, &DesktopFrameSource::frameReady, this,
+        connect(m_portalSource, &Screen::DesktopFrameSource::frameReady, this,
                 [this](const QPixmap &frame, const QRect &virtualGeometry) {
                     showAreaSelector(frame, virtualGeometry);
                 });
-        connect(m_portalSource, &DesktopFrameSource::frameFailed, this,
+        connect(m_portalSource, &Screen::DesktopFrameSource::frameFailed, this,
                 [this](const QString &reason, bool) {
                     qDebug() << "Portal screenshot failed:" << reason;
                     emit screenshotFailed(QStringLiteral("Portal screenshot failed: %1").arg(reason));
@@ -113,11 +113,7 @@ namespace Capture {
     }
 
     bool WaylandCaptureStrategy::isWaylandSession() {
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        QString sessionType = env.value("XDG_SESSION_TYPE");
-        QString waylandDisplay = env.value("WAYLAND_DISPLAY");
-
-        return sessionType == "wayland" || !waylandDisplay.isEmpty();
+        return Screen::isWaylandSession();
     }
 
     bool WaylandCaptureStrategy::isPortalAvailable() const {

@@ -11,11 +11,10 @@
 
 namespace Screen {
 class AreaSelector;
+class KWinFrameSource;
 } // namespace Screen
 
 namespace Capture {
-
-class KWinFrameSource;
 
 /**
  * KDE Plasma capture strategy using KWin's org.kde.KWin.ScreenShot2 D-Bus interface.
@@ -82,7 +81,7 @@ private:
     /// Fallback to CaptureInteractive when permission is denied
     void fallbackToInteractive(bool showSelector, int kind = 1);
 
-    KWinFrameSource *m_workspace;
+    Screen::KWinFrameSource *m_workspace;
     bool m_workspaceBusy = false;
     bool m_workspaceSelector = false;
     AuthorizationGate m_authGate;

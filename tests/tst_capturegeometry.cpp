@@ -1,9 +1,10 @@
 #include <QtTest>
 
 #include "capture/CaptureGeometry.h"
-#include "capture/sources/DesktopFrameSource.h"
+#include "screen/sources/DesktopFrameSource.h"
 
 using namespace Capture;
+using Screen::frameCoversGeometry;
 
 // The virtual-desktop -> physical-pixmap crop shared by every capture strategy.
 // Pure geometry, so it runs headless: the multi-monitor and HiDPI cases that are

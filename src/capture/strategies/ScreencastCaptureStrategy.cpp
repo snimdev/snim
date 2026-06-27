@@ -6,11 +6,11 @@ namespace Capture {
 
 ScreencastCaptureStrategy::ScreencastCaptureStrategy(QObject *parent)
     : WaylandCaptureStrategy(parent)
-    , m_source(new ScreencastFrameSource(this))
+    , m_source(new Screen::ScreencastFrameSource(this))
 {
-    connect(m_source, &ScreencastFrameSource::sourcePickerExpected,
+    connect(m_source, &Screen::ScreencastFrameSource::sourcePickerExpected,
             this, &ScreencastCaptureStrategy::sourcePickerExpected);
-    connect(m_source, &DesktopFrameSource::frameReady, this,
+    connect(m_source, &Screen::DesktopFrameSource::frameReady, this,
             [this](const QPixmap &frame, const QRect &virtualGeometry) {
                 m_busy = false;
                 if (m_showSelector)
@@ -18,7 +18,7 @@ ScreencastCaptureStrategy::ScreencastCaptureStrategy(QObject *parent)
                 else
                     emit screenshotReady(frame);
             });
-    connect(m_source, &DesktopFrameSource::frameFailed, this,
+    connect(m_source, &Screen::DesktopFrameSource::frameFailed, this,
             [this](const QString &reason, bool) { fallBack(reason); });
 }
 

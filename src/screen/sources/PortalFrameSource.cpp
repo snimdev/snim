@@ -11,7 +11,7 @@
 #include <QtDBus/QDBusObjectPath>
 #include <QtDBus/QDBusReply>
 
-namespace Capture {
+namespace Screen {
 
 namespace {
 
@@ -164,4 +164,4 @@ void PortalFrameSource::handleResponse(uint status, const QVariantMap &results)
     emit frameReady(frame, virtualDesktop);
 }
 
-} // namespace Capture
+} // namespace Screen

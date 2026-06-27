@@ -1,11 +1,11 @@
 #include "CaptureFactory.h"
 #include "StrategySelection.h"
 #include "core/Sandbox.h"
-#include "sources/QtScreensFrameSource.h"
+#include "screen/sources/QtScreensFrameSource.h"
 #include "strategies/NativeCaptureStrategy.h"
 #ifdef Q_OS_LINUX
-#include "sources/KWinFrameSource.h"
-#include "sources/PortalFrameSource.h"
+#include "screen/sources/KWinFrameSource.h"
+#include "screen/sources/PortalFrameSource.h"
 #include "strategies/KWinCaptureStrategy.h"
 #include "strategies/WaylandCaptureStrategy.h"
 #endif
@@ -13,7 +13,7 @@
 #include "strategies/ScreencastCaptureStrategy.h"
 #endif
 #ifdef SNIM_HAVE_SCREENCOPY
-#include "sources/ScreencopyFrameSource.h"
+#include "screen/sources/ScreencopyFrameSource.h"
 #include "strategies/ScreencopyCaptureStrategy.h"
 #endif
 #include <QtGlobal>
@@ -89,7 +89,7 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
     }
 }
 
-std::unique_ptr<DesktopFrameSource> CaptureFactory::createFrameSource(StrategyType type, QObject *parent)
+std::unique_ptr<Screen::DesktopFrameSource> CaptureFactory::createFrameSource(StrategyType type, QObject *parent)
 {
     switch (type) {
     case StrategyType::Auto:
@@ -97,7 +97,7 @@ std::unique_ptr<DesktopFrameSource> CaptureFactory::createFrameSource(StrategyTy
     case StrategyType::KWin:
 #ifdef Q_OS_LINUX
         if (KWinCaptureStrategy::isKWinAvailable()) {
-            auto source = std::make_unique<KWinFrameSource>(parent);
+            auto source = std::make_unique<Screen::KWinFrameSource>(parent);
             if (source->apiVersion() > 0)
                 return source;
         }
@@ -105,24 +105,24 @@ std::unique_ptr<DesktopFrameSource> CaptureFactory::createFrameSource(StrategyTy
         return nullptr;
     case StrategyType::Screencast:
 #if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
-        if (ScreencastFrameSource::isSupported())
-            return std::make_unique<ScreencastFrameSource>(parent);
+        if (Screen::ScreencastFrameSource::isSupported())
+            return std::make_unique<Screen::ScreencastFrameSource>(parent);
 #endif
         return nullptr;
     case StrategyType::Screencopy:
 #ifdef SNIM_HAVE_SCREENCOPY
         if (ScreencopyCaptureStrategy::isScreencopyAvailable())
-            return std::make_unique<ScreencopyFrameSource>(parent);
+            return std::make_unique<Screen::ScreencopyFrameSource>(parent);
 #endif
         return nullptr;
     case StrategyType::Wayland:
 #ifdef Q_OS_LINUX
-        return std::make_unique<PortalFrameSource>(parent);
+        return std::make_unique<Screen::PortalFrameSource>(parent);
 #else
         return nullptr;
 #endif
     case StrategyType::Native:
-        return std::make_unique<QtScreensFrameSource>(parent);
+        return std::make_unique<Screen::QtScreensFrameSource>(parent);
     }
     return nullptr;
 }

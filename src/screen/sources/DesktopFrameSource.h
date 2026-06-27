@@ -1,5 +1,5 @@
-#ifndef CAPTURE_DESKTOPFRAMESOURCE_H
-#define CAPTURE_DESKTOPFRAMESOURCE_H
+#ifndef SCREEN_DESKTOPFRAMESOURCE_H
+#define SCREEN_DESKTOPFRAMESOURCE_H
 
 #include <QGuiApplication>
 #include <QObject>
@@ -9,7 +9,7 @@
 #include <QString>
 #include <QtMath>
 
-namespace Capture {
+namespace Screen {
 
 /**
  * One frame of the whole virtual desktop, taken without any UI of Snim's own: the seam
@@ -35,6 +35,13 @@ signals:
     void frameFailed(const QString &reason, bool cancelled);
 };
 
+// Whether Snim runs in a Wayland session, by the environment it was started with.
+inline bool isWaylandSession()
+{
+    return qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland")
+           || !qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY");
+}
+
 // The logical union of every screen Qt knows.
 inline QRect qtVirtualDesktop()
 {
@@ -56,6 +63,6 @@ inline bool frameCoversGeometry(const QSize &pixels, qreal dpr, const QRect &geo
            && close(pixels.height() / dpr, geometry.height());
 }
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_DESKTOPFRAMESOURCE_H
+#endif // SCREEN_DESKTOPFRAMESOURCE_H

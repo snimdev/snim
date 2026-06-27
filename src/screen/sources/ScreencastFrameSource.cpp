@@ -1,9 +1,8 @@
 #include "ScreencastFrameSource.h"
 
-#include "screen/ScreencastStitch.h"
-#include "capture/strategies/WaylandCaptureStrategy.h"
 #include "screen/PipeWireFrames.h"
 #include "screen/ScreenCastPortalSession.h"
+#include "screen/ScreencastStitch.h"
 
 #include <QDebug>
 #include <QThread>
@@ -12,7 +11,7 @@
 #include <memory>
 #include <unistd.h>
 
-namespace Capture {
+namespace Screen {
 
 namespace {
 
@@ -25,7 +24,7 @@ constexpr qint64 kInteractiveHandshakeMs = 1000;
 // Lets the picker's close animation leave the screen before the frame is taken.
 constexpr unsigned long kPickerSettleMs = 600;
 
-using Session = Screen::ScreenCastPortalSession;
+using Session = ScreenCastPortalSession;
 
 struct GrabResult {
     QList<Session::Stream> streams;
@@ -67,9 +66,9 @@ ScreencastFrameSource::~ScreencastFrameSource() = default;
 
 bool ScreencastFrameSource::isSupported()
 {
-    return WaylandCaptureStrategy::isWaylandSession()
+    return isWaylandSession()
            && Session::portalVersion() >= kFirstPersistingVersion
-           && Screen::PipeWireFrames::canGrab();
+           && PipeWireFrames::canGrab();
 }
 
 bool ScreencastFrameSource::hasRestoreToken()
@@ -123,7 +122,7 @@ void ScreencastFrameSource::handleReady(int pipewireFd)
         (m_pickerExpected || m_clock.elapsed() > kInteractiveHandshakeMs) ? kPickerSettleMs : 0;
     QThread *worker = QThread::create([result, nodes, pipewireFd, settleMs] {
         QThread::msleep(settleMs);
-        result->ok = Screen::PipeWireFrames::grab(pipewireFd, nodes, kFrameTimeoutMs,
+        result->ok = PipeWireFrames::grab(pipewireFd, nodes, kFrameTimeoutMs,
                                                   &result->frames, &result->error);
         ::close(pipewireFd);
     });
@@ -137,10 +136,10 @@ void ScreencastFrameSource::handleReady(int pipewireFd)
             return;
         }
 
-        QList<Screen::StreamFrame> frames;
+        QList<StreamFrame> frames;
         for (qsizetype i = 0; i < result->streams.size(); ++i)
             frames.append({result->streams.at(i).rectLogical, result->frames.value(i)});
-        const Screen::StitchedDesktop desktop = Screen::stitchStreams(frames, qtVirtualDesktop());
+        const StitchedDesktop desktop = stitchStreams(frames, qtVirtualDesktop());
         if (desktop.image.isNull()) {
             fail(QStringLiteral("the ScreenCast frames were empty"));
             return;
@@ -165,4 +164,4 @@ void ScreencastFrameSource::fail(const QString &reason, bool cancelled)
     emit frameFailed(reason, cancelled);
 }
 
-} // namespace Capture
+} // namespace Screen

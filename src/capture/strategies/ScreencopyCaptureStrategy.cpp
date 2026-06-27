@@ -1,6 +1,6 @@
 #include "ScreencopyCaptureStrategy.h"
 #include "screen/ScreencopyClient.h"
-#include "capture/sources/ScreencopyFrameSource.h"
+#include "screen/sources/ScreencopyFrameSource.h"
 
 #include <QDebug>
 #include <QTimer>
@@ -39,7 +39,7 @@ bool ScreencopyCaptureStrategy::captureOutputs(bool showSelector)
 {
     QRect virtualDesktop;
     QString error;
-    const QPixmap screenshot = ScreencopyFrameSource::grabNow(&virtualDesktop, &error);
+    const QPixmap screenshot = Screen::ScreencopyFrameSource::grabNow(&virtualDesktop, &error);
     if (screenshot.isNull()) {
         qWarning() << "Screencopy failed:" << error << "- falling back to the portal";
         return false;

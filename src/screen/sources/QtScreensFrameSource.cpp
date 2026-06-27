@@ -4,7 +4,7 @@
 #include <QPainter>
 #include <algorithm>
 
-namespace Capture {
+namespace Screen {
 
 QPixmap QtScreensFrameSource::grabNow(QRect *virtualGeometryOut)
 {
@@ -44,4 +44,4 @@ void QtScreensFrameSource::grab()
         emit frameReady(frame, virtualGeometry);
 }
 
-} // namespace Capture
+} // namespace Screen

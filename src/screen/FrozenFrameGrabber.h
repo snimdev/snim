@@ -9,11 +9,9 @@
 #include <QString>
 #include <functional>
 
-namespace Capture {
-class DesktopFrameSource;
-} // namespace Capture
-
 namespace Screen {
+
+class DesktopFrameSource;
 
 /**
  * Freezes every screen into one virtual-desktop pixmap so a selection overlay has a
@@ -55,7 +53,7 @@ private:
     void dropSource();
 
     QList<int> m_chain;   // CaptureFactory::StrategyType values still to try
-    Capture::DesktopFrameSource *m_source = nullptr;
+    DesktopFrameSource *m_source = nullptr;
     QString m_lastReason;
     QElapsedTimer m_clock;
 #endif

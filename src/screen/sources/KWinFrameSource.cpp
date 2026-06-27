@@ -18,7 +18,7 @@
 #include <string.h>
 #include <unistd.h>
 
-namespace Capture {
+namespace Screen {
 
 namespace {
 
@@ -257,4 +257,4 @@ QImage KWinFrameSource::compositeScreenImages(const QList<QImage> &images)
     return result;
 }
 
-} // namespace Capture
+} // namespace Screen

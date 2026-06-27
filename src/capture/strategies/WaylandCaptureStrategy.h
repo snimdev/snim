@@ -13,9 +13,11 @@
 #include <QProcess>
 #include <QVariantMap>
 
-namespace Capture {
-
+namespace Screen {
 class PortalFrameSource;
+} // namespace Screen
+
+namespace Capture {
 
 /**
  * Wayland capture strategy using XDG Desktop Portal and fallback tools
@@ -66,7 +68,7 @@ private:
     QProcess *m_fallbackProcess;
     bool m_captureArea;
     QDBusConnection m_sessionBus;
-    PortalFrameSource *m_portalSource;
+    Screen::PortalFrameSource *m_portalSource;
 };
 
 } // namespace Capture

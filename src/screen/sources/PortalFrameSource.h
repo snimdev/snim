@@ -1,5 +1,5 @@
-#ifndef CAPTURE_PORTALFRAMESOURCE_H
-#define CAPTURE_PORTALFRAMESOURCE_H
+#ifndef SCREEN_PORTALFRAMESOURCE_H
+#define SCREEN_PORTALFRAMESOURCE_H
 
 #include "DesktopFrameSource.h"
 
@@ -7,7 +7,7 @@
 
 class QTimer;
 
-namespace Capture {
+namespace Screen {
 
 /**
  * One org.freedesktop.portal.Screenshot request. Silent first; a portal that refuses
@@ -39,6 +39,6 @@ private:
     bool m_busy = false;
 };
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_PORTALFRAMESOURCE_H
+#endif // SCREEN_PORTALFRAMESOURCE_H

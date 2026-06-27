@@ -4,9 +4,11 @@
 #include "strategies/CaptureStrategy.h"
 #include <memory>
 
-namespace Capture {
-
+namespace Screen {
 class DesktopFrameSource;
+} // namespace Screen
+
+namespace Capture {
 
 /**
  * Creates the appropriate capture strategy for the current system
@@ -35,7 +37,7 @@ public:
      * The full-desktop frame source behind a strategy type, without any UI of Snim's
      * own; null when it is not built in or not offered by this session
      */
-    static std::unique_ptr<DesktopFrameSource> createFrameSource(StrategyType type,
+    static std::unique_ptr<Screen::DesktopFrameSource> createFrameSource(StrategyType type,
                                                                  QObject *parent = nullptr);
 
     /**

@@ -1,9 +1,9 @@
-#ifndef CAPTURE_SCREENCOPYFRAMESOURCE_H
-#define CAPTURE_SCREENCOPYFRAMESOURCE_H
+#ifndef SCREEN_SCREENCOPYFRAMESOURCE_H
+#define SCREEN_SCREENCOPYFRAMESOURCE_H
 
 #include "DesktopFrameSource.h"
 
-namespace Capture {
+namespace Screen {
 
 /**
  * Every output copied through ext-image-copy-capture-v1 or wlr-screencopy and stitched
@@ -23,6 +23,6 @@ public:
     [[nodiscard]] static QPixmap grabNow(QRect *virtualGeometryOut, QString *error);
 };
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_SCREENCOPYFRAMESOURCE_H
+#endif // SCREEN_SCREENCOPYFRAMESOURCE_H

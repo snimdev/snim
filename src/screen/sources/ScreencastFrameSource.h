@@ -1,5 +1,5 @@
-#ifndef CAPTURE_SCREENCASTFRAMESOURCE_H
-#define CAPTURE_SCREENCASTFRAMESOURCE_H
+#ifndef SCREEN_SCREENCASTFRAMESOURCE_H
+#define SCREEN_SCREENCASTFRAMESOURCE_H
 
 #include "DesktopFrameSource.h"
 
@@ -11,7 +11,7 @@ namespace Screen {
 class ScreenCastPortalSession;
 } // namespace Screen
 
-namespace Capture {
+namespace Screen {
 
 /**
  * One frame per monitor from a ScreenCast portal session that the user approved once
@@ -47,13 +47,13 @@ private:
     void handleReady(int pipewireFd);
     void fail(const QString &reason, bool cancelled = false);
 
-    Screen::ScreenCastPortalSession *m_session = nullptr;
+    ScreenCastPortalSession *m_session = nullptr;
     QTimer *m_timeout = nullptr;
     QElapsedTimer m_clock;
     bool m_busy = false;
     bool m_pickerExpected = false;
 };
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_SCREENCASTFRAMESOURCE_H
+#endif // SCREEN_SCREENCASTFRAMESOURCE_H

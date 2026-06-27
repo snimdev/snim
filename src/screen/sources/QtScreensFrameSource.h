@@ -1,9 +1,9 @@
-#ifndef CAPTURE_QTSCREENSFRAMESOURCE_H
-#define CAPTURE_QTSCREENSFRAMESOURCE_H
+#ifndef SCREEN_QTSCREENSFRAMESOURCE_H
+#define SCREEN_QTSCREENSFRAMESOURCE_H
 
 #include "DesktopFrameSource.h"
 
-namespace Capture {
+namespace Screen {
 
 /**
  * Every screen through QScreen::grabWindow, composited at the highest DPR. Synchronous;
@@ -23,6 +23,6 @@ public:
     [[nodiscard]] static QPixmap grabNow(QRect *virtualGeometryOut);
 };
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_QTSCREENSFRAMESOURCE_H
+#endif // SCREEN_QTSCREENSFRAMESOURCE_H

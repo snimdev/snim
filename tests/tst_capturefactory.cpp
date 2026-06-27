@@ -3,7 +3,7 @@
 
 #include "capture/CaptureFactory.h"
 #include "capture/StrategySelection.h"
-#include "capture/sources/DesktopFrameSource.h"
+#include "screen/sources/DesktopFrameSource.h"
 #include "capture/strategies/CaptureStrategy.h"
 
 using namespace Capture;

@@ -1,5 +1,5 @@
-#ifndef CAPTURE_KWINFRAMESOURCE_H
-#define CAPTURE_KWINFRAMESOURCE_H
+#ifndef SCREEN_KWINFRAMESOURCE_H
+#define SCREEN_KWINFRAMESOURCE_H
 
 #include "DesktopFrameSource.h"
 
@@ -7,7 +7,7 @@
 #include <QList>
 #include <QVariantMap>
 
-namespace Capture {
+namespace Screen {
 
 /**
  * Every screen straight from KWin's org.kde.KWin.ScreenShot2, pixels streamed over a
@@ -52,6 +52,6 @@ private:
     bool m_cancelled = false;
 };
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_KWINFRAMESOURCE_H
+#endif // SCREEN_KWINFRAMESOURCE_H

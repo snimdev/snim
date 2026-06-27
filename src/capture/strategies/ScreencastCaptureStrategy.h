@@ -2,7 +2,7 @@
 #define CAPTURE_SCREENCASTCAPTURESTRATEGY_H
 
 #include "WaylandCaptureStrategy.h"
-#include "capture/sources/ScreencastFrameSource.h"
+#include "screen/sources/ScreencastFrameSource.h"
 
 namespace Capture {
 
@@ -17,7 +17,7 @@ class ScreencastCaptureStrategy : public WaylandCaptureStrategy
     Q_OBJECT
 
 public:
-    static constexpr const char *kRestoreTokenKey = ScreencastFrameSource::kRestoreTokenKey;
+    static constexpr const char *kRestoreTokenKey = Screen::ScreencastFrameSource::kRestoreTokenKey;
 
     explicit ScreencastCaptureStrategy(QObject *parent = nullptr);
     ~ScreencastCaptureStrategy() override;
@@ -30,8 +30,11 @@ public:
     bool isAvailable() const override;
     QString name() const override { return QStringLiteral("ScreenCast Portal Capture"); }
 
-    [[nodiscard]] static bool isSupported() { return ScreencastFrameSource::isSupported(); }
-    [[nodiscard]] static bool hasRestoreToken() { return ScreencastFrameSource::hasRestoreToken(); }
+    [[nodiscard]] static bool isSupported() { return Screen::ScreencastFrameSource::isSupported(); }
+    [[nodiscard]] static bool hasRestoreToken()
+    {
+        return Screen::ScreencastFrameSource::hasRestoreToken();
+    }
 
 signals:
     // No consent stored yet: the portal is about to show its screen picker.
@@ -41,7 +44,7 @@ private:
     void begin(bool showSelector);
     void fallBack(const QString &reason);
 
-    ScreencastFrameSource *m_source = nullptr;
+    Screen::ScreencastFrameSource *m_source = nullptr;
     bool m_busy = false;
     bool m_showSelector = false;
 };

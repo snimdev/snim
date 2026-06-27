@@ -458,6 +458,10 @@ add_library(snim_lib STATIC
         src/screen/LayerShellSupport.h
         src/screen/ScreencastStitch.h
         src/screen/ScreencopyGeometry.h
+        # Full-desktop frame sources, shared by capture and the frozen frame.
+        src/screen/sources/DesktopFrameSource.h
+        src/screen/sources/QtScreensFrameSource.cpp
+        src/screen/sources/QtScreensFrameSource.h
 
         # Capture functionality
         src/capture/CaptureFactory.cpp
@@ -466,9 +470,6 @@ add_library(snim_lib STATIC
         src/capture/StrategySelection.h
         src/capture/OverlayAnnotations.cpp
         src/capture/OverlayAnnotations.h
-        src/capture/sources/DesktopFrameSource.h
-        src/capture/sources/QtScreensFrameSource.cpp
-        src/capture/sources/QtScreensFrameSource.h
         src/capture/strategies/CaptureStrategy.cpp
         src/capture/strategies/CaptureStrategy.h
         src/capture/strategies/NativeCaptureStrategy.cpp
@@ -746,10 +747,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             src/capture/strategies/WaylandCaptureStrategy.h
             src/capture/strategies/KWinCaptureStrategy.cpp
             src/capture/strategies/KWinCaptureStrategy.h
-            src/capture/sources/KWinFrameSource.cpp
-            src/capture/sources/KWinFrameSource.h
-            src/capture/sources/PortalFrameSource.cpp
-            src/capture/sources/PortalFrameSource.h
+            src/screen/sources/KWinFrameSource.cpp
+            src/screen/sources/KWinFrameSource.h
+            src/screen/sources/PortalFrameSource.cpp
+            src/screen/sources/PortalFrameSource.h
             # Global hotkeys via the xdg-desktop-portal GlobalShortcuts session
             src/hotkeys/backends/PortalHotkeyBackend.cpp
             src/hotkeys/backends/PortalHotkeyBackend.h
@@ -793,8 +794,8 @@ if(SCREENCOPY_AVAILABLE)
     target_sources(snim_lib PRIVATE
             src/capture/strategies/ScreencopyCaptureStrategy.cpp
             src/capture/strategies/ScreencopyCaptureStrategy.h
-            src/capture/sources/ScreencopyFrameSource.cpp
-            src/capture/sources/ScreencopyFrameSource.h)
+            src/screen/sources/ScreencopyFrameSource.cpp
+            src/screen/sources/ScreencopyFrameSource.h)
     target_link_libraries(snim_lib PUBLIC snim_screencopy)
     # Activates the screencopy branch of CaptureFactory. PUBLIC because the tests check it.
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_SCREENCOPY)
@@ -813,8 +814,8 @@ if(GSTREAMER_AVAILABLE)
             # Screenshots from a ScreenCast session; the module grabs the frames.
             src/capture/strategies/ScreencastCaptureStrategy.cpp
             src/capture/strategies/ScreencastCaptureStrategy.h
-            src/capture/sources/ScreencastFrameSource.cpp
-            src/capture/sources/ScreencastFrameSource.h
+            src/screen/sources/ScreencastFrameSource.cpp
+            src/screen/sources/ScreencastFrameSource.h
             src/screen/PipeWireFrames.cpp
             src/screen/PipeWireFrames.h
             src/screen/ScreenCastPortalSession.cpp

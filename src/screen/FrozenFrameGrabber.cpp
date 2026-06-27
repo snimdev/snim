@@ -1,6 +1,6 @@
 #include "screen/FrozenFrameGrabber.h"
 #include "capture/StrategySelection.h"
-#include "capture/sources/QtScreensFrameSource.h"
+#include "screen/sources/QtScreensFrameSource.h"
 
 #include <QDebug>
 #include <QGuiApplication>
@@ -65,7 +65,7 @@ void FrozenFrameGrabber::grab(Done done)
 
     // Synchronous on every non-Wayland platform (macOS, X11, offscreen).
     QRect virtualGeometry;
-    const QPixmap frozen = Capture::QtScreensFrameSource::grabNow(&virtualGeometry);
+    const QPixmap frozen = QtScreensFrameSource::grabNow(&virtualGeometry);
     if (frozen.isNull())
         m_lastError = failureMessage(QString(), QString(), false);
     done(frozen, virtualGeometry);
@@ -118,7 +118,7 @@ void FrozenFrameGrabber::tryNextSource()
 {
     while (!m_chain.isEmpty()) {
         const Type type = static_cast<Type>(m_chain.takeFirst());
-        std::unique_ptr<Capture::DesktopFrameSource> source =
+        std::unique_ptr<DesktopFrameSource> source =
             Capture::CaptureFactory::createFrameSource(type, this);
         if (!source) {
             qInfo().noquote() << "Frozen frame:" << typeName(type) << "is not available here";
@@ -128,9 +128,9 @@ void FrozenFrameGrabber::tryNextSource()
         }
 
         m_source = source.release();
-        connect(m_source, &Capture::DesktopFrameSource::frameReady,
+        connect(m_source, &DesktopFrameSource::frameReady,
                 this, &FrozenFrameGrabber::sourceReady);
-        connect(m_source, &Capture::DesktopFrameSource::frameFailed,
+        connect(m_source, &DesktopFrameSource::frameFailed,
                 this, &FrozenFrameGrabber::sourceFailed);
         qInfo().noquote() << "Frozen frame: asking" << m_source->name();
         m_source->grab();
@@ -153,7 +153,7 @@ void FrozenFrameGrabber::sourceReady(const QPixmap &frame, const QRect &virtualG
 {
     const QString name = m_source ? m_source->name() : QString();
     dropSource();
-    if (!Capture::frameCoversGeometry(frame.size(), frame.devicePixelRatio(), virtualGeometry)) {
+    if (!frameCoversGeometry(frame.size(), frame.devicePixelRatio(), virtualGeometry)) {
         sourceFailed(tr("%1 returned %2x%3 pixels at scale %4, not the whole %5x%6 desktop")
                          .arg(name).arg(frame.width()).arg(frame.height())
                          .arg(frame.devicePixelRatio()).arg(virtualGeometry.width())
@@ -165,7 +165,7 @@ void FrozenFrameGrabber::sourceReady(const QPixmap &frame, const QRect &virtualG
                       << "pixels at DPR" << frame.devicePixelRatio() << "over" << virtualGeometry
                       << "in" << m_clock.elapsed() << "ms";
     // A ScreenCast pick of fewer monitors still works; the rest stay black under the overlay.
-    if (const QRect desktop = Capture::qtVirtualDesktop(); !virtualGeometry.contains(desktop))
+    if (const QRect desktop = qtVirtualDesktop(); !virtualGeometry.contains(desktop))
         qInfo().noquote() << "Frozen frame: it misses part of the" << desktop << "desktop";
     m_chain.clear();
     finish(frame, virtualGeometry);
