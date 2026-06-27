@@ -20,7 +20,7 @@ Package packageOf(QByteArrayView element)
         return {"gstreamer1.0-pipewire", "pipewire-gstreamer"};
     if (element == "h264parse")
         return {"gstreamer1.0-plugins-bad", "gstreamer1-plugins-bad-free"};
-    for (const char *good : {"videocrop", "mp4mux", "qtmux", "qtdemux"}) {
+    for (const char *good : {"ximagesrc", "videocrop", "mp4mux", "qtmux", "qtdemux"}) {
         if (element == good)
             return {"gstreamer1.0-plugins-good", "gstreamer1-plugins-good"};
     }

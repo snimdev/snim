@@ -164,6 +164,12 @@ private slots:
                                     "gstreamer1-plugins-bad-free)"),
                  }));
 
+        // The X11 recorder's source comes from plugins-good, not the PipeWire package.
+        QCOMPARE(missingPieces({"ximagesrc", "videocrop"}, allBut({"ximagesrc"}),
+                               plugins(true, false, false, true)),
+                 QStringList({QStringLiteral("ximagesrc (gstreamer1.0-plugins-good; "
+                                             "Fedora: gstreamer1-plugins-good)")}));
+
         // OpenH264 without h264parse: the parser is all that is missing.
         QCOMPARE(missingPieces(required, allBut({"valve"}), plugins(false, false, true, false)),
                  QStringList({
