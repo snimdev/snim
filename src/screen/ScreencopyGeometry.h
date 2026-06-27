@@ -1,5 +1,5 @@
-#ifndef CAPTURE_SCREENCOPYGEOMETRY_H
-#define CAPTURE_SCREENCOPYGEOMETRY_H
+#ifndef SCREEN_SCREENCOPYGEOMETRY_H
+#define SCREEN_SCREENCOPYGEOMETRY_H
 
 #include <QImage>
 #include <QList>
@@ -11,7 +11,7 @@
 #include <QtMath>
 #include <optional>
 
-namespace Capture::Screencopy {
+namespace Screen::Screencopy {
 
 /**
  * The pure half of the native Wayland screencopy path: protocol choice, wl_shm pixel
@@ -266,6 +266,6 @@ inline QImage stitchFrames(const QList<OutputFrame> &frames, const QList<ScreenS
     return canvas;
 }
 
-} // namespace Capture::Screencopy
+} // namespace Screen::Screencopy
 
-#endif // CAPTURE_SCREENCOPYGEOMETRY_H
+#endif // SCREEN_SCREENCOPYGEOMETRY_H

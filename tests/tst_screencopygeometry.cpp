@@ -3,10 +3,10 @@
 #include <cstring>
 
 #include "capture/CaptureGeometry.h"
-#include "capture/ScreencopyGeometry.h"
+#include "screen/ScreencopyGeometry.h"
 
 using namespace Capture;
-using namespace Capture::Screencopy;
+using namespace Screen::Screencopy;
 
 namespace {
 

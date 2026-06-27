@@ -22,7 +22,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-namespace Capture::Screencopy {
+namespace Screen::Screencopy {
 
 static_assert(ShmFormat::ARGB8888 == WL_SHM_FORMAT_ARGB8888);
 static_assert(ShmFormat::XRGB8888 == WL_SHM_FORMAT_XRGB8888);
@@ -528,4 +528,4 @@ QList<OutputFrame> captureOutputs(Protocol protocol, QString *error, int timeout
     return frames;
 }
 
-} // namespace Capture::Screencopy
+} // namespace Screen::Screencopy

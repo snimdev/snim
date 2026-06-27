@@ -1,5 +1,5 @@
-#ifndef CAPTURE_SCREENCASTSTITCH_H
-#define CAPTURE_SCREENCASTSTITCH_H
+#ifndef SCREEN_SCREENCASTSTITCH_H
+#define SCREEN_SCREENCASTSTITCH_H
 
 #include <QImage>
 #include <QList>
@@ -7,7 +7,7 @@
 #include <QRect>
 #include <QtMath>
 
-namespace Capture {
+namespace Screen {
 
 /**
  * Pure stitching of ScreenCast portal frames into one virtual-desktop image, the same
@@ -91,6 +91,6 @@ inline StitchedDesktop stitchStreams(const QList<StreamFrame> &input, const QRec
     return {result, virtualGeometry};
 }
 
-} // namespace Capture
+} // namespace Screen
 
-#endif // CAPTURE_SCREENCASTSTITCH_H
+#endif // SCREEN_SCREENCASTSTITCH_H

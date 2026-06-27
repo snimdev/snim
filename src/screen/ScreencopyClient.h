@@ -1,11 +1,11 @@
-#ifndef CAPTURE_SCREENCOPYCLIENT_H
-#define CAPTURE_SCREENCOPYCLIENT_H
+#ifndef SCREEN_SCREENCOPYCLIENT_H
+#define SCREEN_SCREENCOPYCLIENT_H
 
-#include "capture/ScreencopyGeometry.h"
+#include "screen/ScreencopyGeometry.h"
 #include <QList>
 #include <QString>
 
-namespace Capture::Screencopy {
+namespace Screen::Screencopy {
 
 /**
  * The Wayland side of native screencopy, the way grim does it: one shm frame per
@@ -25,6 +25,6 @@ Globals advertisedGlobals();
 // One upright frame per output; empty with *error set when any output fails.
 QList<OutputFrame> captureOutputs(Protocol protocol, QString *error, int timeoutMs = 3000);
 
-} // namespace Capture::Screencopy
+} // namespace Screen::Screencopy
 
-#endif // CAPTURE_SCREENCOPYCLIENT_H
+#endif // SCREEN_SCREENCOPYCLIENT_H

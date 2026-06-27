@@ -456,14 +456,14 @@ add_library(snim_lib STATIC
         src/screen/OverlayWindows.h
         # Wayland layer-shell helper for the overlays (no-op without LayerShellQt).
         src/screen/LayerShellSupport.h
+        src/screen/ScreencastStitch.h
+        src/screen/ScreencopyGeometry.h
 
         # Capture functionality
         src/capture/CaptureFactory.cpp
         src/capture/CaptureFactory.h
         src/capture/CaptureGeometry.h
-        src/capture/ScreencastStitch.h
         src/capture/StrategySelection.h
-        src/capture/ScreencopyGeometry.h
         src/capture/OverlayAnnotations.cpp
         src/capture/OverlayAnnotations.h
         src/capture/sources/DesktopFrameSource.h
@@ -779,8 +779,8 @@ if(SCREENCOPY_AVAILABLE)
     endforeach()
 
     add_library(snim_screencopy STATIC
-            src/capture/ScreencopyClient.cpp
-            src/capture/ScreencopyClient.h
+            src/screen/ScreencopyClient.cpp
+            src/screen/ScreencopyClient.h
             ${_snim_protocol_sources})
     set_target_properties(snim_screencopy PROPERTIES AUTOMOC OFF)
     target_include_directories(snim_screencopy

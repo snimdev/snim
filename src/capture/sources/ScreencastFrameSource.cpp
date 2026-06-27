@@ -1,6 +1,6 @@
 #include "ScreencastFrameSource.h"
 
-#include "capture/ScreencastStitch.h"
+#include "screen/ScreencastStitch.h"
 #include "capture/strategies/WaylandCaptureStrategy.h"
 #include "screen/PipeWireFrames.h"
 #include "screen/ScreenCastPortalSession.h"
@@ -137,10 +137,10 @@ void ScreencastFrameSource::handleReady(int pipewireFd)
             return;
         }
 
-        QList<StreamFrame> frames;
+        QList<Screen::StreamFrame> frames;
         for (qsizetype i = 0; i < result->streams.size(); ++i)
             frames.append({result->streams.at(i).rectLogical, result->frames.value(i)});
-        const StitchedDesktop desktop = stitchStreams(frames, qtVirtualDesktop());
+        const Screen::StitchedDesktop desktop = Screen::stitchStreams(frames, qtVirtualDesktop());
         if (desktop.image.isNull()) {
             fail(QStringLiteral("the ScreenCast frames were empty"));
             return;

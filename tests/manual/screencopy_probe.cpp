@@ -1,7 +1,7 @@
 // Manual check against a live wlroots-family compositor (not run by ctest): captures
 // every output with the native screencopy client, stitches them the way the app does
 // and writes the PNG. Usage: snim_screencopy_probe [auto|ext|wlr] <out.png>
-#include "capture/ScreencopyClient.h"
+#include "screen/ScreencopyClient.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -10,7 +10,7 @@
 #include <QScreen>
 #include <QTextStream>
 
-using namespace Capture::Screencopy;
+using namespace Screen::Screencopy;
 
 int main(int argc, char **argv)
 {

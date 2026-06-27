@@ -1,8 +1,8 @@
 #include <QtTest>
 
-#include "capture/ScreencastStitch.h"
+#include "screen/ScreencastStitch.h"
 
-using namespace Capture;
+using namespace Screen;
 
 // ScreenCast streams arrive one per monitor; these lock down how they become the one
 // virtual-desktop image AreaSelector crops from.

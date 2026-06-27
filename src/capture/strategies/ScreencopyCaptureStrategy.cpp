@@ -1,5 +1,5 @@
 #include "ScreencopyCaptureStrategy.h"
-#include "capture/ScreencopyClient.h"
+#include "screen/ScreencopyClient.h"
 #include "capture/sources/ScreencopyFrameSource.h"
 
 #include <QDebug>
@@ -14,8 +14,8 @@ ScreencopyCaptureStrategy::ScreencopyCaptureStrategy(QObject *parent)
 
 bool ScreencopyCaptureStrategy::isScreencopyAvailable()
 {
-    const Screencopy::Globals globals = Screencopy::advertisedGlobals();
-    return Screencopy::pickProtocol(globals.ext, globals.wlr) != Screencopy::Protocol::None;
+    const Screen::Screencopy::Globals globals = Screen::Screencopy::advertisedGlobals();
+    return Screen::Screencopy::pickProtocol(globals.ext, globals.wlr) != Screen::Screencopy::Protocol::None;
 }
 
 bool ScreencopyCaptureStrategy::isAvailable() const
