@@ -8,9 +8,11 @@
 
 #include "recording/strategies/LinuxRecorderModule.h"
 
-// Manual check, not a ctest: records an area through the real portal recorder.
+// Manual check, not a ctest: records an area through the real recorder (the portal, or
+// ximagesrc in an X11 session).
 // Usage: snim_recording_probe <out.mp4> [seconds] [pause-at-seconds pause-length]
-// SNIM_PROBE_AUDIO=1 records system audio too.
+// SNIM_PROBE_AUDIO=1 records system audio too. SNIM_PROBE_AREA picks what to record:
+// "x,y,w,h" in logical coordinates, "full" for the whole desktop or "screen:N".
 int main(int argc, char *argv[])
 {
     if (qEnvironmentVariableIsEmpty("SNIM_RECORDER_MODULE"))
@@ -90,11 +92,34 @@ int main(int argc, char *argv[])
         app.exit(4);
     });
 
+    QRect desktop;
+    const QList<QScreen *> screens = QGuiApplication::screens();
+    for (int i = 0; i < screens.size(); ++i) {
+        const QScreen *s = screens.at(i);
+        std::fprintf(stderr, "probe: screen %d %s %d,%d %dx%d dpr=%.2f\n", i,
+                     qPrintable(s->name()), s->geometry().x(), s->geometry().y(),
+                     s->geometry().width(), s->geometry().height(), s->devicePixelRatio());
+        desktop = desktop.united(s->geometry());
+    }
+
     const QRect screen = QGuiApplication::primaryScreen()->geometry();
+    QRect area(screen.x() + 100, screen.y() + 100, 640, 360);
+    const QString spec = qEnvironmentVariable("SNIM_PROBE_AREA");
+    if (spec == QLatin1String("full")) {
+        area = desktop;
+    } else if (spec.startsWith(QLatin1String("screen:"))) {
+        area = screens.value(spec.mid(7).toInt(), screens.first())->geometry();
+    } else if (const QStringList parts = spec.split(QLatin1Char(',')); parts.size() == 4) {
+        area = QRect(parts[0].toInt(), parts[1].toInt(), parts[2].toInt(), parts[3].toInt());
+    }
+    std::fprintf(stderr, "probe: %s recording %d,%d %dx%d\n", qPrintable(recorder->name()),
+                 area.x(), area.y(), area.width(), area.height());
+
     Recording::RecordTarget target;
-    target.regionVirtual = QRect(screen.x() + 100, screen.y() + 100, 640, 360);
+    target.regionVirtual = area;
     target.fps = 30;
-    target.captureCursor = false;
+    target.captureCursor = qEnvironmentVariableIsSet("SNIM_PROBE_CURSOR");
+    target.retinaCapture = !qEnvironmentVariableIsSet("SNIM_PROBE_LOGICAL");
     target.captureSystemAudio = qEnvironmentVariableIsSet("SNIM_PROBE_AUDIO");
     clock.start();
     recorder->start(target, out);
