@@ -5,6 +5,7 @@
 #include "recording/RecordingGeometry.h"
 #include "recording/RecordingStrategy.h"
 #include "recording/RecordTarget.h"
+#include "recording/strategies/LinuxPipeline.h"
 
 #include <QRect>
 #include <QString>
@@ -30,10 +31,11 @@ namespace Recording {
 struct StrategyLink;
 
 /**
- * Linux recording backend: an xdg-desktop-portal ScreenCast stream fed into a
- * GStreamer pipeline that crops the selection out of the shared monitor and encodes
- * it to H.264. The header stays free of GStreamer headers, so the rest of the
- * codebase includes this like any other class; everything else lives in the .cpp.
+ * Linux recording backend: a GStreamer pipeline that encodes the selection to H.264.
+ * In an X11 session ximagesrc reads it straight off the root window; elsewhere an
+ * xdg-desktop-portal ScreenCast stream is cropped down to it. The header stays free of
+ * GStreamer headers, so the rest of the codebase includes this like any other class;
+ * everything else lives in the .cpp.
  */
 class LinuxRecordingStrategy : public RecordingStrategy
 {
@@ -52,7 +54,11 @@ public:
     [[nodiscard]] bool isAvailable() const override;
     // What this host lacks to record, named with the packages to install. Empty when none.
     [[nodiscard]] static QStringList missingPieces();
-    [[nodiscard]] QString name() const override { return QStringLiteral("Portal/GStreamer"); }
+    [[nodiscard]] QString name() const override
+    {
+        return m_source == LinuxPipeline::VideoSource::X11 ? QStringLiteral("X11/GStreamer")
+                                                           : QStringLiteral("Portal/GStreamer");
+    }
 
     // Backend hooks: invoked by the GStreamer callbacks once they have marshalled onto
     // this object's thread. The generation identifies the pipeline they came from, so a
@@ -66,7 +72,11 @@ private:
     void handleSessionFailed(const QString &error);
     void handleSessionClosed();
 
+    void startX11();
     bool buildPipeline(quint32 nodeId, QString *error);
+    void configurePortalSource(GstElement *src, GstElement *crop, GstElement *outcaps,
+                               quint32 nodeId);
+    void startPipeline();
     void setValvesDropping(bool drop);
     // Runs blocking GStreamer calls off the GUI thread, in submission order.
     void runOnPipelineThread(std::function<void()> task);
@@ -80,6 +90,9 @@ private:
     QTimer *m_durationTimer = nullptr;
     QTimer *m_firstFrameTimer = nullptr;
     QTimer *m_eosTimer = nullptr;
+
+    const LinuxPipeline::VideoSource m_source;
+    X11Grab m_x11Grab;
 
     RecordTarget m_target;
     QString m_outputPath;

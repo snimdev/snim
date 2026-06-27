@@ -59,6 +59,7 @@ private slots:
         QVERIFY(s);
         // Headless environments have no ScreenCast portal, so the stub is a valid answer.
         QVERIFY(s->name() == QStringLiteral("Portal/GStreamer")
+                || s->name() == QStringLiteral("X11/GStreamer")
                 || s->name() == QStringLiteral("Unsupported"));
     }
 #endif

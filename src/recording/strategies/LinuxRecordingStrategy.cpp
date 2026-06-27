@@ -6,6 +6,7 @@
 #include "recording/strategies/LinuxPipeline.h"
 #include "recording/strategies/LinuxRecorderModule.h"
 #include "screen/ScreenCastPortalSession.h"
+#include "screen/sources/DesktopFrameSource.h"
 
 #include <gst/gst.h>
 
@@ -30,6 +31,23 @@ constexpr int kDurationIntervalMs = 250;
 constexpr int kEosTimeoutMs = 5000;
 // Past pipewiresrc's own 30 s wait for the stream.
 constexpr int kFirstFrameTimeoutMs = 35000;
+
+LinuxPipeline::VideoSource currentVideoSource()
+{
+    return LinuxPipeline::videoSourceFor(QGuiApplication::platformName(),
+                                         Screen::isWaylandSession());
+}
+
+void setOutputCaps(GstElement *outcaps, const QSize &size)
+{
+    GstCaps *caps = gst_caps_new_simple("video/x-raw",
+                                        "width", G_TYPE_INT, size.width(),
+                                        "height", G_TYPE_INT, size.height(),
+                                        "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+                                        nullptr);
+    g_object_set(outcaps, "caps", caps, nullptr);
+    gst_caps_unref(caps);
+}
 
 QSize pixelSize(const QRect &logical, qreal dpr)
 {
@@ -214,13 +232,7 @@ GstPadProbeReturn onCapsEvent(GstPad *pad, GstPadProbeInfo *info, gpointer data)
                  "bottom", height - (crop.cropPx.y() + crop.cropPx.height()),
                  nullptr);
 
-    GstCaps *outCaps = gst_caps_new_simple("video/x-raw",
-                                           "width", G_TYPE_INT, crop.outputPx.width(),
-                                           "height", G_TYPE_INT, crop.outputPx.height(),
-                                           "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
-                                           nullptr);
-    g_object_set(ctx->outcaps, "caps", outCaps, nullptr);
-    gst_caps_unref(outCaps);
+    setOutputCaps(ctx->outcaps, crop.outputPx);
 
     return GST_PAD_PROBE_REMOVE;
 }
@@ -333,7 +345,8 @@ void runTask(gpointer data, gpointer userData)
 
 } // namespace
 
-LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent) : RecordingStrategy(parent)
+LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent)
+    : RecordingStrategy(parent), m_source(currentVideoSource())
 {
     m_durationTimer = new QTimer(this);
     m_durationTimer->setInterval(kDurationIntervalMs);
@@ -347,6 +360,10 @@ LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent) : RecordingStrat
     connect(m_firstFrameTimer, &QTimer::timeout, this, [this] {
         qWarning() << "No frame arrived from the screen share within" << kFirstFrameTimeoutMs
                    << "ms";
+        if (m_source == LinuxPipeline::VideoSource::X11) {
+            fail(tr("The X server sent no picture."));
+            return;
+        }
         fail(tr("The screen share sent no picture. Check that the desktop portal "
                 "(xdg-desktop-portal and its backend for this desktop) is working."));
     });
@@ -377,13 +394,15 @@ QStringList LinuxRecordingStrategy::missingPieces()
     if (!Media::Gst::ensureInitialized())
         return {QStringLiteral("a working GStreamer (it failed to initialize)")};
 
+    const LinuxPipeline::VideoSource source = currentVideoSource();
     QStringList pieces;
-    if (!Screen::ScreenCastPortalSession::isPortalAvailable()) {
+    if (source == LinuxPipeline::VideoSource::Portal
+        && !Screen::ScreenCastPortalSession::isPortalAvailable()) {
         pieces << QStringLiteral("the ScreenCast portal (xdg-desktop-portal and a backend "
                                  "for this desktop)");
     }
     pieces << Media::Gst::missingPieces(
-        LinuxPipeline::requiredElements(LinuxPipeline::VideoSource::Portal),
+        LinuxPipeline::requiredElements(source),
         Media::Gst::hasFactory, Media::Gst::probeH264Plugins());
     return pieces;
 }
@@ -404,6 +423,11 @@ void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &ou
     m_starting = true;
     m_stopping = false;
 
+    if (m_source == LinuxPipeline::VideoSource::X11) {
+        startX11();
+        return;
+    }
+
     if (!m_session) {
         m_session = new Screen::ScreenCastPortalSession(this);
         connect(m_session, &Screen::ScreenCastPortalSession::ready,
@@ -418,6 +442,30 @@ void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &ou
     // portal on Linux yet.
     qInfo() << "Recording: asking the ScreenCast portal for" << target.regionVirtual;
     m_session->open(target.captureCursor);
+}
+
+void LinuxRecordingStrategy::startX11()
+{
+    QVector<X11Screen> screens;
+    const QList<QScreen *> all = QGuiApplication::screens();
+    for (const QScreen *screen : all)
+        screens.append(X11Screen{screen->geometry(), screen->devicePixelRatio()});
+    m_x11Grab = x11Grab(m_target.regionVirtual, screens, m_target.retinaCapture);
+    if (!m_x11Grab.valid) {
+        teardown();
+        emit failed(tr("The selected area is not on any screen."));
+        return;
+    }
+    qInfo() << "Recording: reading" << m_x11Grab.rootPx << "of the X11 root window for"
+            << m_target.regionVirtual << "into" << m_x11Grab.outputPx;
+
+    QString error;
+    if (!buildPipeline(0, &error)) {
+        teardown();
+        emit failed(error);
+        return;
+    }
+    startPipeline();
 }
 
 void LinuxRecordingStrategy::stop()
@@ -526,6 +574,11 @@ void LinuxRecordingStrategy::handleSessionReady(quint32 nodeId, const QRect &str
         return;
     }
 
+    startPipeline();
+}
+
+void LinuxRecordingStrategy::startPipeline()
+{
     // pipewiresrc waits for the stream on the way to PLAYING, for up to 30 s.
     GstElement *pipeline = GST_ELEMENT(gst_object_ref(m_pipeline));
     const std::shared_ptr<StrategyLink> link = m_link;
@@ -568,8 +621,11 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
                                                                  Qt::CaseInsensitive) == 0
                         ? QStringLiteral("qtmux") : QStringLiteral("mp4mux");
 
-    QString description = LinuxPipeline::videoChain(LinuxPipeline::portalSource(), m_target.fps,
-                                                    encoder, mux);
+    const bool x11 = m_source == LinuxPipeline::VideoSource::X11;
+    const QString source = x11 ? LinuxPipeline::x11Source(m_x11Grab.rootPx,
+                                                          m_target.captureCursor, m_target.fps)
+                               : LinuxPipeline::portalSource();
+    QString description = LinuxPipeline::videoChain(source, m_target.fps, encoder, mux);
 
     if (m_target.captureMic || m_target.captureSystemAudio) {
         const QString aac = Media::Gst::aacEncoderChain();
@@ -635,9 +691,6 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         return false;
     }
 
-    // Set as properties rather than inside the launch string: no escaping to get wrong.
-    g_object_set(src, "fd", m_pipewireFd,
-                 "path", QByteArray::number(nodeId).constData(), nullptr);
     g_object_set(sink, "location", m_outputPath.toUtf8().constData(), nullptr);
     Media::Gst::configureRecordingOutput(muxer, sink);
 
@@ -648,28 +701,11 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         gst_object_unref(micsrc);
     }
 
-    // Not live, so basesrc never syncs on the producer's timestamps: one frame stamped 0
-    // by xdg-desktop-portal-wlr would park the source until the far future.
-    GstStructure *streamProps = gst_structure_new("props", "stream.is-live", G_TYPE_STRING,
-                                                  "false", nullptr);
-    g_object_set(src, "stream-properties", streamProps, nullptr);
-    gst_structure_free(streamProps);
-
-    if (GstPad *srcPad = gst_element_get_static_pad(src, "src")) {
-        gst_pad_add_probe(srcPad, GST_PAD_PROBE_TYPE_BUFFER, onStreamBuffer,
-                          new RestampContext{src}, freeRestampContext);
-        auto *cropCtx = new CropContext;
-        cropCtx->link = m_link;
-        cropCtx->regionVirtual = m_target.regionVirtual;
-        cropCtx->streamRect = m_streamRect;
-        cropCtx->screens = m_screens;
-        cropCtx->virtualDesktop = m_virtualDesktop;
-        cropCtx->retina = m_target.retinaCapture;
-        cropCtx->crop = GST_ELEMENT(gst_object_ref(crop));
-        cropCtx->outcaps = GST_ELEMENT(gst_object_ref(outcaps));
-        gst_pad_add_probe(srcPad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, onCapsEvent, cropCtx,
-                          freeCropContext);
-        gst_object_unref(srcPad);
+    if (x11) {
+        // ximagesrc stamps running time itself and grabs just the area, so no probes.
+        setOutputCaps(outcaps, m_x11Grab.outputPx);
+    } else {
+        configurePortalSource(src, crop, outcaps, nodeId);
     }
 
     // Pause closes every valve, but only the pads feeding the muxer carry the offset:
@@ -704,6 +740,39 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
 
     unrefAll();
     return true;
+}
+
+void LinuxRecordingStrategy::configurePortalSource(GstElement *src, GstElement *crop,
+                                                   GstElement *outcaps, quint32 nodeId)
+{
+    // Set as properties rather than inside the launch string: no escaping to get wrong.
+    g_object_set(src, "fd", m_pipewireFd,
+                 "path", QByteArray::number(nodeId).constData(), nullptr);
+
+    // Not live, so basesrc never syncs on the producer's timestamps: one frame stamped 0
+    // by xdg-desktop-portal-wlr would park the source until the far future.
+    GstStructure *streamProps = gst_structure_new("props", "stream.is-live", G_TYPE_STRING,
+                                                  "false", nullptr);
+    g_object_set(src, "stream-properties", streamProps, nullptr);
+    gst_structure_free(streamProps);
+
+    GstPad *srcPad = gst_element_get_static_pad(src, "src");
+    if (!srcPad)
+        return;
+    gst_pad_add_probe(srcPad, GST_PAD_PROBE_TYPE_BUFFER, onStreamBuffer,
+                      new RestampContext{src}, freeRestampContext);
+    auto *cropCtx = new CropContext;
+    cropCtx->link = m_link;
+    cropCtx->regionVirtual = m_target.regionVirtual;
+    cropCtx->streamRect = m_streamRect;
+    cropCtx->screens = m_screens;
+    cropCtx->virtualDesktop = m_virtualDesktop;
+    cropCtx->retina = m_target.retinaCapture;
+    cropCtx->crop = GST_ELEMENT(gst_object_ref(crop));
+    cropCtx->outcaps = GST_ELEMENT(gst_object_ref(outcaps));
+    gst_pad_add_probe(srcPad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, onCapsEvent, cropCtx,
+                      freeCropContext);
+    gst_object_unref(srcPad);
 }
 
 void LinuxRecordingStrategy::reportStarted(quint64 generation)

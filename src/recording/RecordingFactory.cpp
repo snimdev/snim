@@ -39,10 +39,10 @@ std::unique_ptr<RecordingStrategy> RecordingFactory::createStrategy(StrategyType
             // without the module) degrades here exactly like an unavailable backend.
             std::unique_ptr<RecordingStrategy> strategy(LinuxRecorderModule::create(parent));
             if (strategy && strategy->isAvailable()) {
-                qDebug() << "Created portal/GStreamer recording strategy";
+                qDebug().noquote() << "Created" << strategy->name() << "recording strategy";
                 return strategy;
             }
-            qWarning().noquote() << "Portal/GStreamer recorder unavailable, using stub. Missing:"
+            qWarning().noquote() << "GStreamer recorder unavailable, using stub. Missing:"
                                  << LinuxRecorderModule::missingPieces().join(QStringLiteral("; "));
 #endif
         }
