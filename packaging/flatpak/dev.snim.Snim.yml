@@ -109,6 +109,21 @@ modules:
         url: https://download.kde.org/stable/plasma/6.4.6/layer-shell-qt-6.4.6.tar.xz
         sha256: 1bb5bc881af2f5b74c014127c2f701ce346243ac01f897f1dea00f14f7d87993
 
+  # The runtime's GStreamer lacks ximagesrc, which records X11 sessions without a portal
+  - name: gst-ximagesrc
+    buildsystem: meson
+    builddir: true
+    config-opts:
+      - -Dauto_features=disabled
+      - -Dximagesrc=enabled
+      - -Dximagesrc-xshm=enabled
+      - -Dximagesrc-xfixes=enabled
+      - -Dximagesrc-xdamage=enabled
+    sources:
+      - type: archive
+        url: https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-1.26.11.tar.xz
+        sha256: 001deb0876d5d743cd3448abf74a27adec3fd850012fcb1b00994861bd6c1145
+
   - name: snim
     buildsystem: cmake-ninja
     builddir: true
