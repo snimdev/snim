@@ -25,6 +25,9 @@ public:
     [[nodiscard]] QString name() const override { return QStringLiteral("KWin ScreenShot2"); }
     void grab() override;
 
+    // Whether KWin's ScreenShot2 service is on the session bus.
+    [[nodiscard]] static bool isServiceRegistered();
+
     // 0 when KWin did not answer the Version property.
     [[nodiscard]] quint32 apiVersion() const { return m_apiVersion; }
 

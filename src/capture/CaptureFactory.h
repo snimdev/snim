@@ -1,12 +1,9 @@
 #ifndef CAPTURE_CAPTUREFACTORY_H
 #define CAPTURE_CAPTUREFACTORY_H
 
+#include "screen/sources/FrameSourceFactory.h"
 #include "strategies/CaptureStrategy.h"
 #include <memory>
-
-namespace Screen {
-class DesktopFrameSource;
-} // namespace Screen
 
 namespace Capture {
 
@@ -16,14 +13,8 @@ namespace Capture {
 class CaptureFactory
 {
 public:
-    enum class StrategyType {
-        Auto,           // Automatically select best available strategy
-        KWin,           // KWin ScreenShot2 D-Bus (preferred on KDE Plasma)
-        Wayland,        // Force Wayland strategy
-        Screencast,     // One frame from a restored ScreenCast portal session
-        Screencopy,     // Native Wayland screencopy (wlroots-family compositors)
-        Native          // Force native Qt strategy
-    };
+    // One strategy per frame source, so they share the type and its selection.
+    using StrategyType = Screen::SourceType;
 
     /**
      * Create the best available capture strategy for the current system
@@ -32,13 +23,6 @@ public:
         StrategyType type = StrategyType::Auto,
         QObject *parent = nullptr
     );
-
-    /**
-     * The full-desktop frame source behind a strategy type, without any UI of Snim's
-     * own; null when it is not built in or not offered by this session
-     */
-    static std::unique_ptr<Screen::DesktopFrameSource> createFrameSource(StrategyType type,
-                                                                 QObject *parent = nullptr);
 
     /**
      * Get the default strategy type for the current system

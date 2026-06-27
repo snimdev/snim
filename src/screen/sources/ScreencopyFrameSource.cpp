@@ -6,6 +6,12 @@
 
 namespace Screen {
 
+bool ScreencopyFrameSource::isAvailable()
+{
+    const Screencopy::Globals globals = Screencopy::advertisedGlobals();
+    return Screencopy::pickProtocol(globals.ext, globals.wlr) != Screencopy::Protocol::None;
+}
+
 QPixmap ScreencopyFrameSource::grabNow(QRect *virtualGeometryOut, QString *error)
 {
     const Screencopy::Globals globals = Screencopy::advertisedGlobals();

@@ -1,0 +1,42 @@
+#ifndef SCREEN_FRAMESOURCEFACTORY_H
+#define SCREEN_FRAMESOURCEFACTORY_H
+
+#include <QObject>
+
+#include <memory>
+
+namespace Screen {
+
+class DesktopFrameSource;
+
+// The ways to the screen this desktop may offer; the capture strategies follow them.
+enum class SourceType {
+    Auto,           // Automatically select best available strategy
+    KWin,           // KWin ScreenShot2 D-Bus (preferred on KDE Plasma)
+    Wayland,        // Force Wayland strategy
+    Screencast,     // One frame from a restored ScreenCast portal session
+    Screencopy,     // Native Wayland screencopy (wlroots-family compositors)
+    Native          // Force native Qt strategy
+};
+
+/**
+ * Creates the full-desktop frame source behind each SourceType and picks the type this
+ * desktop prefers, for the capture strategies and the frozen frame alike.
+ */
+class FrameSourceFactory
+{
+public:
+    // Null when the source is not built in or not offered by this session.
+    [[nodiscard]] static std::unique_ptr<DesktopFrameSource> create(SourceType type,
+                                                                    QObject *parent = nullptr);
+
+    // StrategySelection over this desktop; SNIM_CAPTURE_STRATEGY forces a type, for testing.
+    [[nodiscard]] static SourceType defaultType();
+
+private:
+    FrameSourceFactory() = default;
+};
+
+} // namespace Screen
+
+#endif // SCREEN_FRAMESOURCEFACTORY_H

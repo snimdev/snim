@@ -1,11 +1,6 @@
 #include "CaptureFactory.h"
-#include "StrategySelection.h"
-#include "core/Sandbox.h"
-#include "screen/sources/QtScreensFrameSource.h"
 #include "strategies/NativeCaptureStrategy.h"
 #ifdef Q_OS_LINUX
-#include "screen/sources/KWinFrameSource.h"
-#include "screen/sources/PortalFrameSource.h"
 #include "strategies/KWinCaptureStrategy.h"
 #include "strategies/WaylandCaptureStrategy.h"
 #endif
@@ -13,7 +8,6 @@
 #include "strategies/ScreencastCaptureStrategy.h"
 #endif
 #ifdef SNIM_HAVE_SCREENCOPY
-#include "screen/sources/ScreencopyFrameSource.h"
 #include "strategies/ScreencopyCaptureStrategy.h"
 #endif
 #include <QtGlobal>
@@ -89,66 +83,9 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
     }
 }
 
-std::unique_ptr<Screen::DesktopFrameSource> CaptureFactory::createFrameSource(StrategyType type, QObject *parent)
-{
-    switch (type) {
-    case StrategyType::Auto:
-        return createFrameSource(getDefaultStrategyType(), parent);
-    case StrategyType::KWin:
-#ifdef Q_OS_LINUX
-        if (KWinCaptureStrategy::isKWinAvailable()) {
-            auto source = std::make_unique<Screen::KWinFrameSource>(parent);
-            if (source->apiVersion() > 0)
-                return source;
-        }
-#endif
-        return nullptr;
-    case StrategyType::Screencast:
-#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
-        if (Screen::ScreencastFrameSource::isSupported())
-            return std::make_unique<Screen::ScreencastFrameSource>(parent);
-#endif
-        return nullptr;
-    case StrategyType::Screencopy:
-#ifdef SNIM_HAVE_SCREENCOPY
-        if (ScreencopyCaptureStrategy::isScreencopyAvailable())
-            return std::make_unique<Screen::ScreencopyFrameSource>(parent);
-#endif
-        return nullptr;
-    case StrategyType::Wayland:
-#ifdef Q_OS_LINUX
-        return std::make_unique<Screen::PortalFrameSource>(parent);
-#else
-        return nullptr;
-#endif
-    case StrategyType::Native:
-        return std::make_unique<Screen::QtScreensFrameSource>(parent);
-    }
-    return nullptr;
-}
-
 CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()
 {
-    // SNIM_CAPTURE_STRATEGY=kwin|screencast|screencopy|wayland|native forces one, for testing.
-    if (const auto forced = StrategySelection::parseOverride(qEnvironmentVariable("SNIM_CAPTURE_STRATEGY")))
-        return *forced;
-
-    StrategySelection::Probes probes;
-#ifdef Q_OS_LINUX
-    probes.kwin = [] { return KWinCaptureStrategy::isKWinAvailable(); };
-    probes.portal = [] {
-        return WaylandCaptureStrategy::isWaylandSession() && WaylandCaptureStrategy().isAvailable();
-    };
-#endif
-#ifdef SNIM_HAVE_SCREENCOPY
-    probes.screencopy = [] { return ScreencopyCaptureStrategy::isScreencopyAvailable(); };
-#endif
-#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
-    probes.screencast = [] { return ScreencastCaptureStrategy::isSupported(); };
-#endif
-    // Without probes (macOS, Windows) this is always the native Qt capture.
-    return StrategySelection::choose(qEnvironmentVariable("XDG_CURRENT_DESKTOP"),
-                                     Core::Sandbox::isFlatpak(), probes);
+    return Screen::FrameSourceFactory::defaultType();
 }
 
 bool CaptureFactory::isStrategyAvailable(StrategyType type)

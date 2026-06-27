@@ -1,6 +1,7 @@
 #include "screen/FrozenFrameGrabber.h"
-#include "capture/StrategySelection.h"
+#include "screen/sources/FrameSourceFactory.h"
 #include "screen/sources/QtScreensFrameSource.h"
+#include "screen/sources/StrategySelection.h"
 
 #include <QDebug>
 #include <QGuiApplication>
@@ -12,7 +13,7 @@ namespace Screen {
 namespace {
 
 #ifdef Q_OS_LINUX
-using Type = Capture::CaptureFactory::StrategyType;
+using Type = SourceType;
 
 QString typeName(Type type)
 {
@@ -50,10 +51,10 @@ void FrozenFrameGrabber::grab(Done done)
         m_done = std::move(done);
         m_clock.start();
         m_lastReason.clear();
-        const Type chosen = Capture::CaptureFactory::getDefaultStrategyType();
+        const Type chosen = FrameSourceFactory::defaultType();
         m_chain.clear();
         QStringList names;
-        for (const Type type : Capture::StrategySelection::frameSourceChain(chosen)) {
+        for (const Type type : StrategySelection::frameSourceChain(chosen)) {
             m_chain.append(static_cast<int>(type));
             names.append(typeName(type));
         }
@@ -74,7 +75,7 @@ void FrozenFrameGrabber::grab(Done done)
 QString FrozenFrameGrabber::failureMessage(const QString &currentDesktop, const QString &reason,
                                            bool cancelled)
 {
-    using Capture::StrategySelection::desktopIs;
+    using StrategySelection::desktopIs;
     if (cancelled)
         return tr("Snim needs a picture of your screens to show the recording selection, and "
                   "that request was cancelled. Start the recording again and allow it when "
@@ -118,8 +119,7 @@ void FrozenFrameGrabber::tryNextSource()
 {
     while (!m_chain.isEmpty()) {
         const Type type = static_cast<Type>(m_chain.takeFirst());
-        std::unique_ptr<DesktopFrameSource> source =
-            Capture::CaptureFactory::createFrameSource(type, this);
+        std::unique_ptr<DesktopFrameSource> source = FrameSourceFactory::create(type, this);
         if (!source) {
             qInfo().noquote() << "Frozen frame:" << typeName(type) << "is not available here";
             if (m_lastReason.isEmpty())

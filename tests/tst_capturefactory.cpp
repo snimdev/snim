@@ -2,11 +2,14 @@
 #include <memory>
 
 #include "capture/CaptureFactory.h"
-#include "capture/StrategySelection.h"
-#include "screen/sources/DesktopFrameSource.h"
 #include "capture/strategies/CaptureStrategy.h"
+#include "screen/sources/DesktopFrameSource.h"
+#include "screen/sources/FrameSourceFactory.h"
+#include "screen/sources/StrategySelection.h"
 
 using namespace Capture;
+namespace StrategySelection = Screen::StrategySelection;
+using Screen::FrameSourceFactory;
 
 // Factory + Strategy: test only the side-effect-free surface. NEVER call
 // captureArea/captureWindow/captureFullScreen; they grab the real screen and
@@ -201,17 +204,17 @@ private slots:
 
     void frameSourcesExistOnlyWhereTheyCanDeliver()
     {
-        const auto native = CaptureFactory::createFrameSource(CaptureFactory::StrategyType::Native);
+        const auto native = FrameSourceFactory::create(CaptureFactory::StrategyType::Native);
         QVERIFY(native);
         QCOMPARE(native->name(), QStringLiteral("Qt screen grab"));
         // Offscreen and no Wayland session: no screencopy and no ScreenCast session.
         qputenv("WAYLAND_DISPLAY", "");
         qputenv("XDG_SESSION_TYPE", "x11");
-        QVERIFY(!CaptureFactory::createFrameSource(CaptureFactory::StrategyType::Screencopy));
-        QVERIFY(!CaptureFactory::createFrameSource(CaptureFactory::StrategyType::Screencast));
+        QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Screencopy));
+        QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Screencast));
 #if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
-        QVERIFY(!CaptureFactory::createFrameSource(CaptureFactory::StrategyType::KWin));
-        QVERIFY(!CaptureFactory::createFrameSource(CaptureFactory::StrategyType::Wayland));
+        QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::KWin));
+        QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Wayland));
 #endif
     }
 

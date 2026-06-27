@@ -52,7 +52,7 @@ private:
     void sourceFailed(const QString &reason, bool cancelled);
     void dropSource();
 
-    QList<int> m_chain;   // CaptureFactory::StrategyType values still to try
+    QList<int> m_chain;   // SourceType values still to try
     DesktopFrameSource *m_source = nullptr;
     QString m_lastReason;
     QElapsedTimer m_clock;

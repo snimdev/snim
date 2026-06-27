@@ -5,7 +5,6 @@
 
 #include <QApplication>
 #include <QDBusConnection>
-#include <QDBusConnectionInterface>
 #include <QDBusInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
@@ -56,7 +55,7 @@ KWinCaptureStrategy::KWinCaptureStrategy(QObject *parent)
 
 bool KWinCaptureStrategy::isKWinAvailable()
 {
-    return QDBusConnection::sessionBus().interface()->isServiceRegistered(kServiceName);
+    return Screen::KWinFrameSource::isServiceRegistered();
 }
 
 bool KWinCaptureStrategy::isAvailable() const

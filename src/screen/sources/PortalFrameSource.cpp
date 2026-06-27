@@ -2,6 +2,7 @@
 
 #include <QDebug>
 #include <QFile>
+#include <QStandardPaths>
 #include <QImage>
 #include <QTimer>
 #include <QUrl>
@@ -27,6 +28,33 @@ constexpr int kResponseTimeoutMs = 120000;
 bool s_portalNeedsDialog = false;
 
 } // namespace
+
+bool PortalFrameSource::isPortalReachable()
+{
+    const QDBusInterface screenshot(kService, kPath,
+                                    QStringLiteral("org.freedesktop.portal.Screenshot"),
+                                    QDBusConnection::sessionBus());
+    if (!screenshot.isValid())
+        return false;
+    const QDBusInterface properties(kService, kPath,
+                                    QStringLiteral("org.freedesktop.DBus.Properties"),
+                                    QDBusConnection::sessionBus());
+    return properties.isValid();
+}
+
+bool PortalFrameSource::hasFallbackTool(bool area)
+{
+    const QStringList candidates = area
+        ? QStringList{QStringLiteral("spectacle"), QStringLiteral("flameshot"),
+                      QStringLiteral("gnome-screenshot")}
+        : QStringList{QStringLiteral("spectacle"), QStringLiteral("grim"),
+                      QStringLiteral("gnome-screenshot"), QStringLiteral("flameshot")};
+    for (const QString &tool : candidates) {
+        if (!QStandardPaths::findExecutable(tool).isEmpty())
+            return true;
+    }
+    return false;
+}
 
 PortalFrameSource::PortalFrameSource(QObject *parent)
     : DesktopFrameSource(parent)

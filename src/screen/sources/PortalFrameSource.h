@@ -25,6 +25,12 @@ public:
     [[nodiscard]] QString name() const override { return QStringLiteral("Screenshot portal"); }
     void grab() override;
 
+    // Whether the Screenshot portal answers on the session bus.
+    [[nodiscard]] static bool isPortalReachable();
+
+    // Whether a screenshot tool the Wayland strategy can fall back to is installed.
+    [[nodiscard]] static bool hasFallbackTool(bool area);
+
 private slots:
     void handleResponse(uint status, const QVariantMap &results);
 

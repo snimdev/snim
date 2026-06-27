@@ -16,7 +16,6 @@
 #include <QDir>
 #include <QDebug>
 #include <QTimer>
-#include <QProcessEnvironment>
 #include <QDateTime>
 #include <QRandomGenerator>
 #include <QUrl>
@@ -303,23 +302,7 @@ namespace Capture {
     }
 
     bool WaylandCaptureStrategy::hasAvailableFallbackTools() const {
-        // Check if any fallback tools are available without executing them
-        QStringList candidates;
-
-        if (m_captureArea) {
-            candidates << "spectacle" << "flameshot" << "gnome-screenshot";
-        } else {
-            candidates << "spectacle" << "grim" << "gnome-screenshot" << "flameshot";
-        }
-
-        for (const QString &tool: candidates) {
-            QString toolPath = QStandardPaths::findExecutable(tool);
-            if (!toolPath.isEmpty()) {
-                return true;
-            }
-        }
-
-        return false;
+        return Screen::PortalFrameSource::hasFallbackTool(m_captureArea);
     }
 
     bool WaylandCaptureStrategy::useFallbackCapture() {

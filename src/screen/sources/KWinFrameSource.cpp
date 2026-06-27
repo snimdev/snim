@@ -1,6 +1,7 @@
 #include "KWinFrameSource.h"
 
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
@@ -28,6 +29,11 @@ const QString kInterface = QStringLiteral("org.kde.KWin.ScreenShot2");
 constexpr int kCallTimeoutMs = 4000;
 
 } // namespace
+
+bool KWinFrameSource::isServiceRegistered()
+{
+    return QDBusConnection::sessionBus().interface()->isServiceRegistered(kServiceName);
+}
 
 KWinFrameSource::KWinFrameSource(QObject *parent)
     : DesktopFrameSource(parent)

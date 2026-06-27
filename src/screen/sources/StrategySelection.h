@@ -1,7 +1,7 @@
-#ifndef CAPTURE_STRATEGYSELECTION_H
-#define CAPTURE_STRATEGYSELECTION_H
+#ifndef SCREEN_STRATEGYSELECTION_H
+#define SCREEN_STRATEGYSELECTION_H
 
-#include "CaptureFactory.h"
+#include "FrameSourceFactory.h"
 
 #include <QList>
 #include <QString>
@@ -11,10 +11,10 @@
 #include <optional>
 
 /**
- * The pure half of CaptureFactory's choice, taking the desktop and sandbox as inputs
+ * The pure half of FrameSourceFactory's choice, taking the desktop and sandbox as inputs
  * so the matrix is testable without that desktop.
  */
-namespace Capture::StrategySelection {
+namespace Screen::StrategySelection {
 
 // XDG_CURRENT_DESKTOP is a colon-separated list such as "ubuntu:GNOME".
 inline bool desktopIs(const QString &currentDesktop, const QString &name)
@@ -57,25 +57,24 @@ inline bool probe(const std::function<bool()> &check)
 }
 
 // The whole matrix; every pick still falls back to the Screenshot portal at runtime.
-inline CaptureFactory::StrategyType choose(const QString &currentDesktop, bool flatpak,
-                                           const Probes &probes)
+inline SourceType choose(const QString &currentDesktop, bool flatpak, const Probes &probes)
 {
     if (!flatpak && probe(probes.kwin))
-        return CaptureFactory::StrategyType::KWin;
+        return SourceType::KWin;
     if (prefersScreencopy(currentDesktop) && probe(probes.screencopy))
-        return CaptureFactory::StrategyType::Screencopy;
+        return SourceType::Screencopy;
     if (prefersScreencast(currentDesktop, flatpak) && probe(probes.screencast))
-        return CaptureFactory::StrategyType::Screencast;
+        return SourceType::Screencast;
     if (probe(probes.portal))
-        return CaptureFactory::StrategyType::Wayland;
-    return CaptureFactory::StrategyType::Native;
+        return SourceType::Wayland;
+    return SourceType::Native;
 }
 
 // Where a full-desktop frame comes from, in order: the screenshot pick's own source, then
 // the Screenshot portal, which asks with its dialog when a silent request is refused.
-inline QList<CaptureFactory::StrategyType> frameSourceChain(CaptureFactory::StrategyType chosen)
+inline QList<SourceType> frameSourceChain(SourceType chosen)
 {
-    using Type = CaptureFactory::StrategyType;
+    using Type = SourceType;
     switch (chosen) {
     case Type::KWin:
     case Type::Screencast:
@@ -91,22 +90,22 @@ inline QList<CaptureFactory::StrategyType> frameSourceChain(CaptureFactory::Stra
 }
 
 // A SNIM_CAPTURE_STRATEGY value; nothing for an empty or unknown one.
-inline std::optional<CaptureFactory::StrategyType> parseOverride(const QString &value)
+inline std::optional<SourceType> parseOverride(const QString &value)
 {
     const QString name = value.trimmed().toLower();
     if (name == QLatin1String("kwin"))
-        return CaptureFactory::StrategyType::KWin;
+        return SourceType::KWin;
     if (name == QLatin1String("screencast"))
-        return CaptureFactory::StrategyType::Screencast;
+        return SourceType::Screencast;
     if (name == QLatin1String("screencopy") || name == QLatin1String("wlroots"))
-        return CaptureFactory::StrategyType::Screencopy;
+        return SourceType::Screencopy;
     if (name == QLatin1String("wayland") || name == QLatin1String("portal"))
-        return CaptureFactory::StrategyType::Wayland;
+        return SourceType::Wayland;
     if (name == QLatin1String("native"))
-        return CaptureFactory::StrategyType::Native;
+        return SourceType::Native;
     return std::nullopt;
 }
 
-} // namespace Capture::StrategySelection
+} // namespace Screen::StrategySelection
 
-#endif // CAPTURE_STRATEGYSELECTION_H
+#endif // SCREEN_STRATEGYSELECTION_H

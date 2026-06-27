@@ -19,6 +19,9 @@ public:
     [[nodiscard]] QString name() const override { return QStringLiteral("Wayland screencopy"); }
     void grab() override;
 
+    // Whether the compositor advertises ext-image-copy-capture or wlr-screencopy.
+    [[nodiscard]] static bool isAvailable();
+
     // Null with *error set when the compositor offers no protocol or refuses a copy.
     [[nodiscard]] static QPixmap grabNow(QRect *virtualGeometryOut, QString *error);
 };

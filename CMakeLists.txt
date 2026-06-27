@@ -460,6 +460,9 @@ add_library(snim_lib STATIC
         src/screen/ScreencopyGeometry.h
         # Full-desktop frame sources, shared by capture and the frozen frame.
         src/screen/sources/DesktopFrameSource.h
+        src/screen/sources/FrameSourceFactory.cpp
+        src/screen/sources/FrameSourceFactory.h
+        src/screen/sources/StrategySelection.h
         src/screen/sources/QtScreensFrameSource.cpp
         src/screen/sources/QtScreensFrameSource.h
 
@@ -467,7 +470,6 @@ add_library(snim_lib STATIC
         src/capture/CaptureFactory.cpp
         src/capture/CaptureFactory.h
         src/capture/CaptureGeometry.h
-        src/capture/StrategySelection.h
         src/capture/OverlayAnnotations.cpp
         src/capture/OverlayAnnotations.h
         src/capture/strategies/CaptureStrategy.cpp

@@ -14,8 +14,7 @@ ScreencopyCaptureStrategy::ScreencopyCaptureStrategy(QObject *parent)
 
 bool ScreencopyCaptureStrategy::isScreencopyAvailable()
 {
-    const Screen::Screencopy::Globals globals = Screen::Screencopy::advertisedGlobals();
-    return Screen::Screencopy::pickProtocol(globals.ext, globals.wlr) != Screen::Screencopy::Protocol::None;
+    return Screen::ScreencopyFrameSource::isAvailable();
 }
 
 bool ScreencopyCaptureStrategy::isAvailable() const
