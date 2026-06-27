@@ -11,11 +11,20 @@ class tst_LinuxPipeline : public QObject
 private slots:
     void x11OnlyInAnX11Session()
     {
-        QCOMPARE(videoSourceFor(u"xcb", false), VideoSource::X11);
-        QCOMPARE(videoSourceFor(u"xcb", true), VideoSource::Portal);   // XWayland
-        QCOMPARE(videoSourceFor(u"wayland", true), VideoSource::Portal);
-        QCOMPARE(videoSourceFor(u"offscreen", false), VideoSource::Portal);
-        QCOMPARE(videoSourceFor(u"", false), VideoSource::Portal);
+        QCOMPARE(videoSourceFor(u"xcb", false, true, true), VideoSource::X11);
+        QCOMPARE(videoSourceFor(u"xcb", false, true, false), VideoSource::X11);
+        QCOMPARE(videoSourceFor(u"xcb", true, true, true), VideoSource::Portal);   // XWayland
+        QCOMPARE(videoSourceFor(u"wayland", true, true, true), VideoSource::Portal);
+        QCOMPARE(videoSourceFor(u"offscreen", false, true, true), VideoSource::Portal);
+        QCOMPARE(videoSourceFor(u"", false, true, true), VideoSource::Portal);
+    }
+
+    void x11WithoutXimagesrcFallsBackToThePortal()
+    {
+        QCOMPARE(videoSourceFor(u"xcb", false, false, true), VideoSource::Portal);
+        // Neither works: name ximagesrc, the piece an X11 desktop is likelier to get.
+        QCOMPARE(videoSourceFor(u"xcb", false, false, false), VideoSource::X11);
+        QCOMPARE(videoSourceFor(u"wayland", true, false, false), VideoSource::Portal);
     }
 
     void eachSourceNeedsOnlyItsOwnElement()

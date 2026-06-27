@@ -34,8 +34,15 @@ constexpr int kFirstFrameTimeoutMs = 35000;
 
 LinuxPipeline::VideoSource currentVideoSource()
 {
-    return LinuxPipeline::videoSourceFor(QGuiApplication::platformName(),
-                                         Screen::isWaylandSession());
+    const bool hasXimagesrc = Media::Gst::ensureInitialized()
+                              && Media::Gst::hasFactory("ximagesrc");
+    const QString platform = QGuiApplication::platformName();
+    const bool wayland = Screen::isWaylandSession();
+    // The portal probe is a blocking D-Bus call, so only make it when it decides anything.
+    const bool askPortal = platform == QLatin1String("xcb") && !wayland && !hasXimagesrc;
+    return LinuxPipeline::videoSourceFor(
+        platform, wayland, hasXimagesrc,
+        askPortal && Screen::ScreenCastPortalSession::isPortalAvailable());
 }
 
 void setOutputCaps(GstElement *outcaps, const QSize &size)
