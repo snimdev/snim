@@ -829,6 +829,7 @@ if(GSTREAMER_AVAILABLE)
     add_library(snim_recorder_linux MODULE
             src/recording/strategies/LinuxRecordingStrategy.cpp
             src/recording/strategies/LinuxRecordingStrategy.h
+            src/recording/strategies/LinuxPipeline.h
             # The portal handshake and the self-location helper are implementation
             # details of the recorder, so the module carries its own copies: a static
             # library hands an object out only when something else already pulled it

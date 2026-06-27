@@ -34,6 +34,7 @@ set(SNIM_TESTS
         tst_recordingfactory
         tst_recordtarget
         tst_recordinggeometry
+        tst_linuxpipeline
         tst_recordingcontroller
         tst_recordingjournal
         tst_recordingworkflow

@@ -3,6 +3,7 @@
 #include "media/gst/GstSupport.h"
 #include "recording/RecordingGeometry.h"
 #include "recording/StreamTimestamp.h"
+#include "recording/strategies/LinuxPipeline.h"
 #include "recording/strategies/LinuxRecorderModule.h"
 #include "screen/ScreenCastPortalSession.h"
 
@@ -381,9 +382,9 @@ QStringList LinuxRecordingStrategy::missingPieces()
         pieces << QStringLiteral("the ScreenCast portal (xdg-desktop-portal and a backend "
                                  "for this desktop)");
     }
-    pieces << Media::Gst::missingPieces({"pipewiresrc", "videorate", "videocrop", "videoscale",
-                                         "videoconvert", "capsfilter", "valve", "mp4mux"},
-                                        Media::Gst::hasFactory, Media::Gst::probeH264Plugins());
+    pieces << Media::Gst::missingPieces(
+        LinuxPipeline::requiredElements(LinuxPipeline::VideoSource::Portal),
+        Media::Gst::hasFactory, Media::Gst::probeH264Plugins());
     return pieces;
 }
 
@@ -567,14 +568,8 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
                                                                  Qt::CaseInsensitive) == 0
                         ? QStringLiteral("qtmux") : QStringLiteral("mp4mux");
 
-    QString description =
-        QStringLiteral("pipewiresrc name=src keepalive-time=1000 resend-last=true provide-clock=false "
-                       "! valve name=videovalve drop=false "
-                       "! videorate drop-only=true max-rate=%1 skip-to-first=true "
-                       "! videocrop name=crop ! videoscale ! videoconvert "
-                       "! capsfilter name=outcaps caps=video/x-raw,pixel-aspect-ratio=1/1 "
-                       "! queue ! %2 ! queue ! %3 name=mux ! filesink name=sink")
-            .arg(QString::number(m_target.fps), encoder, mux);
+    QString description = LinuxPipeline::videoChain(LinuxPipeline::portalSource(), m_target.fps,
+                                                    encoder, mux);
 
     if (m_target.captureMic || m_target.captureSystemAudio) {
         const QString aac = Media::Gst::aacEncoderChain();
