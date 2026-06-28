@@ -205,6 +205,38 @@ inline X11Grab x11Grab(const QRect &regionVirtual, const QVector<X11Screen> &scr
     return out;
 }
 
+struct FrameRing {
+    QRect window;            // ring window, in the coordinates of the inputs
+    QVector<QRect> strips;   // the border itself, local to window
+    bool  valid = false;
+};
+
+/**
+ * The X11 recording frame: a window just large enough for a @p borderWidth border
+ * around @p hole, clamped to @p screen, and the strips of it the border covers (the
+ * window minus the hole, window-local), which the window's shape is cut to. Invalid
+ * when no border fits, or when the window would cover the whole screen: window
+ * managers unredirect full-screen windows from the compositor. Pure, so it's unit-tested.
+ */
+inline FrameRing x11FrameRing(const QRect &hole, const QRect &screen, int borderWidth)
+{
+    FrameRing out;
+    const QRect inner = hole.intersected(screen);
+    if (inner.isEmpty() || borderWidth <= 0)
+        return out;
+
+    const QRect window = inner.adjusted(-borderWidth, -borderWidth, borderWidth, borderWidth)
+                             .intersected(screen);
+    if (window == inner || window == screen)
+        return out;
+
+    out.window = window;
+    out.strips = surroundingRects(QRect(QPoint(0, 0), window.size()),
+                                  inner.translated(-window.topLeft()));
+    out.valid = true;
+    return out;
+}
+
 /**
  * Keep the webcam bubble wholly inside @p bounds: clamp @p proposedTopLeft for a bubble
  * of @p bubbleSize. Both are in the same coordinate space (screen-local on Wayland,

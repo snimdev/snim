@@ -1,3 +1,4 @@
+#include <QRegion>
 #include <QtTest>
 
 #include "recording/RecordingGeometry.h"
@@ -301,6 +302,54 @@ private slots:
         QVERIFY(grab.valid);
         QCOMPARE(grab.rootPx, QRect(11, 13, 300, 200));
         QCOMPARE(grab.outputPx, QSize(300, 200));
+    }
+
+    void x11FrameRingHugsTheHole()
+    {
+        const QRect screen(0, 0, 2560, 1440);
+        const QRect hole(200, 150, 640, 360);
+        const FrameRing ring = x11FrameRing(hole, screen, 2);
+        QVERIFY(ring.valid);
+        QCOMPARE(ring.window, QRect(198, 148, 644, 364));
+
+        // The strips are exactly the window minus the hole: no pixel inside it.
+        QRegion shape;
+        for (const QRect &strip : ring.strips)
+            shape += strip;
+        const QRect localHole = hole.translated(-ring.window.topLeft());
+        QCOMPARE(shape, QRegion(QRect(QPoint(0, 0), ring.window.size())) - localHole);
+        QVERIFY(!shape.intersects(localHole));
+        QCOMPARE(shape.boundingRect(), QRect(0, 0, 644, 364));
+    }
+
+    void x11FrameRingClipsAtTheScreenEdge()
+    {
+        // A hole touching the left and top edges keeps only its right and bottom border.
+        const QRect screen(1920, 0, 1920, 1080);
+        const FrameRing ring = x11FrameRing(QRect(1920, 0, 400, 300), screen, 2);
+        QVERIFY(ring.valid);
+        QCOMPARE(ring.window, QRect(1920, 0, 402, 302));
+        QRegion shape;
+        for (const QRect &strip : ring.strips)
+            shape += strip;
+        QCOMPARE(shape, QRegion(0, 0, 402, 302) - QRegion(0, 0, 400, 300));
+
+        // A hole spilling off the screen is clamped to it first.
+        const FrameRing spill = x11FrameRing(QRect(3700, 900, 400, 400), screen, 2);
+        QVERIFY(spill.valid);
+        QCOMPARE(spill.window, QRect(3698, 898, 142, 182));
+    }
+
+    void x11FrameRingNeverCoversTheScreen()
+    {
+        const QRect screen(0, 0, 1920, 1080);
+        QVERIFY(!x11FrameRing(screen, screen, 2).valid);
+        QVERIFY(!x11FrameRing(QRect(1, 1, 1918, 1078), screen, 2).valid);
+        QVERIFY(!x11FrameRing(QRect(4000, 0, 100, 100), screen, 2).valid);
+        QVERIFY(!x11FrameRing(QRect(), screen, 2).valid);
+        QVERIFY(!x11FrameRing(QRect(10, 10, 100, 100), screen, 0).valid);
+        // One edge with room left is enough for a (partial) ring.
+        QVERIFY(x11FrameRing(QRect(0, 0, 1920, 1000), screen, 2).valid);
     }
 };
 
