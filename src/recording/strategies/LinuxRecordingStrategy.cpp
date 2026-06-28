@@ -414,6 +414,27 @@ QStringList LinuxRecordingStrategy::missingPieces()
     return pieces;
 }
 
+void LinuxRecordingStrategy::checkElements(QStringList *found, QStringList *missing)
+{
+    if (!Media::Gst::ensureInitialized()) {
+        *missing = {QStringLiteral("a working GStreamer (it failed to initialize)")};
+        return;
+    }
+    // No portal: an X11 session is held to ximagesrc, any other to PipeWire.
+    const LinuxPipeline::VideoSource source = LinuxPipeline::videoSourceFor(
+        QGuiApplication::platformName(), Screen::isWaylandSession(),
+        Media::Gst::hasFactory("ximagesrc"), false);
+    const QList<const char *> required = LinuxPipeline::sessionElements(source);
+    const Media::Gst::H264Plugins h264 = Media::Gst::probeH264Plugins();
+    *missing = Media::Gst::missingPieces(required, Media::Gst::hasFactory, h264);
+    for (const char *element : required) {
+        if (Media::Gst::hasFactory(element))
+            *found << QString::fromLatin1(element);
+    }
+    if (const char *encoder = Media::Gst::encoderElement(Media::Gst::chooseH264Encoder(h264)))
+        *found << QString::fromLatin1(encoder);
+}
+
 void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &outputPath)
 {
     if (isRecording()) {
@@ -885,4 +906,9 @@ extern "C" Recording::RecordingStrategy *snimCreateLinuxRecorder(QObject *parent
 extern "C" void snimLinuxRecorderMissingPieces(QStringList *pieces)
 {
     *pieces = Recording::LinuxRecordingStrategy::missingPieces();
+}
+
+extern "C" void snimLinuxRecorderCheckElements(QStringList *found, QStringList *missing)
+{
+    Recording::LinuxRecordingStrategy::checkElements(found, missing);
 }

@@ -10,11 +10,20 @@ namespace {
 
 using CreateFunction = RecordingStrategy *(*)(QObject *);
 using MissingFunction = void (*)(QStringList *);
+using CheckFunction = void (*)(QStringList *, QStringList *);
 
 using Screen::PipeWireFrames::kModuleOverride;
 
 constexpr Core::DynamicModule kModule{kBaseName, kModuleOverride, kEntryPoint};
 constexpr Core::DynamicModule kMissing{kBaseName, kModuleOverride, kMissingEntryPoint};
+constexpr Core::DynamicModule kCheck{kBaseName, kModuleOverride, kCheckEntryPoint};
+
+QString moduleMissing()
+{
+    return QStringLiteral("the recorder module or the GStreamer it loads "
+                          "(libgstreamer1.0-0 and libgstreamer-plugins-base1.0-0; "
+                          "Fedora: gstreamer1 and gstreamer1-plugins-base)");
+}
 
 } // namespace
 
@@ -40,14 +49,22 @@ bool isAvailable()
 QStringList missingPieces()
 {
     const QFunctionPointer entry = kMissing.resolve();
-    if (!entry) {
-        return {QStringLiteral("the recorder module or the GStreamer it loads "
-                               "(libgstreamer1.0-0 and libgstreamer-plugins-base1.0-0; "
-                               "Fedora: gstreamer1 and gstreamer1-plugins-base)")};
-    }
+    if (!entry)
+        return {moduleMissing()};
     QStringList pieces;
     reinterpret_cast<MissingFunction>(entry)(&pieces);
     return pieces;
+}
+
+ElementCheck checkElements()
+{
+    ElementCheck check;
+    const QFunctionPointer entry = kCheck.resolve();
+    if (!entry)
+        check.missing << moduleMissing();
+    else
+        reinterpret_cast<CheckFunction>(entry)(&check.found, &check.missing);
+    return check;
 }
 
 } // namespace Recording::LinuxRecorderModule

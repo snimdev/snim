@@ -54,6 +54,9 @@ public:
     [[nodiscard]] bool isAvailable() const override;
     // What this host lacks to record, named with the packages to install. Empty when none.
     [[nodiscard]] static QStringList missingPieces();
+    // For `snim --self-test`: the elements this session's recording and ScreenCast
+    // screenshots need, without asking the portal. `found` ends with the encoder.
+    static void checkElements(QStringList *found, QStringList *missing);
     [[nodiscard]] QString name() const override
     {
         return m_source == LinuxPipeline::VideoSource::X11 ? QStringLiteral("X11/GStreamer")

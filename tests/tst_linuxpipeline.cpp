@@ -1,5 +1,7 @@
 #include <QtTest>
 
+#include <algorithm>
+
 #include "recording/strategies/LinuxPipeline.h"
 
 using namespace Recording::LinuxPipeline;
@@ -47,6 +49,25 @@ private slots:
             QVERIFY(has(x11, shared));
             QVERIFY(has(portal, shared));
         }
+    }
+
+    void screenshotsAddTheFrameGrabOutsideX11()
+    {
+        const auto count = [](const QList<const char *> &list, const char *name) {
+            return std::count_if(list.cbegin(), list.cend(), [name](const char *element) {
+                return qstrcmp(element, name) == 0;
+            });
+        };
+        // ScreenCast screenshots never run in an X11 session.
+        QCOMPARE(sessionElements(VideoSource::X11), requiredElements(VideoSource::X11));
+
+        const QList<const char *> portal = sessionElements(VideoSource::Portal);
+        for (const char *element : requiredElements(VideoSource::Portal))
+            QCOMPARE(count(portal, element), 1);
+        for (const char *element : frameGrabElements())
+            QCOMPARE(count(portal, element), 1);
+        QCOMPARE(portal.size(), requiredElements(VideoSource::Portal).size() + 1);
+        QCOMPARE(count(portal, "appsink"), 1);
     }
 
     void x11SourceUsesInclusiveEnds()

@@ -51,6 +51,8 @@ private slots:
                  qPrintable(library.errorString()));
         QVERIFY2(library.resolve(LinuxRecorderModule::kMissingEntryPoint),
                  qPrintable(library.errorString()));
+        QVERIFY2(library.resolve(LinuxRecorderModule::kCheckEntryPoint),
+                 qPrintable(library.errorString()));
     }
 
     void namesTheModuleWhenItCannotBeLoaded()
@@ -59,6 +61,10 @@ private slots:
         const QStringList missing = LinuxRecorderModule::missingPieces();
         QCOMPARE(missing.size(), 1);
         QVERIFY(missing.first().contains(QStringLiteral("recorder module")));
+
+        const LinuxRecorderModule::ElementCheck check = LinuxRecorderModule::checkElements();
+        QVERIFY(check.found.isEmpty());
+        QCOMPARE(check.missing, missing);
     }
 
     void theFrameGrabberFailsCleanlyWithoutTheModule()
@@ -92,13 +98,28 @@ private slots:
         QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Linux);
     }
 
-    // Last: once the real module is loaded it stays loaded, whatever the variable says.
+    // Last two: once the real module is loaded it stays loaded, whatever the variable says.
     void missingPiecesAgreeWithAvailability()
     {
         qputenv("SNIM_RECORDER_MODULE", SNIM_RECORDER_MODULE_PATH);
         const QStringList missing = LinuxRecorderModule::missingPieces();
         qInfo() << "Missing here:" << missing;
         QCOMPARE(missing.isEmpty(), LinuxRecorderModule::isAvailable());
+    }
+
+    // Whatever this host has installed: only how the answer is shaped is checked.
+    void theElementCheckSplitsFoundFromMissing()
+    {
+        qputenv("SNIM_RECORDER_MODULE", SNIM_RECORDER_MODULE_PATH);
+        const LinuxRecorderModule::ElementCheck check = LinuxRecorderModule::checkElements();
+        qInfo() << "Found:" << check.found << "missing:" << check.missing;
+        QVERIFY(!check.found.isEmpty() || !check.missing.isEmpty());
+        // Offscreen is no X11 session, so the PipeWire source and the frame grab are checked.
+        if (check.missing.isEmpty()) {
+            QVERIFY(check.found.contains(QStringLiteral("pipewiresrc")));
+            QVERIFY(check.found.contains(QStringLiteral("appsink")));
+            QVERIFY(!check.found.contains(QStringLiteral("ximagesrc")));
+        }
     }
 };
 

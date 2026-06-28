@@ -1,10 +1,13 @@
 #include "screen/PipeWireFrames.h"
 
 #include "media/gst/GstSupport.h"
+#include "recording/strategies/LinuxPipeline.h"
 
 #include <QElapsedTimer>
 #include <QImage>
 #include <QString>
+
+#include <algorithm>
 
 namespace {
 
@@ -62,8 +65,9 @@ extern "C" bool snimGrabPipeWireFrames(int pipewireFd, const quint32 *nodeIds, i
 
     if (count <= 0)
         return failWith(QStringLiteral("No PipeWire stream to grab"));
-    if (!Media::Gst::ensureInitialized() || !Media::Gst::hasFactory("pipewiresrc")
-        || !Media::Gst::hasFactory("appsink") || !Media::Gst::hasFactory("videoconvert"))
+    const QList<const char *> needed = Recording::LinuxPipeline::frameGrabElements();
+    if (!Media::Gst::ensureInitialized()
+        || !std::all_of(needed.cbegin(), needed.cend(), Media::Gst::hasFactory))
         return failWith(QStringLiteral("GStreamer pipewiresrc, videoconvert or appsink is missing"));
 
     // One branch per stream in a single pipeline, so the monitors start in parallel.

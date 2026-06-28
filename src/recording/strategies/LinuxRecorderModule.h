@@ -31,11 +31,16 @@ extern "C" Q_DECL_EXPORT Recording::RecordingStrategy *snimCreateLinuxRecorder(Q
 // it can record.
 extern "C" Q_DECL_EXPORT void snimLinuxRecorderMissingPieces(QStringList *pieces);
 
+// For `snim --self-test`: the GStreamer elements found and missing; see checkElements().
+extern "C" Q_DECL_EXPORT void snimLinuxRecorderCheckElements(QStringList *found,
+                                                            QStringList *missing);
+
 namespace Recording::LinuxRecorderModule {
 
 inline constexpr char kEntryPoint[] = "snimCreateLinuxRecorder";
 inline constexpr const char *kBaseName = Screen::PipeWireFrames::kModuleBaseName;
 inline constexpr char kMissingEntryPoint[] = "snimLinuxRecorderMissingPieces";
+inline constexpr char kCheckEntryPoint[] = "snimLinuxRecorderCheckElements";
 
 // Core::DynamicModule's search order; SNIM_RECORDER_MODULE replaces the whole list.
 [[nodiscard]] QStringList candidatePaths(const QString &binDir);
@@ -50,6 +55,15 @@ inline constexpr char kMissingEntryPoint[] = "snimLinuxRecorderMissingPieces";
 // What keeps recording from working here, for the tray and the log. A module that will
 // not load is itself the missing piece.
 [[nodiscard]] QStringList missingPieces();
+
+struct ElementCheck {
+    QStringList found;     // what GStreamer sees, the chosen encoder last
+    QStringList missing;   // what to install, named as missingPieces() names it
+};
+
+// The GStreamer elements this session's recording and ScreenCast screenshots need, for
+// `snim --self-test`. Never asks the portal: that is the desktop's part, not the bundle's.
+[[nodiscard]] ElementCheck checkElements();
 
 } // namespace Recording::LinuxRecorderModule
 

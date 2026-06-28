@@ -1,10 +1,13 @@
 #ifndef RECORDING_LINUXPIPELINE_H
 #define RECORDING_LINUXPIPELINE_H
 
+#include <QByteArray>
 #include <QList>
 #include <QRect>
 #include <QString>
 #include <QStringView>
+
+#include <algorithm>
 
 /**
  * The GStreamer launch strings of the Linux recorder. Only the video source differs
@@ -32,6 +35,30 @@ enum class VideoSource { Portal, X11 };
     return {source == VideoSource::X11 ? "ximagesrc" : "pipewiresrc",
             "videorate", "videocrop", "videoscale", "videoconvert", "capsfilter", "valve",
             "mp4mux"};
+}
+
+// What the one-frame PipeWire grab behind ScreenCast screenshots needs.
+[[nodiscard]] inline QList<const char *> frameGrabElements()
+{
+    return {"pipewiresrc", "videoconvert", "appsink"};
+}
+
+// What a session recording from `source` needs besides an encoder: the recorder's
+// elements, plus the frame grab's outside X11, where ScreenCast screenshots never run.
+[[nodiscard]] inline QList<const char *> sessionElements(VideoSource source)
+{
+    QList<const char *> elements = requiredElements(source);
+    if (source == VideoSource::X11)
+        return elements;
+    for (const char *element : frameGrabElements()) {
+        const bool listed = std::any_of(elements.cbegin(), elements.cend(),
+                                        [element](const char *have) {
+                                            return qstrcmp(have, element) == 0;
+                                        });
+        if (!listed)
+            elements << element;
+    }
+    return elements;
 }
 
 [[nodiscard]] inline QString portalSource()

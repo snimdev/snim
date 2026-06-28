@@ -23,7 +23,7 @@ Package packageOf(QByteArrayView element)
             return {"gstreamer1.0-plugins-good", "gstreamer1-plugins-good"};
     }
     for (const char *base : {"videorate", "videoscale", "videoconvert", "audioconvert",
-                             "audioresample", "decodebin"}) {
+                             "audioresample", "decodebin", "appsink"}) {
         if (element == base)
             return {"gstreamer1.0-plugins-base", "gstreamer1-plugins-base"};
     }
@@ -75,6 +75,21 @@ H264Encoder chooseH264Encoder(const H264Plugins &plugins)
     if (plugins.openh264 && plugins.parser)
         return H264Encoder::OpenH264;
     return H264Encoder::None;
+}
+
+const char *encoderElement(H264Encoder encoder)
+{
+    switch (encoder) {
+    case H264Encoder::X264:
+        return "x264enc";
+    case H264Encoder::Va:
+        return "vah264enc";
+    case H264Encoder::OpenH264:
+        return "openh264enc";
+    case H264Encoder::None:
+        break;
+    }
+    return nullptr;
 }
 
 bool hasUsableH264Encoder()

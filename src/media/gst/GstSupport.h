@@ -38,6 +38,9 @@ enum class H264Encoder { None, X264, Va, OpenH264 };
 // mp4mux rejects, so they need h264parse; x264 can hand mp4mux avc on its own.
 [[nodiscard]] H264Encoder chooseH264Encoder(const H264Plugins &plugins);
 
+// The encoder's own element, as GStreamer names it; nullptr for None.
+[[nodiscard]] const char *encoderElement(H264Encoder encoder);
+
 [[nodiscard]] bool hasUsableH264Encoder();
 
 // Whether decodebin can autoplug something that decodes H.264.

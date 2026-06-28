@@ -147,6 +147,14 @@ private slots:
         QCOMPARE(int(chooseH264Encoder(installed)), expected);
     }
 
+    void namesEachEncoderElement()
+    {
+        QCOMPARE(QByteArray(encoderElement(H264Encoder::X264)), QByteArray("x264enc"));
+        QCOMPARE(QByteArray(encoderElement(H264Encoder::Va)), QByteArray("vah264enc"));
+        QCOMPARE(QByteArray(encoderElement(H264Encoder::OpenH264)), QByteArray("openh264enc"));
+        QVERIFY(!encoderElement(H264Encoder::None));
+    }
+
     void chainEndsInWhatTheMuxerTakes()
     {
         const EncoderTuning live{EncoderTuning::Live, 30};
@@ -195,6 +203,12 @@ private slots:
                                plugins(true, false, false, true)),
                  QStringList({QStringLiteral("ximagesrc (gstreamer1.0-plugins-good; "
                                              "Fedora: gstreamer1-plugins-good)")}));
+
+        // The frame grab's sink ships with plugins-base, not GStreamer's core.
+        QCOMPARE(missingPieces({"pipewiresrc", "appsink"}, allBut({"appsink"}),
+                               plugins(true, false, false, true)),
+                 QStringList({QStringLiteral("appsink (gstreamer1.0-plugins-base; "
+                                             "Fedora: gstreamer1-plugins-base)")}));
 
         // OpenH264 without h264parse: the parser is all that is missing.
         QCOMPARE(missingPieces(required, allBut({"valve"}), plugins(false, false, true, false)),
