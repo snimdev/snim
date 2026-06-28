@@ -1,4 +1,6 @@
 #include <QtTest>
+#include <QDir>
+#include <QFileInfo>
 #include <QTemporaryDir>
 
 #include <gst/gst.h>
@@ -92,6 +94,30 @@ class tst_GstSupport : public QObject
     Q_OBJECT
 
 private slots:
+    // First, so it owns the process's one gst_init.
+    void initLeavesThePluginPathAlone()
+    {
+        // A lib/gstreamer-1.0 beside the binary once replaced the host's or runtime's path.
+        const QString appDir = QCoreApplication::applicationDirPath();
+        const QString libDir = QDir::cleanPath(appDir + QStringLiteral("/../lib"));
+        const QString pluginDir = libDir + QStringLiteral("/gstreamer-1.0");
+        const bool libExisted = QFileInfo::exists(libDir);
+        const bool created = !QFileInfo::exists(pluginDir) && QDir().mkpath(pluginDir);
+        const char *const variables[] = {"GST_PLUGIN_SYSTEM_PATH_1_0", "GST_PLUGIN_PATH_1_0",
+                                         "GST_REGISTRY_REUSE_PLUGIN_SCANNER"};
+        QList<QByteArray> before;
+        for (const char *name : variables)
+            before << qgetenv(name);
+
+        const bool initialized = ensureInitialized();
+        if (created)
+            QDir(libExisted ? pluginDir : libDir).removeRecursively();
+
+        QVERIFY(initialized);
+        for (qsizetype i = 0; i < before.size(); ++i)
+            QCOMPARE(qgetenv(variables[i]), before[i]);
+    }
+
     void choosesAnEncoderTheMuxerCanTake_data()
     {
         QTest::addColumn<H264Plugins>("installed");

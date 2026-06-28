@@ -156,7 +156,7 @@ jobs:
         run: cmake --install build --prefix AppDir/usr
 
       - name: Stage tessdata
-        # Ship eng in ../share/tessdata beside the binary, where BundledPaths points TESSDATA_PREFIX.
+        # Ship eng in ../share/tessdata beside the binary, where OCR looks for it (BundledPaths).
         run: |
           mkdir -p AppDir/usr/share/tessdata
           cp /usr/share/tesseract-ocr/*/tessdata/eng.traineddata AppDir/usr/share/tessdata/

@@ -16,7 +16,7 @@
  */
 namespace Media::Gst {
 
-// Initializes GStreamer once per process, after pointing it at any bundled plugins.
+// Initializes GStreamer once per process, on the host's or the runtime's plugin path.
 [[nodiscard]] bool ensureInitialized();
 
 [[nodiscard]] bool hasFactory(const char *name);

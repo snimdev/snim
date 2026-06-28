@@ -1,7 +1,5 @@
 #include "media/gst/GstSupport.h"
 
-#include "core/BundledPaths.h"
-
 #include <QByteArrayView>
 #include <QDebug>
 
@@ -38,8 +36,6 @@ Package packageOf(QByteArrayView element)
 bool ensureInitialized()
 {
     static const bool ok = [] {
-        // Must precede gst_init: it reads the plugin path once, when it builds its registry.
-        Core::BundledPaths::applyForThisExecutable();
         GError *error = nullptr;
         const gboolean initialized = gst_init_check(nullptr, nullptr, &error);
         if (error) {

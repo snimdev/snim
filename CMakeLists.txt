@@ -408,7 +408,7 @@ add_library(snim_lib STATIC
         # Flatpak detection, so sandbox-managed features step aside.
         src/core/Sandbox.cpp
         src/core/Sandbox.h
-        # Points GStreamer and Tesseract at the resources beside a relocated binary.
+        # Finds the Tesseract language packs beside a relocated binary.
         src/core/BundledPaths.cpp
         src/core/BundledPaths.h
         # Finds and dlopens the optional Linux modules (recorder, video exporter).
@@ -830,18 +830,15 @@ if(GSTREAMER_AVAILABLE)
             src/recording/strategies/LinuxRecordingStrategy.cpp
             src/recording/strategies/LinuxRecordingStrategy.h
             src/recording/strategies/LinuxPipeline.h
-            # The portal handshake and the self-location helper are implementation
-            # details of the recorder, so the module carries its own copies: a static
-            # library hands an object out only when something else already pulled it
-            # into the binary doing the loading.
+            # The portal handshake is an implementation detail of the recorder, so the
+            # module carries its own copy: a static library hands an object out only
+            # when something else already pulled it into the binary doing the loading.
             src/screen/ScreenCastPortalSession.cpp
             src/screen/ScreenCastPortalSession.h
             # One-frame grabs for the ScreenCast capture strategy.
             src/recording/strategies/PipeWireFrameGrabber.cpp
             src/media/gst/GstSupport.cpp
-            src/media/gst/GstSupport.h
-            src/core/BundledPaths.cpp
-            src/core/BundledPaths.h)
+            src/media/gst/GstSupport.h)
     set_target_properties(snim_recorder_linux PROPERTIES
             OUTPUT_NAME "snim-recorder-linux"
             # Beside the built binary, the first place the loader looks, so ./build/snim
@@ -879,9 +876,7 @@ if(GSTREAMER_AVAILABLE)
             src/editor/video/GstVideoExporter.cpp
             src/editor/video/GstVideoExporter.h
             src/media/gst/GstSupport.cpp
-            src/media/gst/GstSupport.h
-            src/core/BundledPaths.cpp
-            src/core/BundledPaths.h)
+            src/media/gst/GstSupport.h)
     set_target_properties(snim_video_linux PROPERTIES
             OUTPUT_NAME "snim-video-linux"
             LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
