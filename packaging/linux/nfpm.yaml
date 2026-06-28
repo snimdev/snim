@@ -60,7 +60,7 @@ overrides:
       - gstreamer1.0-plugins-base
       # An H.264 encoder: x264 from ugly needs nothing else, OpenH264 and VA-API from bad.
       - gstreamer1.0-plugins-ugly | gstreamer1.0-plugins-bad
-      # Recording needs pipewiresrc, and mp4mux and videocrop from good.
+      # Recording needs pipewiresrc (or ximagesrc on X11), mp4mux and videocrop from good.
       - gstreamer1.0-plugins-good
       - gstreamer1.0-pipewire
       - libgpg-error0
