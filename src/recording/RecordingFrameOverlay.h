@@ -13,6 +13,8 @@ namespace Recording {
  * window is fully click-through. macOS excludes the app's own windows from the
  * capture; the xdg-desktop-portal stream does not, so on every other platform
  * nothing is painted inside the region and the border sits just outside it.
+ * On X11 it is only the border: an override-redirect window shaped to the ring, so no
+ * window manager frames it (a frame would swallow clicks) and no compositor is needed.
  */
 class RecordingFrameOverlay : public QWidget
 {
@@ -22,7 +24,8 @@ public:
     explicit RecordingFrameOverlay(QWidget *parent = nullptr);
 
     // Cover the screen containing regionVirtual (virtual-desktop logical coords)
-    // and frame the part of the region that screen actually records.
+    // and frame the part of the region that screen actually records. X11 covers the
+    // border only.
     void showForRegion(const QRect &regionVirtual);
 
 protected:
@@ -34,7 +37,11 @@ private:
     // No-op on X11 and where LayerShellQt is missing.
     void applyLayerShell();
 
-    QRect m_hole;   // recorded region in widget-local coordinates
+    // X11: map just the shaped border ring around the hole (screen-local) on screen.
+    void showRing(QScreen *screen);
+
+    QRect m_hole;   // recorded region in widget-local coordinates (screen-local on X11)
+    const bool m_x11;
 };
 
 } // namespace Recording

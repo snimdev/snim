@@ -4,6 +4,7 @@
 
 #include <QGuiApplication>
 #include <QPainter>
+#include <QRegion>
 #include <QScreen>
 #include <QWindow>
 
@@ -20,12 +21,16 @@ constexpr int kBorderWidth = 2;
 } // namespace
 
 RecordingFrameOverlay::RecordingFrameOverlay(QWidget *parent)
-    : QWidget(parent)
+    : QWidget(parent), m_x11(QGuiApplication::platformName() == QLatin1String("xcb"))
 {
     // Click-through is essential: the user keeps working inside AND outside the
     // recorded region; this window must never swallow a click or take focus.
-    setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint
-                   | Qt::WindowTransparentForInput);
+    Qt::WindowFlags flags = Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint
+                            | Qt::WindowTransparentForInput;
+    if (m_x11)   // unmanaged: a window manager frame would swallow every click
+        flags |= Qt::X11BypassWindowManagerHint | Qt::WindowDoesNotAcceptFocus;
+    setWindowFlags(flags);
+    // ARGB on X11 too: marco drops a shadow into the hole of opaque unmanaged windows.
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_TransparentForMouseEvents);
     setAttribute(Qt::WA_ShowWithoutActivating);
@@ -53,6 +58,10 @@ void RecordingFrameOverlay::showForRegion(const QRect &regionVirtual)
                  .intersected(QRect(QPoint(0, 0), screenGeo.size()));
     if (m_hole.isEmpty())
         return;
+    if (m_x11) {
+        showRing(screen);
+        return;
+    }
 
     // Before createWinId(): a layer surface binds its output when it is created.
     setScreen(screen);
@@ -64,6 +73,29 @@ void RecordingFrameOverlay::showForRegion(const QRect &regionVirtual)
         wh->setScreen(screen);
     applyLayerShell();
     show();
+    update();
+}
+
+void RecordingFrameOverlay::showRing(QScreen *screen)
+{
+    // Border only: the dim needs a full-screen window, which xfwm4 frames to eat clicks.
+    const QRect screenGeo = screen->geometry();
+    const FrameRing ring = x11FrameRing(m_hole, QRect(QPoint(0, 0), screenGeo.size()),
+                                        kBorderWidth);
+    if (!ring.valid)
+        return;
+
+    QRegion shape;
+    for (const QRect &strip : ring.strips)
+        shape += strip;
+    setScreen(screen);
+    setGeometry(ring.window.translated(screenGeo.topLeft()));
+    createWinId();
+    if (QWindow *wh = windowHandle())
+        wh->setScreen(screen);
+    setMask(shape);   // bounding shape: no pixel inside the region, input stays empty
+    show();
+    raise();   // WMs stack their frames below override-redirect windows mapped later
     update();
 }
 
@@ -79,6 +111,11 @@ void RecordingFrameOverlay::paintEvent(QPaintEvent *)
 {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing, false);
+
+    if (m_x11) {
+        p.fillRect(rect(), kAccent);   // opaque: no compositor needed, the mask keeps the ring
+        return;
+    }
 
     // Dim everything around the recorded region; the region itself stays clear.
     for (const QRect &strip : surroundingRects(rect(), m_hole))
