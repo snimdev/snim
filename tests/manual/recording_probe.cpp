@@ -1,3 +1,4 @@
+#include <QApplication>
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QRect>
@@ -6,6 +7,7 @@
 #include <cstdio>
 #include <memory>
 
+#include "recording/RecordingFrameOverlay.h"
 #include "recording/strategies/LinuxRecorderModule.h"
 
 // Manual check, not a ctest: records an area through the real recorder (the portal, or
@@ -13,12 +15,13 @@
 // Usage: snim_recording_probe <out.mp4> [seconds] [pause-at-seconds pause-length]
 // SNIM_PROBE_AUDIO=1 records system audio too. SNIM_PROBE_AREA picks what to record:
 // "x,y,w,h" in logical coordinates, "full" for the whole desktop or "screen:N".
+// SNIM_PROBE_FRAME=1 shows the recording frame overlay while capturing, like the app.
 int main(int argc, char *argv[])
 {
     if (qEnvironmentVariableIsEmpty("SNIM_RECORDER_MODULE"))
         qputenv("SNIM_RECORDER_MODULE", SNIM_RECORDER_MODULE_PATH);
 
-    QGuiApplication app(argc, argv);
+    QApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("Snim"));
     QCoreApplication::setApplicationName(QStringLiteral("snim-recording-probe"));
     const QStringList args = app.arguments();
@@ -34,6 +37,11 @@ int main(int argc, char *argv[])
                      qPrintable(Recording::LinuxRecorderModule::missingPieces().join("; ")));
         return 3;
     }
+
+    QRect area;
+    std::unique_ptr<Recording::RecordingFrameOverlay> frame;
+    if (qEnvironmentVariableIsSet("SNIM_PROBE_FRAME"))
+        frame = std::make_unique<Recording::RecordingFrameOverlay>();
 
     QElapsedTimer clock;
     qint64 firstDuration = -1;
@@ -54,6 +62,8 @@ int main(int argc, char *argv[])
     QObject::connect(recorder.get(), &Recording::RecordingStrategy::started, &app, [&] {
         std::fprintf(stderr, "probe: started after %lld ms\n", clock.elapsed());
         clock.restart();
+        if (frame)
+            frame->showForRegion(area);
         if (pauseAt >= 0) {
             QTimer::singleShot(pauseAt * 1000, &app, [&] { recorder->pause(); });
             QTimer::singleShot((pauseAt + pauseFor) * 1000, &app, [&] { recorder->resume(); });
@@ -67,6 +77,8 @@ int main(int argc, char *argv[])
                      [&](const QString &path) {
                          std::fprintf(stderr, "probe: finished %s first=%lld last=%lld ms\n",
                                       qPrintable(path), firstDuration, lastDuration);
+                         if (frame)
+                             frame->hide();
                          QTimer::singleShot(200, &app, [&app] { app.exit(0); });
                      });
     QObject::connect(recorder.get(), &Recording::RecordingStrategy::failed, &app,
@@ -103,7 +115,7 @@ int main(int argc, char *argv[])
     }
 
     const QRect screen = QGuiApplication::primaryScreen()->geometry();
-    QRect area(screen.x() + 100, screen.y() + 100, 640, 360);
+    area = QRect(screen.x() + 100, screen.y() + 100, 640, 360);
     const QString spec = qEnvironmentVariable("SNIM_PROBE_AREA");
     if (spec == QLatin1String("full")) {
         area = desktop;
