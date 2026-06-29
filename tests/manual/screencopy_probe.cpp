@@ -1,6 +1,8 @@
 // Manual check against a live wlroots-family compositor (not run by ctest): captures
 // every output with the native screencopy client, stitches them the way the app does
 // and writes the PNG. Usage: snim_screencopy_probe [auto|ext|wlr] <out.png>
+// SNIM_PROBE_DELAY_MS holds the capture back and SNIM_PROBE_LINGER_MS keeps the app
+// running after it, so the compositor can be stalled mid-capture and its late events seen.
 #include "screen/ScreencopyClient.h"
 
 #include <QDir>
@@ -9,19 +11,15 @@
 #include <QRect>
 #include <QScreen>
 #include <QTextStream>
+#include <QTimer>
 
 using namespace Screen::Screencopy;
 
-int main(int argc, char **argv)
-{
-    QGuiApplication app(argc, argv);
-    QTextStream out(stdout);
+namespace {
 
-    const QStringList args = app.arguments().mid(1);
-    if (args.size() != 2) {
-        out << "usage: snim_screencopy_probe [auto|ext|wlr] <out.png>\n";
-        return 2;
-    }
+int capture(const QStringList &args)
+{
+    QTextStream out(stdout);
     const Protocol forced = args[0] == QLatin1String("ext") ? Protocol::ExtImageCopyCapture
                             : args[0] == QLatin1String("wlr") ? Protocol::WlrScreencopy
                                                               : Protocol::None;
@@ -68,4 +66,26 @@ int main(int argc, char **argv)
     out << "stitched " << stitched.width() << "x" << stitched.height() << " dpr "
         << stitched.devicePixelRatio() << "\n";
     return stitched.save(args[1]) ? 0 : 1;
+}
+
+} // namespace
+
+int main(int argc, char **argv)
+{
+    QGuiApplication app(argc, argv);
+
+    const QStringList args = app.arguments().mid(1);
+    if (args.size() != 2) {
+        QTextStream(stdout) << "usage: snim_screencopy_probe [auto|ext|wlr] <out.png>\n";
+        return 2;
+    }
+
+    const int delayMs = qEnvironmentVariableIntValue("SNIM_PROBE_DELAY_MS");
+    const int lingerMs = qEnvironmentVariableIntValue("SNIM_PROBE_LINGER_MS");
+    QTimer::singleShot(delayMs, &app, [&app, args, lingerMs] {
+        const int status = capture(args);
+        QTextStream(stdout) << "probe: done with " << status << ", lingering " << lingerMs << " ms\n";
+        QTimer::singleShot(lingerMs, &app, [&app, status] { app.exit(status); });
+    });
+    return app.exec();
 }
