@@ -68,6 +68,8 @@ struct Connection {
     wl_event_queue *queue = nullptr;
     wl_display *wrapper = nullptr;
     wl_registry *registry = nullptr;
+    wl_callback *sync = nullptr;   // the roundtrip in flight
+    bool synced = false;
     bool bind = false;
 
     wl_shm *shm = nullptr;
@@ -126,20 +128,32 @@ bool dispatchUntil(Connection &c, const std::function<bool()> &done, int timeout
     return true;
 }
 
-void syncDone(void *data, wl_callback *callback, uint32_t)
+void dropSync(Connection &c)
 {
-    *static_cast<bool *>(data) = true;
-    wl_callback_destroy(callback);
+    if (c.sync)
+        wl_callback_destroy(c.sync);
+    c.sync = nullptr;
+}
+
+void syncDone(void *data, wl_callback *, uint32_t)
+{
+    auto *c = static_cast<Connection *>(data);
+    dropSync(*c);
+    c->synced = true;
 }
 
 const wl_callback_listener syncListener{.done = syncDone};
 
 bool roundtrip(Connection &c, int timeoutMs)
 {
-    bool done = false;
-    wl_callback *callback = wl_display_sync(c.wrapper);
-    wl_callback_add_listener(callback, &syncListener, &done);
-    return dispatchUntil(c, [&done] { return done; }, timeoutMs);
+    c.synced = false;
+    c.sync = wl_display_sync(c.wrapper);
+    wl_callback_add_listener(c.sync, &syncListener, &c);
+    if (dispatchUntil(c, [&c] { return c.synced; }, timeoutMs))
+        return true;
+    // A done arriving after the queue is gone would abort the app inside libwayland.
+    dropSync(c);
+    return false;
 }
 
 // --- wl_output ---
@@ -235,6 +249,7 @@ bool openConnection(Connection &c, bool bind, int timeoutMs)
 
 Connection::~Connection()
 {
+    dropSync(*this);
     for (auto &o : outputs) {
         if (o->wlrFrame)
             zwlr_screencopy_frame_v1_destroy(o->wlrFrame);
