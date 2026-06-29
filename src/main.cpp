@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
             _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
             QApplication app(argc, argv);
-            return Core::SelfTest::run(std::cout);
+            return Core::SelfTest::run(std::cout, App::Application::selfTestChecks());
         }
         if (arg == "--help" || arg == "-h") {
             attachParentConsole();

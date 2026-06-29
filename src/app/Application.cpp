@@ -19,6 +19,9 @@
 #endif
 #include "hotkeys/GlobalHotkeyManager.h"
 #include "hotkeys/HotkeyBindings.h"
+#ifdef SNIM_HAVE_LINUX_RECORDER
+#include "recording/strategies/LinuxRecorderModule.h"
+#endif
 #include <QDesktopServices>
 #include <QUrl>
 #include <algorithm>
@@ -224,6 +227,20 @@ namespace App {
         if (m_recordingWorkflow)
             m_recordingWorkflow->finishBeforeQuit();
         QApplication::quit();
+    }
+
+    QList<Core::SelfTest::Check> Application::selfTestChecks() {
+        QList<Core::SelfTest::Check> checks;
+#ifdef SNIM_HAVE_LINUX_RECORDER
+        checks.append({QStringLiteral("recorder"), [](QString *detail) {
+            const auto check = Recording::LinuxRecorderModule::checkElements();
+            *detail = check.missing.isEmpty()
+                          ? check.found.join(QStringLiteral(", "))
+                          : QStringLiteral("missing ") + check.missing.join(QStringLiteral("; "));
+            return check.missing.isEmpty();
+        }});
+#endif
+        return checks;
     }
 
 } // namespace App

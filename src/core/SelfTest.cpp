@@ -63,7 +63,7 @@ QString bundledTessdataDir()
 
 } // namespace
 
-int run(std::ostream &out)
+int run(std::ostream &out, const QList<Check> &extra)
 {
     Report report(out);
 
@@ -155,6 +155,12 @@ int run(std::ostream &out)
 #else
     report.skip(QStringLiteral("sftp"), QStringLiteral("not compiled in"));
 #endif
+
+    for (const Check &check : extra) {
+        QString detail;
+        const bool ok = check.run(&detail);
+        report.check(check.name, ok, detail);
+    }
 
     out << (report.failed() ? "self-test: FAILED" : "self-test: passed") << std::endl;
     return report.failed() ? 1 : 0;

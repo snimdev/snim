@@ -1,9 +1,11 @@
 #ifndef APP_APPLICATION_H
 #define APP_APPLICATION_H
 
+#include "core/SelfTest.h"
 #include "hotkeys/HotkeyAction.h"
 
 #include <QApplication>
+#include <QList>
 #include <memory>
 
 namespace Hotkeys {
@@ -31,6 +33,9 @@ class Application : public QApplication
 public:
     explicit Application(int &argc, char **argv);
     ~Application() override;
+
+    // `snim --self-test` checks for the modules this build dlopens, which core cannot reach.
+    [[nodiscard]] static QList<Core::SelfTest::Check> selfTestChecks();
 
 private slots:
     void captureTextSnip();
