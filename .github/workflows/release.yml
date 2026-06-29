@@ -461,6 +461,20 @@ jobs:
           fi
           echo "$ACTUAL started in the Flatpak sandbox."
 
+      - name: It passes its self-test
+        # The recorder line proves the runtime's GStreamer has every element the recorder needs.
+        run: |
+          if ! flatpak build --env=QT_QPA_PLATFORM=offscreen flatpak_app snim --self-test > /tmp/snim-self-test.txt 2>/tmp/snim-stderr.log; then
+            cat /tmp/snim-self-test.txt /tmp/snim-stderr.log
+            echo "::error title=Self-test failed::snim --self-test failed in the Flatpak sandbox"
+            exit 1
+          fi
+          cat /tmp/snim-self-test.txt /tmp/snim-stderr.log
+          if ! grep -q '^ok    recorder: ' /tmp/snim-self-test.txt; then
+            echo "::error title=Recorder not checked::the self-test printed no recorder line"
+            exit 1
+          fi
+
       - name: Sign and bundle
         env:
           FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
