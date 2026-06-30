@@ -1,26 +1,14 @@
 #include "WaylandCaptureStrategy.h"
 
-#include <iostream>
-#include <QApplication>
-#include <QUuid>
-#include <QScreen>
-#include <QWidget>
-#include <QWindow>
-#include <QCursor>
-#include <QtDBus/QDBusConnection>
-#include <QtDBus/QDBusInterface>
-#include <QtDBus/QDBusPendingCall>
-#include <QtDBus/QDBusPendingReply>
-#include <QFileInfo>
-#include <QStandardPaths>
-#include <QDir>
 #include <QDebug>
-#include <QTimer>
-#include <QDateTime>
-#include <QRandomGenerator>
-#include <QUrl>
+#include <QDir>
 #include <QFile>
-#include <QMessageBox>
+#include <QFileInfo>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QStandardPaths>
+#include <QTemporaryFile>
+#include <QWindow>
 
 #include "screen/AreaSelector.h"
 #include "capture/CaptureGeometry.h"
@@ -29,12 +17,9 @@
 namespace Capture {
     WaylandCaptureStrategy::WaylandCaptureStrategy(QObject *parent)
         : CaptureStrategy(parent)
-          , m_portalInterface(nullptr)
-          , m_sessionInterface(nullptr)
           , m_tempFile(nullptr)
           , m_fallbackProcess(nullptr)
           , m_captureArea(false)
-          , m_sessionBus(QDBusConnection::sessionBus())
           , m_portalSource(new Screen::PortalFrameSource(this)) {
         // Both full screen and area land in the selector on this path.
         connect(m_portalSource, &Screen::DesktopFrameSource::frameReady, this,
@@ -46,17 +31,6 @@ namespace Capture {
                     qDebug() << "Portal screenshot failed:" << reason;
                     emit screenshotFailed(QStringLiteral("Portal screenshot failed: %1").arg(reason));
                 });
-
-        // Initialize XDG Desktop Portal interface
-        m_portalInterface = new QDBusInterface(
-            "org.freedesktop.portal.Desktop",
-            "/org/freedesktop/portal/desktop",
-            "org.freedesktop.portal.Screenshot",
-            m_sessionBus,
-            this
-        );
-
-        connectToPortalSignals();
     }
 
     WaylandCaptureStrategy::~WaylandCaptureStrategy() {
@@ -80,8 +54,8 @@ namespace Capture {
         qDebug() << "No fallback tools available, using portal";
 
         // Only use portal if no fallback tools are available
-        if (isPortalAvailable()) {
-            usePortalCapture();
+        if (Screen::PortalFrameSource::isPortalReachable()) {
+            m_portalSource->grab();
         } else {
             emit screenshotFailed(
                 "No screenshot method available. Please install spectacle, grim, or gnome-screenshot.");
@@ -94,9 +68,8 @@ namespace Capture {
         // For area capture, go straight to portal (fallback tools like
         // spectacle open their own editor instead of returning the image).
 
-        // Use portal for area selection if fallback failed
-        if (isPortalAvailable()) {
-            usePortalCapture();
+        if (Screen::PortalFrameSource::isPortalReachable()) {
+            m_portalSource->grab();
         } else {
             emit screenshotFailed("No screenshot method available for area capture.");
         }
@@ -108,36 +81,8 @@ namespace Capture {
     }
 
     bool WaylandCaptureStrategy::isAvailable() const {
-        return isWaylandSession() && (isPortalAvailable() || hasAvailableFallbackTools());
-    }
-
-    bool WaylandCaptureStrategy::isWaylandSession() {
-        return Screen::isWaylandSession();
-    }
-
-    bool WaylandCaptureStrategy::isPortalAvailable() const {
-        if (!m_portalInterface || !m_portalInterface->isValid()) {
-            return false;
-        }
-
-        // Check if the Screenshot portal is available
-        QDBusInterface portalChecker(
-            "org.freedesktop.portal.Desktop",
-            "/org/freedesktop/portal/desktop",
-            "org.freedesktop.DBus.Properties",
-            QDBusConnection::sessionBus()
-        );
-
-        return portalChecker.isValid();
-    }
-
-    bool WaylandCaptureStrategy::usePortalCapture() {
-        if (!m_portalInterface || !m_portalInterface->isValid()) {
-            qDebug() << "Portal interface not available";
-            return useFallbackCapture();
-        }
-        m_portalSource->grab();
-        return true;
+        return Screen::isWaylandSession()
+               && (Screen::PortalFrameSource::isPortalReachable() || hasAvailableFallbackTools());
     }
 
     // Every terminal action (accept, cancel, copy, save) tears down ALL per-screen
@@ -227,79 +172,6 @@ namespace Capture {
         }
     }
 
-
-    QPixmap WaylandCaptureStrategy::cropToCurrentScreen(const QImage &fullImage) {
-        // Get current screen based on mouse cursor position
-        QScreen *currentScreen = nullptr;
-        QPoint cursorPos = QCursor::pos();
-
-        // Find which screen contains the cursor
-        for (QScreen *screen : QGuiApplication::screens()) {
-            if (screen->geometry().contains(cursorPos)) {
-                currentScreen = screen;
-                break;
-            }
-        }
-
-        // Fallback to active window's screen
-        if (!currentScreen && QApplication::activeWindow()) {
-            currentScreen = QApplication::activeWindow()->screen();
-        }
-
-        // Final fallback to primary screen
-        if (!currentScreen) {
-            currentScreen = QGuiApplication::primaryScreen();
-        }
-
-        // Calculate virtual desktop geometry
-        QList<QScreen*> screens = QGuiApplication::screens();
-        QRect virtualDesktop;
-        for (QScreen *screen : screens) {
-            virtualDesktop = virtualDesktop.united(screen->geometry());
-        }
-
-        // Calculate DPR from image size vs logical size
-        qreal dprX = fullImage.width() * 1.0 / virtualDesktop.width();
-        qreal dprY = fullImage.height() * 1.0 / virtualDesktop.height();
-        qreal dpr = qMax(dprX, dprY);
-
-        qDebug() << "Virtual desktop (logical):" << virtualDesktop;
-        qDebug() << "Full image size (physical):" << fullImage.size();
-        qDebug() << "Calculated DPR:" << dpr;
-        qDebug() << "Current screen:" << currentScreen->name()
-                 << currentScreen->geometry();
-
-        // Get current screen geometry relative to virtual desktop
-        QRect screenLogical = currentScreen->geometry();
-        QPoint offset = screenLogical.topLeft() - virtualDesktop.topLeft();
-
-        // Convert to physical coordinates
-        QRect cropRect(
-            offset.x() * dpr,
-            offset.y() * dpr,
-            screenLogical.width() * dpr,
-            screenLogical.height() * dpr
-        );
-
-        // Ensure crop rect is within image bounds
-        cropRect = cropRect.intersected(fullImage.rect());
-
-        if (cropRect.isEmpty()) {
-            qDebug() << "Invalid crop rectangle";
-            return QPixmap();
-        }
-
-        qDebug() << "Cropping to:" << cropRect;
-
-        // Crop the image
-        QImage cropped = fullImage.copy(cropRect);
-
-        // Convert to pixmap and set DPR
-        QPixmap result = QPixmap::fromImage(cropped);
-        result.setDevicePixelRatio(dpr);
-
-        return result;
-    }
 
     bool WaylandCaptureStrategy::hasAvailableFallbackTools() const {
         return Screen::PortalFrameSource::hasFallbackTool(m_captureArea);
@@ -427,20 +299,6 @@ namespace Capture {
         }
 
         cleanupTempFile();
-    }
-
-    void WaylandCaptureStrategy::connectToPortalSignals() {
-        if (!m_sessionBus.isConnected()) {
-            qWarning() << "D-Bus session bus not connected";
-            return;
-        }
-    }
-
-    QString WaylandCaptureStrategy::generateSessionToken() {
-        // Generate a unique token for the portal request
-        const quint64 timestamp = QDateTime::currentMSecsSinceEpoch();
-        const quint32 random = QRandomGenerator::global()->generate();
-        return QString("snim_%1_%2").arg(timestamp).arg(random);
     }
 
     void WaylandCaptureStrategy::cleanupTempFile() {
