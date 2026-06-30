@@ -11,6 +11,8 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QGuiApplication>
+#include <QScreen>
+#include <QWindow>
 
 namespace Capture {
 
@@ -50,6 +52,71 @@ QSharedPointer<OverlayAnnotations> CaptureStrategy::attachAnnotations(
     for (Screen::AreaSelector *selector : selectors)
         selector->setLayer(session);
     return session;
+}
+
+void CaptureStrategy::showAreaSelector(const QPixmap &frame, const QRect &virtualGeometry)
+{
+    qDebug() << "Showing area selector, virtual geometry:" << virtualGeometry
+             << "frame:" << frame.size() << "DPR:" << frame.devicePixelRatio();
+
+    auto *selectors = new QList<Screen::AreaSelector*>();
+    for (QScreen *screen : QGuiApplication::screens()) {
+        const QRect screenGeometry = screen->geometry();
+        auto *selector = new Screen::AreaSelector();
+        selector->setScreenshot(frame);
+        selector->setVirtualGeometry(virtualGeometry);
+        selector->setScreenOffset(screenGeometry.topLeft());
+        selector->setActionsEnabled(quickActionsEnabled());
+
+        selector->setGeometry(screenGeometry);
+        selector->setWindowState(Qt::WindowFullScreen);
+        selector->winId(); // ensure the native window exists before placing it
+        if (QWindow *window = selector->windowHandle())
+            window->setScreen(screen);
+        selector->showFullScreen();
+
+        selectors->append(selector);
+    }
+
+    const auto annotations = attachAnnotations(*selectors, frame, virtualGeometry);
+
+    for (auto *selector : *selectors) {
+        // Each handler copies the session first: teardown disconnects its own lambda.
+        connect(selector, &Screen::AreaSelector::areaSelected,
+                this, [this, selectors, frame, virtualGeometry, annotations](const QRect &area) {
+            const auto session = annotations;
+            tearDownSelectors(selectors);
+            if (area.isEmpty()) {
+                qDebug() << "Area selection cancelled";
+                return;
+            }
+            emitSelection(frame, virtualGeometry, area, session);
+        });
+        connect(selector, &Screen::AreaSelector::copyRequested,
+                this, [this, selectors, frame, virtualGeometry, annotations](const QRect &area) {
+            const auto session = annotations;
+            tearDownSelectors(selectors);
+            copyAreaToClipboard(frame, virtualGeometry, area, session);
+        });
+        connect(selector, &Screen::AreaSelector::saveRequested,
+                this, [this, selectors, frame, virtualGeometry, annotations](const QRect &area) {
+            const auto session = annotations;
+            // Teardown first, or the save dialog opens behind the overlay.
+            tearDownSelectors(selectors);
+            saveAreaToFile(frame, virtualGeometry, area, session);
+        });
+    }
+}
+
+void CaptureStrategy::tearDownSelectors(QList<Screen::AreaSelector*> *selectors)
+{
+    for (auto *selector : *selectors) {
+        selector->blockSignals(true);
+        selector->disconnect();
+        selector->close();
+        selector->deleteLater();
+    }
+    delete selectors;
 }
 
 void CaptureStrategy::copyAreaToClipboard(const QPixmap &shot, const QRect &virtualGeometry,

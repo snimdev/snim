@@ -4,14 +4,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QGuiApplication>
-#include <QScreen>
 #include <QStandardPaths>
 #include <QTemporaryFile>
-#include <QWindow>
 
-#include "screen/AreaSelector.h"
-#include "capture/CaptureGeometry.h"
 #include "screen/sources/PortalFrameSource.h"
 
 namespace Capture {
@@ -84,94 +79,6 @@ namespace Capture {
         return Screen::isWaylandSession()
                && (Screen::PortalFrameSource::isPortalReachable() || hasAvailableFallbackTools());
     }
-
-    // Every terminal action (accept, cancel, copy, save) tears down ALL per-screen
-    // overlays first, so nothing is left covering the screen or the save dialog.
-    static void tearDownSelectors(QList<Screen::AreaSelector*> *selectors) {
-        for (auto *sel : *selectors) {
-            sel->blockSignals(true);  // Block any further signals
-            sel->disconnect();         // Disconnect all signals
-            sel->close();              // Close immediately
-            sel->deleteLater();        // Schedule for deletion
-        }
-
-        // Clear the list and delete it
-        selectors->clear();
-        delete selectors;
-    }
-
-    void WaylandCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry) {
-        qDebug() << "Virtual desktop geometry:" << virtualGeometry;
-        qDebug() << "Screenshot size:" << screenshot.size() << "DPR:" << screenshot.devicePixelRatio();
-        qDebug() << "All screens:";
-
-        QList<QScreen*> screens = QGuiApplication::screens();
-        QList<Screen::AreaSelector*> *selectors = new QList<Screen::AreaSelector*>();
-
-        // Create one AreaSelector widget per screen
-        for (QScreen *screen : screens) {
-            QRect screenGeometry = screen->geometry();
-            qDebug() << "  - Creating selector for" << screen->name() << screenGeometry;
-
-            auto *selector = new Screen::AreaSelector();
-            selector->setScreenshot(screenshot);
-            selector->setVirtualGeometry(virtualGeometry);
-            selector->setScreenOffset(screenGeometry.topLeft());
-            selector->setActionsEnabled(quickActionsEnabled());
-
-            // Position the selector on this specific screen
-            selector->setGeometry(screenGeometry);
-            selector->setWindowState(Qt::WindowFullScreen);
-            selector->winId(); // ensure the native window exists before placing it
-            if (QWindow *wh = selector->windowHandle())
-                wh->setScreen(screen);
-            selector->showFullScreen();
-
-            selectors->append(selector);
-        }
-
-        const auto annotations = attachAnnotations(*selectors, screenshot, virtualGeometry);
-
-        // Connect all selectors to the same handler - use a shared pointer approach
-        for (auto *selector : *selectors) {
-            // Each handler copies the session first: teardown disconnects its own lambda.
-            connect(selector, &Screen::AreaSelector::areaSelected,
-                    this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
-                        const auto session = annotations;
-                        // Tear every overlay down first, to prevent multiple triggers
-                        tearDownSelectors(selectors);
-
-                        if (area.isEmpty()) {
-                            // User cancelled (pressed Escape)
-                            qDebug() << "Area selection cancelled";
-                            //emit screenshotCancelled();
-                            return;
-                        }
-
-                        // The area is in virtual desktop logical coordinates
-                        qDebug() << "Selected area (logical):" << area;
-                        qDebug() << "Physical area (screenshot coords):"
-                                 << physicalCropRect(area, virtualGeometry,
-                                                     screenshot.devicePixelRatio(), screenshot.size());
-
-                        emitSelection(screenshot, virtualGeometry, area, session);
-                    });
-            connect(selector, &Screen::AreaSelector::copyRequested,
-                    this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
-                        const auto session = annotations;
-                        tearDownSelectors(selectors);
-                        copyAreaToClipboard(screenshot, virtualGeometry, area, session);
-                    });
-            connect(selector, &Screen::AreaSelector::saveRequested,
-                    this, [this, selectors, screenshot, virtualGeometry, annotations](const QRect &area) {
-                        const auto session = annotations;
-                        // Teardown first, or the save dialog opens behind the overlay.
-                        tearDownSelectors(selectors);
-                        saveAreaToFile(screenshot, virtualGeometry, area, session);
-                    });
-        }
-    }
-
 
     bool WaylandCaptureStrategy::hasAvailableFallbackTools() const {
         return Screen::PortalFrameSource::hasFallbackTool(m_captureArea);

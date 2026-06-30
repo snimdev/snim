@@ -277,19 +277,19 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
         connect(selector, &Screen::AreaSelector::areaSelected,
                 this, [this, selectors, annotations](const QRect &area) {
                     const auto session = annotations;
-                    teardownSelectors(selectors);
+                    tearDownSelectors(selectors);
                     onAreaSelected(area, session);
                 });
         connect(selector, &Screen::AreaSelector::copyRequested,
                 this, [this, selectors, annotations](const QRect &area) {
                     const auto session = annotations;
-                    teardownSelectors(selectors);
+                    tearDownSelectors(selectors);
                     onCopyRequested(area, session);
                 });
         connect(selector, &Screen::AreaSelector::saveRequested,
                 this, [this, selectors, annotations](const QRect &area) {
                     const auto session = annotations;
-                    teardownSelectors(selectors);
+                    tearDownSelectors(selectors);
                     onSaveRequested(area, session);
                 });
         // Multi-monitor: mirror the live selection to every other overlay so a
@@ -301,18 +301,6 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
                             other->applyPeerState(sel, phase, mode, cursor);
                 });
     }
-}
-
-void NativeCaptureStrategy::teardownSelectors(QList<Screen::AreaSelector*> *selectors)
-{
-    for (auto *sel : *selectors) {
-        sel->blockSignals(true);  // prevent re-entry from other selectors
-        sel->disconnect();
-        sel->close();
-        sel->deleteLater();
-    }
-    selectors->clear();
-    delete selectors;
 }
 
 } // namespace Capture

@@ -41,7 +41,6 @@ private:
     QPixmap captureAllScreens();
     void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry,
                           bool windowPick = false, const QVector<QRect> &windows = {});
-    void teardownSelectors(QList<Screen::AreaSelector*> *selectors);
     void onCopyRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
     void onSaveRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
     // The frame and its geometry to crop area from: one screen's own grab when it holds area.

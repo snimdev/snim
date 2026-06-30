@@ -71,9 +71,6 @@ private:
     /// consult, meaning the caller must fall back itself.
     bool requestAuthorization(AuthorizationResume resume);
 
-    /// Show AreaSelector overlay on captured screenshot
-    void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry);
-
     /// Every screen through the KWin frame source
     void captureWorkspace(bool showSelector);
     void workspaceFailed(const QString &reason, bool cancelled);

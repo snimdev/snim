@@ -32,9 +32,6 @@ public:
     bool isAvailable() const override;
     QString name() const override { return "Wayland Portal Capture"; }
 
-protected:
-    void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry);
-
 private slots:
     void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
 

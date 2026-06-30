@@ -73,6 +73,14 @@ protected:
                                                          const QPixmap &frame,
                                                          const QRect &virtualGeometry);
 
+    // One fullscreen selector per screen over the frozen frame; the pick is emitted like
+    // any capture.
+    void showAreaSelector(const QPixmap &frame, const QRect &virtualGeometry);
+
+    // Every terminal action closes ALL the per-screen overlays first, so nothing is left
+    // covering the screen or the save dialog.
+    static void tearDownSelectors(QList<Screen::AreaSelector*> *selectors);
+
     bool m_quickActionsEnabled = true;
 };
 
