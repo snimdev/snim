@@ -28,8 +28,6 @@ public:
     bool isAvailable() const override;
     QString name() const override { return QStringLiteral("ScreenCast Portal Capture"); }
 
-    [[nodiscard]] static bool isSupported() { return Screen::ScreencastFrameSource::isSupported(); }
-
 signals:
     // No consent stored yet: the portal is about to show its screen picker.
     void sourcePickerExpected();

@@ -12,14 +12,9 @@ ScreencopyCaptureStrategy::ScreencopyCaptureStrategy(QObject *parent)
 {
 }
 
-bool ScreencopyCaptureStrategy::isScreencopyAvailable()
-{
-    return Screen::ScreencopyFrameSource::isAvailable();
-}
-
 bool ScreencopyCaptureStrategy::isAvailable() const
 {
-    return isScreencopyAvailable();
+    return Screen::ScreencopyFrameSource::isAvailable();
 }
 
 void ScreencopyCaptureStrategy::captureFullScreen()

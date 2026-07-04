@@ -53,14 +53,9 @@ KWinCaptureStrategy::KWinCaptureStrategy(QObject *parent)
             });
 }
 
-bool KWinCaptureStrategy::isKWinAvailable()
-{
-    return Screen::KWinFrameSource::isServiceRegistered();
-}
-
 bool KWinCaptureStrategy::isAvailable() const
 {
-    return isKWinAvailable() && m_workspace->apiVersion() > 0;
+    return Screen::KWinFrameSource::isServiceRegistered() && m_workspace->apiVersion() > 0;
 }
 
 // --- Authorization gate ---

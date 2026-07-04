@@ -25,9 +25,6 @@ public:
     [[nodiscard]] bool isAvailable() const override;
     [[nodiscard]] QString name() const override { return "Wayland Screencopy"; }
 
-    /// True when this app's Wayland connection is offered either screencopy protocol.
-    static bool isScreencopyAvailable();
-
 private:
     /// Captures and stitches every output; false leaves the request to the portal.
     bool captureOutputs(bool showSelector);

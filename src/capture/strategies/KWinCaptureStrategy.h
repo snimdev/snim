@@ -44,9 +44,6 @@ public:
     [[nodiscard]] bool isAvailable() const override;
     [[nodiscard]] QString name() const override { return "KWin ScreenShot2"; }
 
-    /// Check if the KWin ScreenShot2 D-Bus service is registered
-    static bool isKWinAvailable();
-
     /// Called by the gate once it has an answer: true retries the same capture, false
     /// takes the CaptureInteractive fallback.
     using AuthorizationResume = std::function<void(bool retryFast)>;

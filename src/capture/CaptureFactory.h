@@ -30,7 +30,7 @@ public:
     static StrategyType getDefaultStrategyType();
 
     /**
-     * Check if a specific strategy type is available
+     * Whether createStrategy(type) would hand out that type's own strategy
      */
     static bool isStrategyAvailable(StrategyType type);
 

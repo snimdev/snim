@@ -41,7 +41,7 @@ void ScreencastCaptureStrategy::captureWindow()
 
 bool ScreencastCaptureStrategy::isAvailable() const
 {
-    return isSupported();
+    return Screen::ScreencastFrameSource::isSupported();
 }
 
 void ScreencastCaptureStrategy::begin(bool showSelector)
