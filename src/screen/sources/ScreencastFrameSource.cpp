@@ -18,7 +18,6 @@ namespace {
 // Long enough for a first-time pick in the portal's dialog.
 constexpr int kSessionTimeoutMs = 60000;
 constexpr int kFrameTimeoutMs = 3000;
-constexpr uint kFirstPersistingVersion = 4;
 // A silent restore answers in well under this; slower means the picker was on screen.
 constexpr qint64 kInteractiveHandshakeMs = 1000;
 // Lets the picker's close animation leave the screen before the frame is taken.
@@ -67,7 +66,7 @@ ScreencastFrameSource::~ScreencastFrameSource() = default;
 bool ScreencastFrameSource::isSupported()
 {
     return isWaylandSession()
-           && Session::portalVersion() >= kFirstPersistingVersion
+           && Session::portalVersion() >= Session::kFirstPersistingVersion
            && PipeWireFrames::canGrab();
 }
 

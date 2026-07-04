@@ -19,6 +19,9 @@ class ScreenCastPortalSession : public QObject
     Q_OBJECT
 
 public:
+    // persist_mode and restore_token arrived with version 4 of the interface.
+    static constexpr uint kFirstPersistingVersion = 4;
+
     explicit ScreenCastPortalSession(QObject *parent = nullptr);
     ~ScreenCastPortalSession() override;
 

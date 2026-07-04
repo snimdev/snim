@@ -40,8 +40,6 @@ constexpr uint kSourceMonitor = 1;
 constexpr uint kCursorHidden = 1;
 constexpr uint kCursorEmbedded = 2;
 constexpr uint kPersistUntilRevoked = 2;
-// persist_mode and restore_token arrived with version 4 of the interface.
-constexpr uint kFirstPersistingVersion = 4;
 
 // The stream vardict carries position and size as (ii); a missing one leaves the rect
 // null and the caller infers the geometry from the stream's pixel size.
