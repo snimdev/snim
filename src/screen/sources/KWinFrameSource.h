@@ -52,13 +52,15 @@ public:
                      QObject *context, ShotHandler done);
 
     // Raw pixels from the pipe KWin wrote, described by the reply's metadata. Owns fd.
+    // Runs on a worker thread, so it never touches QGuiApplication.
     static QImage readImageFromPipe(int fd, const QVariantMap &metadata);
 
     // Per-screen images placed by their logical positions, at the highest DPR.
     static QImage compositeScreenImages(const QList<QImage> &images);
 
 private:
-    void captureScreen(const QString &method, const QVariantList &args);
+    // logical: where the requested screen sits, known before the call goes out.
+    void captureScreen(const QString &method, const QVariantList &args, const QRect &logical);
     void screenDone();
 
     quint32 m_apiVersion = 0;

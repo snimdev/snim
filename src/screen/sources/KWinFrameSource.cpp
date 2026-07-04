@@ -80,16 +80,18 @@ void KWinFrameSource::grab()
     m_pending = static_cast<int>(screens.size());
 
     if (screens.size() == 1) {
+        const QRect logical = screens.first()->geometry();
         if (m_apiVersion >= 2)
-            captureScreen(QStringLiteral("CaptureActiveScreen"), {QVariant::fromValue(buildOptions())});
+            captureScreen(QStringLiteral("CaptureActiveScreen"), {QVariant::fromValue(buildOptions())},
+                          logical);
         else
             captureScreen(QStringLiteral("CaptureScreen"),
-                          {screens.first()->name(), QVariant::fromValue(buildOptions())});
+                          {screens.first()->name(), QVariant::fromValue(buildOptions())}, logical);
         return;
     }
     for (const QScreen *screen : screens)
         captureScreen(QStringLiteral("CaptureScreen"),
-                      {screen->name(), QVariant::fromValue(buildOptions())});
+                      {screen->name(), QVariant::fromValue(buildOptions())}, screen->geometry());
 }
 
 void KWinFrameSource::call(const QString &method, const QVariantList &args, int timeoutMs,
@@ -155,15 +157,19 @@ void KWinFrameSource::call(const QString &method, const QVariantList &args, int 
     });
 }
 
-void KWinFrameSource::captureScreen(const QString &method, const QVariantList &args)
+void KWinFrameSource::captureScreen(const QString &method, const QVariantList &args,
+                                    const QRect &logical)
 {
-    call(method, args, kCallTimeoutMs, this, [this](const Shot &shot) {
+    call(method, args, kCallTimeoutMs, this, [this, logical](const Shot &shot) {
         if (shot.image.isNull()) {
             m_denied = m_denied || shot.denied;
             m_cancelled = m_cancelled || shot.cancelled;
             m_lastError = shot.error;
         } else {
-            m_images.append(shot.image);
+            QImage image = shot.image;
+            image.setText(QStringLiteral("logicalX"), QString::number(logical.x()));
+            image.setText(QStringLiteral("logicalY"), QString::number(logical.y()));
+            m_images.append(image);
         }
         screenDone();
     });
@@ -228,20 +234,6 @@ QImage KWinFrameSource::readImageFromPipe(int fd, const QVariantMap &metadata)
 
     QDataStream stream(&file);
     stream.readRawData(reinterpret_cast<char *>(image.bits()), image.sizeInBytes());
-
-    // The screen's logical position, for compositing.
-    const QString screenId = metadata.value("screen").toString();
-    if (!screenId.isEmpty()) {
-        for (QScreen *screen : QGuiApplication::screens()) {
-            if (screen->name() == screenId) {
-                const QPoint pos = screen->geometry().topLeft();
-                image.setText("logicalX", QString::number(pos.x()));
-                image.setText("logicalY", QString::number(pos.y()));
-                break;
-            }
-        }
-    }
-
     return image;
 }
 
