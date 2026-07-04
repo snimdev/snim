@@ -4,13 +4,10 @@
 #include "CaptureStrategy.h"
 #include <QObject>
 #include <QPixmap>
-#include <QtDBus/QDBusConnection>
-#include <QtDBus/QDBusPendingCallWatcher>
-#include <QVariantMap>
+#include <QVariantList>
 #include <functional>
 
 namespace Screen {
-class AreaSelector;
 class KWinFrameSource;
 } // namespace Screen
 
@@ -54,15 +51,10 @@ public:
     void setAuthorizationGate(AuthorizationGate gate);
 
 private:
-    /// D-Bus method call with pipe-based data transfer
+    /// One ScreenShot2 call through the frame source; a denied call can be re-issued
+    /// identically after the gate answers.
     void callScreenShotMethod(const QString &method, const QVariantList &args,
                               bool showAreaSelector, int timeout = 4000);
-
-    /// Handle the async D-Bus reply and read image from pipe. Keeps the request's own
-    /// arguments so a denied call can be re-issued identically after the gate answers.
-    void handleReply(QDBusPendingCallWatcher *watcher, int readFd,
-                     bool showAreaSelector, const QString &method,
-                     const QVariantList &args, int timeout);
 
     /// Hand a denied capture to the gate. Returns false when there is no gate left to
     /// consult, meaning the caller must fall back itself.

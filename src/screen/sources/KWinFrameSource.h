@@ -7,6 +7,8 @@
 #include <QList>
 #include <QVariantMap>
 
+#include <functional>
+
 namespace Screen {
 
 /**
@@ -34,6 +36,20 @@ public:
     [[nodiscard]] bool wasDenied() const { return m_denied; }
 
     static QVariantMap buildOptions(bool includeCursor = true, bool nativeResolution = true);
+
+    // One ScreenShot2 reply: the image, or why there is none.
+    struct Shot {
+        QImage image;
+        QString error;
+        bool denied = false;      // no desktop entry authorizes this app
+        bool cancelled = false;   // the user dismissed KWin's interactive pick
+    };
+    using ShotHandler = std::function<void(const Shot &)>;
+
+    // One ScreenShot2 call, its pixels read off the GUI thread. done runs later on
+    // context's thread, never once context is gone.
+    static void call(const QString &method, const QVariantList &args, int timeoutMs,
+                     QObject *context, ShotHandler done);
 
     // Raw pixels from the pipe KWin wrote, described by the reply's metadata. Owns fd.
     static QImage readImageFromPipe(int fd, const QVariantMap &metadata);

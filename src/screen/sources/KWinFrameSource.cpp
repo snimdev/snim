@@ -92,13 +92,15 @@ void KWinFrameSource::grab()
                       {screen->name(), QVariant::fromValue(buildOptions())});
 }
 
-void KWinFrameSource::captureScreen(const QString &method, const QVariantList &args)
+void KWinFrameSource::call(const QString &method, const QVariantList &args, int timeoutMs,
+                           QObject *context, ShotHandler done)
 {
     int pipeFds[2]{-1, -1};
     if (pipe2(pipeFds, O_CLOEXEC) == -1) {
-        m_lastError = QStringLiteral("pipe2() failed: %1").arg(QString::fromLocal8Bit(strerror(errno)));
-        qWarning() << m_lastError;
-        screenDone();
+        Shot shot;
+        shot.error = QStringLiteral("pipe2() failed: %1").arg(QString::fromLocal8Bit(strerror(errno)));
+        qWarning() << shot.error;
+        QMetaObject::invokeMethod(context, [done, shot] { done(shot); }, Qt::QueuedConnection);
         return;
     }
 
@@ -107,26 +109,25 @@ void KWinFrameSource::captureScreen(const QString &method, const QVariantList &a
     fullArgs.append(QVariant::fromValue(QDBusUnixFileDescriptor(pipeFds[1])));
     msg.setArguments(fullArgs);
 
-    const QDBusPendingCall pending = QDBusConnection::sessionBus().asyncCall(msg, kCallTimeoutMs);
+    const QDBusPendingCall pending = QDBusConnection::sessionBus().asyncCall(msg, timeoutMs);
     ::close(pipeFds[1]);
 
     const int readFd = pipeFds[0];
-    auto *watcher = new QDBusPendingCallWatcher(pending, this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this, readFd, method](QDBusPendingCallWatcher *w) {
+    auto *watcher = new QDBusPendingCallWatcher(pending, context);
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, context,
+                     [context, readFd, method, done](QDBusPendingCallWatcher *w) {
         w->deleteLater();
         const QDBusPendingReply<QVariantMap> reply = *w;
         if (reply.isError()) {
             ::close(readFd);
             const QString errorName = reply.error().name();
             qDebug() << "KWin" << method << "error:" << errorName << reply.error().message();
-            if (errorName.contains(QLatin1String("NoAuthorized"))
-                || errorName.contains(QLatin1String("AccessDenied")))
-                m_denied = true;
-            else if (errorName.contains(QLatin1String("Cancelled")))
-                m_cancelled = true;
-            m_lastError = reply.error().message();
-            screenDone();
+            Shot shot;
+            shot.denied = errorName.contains(QLatin1String("NoAuthorized"))
+                          || errorName.contains(QLatin1String("AccessDenied"));
+            shot.cancelled = !shot.denied && errorName.contains(QLatin1String("Cancelled"));
+            shot.error = reply.error().message();
+            done(shot);
             return;
         }
 
@@ -134,22 +135,37 @@ void KWinFrameSource::captureScreen(const QString &method, const QVariantList &a
         const QString type = metadata.value(QStringLiteral("type")).toString();
         if (type != QLatin1String("raw")) {
             ::close(readFd);
-            m_lastError = QStringLiteral("unsupported KWin screenshot type: %1").arg(type);
-            screenDone();
+            Shot shot;
+            shot.error = QStringLiteral("unsupported KWin screenshot type: %1").arg(type);
+            done(shot);
             return;
         }
 
-        auto *futureWatcher = new QFutureWatcher<QImage>(this);
-        connect(futureWatcher, &QFutureWatcher<QImage>::finished, this, [this, futureWatcher] {
-            const QImage image = futureWatcher->result();
+        auto *futureWatcher = new QFutureWatcher<QImage>(context);
+        QObject::connect(futureWatcher, &QFutureWatcher<QImage>::finished, context,
+                         [futureWatcher, done] {
+            Shot shot;
+            shot.image = futureWatcher->result();
             futureWatcher->deleteLater();
-            if (image.isNull())
-                m_lastError = QStringLiteral("could not read the screenshot from KWin's pipe");
-            else
-                m_images.append(image);
-            screenDone();
+            if (shot.image.isNull())
+                shot.error = QStringLiteral("could not read the screenshot from KWin's pipe");
+            done(shot);
         });
         futureWatcher->setFuture(QtConcurrent::run(readImageFromPipe, readFd, metadata));
+    });
+}
+
+void KWinFrameSource::captureScreen(const QString &method, const QVariantList &args)
+{
+    call(method, args, kCallTimeoutMs, this, [this](const Shot &shot) {
+        if (shot.image.isNull()) {
+            m_denied = m_denied || shot.denied;
+            m_cancelled = m_cancelled || shot.cancelled;
+            m_lastError = shot.error;
+        } else {
+            m_images.append(shot.image);
+        }
+        screenDone();
     });
 }
 

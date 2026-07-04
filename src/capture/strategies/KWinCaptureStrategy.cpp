@@ -1,36 +1,12 @@
 #include "KWinCaptureStrategy.h"
-#include "screen/AreaSelector.h"
-#include "capture/CaptureGeometry.h"
 #include "screen/sources/KWinFrameSource.h"
 
-#include <QApplication>
-#include <QDBusConnection>
-#include <QDBusInterface>
-#include <QDBusMessage>
-#include <QDBusPendingCall>
-#include <QDBusPendingReply>
-#include <QDBusUnixFileDescriptor>
 #include <QDebug>
-#include <QFuture>
-#include <QFutureWatcher>
-#include <QGuiApplication>
 #include <QPointer>
-#include <QScreen>
 #include <QTimer>
-#include <QWindow>
-#include <QtConcurrentRun>
 #include <utility>
 
-#include <errno.h>
-#include <fcntl.h>
-#include <string.h>
-#include <unistd.h>
-
 namespace Capture {
-
-static const QString kServiceName = QStringLiteral("org.kde.KWin.ScreenShot2");
-static const QString kObjectPath = QStringLiteral("/org/kde/KWin/ScreenShot2");
-static const QString kInterface = QStringLiteral("org.kde.KWin.ScreenShot2");
 
 // --- Construction & availability ---
 
@@ -145,112 +121,43 @@ void KWinCaptureStrategy::workspaceFailed(const QString &reason, bool cancelled)
     emit screenshotFailed(QStringLiteral("KWin screenshot failed: %1").arg(reason));
 }
 
-// --- Core D-Bus call with pipe ---
+// --- Single calls: the active window and the interactive fallback ---
 
 void KWinCaptureStrategy::callScreenShotMethod(const QString &method, const QVariantList &args,
                                                  bool showAreaSel, int timeout)
 {
-    int pipeFds[2]{-1, -1};
-    if (pipe2(pipeFds, O_CLOEXEC) == -1) {
-        qWarning() << "pipe2() failed:" << strerror(errno);
-        emit screenshotFailed(QString("pipe2() failed: %1").arg(strerror(errno)));
-        return;
-    }
-
-    QDBusMessage msg = QDBusMessage::createMethodCall(kServiceName, kObjectPath, kInterface, method);
-
-    QVariantList fullArgs = args;
-    fullArgs.append(QVariant::fromValue(QDBusUnixFileDescriptor(pipeFds[1])));
-    msg.setArguments(fullArgs);
-
-    QDBusPendingCall pending = QDBusConnection::sessionBus().asyncCall(msg, timeout);
-    ::close(pipeFds[1]);
-
-    auto *watcher = new QDBusPendingCallWatcher(pending, this);
-    handleReply(watcher, pipeFds[0], showAreaSel, method, args, timeout);
-}
-
-// --- Async reply handler ---
-
-void KWinCaptureStrategy::handleReply(QDBusPendingCallWatcher *watcher, int readFd,
-                                       bool showAreaSel, const QString &method,
-                                       const QVariantList &args, int timeout)
-{
-    connect(watcher, &QDBusPendingCallWatcher::finished, this,
-            [this, readFd, showAreaSel, method, args, timeout](QDBusPendingCallWatcher *w) {
-        w->deleteLater();
-        const QDBusPendingReply<QVariantMap> reply = *w;
-
-        if (reply.isError()) {
-            ::close(readFd);
-            const QString errorName = reply.error().name();
-            qDebug() << "KWin" << method << "error:" << errorName << reply.error().message();
-
-            // Permission denied: ask the gate first, else fall back to CaptureInteractive
-            if (errorName.contains("NoAuthorized") || errorName.contains("AccessDenied")) {
-                const int kind = (method == "CaptureActiveWindow") ? 0 : 1;
-
-                if (requestAuthorization([this, method, args, showAreaSel, timeout, kind](bool retryFast) {
-                        if (retryFast) {
-                            callScreenShotMethod(method, args, showAreaSel, timeout);
-                        } else {
-                            fallbackToInteractive(showAreaSel, kind);
-                        }
-                    })) {
-                    qDebug() << "Permission denied, asking before any fallback";
-                    return;
-                }
-
-                qDebug() << "Permission denied, falling back to CaptureInteractive";
-                fallbackToInteractive(showAreaSel, kind);
+    using Shot = Screen::KWinFrameSource::Shot;
+    Screen::KWinFrameSource::call(method, args, timeout, this,
+                                  [this, method, args, showAreaSel, timeout](const Shot &shot) {
+        // Permission denied: ask the gate first, else fall back to CaptureInteractive
+        if (shot.denied) {
+            const int kind = (method == QLatin1String("CaptureActiveWindow")) ? 0 : 1;
+            if (requestAuthorization([this, method, args, showAreaSel, timeout, kind](bool retryFast) {
+                    if (retryFast)
+                        callScreenShotMethod(method, args, showAreaSel, timeout);
+                    else
+                        fallbackToInteractive(showAreaSel, kind);
+                })) {
+                qDebug() << "Permission denied, asking before any fallback";
                 return;
             }
-
-            if (errorName.contains("Cancelled")) {
-                return; // User cancelled, silently ignore
-            }
-
-            emit screenshotFailed(QString("KWin screenshot failed: %1").arg(reply.error().message()));
+            qDebug() << "Permission denied, falling back to CaptureInteractive";
+            fallbackToInteractive(showAreaSel, kind);
+            return;
+        }
+        if (shot.cancelled)
+            return; // User cancelled, silently ignore
+        if (shot.image.isNull()) {
+            emit screenshotFailed(QStringLiteral("KWin screenshot failed: %1").arg(shot.error));
             return;
         }
 
-        const QVariantMap &metadata = reply;
-        const QString type = metadata.value("type").toString();
-        if (type != "raw") {
-            ::close(readFd);
-            emit screenshotFailed(QString("Unsupported KWin screenshot type: %1").arg(type));
-            return;
-        }
-
-        // Read image in background thread
-        auto *futureWatcher = new QFutureWatcher<QImage>(this);
-        connect(futureWatcher, &QFutureWatcher<QImage>::finished, this,
-                [this, futureWatcher, showAreaSel]() {
-            QImage image = futureWatcher->result();
-            futureWatcher->deleteLater();
-
-            if (image.isNull()) {
-                emit screenshotFailed("Failed to read screenshot from KWin pipe");
-                return;
-            }
-
-            QPixmap screenshot = QPixmap::fromImage(image);
-            screenshot.setDevicePixelRatio(image.devicePixelRatio());
-
-            if (showAreaSel) {
-                QRect virtualDesktop;
-                for (QScreen *s : QGuiApplication::screens()) {
-                    virtualDesktop = virtualDesktop.united(s->geometry());
-                }
-                this->showAreaSelector(screenshot, virtualDesktop);
-            } else {
-                emit screenshotReady(screenshot);
-            }
-        });
-
-        QFuture<QImage> future =
-            QtConcurrent::run(Screen::KWinFrameSource::readImageFromPipe, readFd, metadata);
-        futureWatcher->setFuture(future);
+        QPixmap screenshot = QPixmap::fromImage(shot.image);
+        screenshot.setDevicePixelRatio(shot.image.devicePixelRatio());
+        if (showAreaSel)
+            showAreaSelector(screenshot, Screen::qtVirtualDesktop());
+        else
+            emit screenshotReady(screenshot);
     });
 }
 
