@@ -11,6 +11,47 @@ using namespace Capture;
 namespace StrategySelection = Screen::StrategySelection;
 using Screen::FrameSourceFactory;
 
+namespace {
+
+// Sets environment variables for one test and puts the old values back after it.
+class ScopedEnv
+{
+public:
+    ScopedEnv(std::initializer_list<std::pair<const char *, QByteArray>> values)
+    {
+        for (const auto &[name, value] : values) {
+            m_saved.append({name, qEnvironmentVariableIsSet(name), qgetenv(name)});
+            qputenv(name, value);
+        }
+    }
+    ~ScopedEnv()
+    {
+        for (const Saved &saved : std::as_const(m_saved)) {
+            if (saved.wasSet)
+                qputenv(saved.name, saved.value);
+            else
+                qunsetenv(saved.name);
+        }
+    }
+    Q_DISABLE_COPY_MOVE(ScopedEnv)
+
+private:
+    struct Saved {
+        const char *name;
+        bool wasSet;
+        QByteArray value;
+    };
+    QList<Saved> m_saved;
+};
+
+// Offscreen and outside a Wayland session, whatever session runs the tests.
+ScopedEnv outsideWayland()
+{
+    return {{"WAYLAND_DISPLAY", QByteArray()}, {"XDG_SESSION_TYPE", QByteArrayLiteral("x11")}};
+}
+
+} // namespace
+
 // Factory + Strategy: test only the side-effect-free surface. NEVER call
 // captureArea/captureWindow/captureFullScreen; they grab the real screen and
 // pop up full-screen overlays.
@@ -76,18 +117,28 @@ private slots:
         QVERIFY(!parseOverride(QStringLiteral("bogus")));
     }
 
+    void theSessionEnvironmentIsRestored()
+    {
+        const QByteArray display = qgetenv("WAYLAND_DISPLAY");
+        const bool displaySet = qEnvironmentVariableIsSet("WAYLAND_DISPLAY");
+        {
+            const ScopedEnv session = outsideWayland();
+            QVERIFY(!Screen::isWaylandSession());
+        }
+        QCOMPARE(qEnvironmentVariableIsSet("WAYLAND_DISPLAY"), displaySet);
+        QCOMPARE(qgetenv("WAYLAND_DISPLAY"), display);
+    }
+
     void theOverrideDecidesTheDefault()
     {
-        qputenv("SNIM_CAPTURE_STRATEGY", "native");
+        const ScopedEnv forced{{"SNIM_CAPTURE_STRATEGY", QByteArrayLiteral("native")}};
         QVERIFY(CaptureFactory::getDefaultStrategyType() == CaptureFactory::StrategyType::Native);
-        qunsetenv("SNIM_CAPTURE_STRATEGY");
     }
 
     void anUnavailableScreencastStillYieldsAStrategy()
     {
         // Offscreen is no Wayland session, so this must land on a fallback, never null.
-        qputenv("WAYLAND_DISPLAY", "");
-        qputenv("XDG_SESSION_TYPE", "x11");
+        const ScopedEnv session = outsideWayland();
         QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Screencast));
         auto s = CaptureFactory::createStrategy(CaptureFactory::StrategyType::Screencast);
         QVERIFY(s);
@@ -173,11 +224,10 @@ private slots:
 
     void theOverrideForcesScreencopy()
     {
-        qputenv("SNIM_CAPTURE_STRATEGY", "wlroots");
+        const ScopedEnv forced{{"SNIM_CAPTURE_STRATEGY", QByteArrayLiteral("wlroots")}};
         QCOMPARE(CaptureFactory::getDefaultStrategyType(), CaptureFactory::StrategyType::Screencopy);
         // Forced but unavailable still yields a working strategy.
         QVERIFY(CaptureFactory::createStrategy());
-        qunsetenv("SNIM_CAPTURE_STRATEGY");
     }
 
     void theFrozenFrameFallsBackToTheScreenshotPortal_data()
@@ -209,8 +259,7 @@ private slots:
         QCOMPARE(FrameSourceFactory::typeName(CaptureFactory::StrategyType::Native),
                  QStringLiteral("Qt screen grab"));
         // Offscreen and no Wayland session: no screencopy and no ScreenCast session.
-        qputenv("WAYLAND_DISPLAY", "");
-        qputenv("XDG_SESSION_TYPE", "x11");
+        const ScopedEnv session = outsideWayland();
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Screencopy));
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Screencast));
 #if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
