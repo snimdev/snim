@@ -17,8 +17,6 @@ class ScreencastCaptureStrategy : public WaylandCaptureStrategy
     Q_OBJECT
 
 public:
-    static constexpr const char *kRestoreTokenKey = Screen::ScreencastFrameSource::kRestoreTokenKey;
-
     explicit ScreencastCaptureStrategy(QObject *parent = nullptr);
     ~ScreencastCaptureStrategy() override;
 
@@ -31,10 +29,6 @@ public:
     QString name() const override { return QStringLiteral("ScreenCast Portal Capture"); }
 
     [[nodiscard]] static bool isSupported() { return Screen::ScreencastFrameSource::isSupported(); }
-    [[nodiscard]] static bool hasRestoreToken()
-    {
-        return Screen::ScreencastFrameSource::hasRestoreToken();
-    }
 
 signals:
     // No consent stored yet: the portal is about to show its screen picker.

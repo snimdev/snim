@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "capture/strategies/ScreencastCaptureStrategy.h"
+#include "screen/sources/ScreencastFrameSource.h"
 
 // Manual check, not a ctest: one full-screen ScreenCast capture saved to argv[1].
 // The first run shows the portal's picker; a human approves it once, later runs are silent.
@@ -29,12 +30,12 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("snim-screencast-probe"));
     const QString out = argc > 1 ? QString::fromLocal8Bit(argv[1]) : QStringLiteral("screencast.png");
 
-    if (!Capture::ScreencastCaptureStrategy::isSupported()) {
+    if (!Screen::ScreencastFrameSource::isSupported()) {
         std::fprintf(stderr, "probe: ScreenCast capture is not supported here\n");
         return 3;
     }
     std::fprintf(stderr, "probe: restore token stored: %s\n",
-                 Capture::ScreencastCaptureStrategy::hasRestoreToken() ? "yes" : "no");
+                 Screen::ScreencastFrameSource::hasRestoreToken() ? "yes" : "no");
 
     Capture::ScreencastCaptureStrategy strategy;
     QElapsedTimer clock;

@@ -1,16 +1,17 @@
 #include <QtTest>
 
-#include "capture/strategies/ScreencastCaptureStrategy.h"
 #include "screen/ScreenCastPortalSession.h"
+#include "screen/sources/ScreencastFrameSource.h"
 
 using Screen::ScreenCastPortalSession;
+using Screen::ScreencastFrameSource;
 
 // Screenshot consent must never restore, or be wiped by, the recorder's session.
 class tst_ScreencastToken : public QObject
 {
     Q_OBJECT
 
-    const QString m_captureKey = QString::fromLatin1(Capture::ScreencastCaptureStrategy::kRestoreTokenKey);
+    const QString m_captureKey = QString::fromLatin1(ScreencastFrameSource::kRestoreTokenKey);
     const QString m_recordingKey = QStringLiteral("recording/screencastRestoreToken");
 
 private slots:
@@ -37,7 +38,7 @@ private slots:
         ScreenCastPortalSession::storeRestoreToken(
             m_captureKey, {{QStringLiteral("restore_token"), QStringLiteral("abc")}});
         QCOMPARE(ScreenCastPortalSession::restoreToken(m_captureKey), QStringLiteral("abc"));
-        QVERIFY(Capture::ScreencastCaptureStrategy::hasRestoreToken());
+        QVERIFY(ScreencastFrameSource::hasRestoreToken());
         QVERIFY(ScreenCastPortalSession::restoreToken(m_recordingKey).isEmpty());
     }
 
@@ -46,7 +47,7 @@ private slots:
         QSettings().setValue(m_captureKey, QStringLiteral("old"));
         QSettings().setValue(m_recordingKey, QStringLiteral("recorder"));
         ScreenCastPortalSession::storeRestoreToken(m_captureKey, {});
-        QVERIFY(!Capture::ScreencastCaptureStrategy::hasRestoreToken());
+        QVERIFY(!ScreencastFrameSource::hasRestoreToken());
         QCOMPARE(QSettings().value(m_recordingKey).toString(), QStringLiteral("recorder"));
     }
 
