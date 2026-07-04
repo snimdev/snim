@@ -22,7 +22,6 @@ class KWinFrameSource : public DesktopFrameSource
 public:
     explicit KWinFrameSource(QObject *parent = nullptr);
 
-    [[nodiscard]] QString name() const override { return QStringLiteral("KWin ScreenShot2"); }
     void grab() override;
 
     // Whether KWin's ScreenShot2 service is on the session bus.

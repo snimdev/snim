@@ -25,7 +25,6 @@ public:
     using QObject::QObject;
     ~DesktopFrameSource() override = default;
 
-    [[nodiscard]] virtual QString name() const = 0;
     virtual void grab() = 0;
 
 signals:

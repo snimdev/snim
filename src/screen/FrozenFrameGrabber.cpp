@@ -10,26 +10,11 @@
 
 namespace Screen {
 
-namespace {
-
 #ifdef Q_OS_LINUX
+namespace {
 using Type = SourceType;
-
-QString typeName(Type type)
-{
-    switch (type) {
-    case Type::KWin: return QStringLiteral("KWin ScreenShot2");
-    case Type::Screencast: return QStringLiteral("ScreenCast portal");
-    case Type::Screencopy: return QStringLiteral("Wayland screencopy");
-    case Type::Portal: return QStringLiteral("Screenshot portal");
-    case Type::Native: return QStringLiteral("Qt screen grab");
-    case Type::Auto: break;
-    }
-    return QStringLiteral("automatic");
-}
-#endif
-
 } // namespace
+#endif
 
 FrozenFrameGrabber::FrozenFrameGrabber(QObject *parent)
     : QObject(parent)
@@ -56,7 +41,7 @@ void FrozenFrameGrabber::grab(Done done)
         QStringList names;
         for (const Type type : StrategySelection::frameSourceChain(chosen)) {
             m_chain.append(static_cast<int>(type));
-            names.append(typeName(type));
+            names.append(FrameSourceFactory::typeName(type));
         }
         qInfo().noquote() << "Frozen frame: trying" << names.join(QStringLiteral(", then "));
         tryNextSource();
@@ -121,18 +106,20 @@ void FrozenFrameGrabber::tryNextSource()
         const Type type = static_cast<Type>(m_chain.takeFirst());
         std::unique_ptr<DesktopFrameSource> source = FrameSourceFactory::create(type, this);
         if (!source) {
-            qInfo().noquote() << "Frozen frame:" << typeName(type) << "is not available here";
+            qInfo().noquote() << "Frozen frame:" << FrameSourceFactory::typeName(type)
+                              << "is not available here";
             if (m_lastReason.isEmpty())
-                m_lastReason = tr("%1 is not available").arg(typeName(type));
+                m_lastReason = tr("%1 is not available").arg(FrameSourceFactory::typeName(type));
             continue;
         }
 
         m_source = source.release();
+        m_sourceName = FrameSourceFactory::typeName(type);
         connect(m_source, &DesktopFrameSource::frameReady,
                 this, &FrozenFrameGrabber::sourceReady);
         connect(m_source, &DesktopFrameSource::frameFailed,
                 this, &FrozenFrameGrabber::sourceFailed);
-        qInfo().noquote() << "Frozen frame: asking" << m_source->name();
+        qInfo().noquote() << "Frozen frame: asking" << m_sourceName;
         m_source->grab();
         return;
     }
@@ -151,7 +138,7 @@ void FrozenFrameGrabber::dropSource()
 
 void FrozenFrameGrabber::sourceReady(const QPixmap &frame, const QRect &virtualGeometry)
 {
-    const QString name = m_source ? m_source->name() : QString();
+    const QString name = m_source ? m_sourceName : QString();
     dropSource();
     if (!frameCoversGeometry(frame.size(), frame.devicePixelRatio(), virtualGeometry)) {
         sourceFailed(tr("%1 returned %2x%3 pixels at scale %4, not the whole %5x%6 desktop")
@@ -173,7 +160,7 @@ void FrozenFrameGrabber::sourceReady(const QPixmap &frame, const QRect &virtualG
 
 void FrozenFrameGrabber::sourceFailed(const QString &reason, bool cancelled)
 {
-    const QString name = m_source ? m_source->name() : QString();
+    const QString name = m_source ? m_sourceName : QString();
     dropSource();
     if (!name.isEmpty())
         qInfo().noquote() << "Frozen frame:" << name << "failed:" << reason;

@@ -22,7 +22,6 @@ public:
     explicit PortalFrameSource(QObject *parent = nullptr);
     ~PortalFrameSource() override;
 
-    [[nodiscard]] QString name() const override { return QStringLiteral("Screenshot portal"); }
     void grab() override;
 
     // Whether the Screenshot portal answers on the session bus.

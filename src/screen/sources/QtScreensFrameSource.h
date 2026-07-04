@@ -16,7 +16,6 @@ class QtScreensFrameSource : public DesktopFrameSource
 public:
     using DesktopFrameSource::DesktopFrameSource;
 
-    [[nodiscard]] QString name() const override { return QStringLiteral("Qt screen grab"); }
     void grab() override;
 
     // Null when there are no screens.

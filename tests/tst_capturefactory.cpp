@@ -206,7 +206,8 @@ private slots:
     {
         const auto native = FrameSourceFactory::create(CaptureFactory::StrategyType::Native);
         QVERIFY(native);
-        QCOMPARE(native->name(), QStringLiteral("Qt screen grab"));
+        QCOMPARE(FrameSourceFactory::typeName(CaptureFactory::StrategyType::Native),
+                 QStringLiteral("Qt screen grab"));
         // Offscreen and no Wayland session: no screencopy and no ScreenCast session.
         qputenv("WAYLAND_DISPLAY", "");
         qputenv("XDG_SESSION_TYPE", "x11");

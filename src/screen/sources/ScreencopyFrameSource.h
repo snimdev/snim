@@ -16,7 +16,6 @@ class ScreencopyFrameSource : public DesktopFrameSource
 public:
     using DesktopFrameSource::DesktopFrameSource;
 
-    [[nodiscard]] QString name() const override { return QStringLiteral("Wayland screencopy"); }
     void grab() override;
 
     // Whether the compositor advertises ext-image-copy-capture or wlr-screencopy.

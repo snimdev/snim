@@ -54,6 +54,7 @@ private:
 
     QList<int> m_chain;   // SourceType values still to try
     DesktopFrameSource *m_source = nullptr;
+    QString m_sourceName;
     QString m_lastReason;
     QElapsedTimer m_clock;
 #endif

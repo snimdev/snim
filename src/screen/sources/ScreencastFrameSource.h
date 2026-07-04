@@ -30,7 +30,6 @@ public:
     explicit ScreencastFrameSource(QObject *parent = nullptr);
     ~ScreencastFrameSource() override;
 
-    [[nodiscard]] QString name() const override { return QStringLiteral("ScreenCast portal"); }
     void grab() override;
 
     // Wayland, a ScreenCast portal that persists consent, and the module's frame grabber.

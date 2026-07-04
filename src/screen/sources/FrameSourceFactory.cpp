@@ -79,4 +79,17 @@ SourceType FrameSourceFactory::defaultType()
                                      Core::Sandbox::isFlatpak(), probes);
 }
 
+QString FrameSourceFactory::typeName(SourceType type)
+{
+    switch (type) {
+    case SourceType::KWin: return QStringLiteral("KWin ScreenShot2");
+    case SourceType::Screencast: return QStringLiteral("ScreenCast portal");
+    case SourceType::Screencopy: return QStringLiteral("Wayland screencopy");
+    case SourceType::Portal: return QStringLiteral("Screenshot portal");
+    case SourceType::Native: return QStringLiteral("Qt screen grab");
+    case SourceType::Auto: break;
+    }
+    return QStringLiteral("automatic");
+}
+
 } // namespace Screen

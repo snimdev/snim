@@ -2,6 +2,7 @@
 #define SCREEN_FRAMESOURCEFACTORY_H
 
 #include <QObject>
+#include <QString>
 
 #include <memory>
 
@@ -32,6 +33,9 @@ public:
 
     // StrategySelection over this desktop; SNIM_CAPTURE_STRATEGY forces a type, for testing.
     [[nodiscard]] static SourceType defaultType();
+
+    // What logs and messages call each type.
+    [[nodiscard]] static QString typeName(SourceType type);
 
 private:
     FrameSourceFactory() = default;
