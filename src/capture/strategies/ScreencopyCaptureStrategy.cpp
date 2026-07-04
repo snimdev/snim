@@ -1,5 +1,4 @@
 #include "ScreencopyCaptureStrategy.h"
-#include "screen/ScreencopyClient.h"
 #include "screen/sources/ScreencopyFrameSource.h"
 
 #include <QDebug>
