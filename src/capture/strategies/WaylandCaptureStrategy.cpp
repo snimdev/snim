@@ -125,12 +125,8 @@ namespace Capture {
 
         // Handle different tools with proper arguments
         if (tool == "spectacle") {
-            QStringList args;
-            if (m_captureArea) {
-                args << "-r" << "-n" << "-o" << m_tempFile->fileName();
-            } else {
-                args << "-b -S -m -s -n" << "-o" << m_tempFile->fileName();
-            }
+            // Background mode writes the file and exits without spectacle's own window.
+            QStringList args{"-b", "-n", m_captureArea ? "-r" : "-f", "-o", m_tempFile->fileName()};
             qDebug() << "Spectacle args:" << args;
             m_fallbackProcess->start(tool, args);
         } else if (tool == "grim") {
