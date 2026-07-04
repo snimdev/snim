@@ -42,7 +42,7 @@ std::unique_ptr<DesktopFrameSource> FrameSourceFactory::create(SourceType type, 
             return std::make_unique<ScreencopyFrameSource>(parent);
 #endif
         return nullptr;
-    case SourceType::Wayland:
+    case SourceType::Portal:
 #ifdef Q_OS_LINUX
         return std::make_unique<PortalFrameSource>(parent);
 #else
@@ -56,7 +56,7 @@ std::unique_ptr<DesktopFrameSource> FrameSourceFactory::create(SourceType type, 
 
 SourceType FrameSourceFactory::defaultType()
 {
-    // SNIM_CAPTURE_STRATEGY=kwin|screencast|screencopy|wayland|native forces one, for testing.
+    // SNIM_CAPTURE_STRATEGY=kwin|screencast|screencopy|portal|native forces one, for testing.
     if (const auto forced = StrategySelection::parseOverride(qEnvironmentVariable("SNIM_CAPTURE_STRATEGY")))
         return *forced;
 

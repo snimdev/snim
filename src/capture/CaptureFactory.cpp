@@ -30,19 +30,19 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
                 qDebug() << "Created KWin capture strategy";
                 return strategy;
             }
-            qWarning() << "KWin strategy requested but not available, falling back to Wayland";
+            qWarning() << "KWin strategy requested but not available, falling back to the portal";
 #endif
         }
         [[fallthrough]];
 
-        case StrategyType::Wayland: {
+        case StrategyType::Portal: {
 #ifdef Q_OS_LINUX
             auto strategy = std::make_unique<WaylandCaptureStrategy>(parent);
             if (strategy->isAvailable()) {
-                qDebug() << "Created Wayland capture strategy";
+                qDebug() << "Created portal capture strategy";
                 return strategy;
             }
-            qWarning() << "Wayland strategy requested but not available, falling back to native";
+            qWarning() << "Portal strategy requested but not available, falling back to native";
 #endif
         }
         [[fallthrough]];
@@ -61,8 +61,8 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
                 return strategy;
             }
 #endif
-            qWarning() << "ScreenCast strategy requested but not available, falling back to Wayland";
-            return createStrategy(StrategyType::Wayland, parent);
+            qWarning() << "ScreenCast strategy requested but not available, falling back to the portal";
+            return createStrategy(StrategyType::Portal, parent);
         }
 
         case StrategyType::Screencopy: {
@@ -72,9 +72,9 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
                 qDebug() << "Created Wayland screencopy capture strategy";
                 return strategy;
             }
-            qWarning() << "Screencopy strategy requested but not available, falling back to Wayland";
+            qWarning() << "Screencopy strategy requested but not available, falling back to the portal";
 #endif
-            return createStrategy(StrategyType::Wayland, parent);
+            return createStrategy(StrategyType::Portal, parent);
         }
 
         default:
@@ -98,7 +98,7 @@ bool CaptureFactory::isStrategyAvailable(StrategyType type)
             return false;
 #endif
         }
-        case StrategyType::Wayland: {
+        case StrategyType::Portal: {
 #ifdef Q_OS_LINUX
             auto strategy = std::make_unique<WaylandCaptureStrategy>();
             return strategy->isAvailable();

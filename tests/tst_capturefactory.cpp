@@ -40,7 +40,7 @@ private slots:
 #if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
         QVERIFY(CaptureFactory::getDefaultStrategyType() == CaptureFactory::StrategyType::Native);
         QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::KWin));
-        QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Wayland));
+        QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Portal));
 #endif
     }
 
@@ -67,11 +67,11 @@ private slots:
         using Type = CaptureFactory::StrategyType;
         QCOMPARE(parseOverride(QStringLiteral("screencast")), std::optional(Type::Screencast));
         QCOMPARE(parseOverride(QStringLiteral(" KWin ")), std::optional(Type::KWin));
-        QCOMPARE(parseOverride(QStringLiteral("portal")), std::optional(Type::Wayland));
+        QCOMPARE(parseOverride(QStringLiteral("portal")), std::optional(Type::Portal));
         QCOMPARE(parseOverride(QStringLiteral("native")), std::optional(Type::Native));
         QCOMPARE(parseOverride(QStringLiteral(" Screencopy ")), std::optional(Type::Screencopy));
         QCOMPARE(parseOverride(QStringLiteral("wlroots")), std::optional(Type::Screencopy));
-        QCOMPARE(parseOverride(QStringLiteral("wayland")), std::optional(Type::Wayland));
+        QCOMPARE(parseOverride(QStringLiteral("wayland")), std::optional(Type::Portal));
         QVERIFY(!parseOverride(QString()));
         QVERIFY(!parseOverride(QStringLiteral("bogus")));
     }
@@ -119,15 +119,15 @@ private slots:
 
         using Type = CaptureFactory::StrategyType;
         QTest::newRow("KDE native") << "KDE" << false << true << true << true << true << Type::KWin;
-        QTest::newRow("KDE Flatpak") << "KDE" << true << true << true << true << true << Type::Wayland;
+        QTest::newRow("KDE Flatpak") << "KDE" << true << true << true << true << true << Type::Portal;
         QTest::newRow("GNOME native") << "GNOME" << false << false << true << true << true << Type::Screencast;
         QTest::newRow("GNOME Flatpak") << "GNOME" << true << false << false << true << true << Type::Screencast;
-        QTest::newRow("GNOME no ScreenCast") << "GNOME" << false << false << false << false << true << Type::Wayland;
+        QTest::newRow("GNOME no ScreenCast") << "GNOME" << false << false << false << false << true << Type::Portal;
         QTest::newRow("sway native") << "sway" << false << false << true << true << true << Type::Screencopy;
-        QTest::newRow("sway native, hidden globals") << "sway" << false << false << false << true << true << Type::Wayland;
+        QTest::newRow("sway native, hidden globals") << "sway" << false << false << false << true << true << Type::Portal;
         QTest::newRow("sway Flatpak, globals shown") << "sway" << true << false << true << true << true << Type::Screencopy;
         QTest::newRow("sway Flatpak") << "sway" << true << false << false << true << true << Type::Screencast;
-        QTest::newRow("sway Flatpak, old portal") << "sway" << true << false << false << false << true << Type::Wayland;
+        QTest::newRow("sway Flatpak, old portal") << "sway" << true << false << false << false << true << Type::Portal;
         QTest::newRow("X11") << "XFCE" << false << false << false << false << false << Type::Native;
     }
 
@@ -185,11 +185,11 @@ private slots:
         using Type = CaptureFactory::StrategyType;
         QTest::addColumn<Type>("chosen");
         QTest::addColumn<QList<Type>>("chain");
-        QTest::newRow("KDE") << Type::KWin << QList<Type>{Type::KWin, Type::Wayland};
-        QTest::newRow("GNOME") << Type::Screencast << QList<Type>{Type::Screencast, Type::Wayland};
-        QTest::newRow("wlroots") << Type::Screencopy << QList<Type>{Type::Screencopy, Type::Wayland};
-        QTest::newRow("portal only") << Type::Wayland << QList<Type>{Type::Wayland};
-        QTest::newRow("unresolved") << Type::Auto << QList<Type>{Type::Wayland};
+        QTest::newRow("KDE") << Type::KWin << QList<Type>{Type::KWin, Type::Portal};
+        QTest::newRow("GNOME") << Type::Screencast << QList<Type>{Type::Screencast, Type::Portal};
+        QTest::newRow("wlroots") << Type::Screencopy << QList<Type>{Type::Screencopy, Type::Portal};
+        QTest::newRow("portal only") << Type::Portal << QList<Type>{Type::Portal};
+        QTest::newRow("unresolved") << Type::Auto << QList<Type>{Type::Portal};
         // X11, or a forced native grab: no portal behind Qt's own.
         QTest::newRow("native") << Type::Native << QList<Type>{Type::Native};
     }
@@ -214,7 +214,7 @@ private slots:
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Screencast));
 #if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::KWin));
-        QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Wayland));
+        QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Portal));
 #endif
     }
 

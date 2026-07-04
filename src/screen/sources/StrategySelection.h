@@ -66,7 +66,7 @@ inline SourceType choose(const QString &currentDesktop, bool flatpak, const Prob
     if (prefersScreencast(currentDesktop, flatpak) && probe(probes.screencast))
         return SourceType::Screencast;
     if (probe(probes.portal))
-        return SourceType::Wayland;
+        return SourceType::Portal;
     return SourceType::Native;
 }
 
@@ -79,14 +79,14 @@ inline QList<SourceType> frameSourceChain(SourceType chosen)
     case Type::KWin:
     case Type::Screencast:
     case Type::Screencopy:
-        return {chosen, Type::Wayland};
+        return {chosen, Type::Portal};
     case Type::Native:
         return {Type::Native};
-    case Type::Wayland:
+    case Type::Portal:
     case Type::Auto:
         break;
     }
-    return {Type::Wayland};
+    return {Type::Portal};
 }
 
 // A SNIM_CAPTURE_STRATEGY value; nothing for an empty or unknown one.
@@ -99,8 +99,8 @@ inline std::optional<SourceType> parseOverride(const QString &value)
         return SourceType::Screencast;
     if (name == QLatin1String("screencopy") || name == QLatin1String("wlroots"))
         return SourceType::Screencopy;
-    if (name == QLatin1String("wayland") || name == QLatin1String("portal"))
-        return SourceType::Wayland;
+    if (name == QLatin1String("portal") || name == QLatin1String("wayland"))
+        return SourceType::Portal;
     if (name == QLatin1String("native"))
         return SourceType::Native;
     return std::nullopt;

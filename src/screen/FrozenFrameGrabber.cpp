@@ -21,7 +21,7 @@ QString typeName(Type type)
     case Type::KWin: return QStringLiteral("KWin ScreenShot2");
     case Type::Screencast: return QStringLiteral("ScreenCast portal");
     case Type::Screencopy: return QStringLiteral("Wayland screencopy");
-    case Type::Wayland: return QStringLiteral("Screenshot portal");
+    case Type::Portal: return QStringLiteral("Screenshot portal");
     case Type::Native: return QStringLiteral("Qt screen grab");
     case Type::Auto: break;
     }
