@@ -28,6 +28,8 @@ TextSnipWorkflow::TextSnipWorkflow(QObject *parent)
                 emit errorOccurred(error);
                 QMessageBox::warning(nullptr, "Screenshot Failed", error);
             });
+    connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotCancelled,
+            this, [] { qDebug() << "Text snip cancelled"; });
 }
 
 TextSnipWorkflow::~TextSnipWorkflow() {

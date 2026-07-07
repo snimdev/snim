@@ -88,6 +88,7 @@ void CaptureStrategy::showAreaSelector(const QPixmap &frame, const QRect &virtua
             tearDownSelectors(selectors);
             if (area.isEmpty()) {
                 qDebug() << "Area selection cancelled";
+                emit screenshotCancelled();
                 return;
             }
             emitSelection(frame, virtualGeometry, area, session);

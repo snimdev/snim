@@ -35,6 +35,9 @@ namespace App {
         connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotFailed, this, [](const QString &error) {
             QMessageBox::warning(nullptr, "Screenshot Failed", error);
         });
+        connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotCancelled, this, [] {
+            qDebug() << "Screenshot cancelled";
+        });
 
 #ifdef Q_OS_LINUX
         // The strategy launches no fallback while this gate is installed: the answer

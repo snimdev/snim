@@ -116,8 +116,10 @@ void KWinCaptureStrategy::workspaceFailed(const QString &reason, bool cancelled)
         fallbackToInteractive(showSelector, 1);
         return;
     }
-    if (cancelled)
-        return;   // user cancelled, silently ignore
+    if (cancelled) {
+        emit screenshotCancelled();
+        return;
+    }
     emit screenshotFailed(QStringLiteral("KWin screenshot failed: %1").arg(reason));
 }
 
@@ -145,8 +147,10 @@ void KWinCaptureStrategy::callScreenShotMethod(const QString &method, const QVar
             fallbackToInteractive(showAreaSel, kind);
             return;
         }
-        if (shot.cancelled)
-            return; // User cancelled, silently ignore
+        if (shot.cancelled) {
+            emit screenshotCancelled();
+            return;
+        }
         if (shot.image.isNull()) {
             emit screenshotFailed(QStringLiteral("KWin screenshot failed: %1").arg(shot.error));
             return;

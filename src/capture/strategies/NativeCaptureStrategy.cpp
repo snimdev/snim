@@ -76,6 +76,7 @@ void NativeCaptureStrategy::onAreaSelected(const QRect &area,
     if (area.isEmpty()) {
         // User cancelled (pressed Escape)
         qDebug() << "Area selection cancelled";
+        emit screenshotCancelled();
     } else {
         const auto [shot, geometry] = cropSource(area);
         emitSelection(shot, geometry, area, annotations);

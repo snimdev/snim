@@ -47,6 +47,8 @@ signals:
     // annotations: overlay drawings the editor adds as layers over the plain pixmap.
     void screenshotReady(const QPixmap &pixmap, const Editor::AnnotationSet &annotations = {});
     void screenshotFailed(const QString &error);
+    // The user backed out (Escape on the selector, a dismissed system dialog): no error.
+    void screenshotCancelled();
 
 protected:
     // Terminal actions for the selection toolbar, shared by every strategy: crop
