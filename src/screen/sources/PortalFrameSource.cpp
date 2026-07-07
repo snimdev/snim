@@ -1,4 +1,5 @@
 #include "PortalFrameSource.h"
+#include "screen/DesktopStitch.h"
 
 #include <QDebug>
 #include <QFile>
@@ -182,8 +183,7 @@ void PortalFrameSource::handleResponse(uint status, const QVariantMap &results)
     }
 
     // The portal returns physical pixels: recover the ratio against the logical desktop.
-    const qreal dpr = qMax(image.width() * 1.0 / virtualDesktop.width(),
-                           image.height() * 1.0 / virtualDesktop.height());
+    const qreal dpr = frameDevicePixelRatio(image, virtualDesktop);
     qDebug() << "Screenshot portal:" << image.size() << "over" << virtualDesktop << "DPR" << dpr;
 
     QPixmap frame = QPixmap::fromImage(image);
