@@ -11,7 +11,6 @@
 #include <QDebug>
 #include <QFile>
 #include <QFutureWatcher>
-#include <QPainter>
 #include <QtConcurrentRun>
 
 #include <errno.h>
@@ -75,7 +74,7 @@ void KWinFrameSource::grab()
         return;
     }
     m_busy = true;
-    m_images.clear();
+    m_frames.clear();
     m_lastError.clear();
     m_pending = static_cast<int>(screens.size());
 
@@ -166,10 +165,7 @@ void KWinFrameSource::captureScreen(const QString &method, const QVariantList &a
             m_cancelled = m_cancelled || shot.cancelled;
             m_lastError = shot.error;
         } else {
-            QImage image = shot.image;
-            image.setText(QStringLiteral("logicalX"), QString::number(logical.x()));
-            image.setText(QStringLiteral("logicalY"), QString::number(logical.y()));
-            m_images.append(image);
+            m_frames.append({logical, shot.image});
         }
         screenDone();
     });
@@ -181,7 +177,7 @@ void KWinFrameSource::screenDone()
         return;
     m_busy = false;
 
-    if (m_images.isEmpty()) {
+    if (m_frames.isEmpty()) {
         const QString reason = m_denied
             ? QStringLiteral("KWin refused the screenshot: no desktop entry authorizes "
                              "org.kde.KWin.ScreenShot2 for this app")
@@ -191,11 +187,16 @@ void KWinFrameSource::screenDone()
     }
     m_denied = false;
 
-    const QImage composited = compositeScreenImages(m_images);
-    m_images.clear();
-    QPixmap frame = QPixmap::fromImage(composited);
-    frame.setDevicePixelRatio(composited.devicePixelRatio());
-    emit frameReady(frame, qtVirtualDesktop());
+    const QRect virtualDesktop = qtVirtualDesktop();
+    const QImage stitched = stitchDesktop(m_frames, virtualDesktop);
+    m_frames.clear();
+    if (stitched.isNull()) {
+        emit frameFailed(QStringLiteral("KWin's screenshots could not be placed on the desktop"), false);
+        return;
+    }
+    QPixmap frame = QPixmap::fromImage(stitched);
+    frame.setDevicePixelRatio(stitched.devicePixelRatio());
+    emit frameReady(frame, virtualDesktop);
 }
 
 QImage KWinFrameSource::readImageFromPipe(int fd, const QVariantMap &metadata)
@@ -235,40 +236,6 @@ QImage KWinFrameSource::readImageFromPipe(int fd, const QVariantMap &metadata)
     QDataStream stream(&file);
     stream.readRawData(reinterpret_cast<char *>(image.bits()), image.sizeInBytes());
     return image;
-}
-
-QImage KWinFrameSource::compositeScreenImages(const QList<QImage> &images)
-{
-    if (images.isEmpty())
-        return {};
-    if (images.size() == 1)
-        return images.first();
-
-    QRectF virtualRect;
-    qreal maxDpr = 1.0;
-    for (const QImage &img : images) {
-        const qreal dpr = img.devicePixelRatio();
-        maxDpr = qMax(maxDpr, dpr);
-        const qreal lx = img.text("logicalX").toDouble();
-        const qreal ly = img.text("logicalY").toDouble();
-        virtualRect |= QRectF(lx, ly, img.width() / dpr, img.height() / dpr);
-    }
-
-    QImage result(QSize(virtualRect.width() * maxDpr, virtualRect.height() * maxDpr),
-                  QImage::Format_RGBA8888_Premultiplied);
-    result.fill(Qt::black);
-
-    QPainter painter(&result);
-    for (const QImage &img : images) {
-        const qreal lx = img.text("logicalX").toDouble();
-        const qreal ly = img.text("logicalY").toDouble();
-        const QPointF offset((lx - virtualRect.x()) * maxDpr, (ly - virtualRect.y()) * maxDpr);
-        painter.drawImage(QRectF(offset, img.size()), img);
-    }
-    painter.end();
-
-    result.setDevicePixelRatio(maxDpr);
-    return result;
 }
 
 } // namespace Screen

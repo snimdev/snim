@@ -2,6 +2,7 @@
 #define SCREEN_KWINFRAMESOURCE_H
 
 #include "DesktopFrameSource.h"
+#include "screen/DesktopStitch.h"
 
 #include <QImage>
 #include <QList>
@@ -13,7 +14,7 @@ namespace Screen {
 
 /**
  * Every screen straight from KWin's org.kde.KWin.ScreenShot2, pixels streamed over a
- * pipe, composited at the highest scale. Never falls back to CaptureInteractive: a
+ * pipe, stitched at the highest scale. Never falls back to CaptureInteractive: a
  * refusal (no desktop entry authorizing the interface) fails with wasDenied() set, and
  * the caller decides what comes next.
  */
@@ -55,16 +56,13 @@ public:
     // Runs on a worker thread, so it never touches QGuiApplication.
     static QImage readImageFromPipe(int fd, const QVariantMap &metadata);
 
-    // Per-screen images placed by their logical positions, at the highest DPR.
-    static QImage compositeScreenImages(const QList<QImage> &images);
-
 private:
     // logical: where the requested screen sits, known before the call goes out.
     void captureScreen(const QString &method, const QVariantList &args, const QRect &logical);
     void screenDone();
 
     quint32 m_apiVersion = 0;
-    QList<QImage> m_images;
+    QList<PlacedFrame> m_frames;
     QString m_lastError;
     int m_pending = 0;
     bool m_busy = false;
