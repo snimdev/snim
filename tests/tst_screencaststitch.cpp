@@ -1,7 +1,6 @@
 #include <QtTest>
 
 #include "screen/DesktopStitch.h"
-#include "screen/ScreencastStitch.h"
 
 using namespace Screen;
 
@@ -18,58 +17,71 @@ class tst_ScreencastStitch : public QObject
         return image;
     }
 
+    // What ScreencastFrameSource does with the streams Start returned.
+    static QImage stitchStreams(const QList<PlacedFrame> &streams, const QRect &fallbackDesktop,
+                                QRect *covered)
+    {
+        const QList<PlacedFrame> frames = placeFramesWithoutGeometry(streams, fallbackDesktop);
+        *covered = coveredGeometry(frames);
+        return stitchDesktop(frames, *covered);
+    }
+
 private slots:
     void placesTwoMonitorsSideBySide()
     {
-        const StitchedDesktop desktop = stitchStreams(
+        QRect covered;
+        const QImage desktop = stitchStreams(
             {{QRect(0, 0, 2560, 1440), solid(2560, 1440, Qt::red)},
              {QRect(2560, 0, 2560, 1440), solid(2560, 1440, Qt::blue)}},
-            QRect());
-        QCOMPARE(desktop.virtualGeometry, QRect(0, 0, 5120, 1440));
-        QCOMPARE(desktop.image.size(), QSize(5120, 1440));
-        QCOMPARE(desktop.image.devicePixelRatio(), 1.0);
-        QCOMPARE(desktop.image.pixelColor(2559, 700), QColor(Qt::red));
-        QCOMPARE(desktop.image.pixelColor(2560, 700), QColor(Qt::blue));
+            QRect(), &covered);
+        QCOMPARE(covered, QRect(0, 0, 5120, 1440));
+        QCOMPARE(desktop.size(), QSize(5120, 1440));
+        QCOMPARE(desktop.devicePixelRatio(), 1.0);
+        QCOMPARE(desktop.pixelColor(2559, 700), QColor(Qt::red));
+        QCOMPARE(desktop.pixelColor(2560, 700), QColor(Qt::blue));
     }
 
     void keepsANegativeOriginAndFillsGapsBlack()
     {
-        const StitchedDesktop desktop = stitchStreams(
+        QRect covered;
+        const QImage desktop = stitchStreams(
             {{QRect(-1920, 360, 1920, 1080), solid(1920, 1080, Qt::green)},
              {QRect(0, 0, 2560, 1440), solid(2560, 1440, Qt::red)}},
-            QRect());
-        QCOMPARE(desktop.virtualGeometry, QRect(-1920, 0, 4480, 1440));
-        QCOMPARE(desktop.image.size(), QSize(4480, 1440));
-        QCOMPARE(desktop.image.pixelColor(0, 0), QColor(Qt::black));
-        QCOMPARE(desktop.image.pixelColor(0, 360), QColor(Qt::green));
-        QCOMPARE(desktop.image.pixelColor(1920, 0), QColor(Qt::red));
+            QRect(), &covered);
+        QCOMPARE(covered, QRect(-1920, 0, 4480, 1440));
+        QCOMPARE(desktop.size(), QSize(4480, 1440));
+        QCOMPARE(desktop.pixelColor(0, 0), QColor(Qt::black));
+        QCOMPARE(desktop.pixelColor(0, 360), QColor(Qt::green));
+        QCOMPARE(desktop.pixelColor(1920, 0), QColor(Qt::red));
     }
 
     void tagsTheHighestDprAndScalesTheLowerOne()
     {
         // A 2x laptop panel beside a 1x monitor, both 1280x800 logical.
-        const StitchedDesktop desktop = stitchStreams(
+        QRect covered;
+        const QImage desktop = stitchStreams(
             {{QRect(0, 0, 1280, 800), solid(2560, 1600, Qt::red)},
              {QRect(1280, 0, 1280, 800), solid(1280, 800, Qt::blue)}},
-            QRect());
-        QCOMPARE(desktop.virtualGeometry, QRect(0, 0, 2560, 800));
-        QCOMPARE(desktop.image.devicePixelRatio(), 2.0);
-        QCOMPARE(desktop.image.size(), QSize(5120, 1600));
-        QCOMPARE(desktop.image.pixelColor(5119, 1599), QColor(Qt::blue));
+            QRect(), &covered);
+        QCOMPARE(covered, QRect(0, 0, 2560, 800));
+        QCOMPARE(desktop.devicePixelRatio(), 2.0);
+        QCOMPARE(desktop.size(), QSize(5120, 1600));
+        QCOMPARE(desktop.pixelColor(5119, 1599), QColor(Qt::blue));
     }
 
     void aLoneStreamWithoutGeometryIsTheWholeDesktop()
     {
-        const StitchedDesktop desktop = stitchStreams(
-            {{QRect(), solid(3840, 2160, Qt::red)}}, QRect(0, 0, 1920, 1080));
-        QCOMPARE(desktop.virtualGeometry, QRect(0, 0, 1920, 1080));
-        QCOMPARE(desktop.image.devicePixelRatio(), 2.0);
-        QCOMPARE(desktop.image.size(), QSize(3840, 2160));
+        QRect covered;
+        const QImage desktop = stitchStreams({{QRect(), solid(3840, 2160, Qt::red)}},
+                                             QRect(0, 0, 1920, 1080), &covered);
+        QCOMPARE(covered, QRect(0, 0, 1920, 1080));
+        QCOMPARE(desktop.devicePixelRatio(), 2.0);
+        QCOMPARE(desktop.size(), QSize(3840, 2160));
     }
 
     void streamsWithoutGeometryLineUpAfterTheKnownOnes()
     {
-        const QList<StreamFrame> frames = resolveStreamGeometry(
+        const QList<PlacedFrame> frames = placeFramesWithoutGeometry(
             {{QRect(0, 0, 100, 50), solid(100, 50, Qt::red)},
              {QRect(), solid(30, 20, Qt::blue)},
              {QRect(), solid(40, 20, Qt::green)}},
@@ -80,8 +92,11 @@ private slots:
 
     void nothingUsableGivesANullImage()
     {
-        QVERIFY(stitchStreams({}, QRect()).image.isNull());
-        QVERIFY(stitchStreams({{QRect(0, 0, 10, 10), QImage()}}, QRect()).image.isNull());
+        QRect covered;
+        QVERIFY(stitchStreams({}, QRect(), &covered).isNull());
+        QVERIFY(covered.isEmpty());
+        QVERIFY(stitchStreams({{QRect(0, 0, 10, 10), QImage()}}, QRect(), &covered).isNull());
+        QVERIFY(covered.isEmpty());
     }
 
     // The shared stitcher behind every frame source.

@@ -2,9 +2,10 @@
 
 #include "screen/PipeWireFrames.h"
 #include "screen/ScreenCastPortalSession.h"
-#include "screen/ScreencastStitch.h"
+#include "screen/DesktopStitch.h"
 
 #include <QDebug>
+#include <QGuiApplication>
 #include <QThread>
 #include <QTimer>
 
@@ -135,23 +136,27 @@ void ScreencastFrameSource::handleReady(int pipewireFd)
             return;
         }
 
-        QList<StreamFrame> frames;
+        QList<PlacedFrame> frames;
         for (qsizetype i = 0; i < result->streams.size(); ++i)
             frames.append({result->streams.at(i).rectLogical, result->frames.value(i)});
-        const StitchedDesktop desktop = stitchStreams(frames, qtVirtualDesktop());
-        if (desktop.image.isNull()) {
+        frames = placeFramesWithoutGeometry(frames, qtVirtualDesktop());
+        const QRect covered = coveredGeometry(frames);
+        QImage image = stitchDesktop(frames, covered);
+        if (image.isNull()) {
             fail(QStringLiteral("the ScreenCast frames were empty"));
             return;
         }
+        // Only a lone stream without geometry can miss: its true scale is unknown.
+        if (!frameCoversGeometry(image.size(), image.devicePixelRatio(), covered))
+            image.setDevicePixelRatio(qGuiApp->devicePixelRatio());
 
-        qInfo() << "ScreenCast capture:" << desktop.image.size() << "at DPR"
-                << desktop.image.devicePixelRatio() << "frames after" << grabbedMs
-                << "ms, total" << m_clock.elapsed() << "ms";
+        qInfo() << "ScreenCast capture:" << image.size() << "at DPR" << image.devicePixelRatio()
+                << "frames after" << grabbedMs << "ms, total" << m_clock.elapsed() << "ms";
 
-        QPixmap pixmap = QPixmap::fromImage(desktop.image);
-        pixmap.setDevicePixelRatio(desktop.image.devicePixelRatio());
+        QPixmap pixmap = QPixmap::fromImage(image);
+        pixmap.setDevicePixelRatio(image.devicePixelRatio());
         m_busy = false;
-        emit frameReady(pixmap, desktop.virtualGeometry);
+        emit frameReady(pixmap, covered);
     });
     worker->start();
 }

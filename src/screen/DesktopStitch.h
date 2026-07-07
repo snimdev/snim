@@ -22,6 +22,42 @@ struct PlacedFrame {
     QImage image;
 };
 
+// Frames a source sent without geometry: a lone one is taken to be the whole desktop,
+// several are laid out left to right at DPR 1 after the known ones.
+inline QList<PlacedFrame> placeFramesWithoutGeometry(QList<PlacedFrame> frames,
+                                                     const QRect &fallbackDesktop)
+{
+    if (frames.size() == 1 && frames.first().logical.isEmpty() && !fallbackDesktop.isEmpty()) {
+        frames.first().logical = fallbackDesktop;
+        return frames;
+    }
+
+    QRect known;
+    for (const PlacedFrame &frame : std::as_const(frames))
+        known = known.united(frame.logical);
+
+    int nextX = known.isEmpty() ? 0 : known.right() + 1;
+    const int top = known.isEmpty() ? 0 : known.top();
+    for (PlacedFrame &frame : frames) {
+        if (!frame.logical.isEmpty())
+            continue;
+        frame.logical = QRect(QPoint(nextX, top), frame.image.size());
+        nextX += frame.image.width();
+    }
+    return frames;
+}
+
+// The logical union of the frames that have pixels.
+inline QRect coveredGeometry(const QList<PlacedFrame> &frames)
+{
+    QRect covered;
+    for (const PlacedFrame &frame : frames) {
+        if (!frame.image.isNull())
+            covered = covered.united(frame.logical);
+    }
+    return covered;
+}
+
 // A frame's own DPR. The smaller axis wins: compositors truncate fractional logical sizes.
 inline qreal frameDevicePixelRatio(const QImage &image, const QRect &logical)
 {

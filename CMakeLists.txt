@@ -457,7 +457,6 @@ add_library(snim_lib STATIC
         # Wayland layer-shell helper for the overlays (no-op without LayerShellQt).
         src/screen/LayerShellSupport.h
         src/screen/DesktopStitch.h
-        src/screen/ScreencastStitch.h
         src/screen/ScreencopyGeometry.h
         # Full-desktop frame sources, shared by capture and the frozen frame.
         src/screen/sources/DesktopFrameSource.h
