@@ -10,7 +10,7 @@ namespace Capture {
  * Silent screenshots where the compositor cannot be asked directly (GNOME, any
  * Flatpak): the desktop comes from a ScreencastFrameSource, whose ScreenCast session
  * the user approved once. Extends the Screenshot-portal strategy and falls back to it
- * whenever the session cannot deliver.
+ * whenever the session cannot deliver, but never after the user cancelled the picker.
  */
 class ScreencastCaptureStrategy : public WaylandCaptureStrategy
 {

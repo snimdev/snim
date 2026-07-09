@@ -19,7 +19,16 @@ ScreencastCaptureStrategy::ScreencastCaptureStrategy(QObject *parent)
                     emit screenshotReady(frame);
             });
     connect(m_source, &Screen::DesktopFrameSource::frameFailed, this,
-            [this](const QString &reason, bool) { fallBack(reason); });
+            [this](const QString &reason, bool cancelled) {
+                if (!cancelled) {
+                    fallBack(reason);
+                    return;
+                }
+                // The user dismissed the picker: asking again through the portal would nag.
+                m_busy = false;
+                qInfo() << "ScreenCast capture cancelled:" << reason;
+                emit screenshotCancelled();
+            });
 }
 
 ScreencastCaptureStrategy::~ScreencastCaptureStrategy() = default;
