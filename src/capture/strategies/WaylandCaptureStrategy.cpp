@@ -22,9 +22,12 @@ namespace Capture {
                     showAreaSelector(frame, virtualGeometry);
                 });
         connect(m_portalSource, &Screen::DesktopFrameSource::frameFailed, this,
-                [this](const QString &reason, bool) {
+                [this](const QString &reason, bool cancelled) {
                     qDebug() << "Portal screenshot failed:" << reason;
-                    emit screenshotFailed(QStringLiteral("Portal screenshot failed: %1").arg(reason));
+                    if (cancelled)
+                        emit screenshotCancelled();
+                    else
+                        emit screenshotFailed(QStringLiteral("Portal screenshot failed: %1").arg(reason));
                 });
     }
 
