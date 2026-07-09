@@ -183,7 +183,12 @@ void PortalFrameSource::handleResponse(uint status, const QVariantMap &results)
     }
 
     // The portal returns physical pixels: recover the ratio against the logical desktop.
-    const qreal dpr = frameDevicePixelRatio(image, virtualDesktop);
+    qreal dpr = frameDevicePixelRatio(image, virtualDesktop);
+    if (!frameCoversGeometry(image.size(), dpr, virtualDesktop)) {
+        // A region or one monitor picked in the portal's dialog, whose own scale is unknown.
+        qInfo() << "Screenshot portal: the pick covers only part of the desktop";
+        dpr = qGuiApp->devicePixelRatio();
+    }
     qDebug() << "Screenshot portal:" << image.size() << "over" << virtualDesktop << "DPR" << dpr;
 
     QPixmap frame = QPixmap::fromImage(image);

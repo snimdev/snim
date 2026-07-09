@@ -28,7 +28,9 @@ public:
     virtual void grab() = 0;
 
 signals:
-    // pixmap carries its DPR; virtualGeometry is the logical desktop it covers.
+    // pixmap carries its DPR; virtualGeometry is the logical desktop it covers. A pixmap
+    // that does not span virtualGeometry (frameCoversGeometry) is a partial pick made in
+    // a system dialog, such as a region or one monitor: take it as it is.
     void frameReady(const QPixmap &pixmap, const QRect &virtualGeometry);
     // cancelled: the user dismissed a system prompt, so nothing else should ask again.
     void frameFailed(const QString &reason, bool cancelled);
