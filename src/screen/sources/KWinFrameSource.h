@@ -66,6 +66,7 @@ private:
     QString m_lastError;
     int m_pending = 0;
     bool m_busy = false;
+    bool m_failed = false;    // a screen failed, so the grab does too
     bool m_denied = false;
     bool m_cancelled = false;
 };

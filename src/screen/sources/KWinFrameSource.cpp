@@ -67,6 +67,7 @@ void KWinFrameSource::grab()
         return;
     }
     const auto screens = QGuiApplication::screens();
+    m_failed = false;
     m_denied = false;
     m_cancelled = false;
     if (screens.isEmpty()) {
@@ -161,6 +162,7 @@ void KWinFrameSource::captureScreen(const QString &method, const QVariantList &a
 {
     call(method, args, kCallTimeoutMs, this, [this, logical](const Shot &shot) {
         if (shot.image.isNull()) {
+            m_failed = true;
             m_denied = m_denied || shot.denied;
             m_cancelled = m_cancelled || shot.cancelled;
             m_lastError = shot.error;
@@ -177,7 +179,8 @@ void KWinFrameSource::screenDone()
         return;
     m_busy = false;
 
-    if (m_frames.isEmpty()) {
+    if (m_failed || m_frames.isEmpty()) {
+        m_frames.clear();
         const QString reason = m_denied
             ? QStringLiteral("KWin refused the screenshot: no desktop entry authorizes "
                              "org.kde.KWin.ScreenShot2 for this app")
