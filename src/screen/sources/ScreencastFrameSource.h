@@ -40,10 +40,13 @@ public:
 
 signals:
     // No consent stored yet: the portal is about to show its screen picker.
-    void sourcePickerExpected();
+    // lastPickMissedScreens: the pick it remembered left a screen out, so it was forgotten.
+    void sourcePickerExpected(bool lastPickMissedScreens);
 
 private:
     void handleReady(int pipewireFd);
+    // Drops the remembered pick when it no longer shows every screen of this desktop.
+    static void checkPickCoversScreens(const QList<QRect> &streamRects, bool frameCovers);
     void fail(const QString &reason, bool cancelled = false);
 
     ScreenCastPortalSession *m_session = nullptr;

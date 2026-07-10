@@ -30,7 +30,8 @@ public:
 
 signals:
     // No consent stored yet: the portal is about to show its screen picker.
-    void sourcePickerExpected();
+    // lastPickMissedScreens: the pick it remembered left a screen out.
+    void sourcePickerExpected(bool lastPickMissedScreens);
 
 private:
     void begin(bool showSelector);

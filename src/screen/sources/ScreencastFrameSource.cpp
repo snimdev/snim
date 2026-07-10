@@ -6,6 +6,7 @@
 
 #include <QDebug>
 #include <QGuiApplication>
+#include <QSettings>
 #include <QThread>
 #include <QTimer>
 
@@ -25,6 +26,9 @@ constexpr qint64 kInteractiveHandshakeMs = 1000;
 constexpr unsigned long kPickerSettleMs = 600;
 
 using Session = ScreenCastPortalSession;
+
+// Set when a remembered pick was dropped for missing a screen, until a pick covers them all.
+bool s_pickMissedScreens = false;
 
 struct GrabResult {
     QList<Session::Stream> streams;
@@ -89,7 +93,7 @@ void ScreencastFrameSource::grab()
     if (m_pickerExpected) {
         qInfo() << "ScreenCast capture: no screens remembered yet, the portal will ask once "
                    "which screens Snim may capture";
-        emit sourcePickerExpected();
+        emit sourcePickerExpected(s_pickMissedScreens);
     }
 
     Session::Options options;
@@ -147,8 +151,15 @@ void ScreencastFrameSource::handleReady(int pipewireFd)
             return;
         }
         // Only a lone stream without geometry can miss: its true scale is unknown.
-        if (!frameCoversGeometry(image.size(), image.devicePixelRatio(), covered))
+        const bool frameCovers = frameCoversGeometry(image.size(), image.devicePixelRatio(), covered);
+        if (!frameCovers)
             image.setDevicePixelRatio(qGuiApp->devicePixelRatio());
+        QList<QRect> streamRects;
+        for (const PlacedFrame &frame : std::as_const(frames)) {
+            if (!frame.image.isNull())
+                streamRects.append(frame.logical);
+        }
+        checkPickCoversScreens(streamRects, frameCovers);
 
         qInfo() << "ScreenCast capture:" << image.size() << "at DPR" << image.devicePixelRatio()
                 << "frames after" << grabbedMs << "ms, total" << m_clock.elapsed() << "ms";
@@ -159,6 +170,23 @@ void ScreencastFrameSource::handleReady(int pipewireFd)
         emit frameReady(pixmap, covered);
     });
     worker->start();
+}
+
+void ScreencastFrameSource::checkPickCoversScreens(const QList<QRect> &streamRects,
+                                                   bool frameCovers)
+{
+    QList<QRect> screens;
+    for (const QScreen *screen : QGuiApplication::screens())
+        screens.append(screen->geometry());
+    if (frameCovers && coversEveryScreen(streamRects, screens)) {
+        s_pickMissedScreens = false;
+        return;
+    }
+    // A screen left out of the pick, or plugged in since: the next grab asks again.
+    qInfo() << "ScreenCast capture: the picked screens" << streamRects << "miss part of"
+            << qtVirtualDesktop() << "so the pick is forgotten and the next capture asks again";
+    QSettings().remove(QString::fromLatin1(kRestoreTokenKey));
+    s_pickMissedScreens = true;
 }
 
 void ScreencastFrameSource::fail(const QString &reason, bool cancelled)

@@ -2,12 +2,15 @@
 #define SCREEN_DESKTOPFRAMESOURCE_H
 
 #include <QGuiApplication>
+#include <QList>
 #include <QObject>
 #include <QPixmap>
 #include <QRect>
 #include <QScreen>
 #include <QString>
 #include <QtMath>
+
+#include <algorithm>
 
 namespace Screen {
 
@@ -62,6 +65,20 @@ inline bool frameCoversGeometry(const QSize &pixels, qreal dpr, const QRect &geo
     };
     return close(pixels.width() / dpr, geometry.width())
            && close(pixels.height() / dpr, geometry.height());
+}
+
+// Whether each screen lies inside one of the covered rects, give or take rounding.
+inline bool coversEveryScreen(const QList<QRect> &covered, const QList<QRect> &screens)
+{
+    for (const QRect &screen : screens) {
+        const int slack = qMax(2, qRound(qMax(screen.width(), screen.height()) * 0.01));
+        const QRect inner = screen.adjusted(slack, slack, -slack, -slack);
+        const bool inside = std::any_of(covered.cbegin(), covered.cend(),
+                                        [&inner](const QRect &rect) { return rect.contains(inner); });
+        if (!inside)
+            return false;
+    }
+    return true;
 }
 
 } // namespace Screen

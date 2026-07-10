@@ -1,6 +1,7 @@
 #include <QtTest>
 
 #include "screen/DesktopStitch.h"
+#include "screen/sources/DesktopFrameSource.h"
 
 using namespace Screen;
 
@@ -97,6 +98,26 @@ private slots:
         QVERIFY(covered.isEmpty());
         QVERIFY(stitchStreams({{QRect(0, 0, 10, 10), QImage()}}, QRect(), &covered).isNull());
         QVERIFY(covered.isEmpty());
+    }
+
+    void aPickOfEveryScreenCoversThem()
+    {
+        const QList<QRect> screens{QRect(0, 0, 2560, 1440), QRect(2560, 0, 1920, 1080)};
+        QVERIFY(coversEveryScreen(screens, screens));
+        // Fractional scales round the portal's logical sizes a pixel off Qt's.
+        QVERIFY(coversEveryScreen({QRect(0, 0, 2559, 1440), QRect(2560, 1, 1919, 1079)}, screens));
+    }
+
+    void aPickThatLeavesAScreenOutIsIncomplete()
+    {
+        const QList<QRect> screens{QRect(-1920, 0, 1920, 1080), QRect(0, 0, 2560, 1440),
+                                   QRect(2560, 0, 1920, 1080)};
+        // Outer screens only: their union spans the desktop, the middle one is still missing.
+        QVERIFY(!coversEveryScreen({screens.at(0), screens.at(2)}, screens));
+        QVERIFY(!coversEveryScreen({screens.at(1)}, screens));
+        // A monitor added after the pick.
+        QVERIFY(!coversEveryScreen({screens.at(0), screens.at(1)}, screens));
+        QVERIFY(!coversEveryScreen({}, screens));
     }
 
     // The shared stitcher behind every frame source.
