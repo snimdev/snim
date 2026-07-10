@@ -3,6 +3,7 @@
 
 #include "capture/CaptureFactory.h"
 #include "capture/strategies/CaptureStrategy.h"
+#include "screen/AreaSelector.h"
 #include "screen/sources/DesktopFrameSource.h"
 #include "screen/sources/FrameSourceFactory.h"
 #include "screen/sources/StrategySelection.h"
@@ -43,6 +44,37 @@ private:
     };
     QList<Saved> m_saved;
 };
+
+// A strategy that only hands frames on, to test the delivery every source path shares.
+class DeliveringStrategy : public CaptureStrategy
+{
+public:
+    using CaptureStrategy::CaptureStrategy;
+    using CaptureStrategy::deliverFrame;
+    void captureFullScreen() override {}
+    void captureArea() override {}
+    void captureWindow() override {}
+    bool isAvailable() const override { return true; }
+    QString name() const override { return QStringLiteral("Delivering"); }
+};
+
+QPixmap frameOf(int width, int height, qreal dpr)
+{
+    QPixmap frame(width, height);
+    frame.fill(Qt::red);
+    frame.setDevicePixelRatio(dpr);
+    return frame;
+}
+
+QList<Screen::AreaSelector *> openSelectors()
+{
+    QList<Screen::AreaSelector *> selectors;
+    for (QWidget *widget : QApplication::topLevelWidgets()) {
+        if (auto *selector = qobject_cast<Screen::AreaSelector *>(widget); selector && selector->isVisible())
+            selectors.append(selector);
+    }
+    return selectors;
+}
 
 // Offscreen and outside a Wayland session, whatever session runs the tests.
 ScopedEnv outsideWayland()
@@ -266,6 +298,46 @@ private slots:
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::KWin));
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Portal));
 #endif
+    }
+
+    void aPartialPickGoesOutAsItIs()
+    {
+        // One monitor of a two-monitor desktop, picked in a system dialog.
+        DeliveringStrategy strategy;
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        strategy.deliverFrame(frameOf(1920, 1080, 1.0), QRect(0, 0, 3840, 1080), true);
+        QCOMPARE(ready.count(), 1);
+        QCOMPARE(ready.first().first().value<QPixmap>().size(), QSize(1920, 1080));
+        QVERIFY(openSelectors().isEmpty());
+    }
+
+    void aWholeFrameGoesOutWithoutASelector()
+    {
+        DeliveringStrategy strategy;
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        strategy.deliverFrame(frameOf(7680, 2160, 2.0), QRect(-1920, 0, 3840, 1080), false);
+        QCOMPARE(ready.count(), 1);
+        QVERIFY(openSelectors().isEmpty());
+    }
+
+    void aWholeFrameOpensTheSelectorWhoseEscapeIsACancel()
+    {
+        DeliveringStrategy strategy;
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        QSignalSpy failed(&strategy, &CaptureStrategy::screenshotFailed);
+        QSignalSpy cancelled(&strategy, &CaptureStrategy::screenshotCancelled);
+        const QRect desktop = Screen::qtVirtualDesktop();
+        strategy.deliverFrame(frameOf(desktop.width(), desktop.height(), 1.0), desktop, true);
+        QCOMPARE(ready.count(), 0);
+        const QList<Screen::AreaSelector *> selectors = openSelectors();
+        QCOMPARE(selectors.size(), QGuiApplication::screens().size());
+
+        selectors.first()->cancelSelection();
+        QCOMPARE(cancelled.count(), 1);
+        QCOMPARE(failed.count(), 0);
+        QCOMPARE(ready.count(), 0);
+        QVERIFY(openSelectors().isEmpty());
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     }
 
     void quickActionsToggle()

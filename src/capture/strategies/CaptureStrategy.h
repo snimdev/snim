@@ -79,6 +79,10 @@ protected:
     // any capture.
     void showAreaSelector(const QPixmap &frame, const QRect &virtualGeometry);
 
+    // A frame source's desktop: the selector over it, or straight out. A partial pick
+    // made in a system dialog (a region, one monitor) goes out as it is, never stretched.
+    void deliverFrame(const QPixmap &frame, const QRect &virtualGeometry, bool showSelector);
+
     // Every terminal action closes ALL the per-screen overlays first, so nothing is left
     // covering the screen or the save dialog.
     static void tearDownSelectors(QList<Screen::AreaSelector*> *selectors);

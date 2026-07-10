@@ -19,7 +19,7 @@ namespace Capture {
         // Both full screen and area land in the selector on this path.
         connect(m_portalSource, &Screen::DesktopFrameSource::frameReady, this,
                 [this](const QPixmap &frame, const QRect &virtualGeometry) {
-                    showAreaSelector(frame, virtualGeometry);
+                    deliverFrame(frame, virtualGeometry, true);
                 });
         connect(m_portalSource, &Screen::DesktopFrameSource::frameFailed, this,
                 [this](const QString &reason, bool cancelled) {

@@ -4,6 +4,7 @@
 #include "capture/OverlayAnnotations.h"
 #include "core/FileNames.h"
 #include "core/Settings.h"
+#include "screen/sources/DesktopFrameSource.h"
 
 #include <QClipboard>
 #include <QDateTime>
@@ -107,6 +108,21 @@ void CaptureStrategy::showAreaSelector(const QPixmap &frame, const QRect &virtua
             saveAreaToFile(frame, virtualGeometry, area, session);
         });
     }
+}
+
+void CaptureStrategy::deliverFrame(const QPixmap &frame, const QRect &virtualGeometry,
+                                   bool showSelector)
+{
+    if (!Screen::frameCoversGeometry(frame.size(), frame.devicePixelRatio(), virtualGeometry)) {
+        qInfo() << "Capture: the frame" << frame.size() << "covers only part of" << virtualGeometry
+                << "so it is taken as it is";
+        emit screenshotReady(frame);
+        return;
+    }
+    if (showSelector)
+        showAreaSelector(frame, virtualGeometry);
+    else
+        emit screenshotReady(frame);
 }
 
 void CaptureStrategy::tearDownSelectors(QList<Screen::AreaSelector*> *selectors)

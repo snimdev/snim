@@ -13,10 +13,7 @@ ScreencastCaptureStrategy::ScreencastCaptureStrategy(QObject *parent)
     connect(m_source, &Screen::DesktopFrameSource::frameReady, this,
             [this](const QPixmap &frame, const QRect &virtualGeometry) {
                 m_busy = false;
-                if (m_showSelector)
-                    showAreaSelector(frame, virtualGeometry);
-                else
-                    emit screenshotReady(frame);
+                deliverFrame(frame, virtualGeometry, m_showSelector);
             });
     connect(m_source, &Screen::DesktopFrameSource::frameFailed, this,
             [this](const QString &reason, bool cancelled) {

@@ -38,13 +38,9 @@ bool ScreencopyCaptureStrategy::captureOutputs(bool showSelector)
         return false;
     }
 
-    if (!showSelector) {
-        emit screenshotReady(screenshot);
-        return true;
-    }
     // The frame is already taken; the overlay waits a tick so a dismissed tray menu finishes.
-    QTimer::singleShot(0, this, [this, screenshot, virtualDesktop]() {
-        showAreaSelector(screenshot, virtualDesktop);
+    QTimer::singleShot(0, this, [this, screenshot, virtualDesktop, showSelector]() {
+        deliverFrame(screenshot, virtualDesktop, showSelector);
     });
     return true;
 }

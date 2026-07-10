@@ -17,10 +17,7 @@ KWinCaptureStrategy::KWinCaptureStrategy(QObject *parent)
     connect(m_workspace, &Screen::DesktopFrameSource::frameReady, this,
             [this](const QPixmap &frame, const QRect &virtualGeometry) {
                 m_workspaceBusy = false;
-                if (m_workspaceSelector)
-                    showAreaSelector(frame, virtualGeometry);
-                else
-                    emit screenshotReady(frame);
+                deliverFrame(frame, virtualGeometry, m_workspaceSelector);
             });
     connect(m_workspace, &Screen::DesktopFrameSource::frameFailed, this,
             [this](const QString &reason, bool cancelled) {
@@ -158,10 +155,12 @@ void KWinCaptureStrategy::callScreenShotMethod(const QString &method, const QVar
 
         QPixmap screenshot = QPixmap::fromImage(shot.image);
         screenshot.setDevicePixelRatio(shot.image.devicePixelRatio());
-        if (showAreaSel)
-            showAreaSelector(screenshot, Screen::qtVirtualDesktop());
-        else
+        if (!showAreaSel) {
             emit screenshotReady(screenshot);
+            return;
+        }
+        // CaptureInteractive hands back the one screen the user clicked.
+        deliverFrame(screenshot, Screen::qtVirtualDesktop(), true);
     });
 }
 
