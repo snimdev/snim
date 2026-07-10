@@ -49,9 +49,16 @@ namespace App {
 
 #ifdef SNIM_HAVE_LINUX_RECORDER
         if (auto *screencast = qobject_cast<Capture::ScreencastCaptureStrategy *>(m_captureStrategy.get()))
-            connect(screencast, &Capture::ScreencastCaptureStrategy::sourcePickerExpected, this, [&tray] {
-                tray.notify(tr("Choose screens once"),
-                            tr("Pick the screens Snim may capture; later screenshots will not ask again."));
+            connect(screencast, &Capture::ScreencastCaptureStrategy::sourcePickerExpected, this,
+                    [&tray](bool lastPickMissedScreens) {
+                if (lastPickMissedScreens)
+                    tray.notify(tr("Choose every screen"),
+                                tr("The last choice left a screen out. Pick all of them so "
+                                   "screenshots cover the whole desktop."));
+                else
+                    tray.notify(tr("Choose screens once"),
+                                tr("Pick every screen Snim may capture; later screenshots will "
+                                   "not ask again."));
             });
 #endif
 
