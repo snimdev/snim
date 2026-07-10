@@ -51,6 +51,22 @@ private slots:
         QCOMPARE(QSettings().value(m_recordingKey).toString(), QStringLiteral("recorder"));
     }
 
+    void theSettingsResetForgetsBothPicks()
+    {
+        QSettings().setValue(m_captureKey, QStringLiteral("screens"));
+        QSettings().setValue(m_recordingKey, QStringLiteral("recorder"));
+        QVERIFY(ScreencastFrameSource::remembersScreenPick());
+        ScreencastFrameSource::forgetScreenPicks();
+        QVERIFY(!ScreencastFrameSource::remembersScreenPick());
+        QVERIFY(!QSettings().contains(m_captureKey));
+        QVERIFY(!QSettings().contains(m_recordingKey));
+    }
+
+    void theRecordingKeyIsTheSessionsOwn()
+    {
+        QCOMPARE(QString::fromLatin1(ScreenCastPortalSession::kRecordingRestoreTokenKey), m_recordingKey);
+    }
+
     void anEmptyKeyPersistsNothing()
     {
         ScreenCastPortalSession::storeRestoreToken(

@@ -21,6 +21,8 @@ class ScreenCastPortalSession : public QObject
 public:
     // persist_mode and restore_token arrived with version 4 of the interface.
     static constexpr uint kFirstPersistingVersion = 4;
+    // Where older builds kept the recorder's pick; open() drops it.
+    static constexpr char kRecordingRestoreTokenKey[] = "recording/screencastRestoreToken";
 
     explicit ScreenCastPortalSession(QObject *parent = nullptr);
     ~ScreenCastPortalSession() override;

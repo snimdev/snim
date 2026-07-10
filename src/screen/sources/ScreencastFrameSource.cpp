@@ -80,6 +80,20 @@ bool ScreencastFrameSource::hasRestoreToken()
     return !Session::restoreToken(QString::fromLatin1(kRestoreTokenKey)).isEmpty();
 }
 
+bool ScreencastFrameSource::remembersScreenPick()
+{
+    return hasRestoreToken()
+           || QSettings().contains(QString::fromLatin1(Session::kRecordingRestoreTokenKey));
+}
+
+void ScreencastFrameSource::forgetScreenPicks()
+{
+    QSettings settings;
+    settings.remove(QString::fromLatin1(kRestoreTokenKey));
+    settings.remove(QString::fromLatin1(Session::kRecordingRestoreTokenKey));
+    qInfo() << "ScreenCast: forgot the remembered screen picks";
+}
+
 void ScreencastFrameSource::grab()
 {
     if (m_busy) {

@@ -38,6 +38,11 @@ public:
     // Whether an earlier pick was remembered, so the next grab should be silent.
     [[nodiscard]] static bool hasRestoreToken();
 
+    // Whether screenshots or recordings remember a pick, for the Settings reset.
+    [[nodiscard]] static bool remembersScreenPick();
+    // Forgets the screenshot pick, and any recording pick an older build left.
+    static void forgetScreenPicks();
+
 signals:
     // No consent stored yet: the portal is about to show its screen picker.
     // lastPickMissedScreens: the pick it remembered left a screen out, so it was forgotten.

@@ -7,6 +7,9 @@
 #include "upload/UploadConfig.h"
 #include "upload/Uploader.h"
 #include "upload/UploaderFactory.h"
+#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
+#include "screen/sources/ScreencastFrameSource.h"
+#endif
 #include <QAction>
 #include <QGroupBox>
 #include <QMessageBox>
@@ -123,6 +126,20 @@ void SettingsDialog::setupGeneralTab()
     m_imageFormatCombo->addItem("JPG", "jpg");
 
     screenshotLayout->addRow("Image Format:", m_imageFormatCombo);
+
+#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
+    // The ScreenCast portal remembers the screens picked once; this makes it ask again.
+    auto *resetPickButton = new QPushButton(tr("Reset screen-sharing choice"), screenshotGroup);
+    resetPickButton->setToolTip(tr("Forget which screens Snim may capture, so the next "
+                                   "screenshot asks again."));
+    resetPickButton->setEnabled(Screen::ScreencastFrameSource::remembersScreenPick());
+    connect(resetPickButton, &QPushButton::clicked, this, [resetPickButton] {
+        Screen::ScreencastFrameSource::forgetScreenPicks();
+        resetPickButton->setEnabled(false);
+        resetPickButton->setText(tr("Screen-sharing choice reset"));
+    });
+    screenshotLayout->addRow(tr("Screen sharing:"), resetPickButton);
+#endif
 
     layout->addWidget(screenshotGroup);
 

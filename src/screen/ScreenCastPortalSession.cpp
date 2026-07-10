@@ -27,7 +27,8 @@ const QString kSession = QStringLiteral("org.freedesktop.portal.Session");
 const QString kProperties = QStringLiteral("org.freedesktop.DBus.Properties");
 const QString kClosed = QStringLiteral("Closed");
 
-const QString kRestoreTokenKey = QStringLiteral("recording/screencastRestoreToken");
+const QString kRestoreTokenKey =
+    QString::fromLatin1(ScreenCastPortalSession::kRecordingRestoreTokenKey);
 
 const char *const kCreateSlot = SLOT(handleCreateSessionResponse(uint,QVariantMap));
 const char *const kSelectSlot = SLOT(handleSelectSourcesResponse(uint,QVariantMap));
