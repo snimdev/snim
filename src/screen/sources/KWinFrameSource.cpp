@@ -1,7 +1,6 @@
 #include "KWinFrameSource.h"
 
 #include <QDBusConnection>
-#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
@@ -26,12 +25,19 @@ const QString kServiceName = QStringLiteral("org.kde.KWin.ScreenShot2");
 const QString kObjectPath = QStringLiteral("/org/kde/KWin/ScreenShot2");
 const QString kInterface = QStringLiteral("org.kde.KWin.ScreenShot2");
 constexpr int kCallTimeoutMs = 4000;
+// Probes run on the GUI thread, so a stuck bus may only hold it this long.
+constexpr int kProbeTimeoutMs = 2000;
 
 } // namespace
 
 bool KWinFrameSource::isServiceRegistered()
 {
-    return QDBusConnection::sessionBus().interface()->isServiceRegistered(kServiceName);
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.DBus"), QStringLiteral("/org/freedesktop/DBus"),
+        QStringLiteral("org.freedesktop.DBus"), QStringLiteral("NameHasOwner"));
+    msg.setArguments({kServiceName});
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
+    return reply.type() == QDBusMessage::ReplyMessage && reply.arguments().value(0).toBool();
 }
 
 KWinFrameSource::KWinFrameSource(QObject *parent)
@@ -42,7 +48,7 @@ KWinFrameSource::KWinFrameSource(QObject *parent)
                                               QStringLiteral("Get"));
     msg.setArguments({kInterface, QStringLiteral("Version")});
 
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
     if (reply.type() == QDBusMessage::ReplyMessage) {
         m_apiVersion = reply.arguments().constFirst().value<QDBusVariant>().variant().toUInt();
         qDebug() << "KWin ScreenShot2 API version:" << m_apiVersion;

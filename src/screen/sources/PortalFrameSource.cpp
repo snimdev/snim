@@ -9,6 +9,7 @@
 #include <QUrl>
 #include <QUuid>
 #include <QtDBus/QDBusConnection>
+#include <QtDBus/QDBusMessage>
 #include <QtDBus/QDBusInterface>
 #include <QtDBus/QDBusObjectPath>
 #include <QtDBus/QDBusReply>
@@ -21,6 +22,10 @@ const QString kService = QStringLiteral("org.freedesktop.portal.Desktop");
 const QString kPath = QStringLiteral("/org/freedesktop/portal/desktop");
 const QString kRequest = QStringLiteral("org.freedesktop.portal.Request");
 const QString kResponse = QStringLiteral("Response");
+const QString kScreenshot = QStringLiteral("org.freedesktop.portal.Screenshot");
+
+// Probes run on the GUI thread, so a stuck portal may only hold it this long.
+constexpr int kProbeTimeoutMs = 2000;
 
 // Room for a first-time consent prompt or the dialog itself.
 constexpr int kResponseTimeoutMs = 120000;
@@ -32,15 +37,12 @@ bool s_portalNeedsDialog = false;
 
 bool PortalFrameSource::isPortalReachable()
 {
-    const QDBusInterface screenshot(kService, kPath,
-                                    QStringLiteral("org.freedesktop.portal.Screenshot"),
-                                    QDBusConnection::sessionBus());
-    if (!screenshot.isValid())
-        return false;
-    const QDBusInterface properties(kService, kPath,
-                                    QStringLiteral("org.freedesktop.DBus.Properties"),
-                                    QDBusConnection::sessionBus());
-    return properties.isValid();
+    // The interface's version property answers only where a backend provides it.
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        kService, kPath, QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
+    msg.setArguments({kScreenshot, QStringLiteral("version")});
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
+    return reply.type() == QDBusMessage::ReplyMessage;
 }
 
 bool PortalFrameSource::hasFallbackTool(bool area)
@@ -92,7 +94,7 @@ bool PortalFrameSource::request(bool interactive, QString *error)
         *error = QStringLiteral("no D-Bus session bus");
         return false;
     }
-    QDBusInterface portal(kService, kPath, QStringLiteral("org.freedesktop.portal.Screenshot"), bus);
+    QDBusInterface portal(kService, kPath, kScreenshot, bus);
     if (!portal.isValid()) {
         *error = QStringLiteral("the Screenshot portal is not available");
         return false;
