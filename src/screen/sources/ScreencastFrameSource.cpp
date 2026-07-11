@@ -29,6 +29,8 @@ using Session = ScreenCastPortalSession;
 
 // Set when a remembered pick was dropped for missing a screen, until a pick covers them all.
 bool s_pickMissedScreens = false;
+// Set by a grab that failed for any reason but a cancel; the run stops asking after it.
+bool s_failedThisRun = false;
 
 struct GrabResult {
     QList<Session::Stream> streams;
@@ -70,9 +72,14 @@ ScreencastFrameSource::~ScreencastFrameSource() = default;
 
 bool ScreencastFrameSource::isSupported()
 {
-    return isWaylandSession()
+    return isWaylandSession() && !s_failedThisRun
            && Session::portalVersion() >= Session::kFirstPersistingVersion
            && PipeWireFrames::canGrab();
+}
+
+bool ScreencastFrameSource::hasFailedThisRun()
+{
+    return s_failedThisRun;
 }
 
 bool ScreencastFrameSource::hasRestoreToken()
@@ -207,6 +214,10 @@ void ScreencastFrameSource::fail(const QString &reason, bool cancelled)
 {
     m_timeout->stop();
     m_busy = false;
+    if (!cancelled && !s_failedThisRun) {
+        qInfo() << "ScreenCast capture failed, so this run uses the other sources from now on";
+        s_failedThisRun = true;
+    }
     emit frameFailed(reason, cancelled);
 }
 

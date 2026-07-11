@@ -36,6 +36,8 @@ signals:
 private:
     void begin(bool showSelector);
     void fallBack(const QString &reason);
+    // The Screenshot-portal path this strategy extends.
+    void usePortal();
 
     Screen::ScreencastFrameSource *m_source = nullptr;
     bool m_busy = false;

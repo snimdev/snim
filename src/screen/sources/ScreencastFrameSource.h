@@ -32,8 +32,12 @@ public:
 
     void grab() override;
 
-    // Wayland, a ScreenCast portal that persists consent, and the module's frame grabber.
+    // Wayland, a ScreenCast portal that persists consent, the module's frame grabber, and
+    // no failed grab yet in this run.
     [[nodiscard]] static bool isSupported();
+
+    // Whether a grab failed (a cancel aside), so the rest of the run skips this source.
+    [[nodiscard]] static bool hasFailedThisRun();
 
     // Whether an earlier pick was remembered, so the next grab should be silent.
     [[nodiscard]] static bool hasRestoreToken();

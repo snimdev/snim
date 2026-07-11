@@ -56,8 +56,12 @@ void ScreencastCaptureStrategy::begin(bool showSelector)
         qDebug() << "ScreenCast capture already in progress";
         return;
     }
-    m_busy = true;
     m_showSelector = showSelector;
+    if (Screen::ScreencastFrameSource::hasFailedThisRun()) {
+        usePortal();
+        return;
+    }
+    m_busy = true;
     m_source->grab();
 }
 
@@ -65,6 +69,11 @@ void ScreencastCaptureStrategy::fallBack(const QString &reason)
 {
     m_busy = false;
     qWarning() << "ScreenCast capture failed (" << reason << "), using the Screenshot portal";
+    usePortal();
+}
+
+void ScreencastCaptureStrategy::usePortal()
+{
     if (m_showSelector)
         WaylandCaptureStrategy::captureArea();
     else
