@@ -49,6 +49,8 @@ private slots:
                  qPrintable(library.errorString()));
         QVERIFY2(library.resolve(Screen::PipeWireFrames::kGrabEntryPoint),
                  qPrintable(library.errorString()));
+        QVERIFY2(library.resolve(Screen::PipeWireFrames::kCanGrabEntryPoint),
+                 qPrintable(library.errorString()));
         QVERIFY2(library.resolve(LinuxRecorderModule::kMissingEntryPoint),
                  qPrintable(library.errorString()));
         QVERIFY2(library.resolve(LinuxRecorderModule::kCheckEntryPoint),
@@ -70,7 +72,9 @@ private slots:
     void theFrameGrabberFailsCleanlyWithoutTheModule()
     {
         qputenv("SNIM_RECORDER_MODULE", "/nonexistent/libsnim-recorder-linux.so");
-        QVERIFY(!Screen::PipeWireFrames::canGrab());
+        QString missing;
+        QVERIFY(!Screen::PipeWireFrames::canGrab(&missing));
+        QVERIFY(missing.contains(QStringLiteral("recorder module")));
         QList<QImage> frames;
         QString error;
         QVERIFY(!Screen::PipeWireFrames::grab(-1, {1}, 10, &frames, &error));

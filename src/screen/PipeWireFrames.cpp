@@ -2,19 +2,41 @@
 
 #include "core/DynamicModule.h"
 
+#include <QDebug>
+
+#include <utility>
+
 namespace Screen::PipeWireFrames {
 
 namespace {
 
 using GrabFunction = bool (*)(int, const quint32 *, int, int, QImage *, QString *);
+using CanGrabFunction = bool (*)(QString *);
 
 constexpr Core::DynamicModule kGrabber{kModuleBaseName, kModuleOverride, kGrabEntryPoint};
+constexpr Core::DynamicModule kChecker{kModuleBaseName, kModuleOverride, kCanGrabEntryPoint};
 
 } // namespace
 
-bool canGrab()
+bool canGrab(QString *missing)
 {
-    return kGrabber.resolve() != nullptr;
+    const QFunctionPointer check = kChecker.resolve();
+    if (!kGrabber.resolve() || !check) {
+        if (missing)
+            *missing = QStringLiteral("the recorder module (libsnim-recorder-linux)");
+        return false;
+    }
+    // Asking loads GStreamer, and its plugins do not change while the app runs.
+    static const std::pair<bool, QString> answer = [check] {
+        QString absent;
+        const bool ok = reinterpret_cast<CanGrabFunction>(check)(&absent);
+        if (!ok)
+            qInfo().noquote() << "ScreenCast capture needs GStreamer's" << absent;
+        return std::pair(ok, absent);
+    }();
+    if (missing)
+        *missing = answer.second;
+    return answer.first;
 }
 
 bool grab(int pipewireFd, const QList<quint32> &nodeIds, int timeoutMs, QList<QImage> *frames,

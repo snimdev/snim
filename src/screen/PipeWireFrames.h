@@ -18,14 +18,20 @@ extern "C" Q_DECL_EXPORT bool snimGrabPipeWireFrames(int pipewireFd, const quint
                                                      int count, int timeoutMs, QImage *frames,
                                                      QString *error);
 
+// Exported by the recorder module: whether GStreamer has every element the grab needs;
+// missing names the absent ones otherwise.
+extern "C" Q_DECL_EXPORT bool snimCanGrabPipeWireFrames(QString *missing);
+
 namespace Screen::PipeWireFrames {
 
 inline constexpr char kModuleBaseName[] = "snim-recorder-linux";
 inline constexpr char kModuleOverride[] = "SNIM_RECORDER_MODULE";
 inline constexpr char kGrabEntryPoint[] = "snimGrabPipeWireFrames";
+inline constexpr char kCanGrabEntryPoint[] = "snimCanGrabPipeWireFrames";
 
-// Whether the module loads and exports the frame grabber.
-[[nodiscard]] bool canGrab();
+// Whether the module loads, exports the frame grabber and finds its GStreamer elements;
+// missing says what is not there otherwise.
+[[nodiscard]] bool canGrab(QString *missing = nullptr);
 
 // One frame per node, in nodeIds order. Blocking, so call it off the GUI thread.
 [[nodiscard]] bool grab(int pipewireFd, const QList<quint32> &nodeIds, int timeoutMs,

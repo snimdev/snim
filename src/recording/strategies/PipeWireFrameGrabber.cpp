@@ -141,3 +141,19 @@ extern "C" bool snimGrabPipeWireFrames(int pipewireFd, const quint32 *nodeIds, i
         return failWith(failure);
     return true;
 }
+
+extern "C" bool snimCanGrabPipeWireFrames(QString *missing)
+{
+    QStringList absent;
+    if (!Media::Gst::ensureInitialized()) {
+        absent << QStringLiteral("GStreamer");
+    } else {
+        for (const char *element : Recording::LinuxPipeline::frameGrabElements()) {
+            if (!Media::Gst::hasFactory(element))
+                absent << QString::fromLatin1(element);
+        }
+    }
+    if (missing)
+        *missing = absent.join(QStringLiteral(", "));
+    return absent.isEmpty();
+}
