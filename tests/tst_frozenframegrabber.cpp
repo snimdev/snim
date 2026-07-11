@@ -14,6 +14,20 @@ class tst_FrozenFrameGrabber : public QObject
 private slots:
     void offWaylandTheFrameArrivesInsideGrab()
     {
+        // Outside a Wayland session, whatever session runs the tests.
+        const QByteArray display = qgetenv("WAYLAND_DISPLAY");
+        const QByteArray session = qgetenv("XDG_SESSION_TYPE");
+        qunsetenv("WAYLAND_DISPLAY");
+        qputenv("XDG_SESSION_TYPE", "x11");
+        const auto restore = qScopeGuard([&display, &session] {
+            if (!display.isNull())
+                qputenv("WAYLAND_DISPLAY", display);
+            if (session.isNull())
+                qunsetenv("XDG_SESSION_TYPE");
+            else
+                qputenv("XDG_SESSION_TYPE", session);
+        });
+
         FrozenFrameGrabber grabber;
         bool called = false;
         grabber.grab([&called](const QPixmap &frozen, const QRect &virtualGeometry) {

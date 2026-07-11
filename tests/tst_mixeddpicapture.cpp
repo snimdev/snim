@@ -139,6 +139,9 @@ int main(int argc, char **argv)
     const QString cwd = QDir::currentPath();
     QDir::setCurrent(dir.path());
     qputenv("QT_QPA_PLATFORM", "offscreen:configfile=screens.json");
+    // The frozen frame grabs synchronously only outside a Wayland session.
+    qunsetenv("WAYLAND_DISPLAY");
+    qputenv("XDG_SESSION_TYPE", "x11");
     QApplication app(argc, argv);
     QDir::setCurrent(cwd);
 

@@ -1,10 +1,10 @@
 #include "screen/FrozenFrameGrabber.h"
+#include "screen/sources/DesktopFrameSource.h"
 #include "screen/sources/FrameSourceFactory.h"
 #include "screen/sources/QtScreensFrameSource.h"
 #include "screen/sources/StrategySelection.h"
 
 #include <QDebug>
-#include <QGuiApplication>
 
 #include <memory>
 
@@ -32,7 +32,7 @@ void FrozenFrameGrabber::grab(Done done)
     m_lastError.clear();
 
 #ifdef Q_OS_LINUX
-    if (QGuiApplication::platformName() == QLatin1String("wayland")) {
+    if (isWaylandSession()) {
         m_done = std::move(done);
         m_clock.start();
         m_lastReason.clear();
@@ -49,7 +49,7 @@ void FrozenFrameGrabber::grab(Done done)
     }
 #endif
 
-    // Synchronous on every non-Wayland platform (macOS, X11, offscreen).
+    // Synchronous outside a Wayland session (macOS, Windows, X11).
     QRect virtualGeometry;
     const QPixmap frozen = QtScreensFrameSource::grabNow(&virtualGeometry);
     if (frozen.isNull())

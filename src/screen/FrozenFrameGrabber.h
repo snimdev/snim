@@ -17,11 +17,11 @@ class DesktopFrameSource;
  * Freezes every screen into one virtual-desktop pixmap so a selection overlay has a
  * frozen frame to draw on.
  *
- * Everywhere but Wayland the frame comes from QScreen::grabWindow and the callback
- * runs synchronously, inside grab(). On Wayland grabWindow only ever returns black,
- * so the frame comes from the same frame sources the screenshot strategy would pick
- * (KWin, ScreenCast, screencopy), then the Screenshot portal, tried in order until
- * one delivers; the callback may then run later. A failed or cancelled grab calls
+ * Outside a Wayland session the frame comes from QScreen::grabWindow and the callback
+ * runs synchronously, inside grab(). In one, grabWindow returns black even through
+ * XWayland, so the frame comes from the same frame sources the screenshot strategy
+ * would pick (KWin, ScreenCast, screencopy), then the Screenshot portal, tried in order
+ * until one delivers; the callback may then run later. A failed or cancelled grab calls
  * back with a null pixmap and an empty geometry, and lastError() says why.
  */
 class FrozenFrameGrabber : public QObject
