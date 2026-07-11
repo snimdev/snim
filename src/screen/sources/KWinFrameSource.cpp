@@ -79,19 +79,17 @@ void KWinFrameSource::grab()
     m_lastError.clear();
     m_pending = static_cast<int>(screens.size());
 
+    const QVariant options = QVariant::fromValue(buildOptions(m_includeCursor));
     if (screens.size() == 1) {
         const QRect logical = screens.first()->geometry();
         if (m_apiVersion >= 2)
-            captureScreen(QStringLiteral("CaptureActiveScreen"), {QVariant::fromValue(buildOptions())},
-                          logical);
+            captureScreen(QStringLiteral("CaptureActiveScreen"), {options}, logical);
         else
-            captureScreen(QStringLiteral("CaptureScreen"),
-                          {screens.first()->name(), QVariant::fromValue(buildOptions())}, logical);
+            captureScreen(QStringLiteral("CaptureScreen"), {screens.first()->name(), options}, logical);
         return;
     }
     for (const QScreen *screen : screens)
-        captureScreen(QStringLiteral("CaptureScreen"),
-                      {screen->name(), QVariant::fromValue(buildOptions())}, screen->geometry());
+        captureScreen(QStringLiteral("CaptureScreen"), {screen->name(), options}, screen->geometry());
 }
 
 void KWinFrameSource::call(const QString &method, const QVariantList &args, int timeoutMs,

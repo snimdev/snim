@@ -93,6 +93,8 @@ void KWinCaptureStrategy::captureWorkspace(bool showSelector)
     }
     m_workspaceBusy = true;
     m_workspaceSelector = showSelector;
+    // A full-screen shot keeps the pointer; the selector's frozen frame must not.
+    m_workspace->setIncludeCursor(!showSelector);
     m_workspace->grab();
 }
 

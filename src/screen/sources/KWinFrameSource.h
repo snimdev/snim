@@ -36,6 +36,9 @@ public:
     // Whether the last failure was KWin refusing this app.
     [[nodiscard]] bool wasDenied() const { return m_denied; }
 
+    // Off by default: a frame frozen under a selector must not show a stale pointer.
+    void setIncludeCursor(bool include) { m_includeCursor = include; }
+
     static QVariantMap buildOptions(bool includeCursor = true, bool nativeResolution = true);
 
     // One ScreenShot2 reply: the image, or why there is none.
@@ -65,6 +68,7 @@ private:
     QList<PlacedFrame> m_frames;
     QString m_lastError;
     int m_pending = 0;
+    bool m_includeCursor = false;
     bool m_busy = false;
     bool m_failed = false;    // a screen failed, so the grab does too
     bool m_denied = false;
