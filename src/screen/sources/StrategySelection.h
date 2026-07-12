@@ -56,7 +56,8 @@ inline bool probe(const std::function<bool()> &check)
     return check && check();
 }
 
-// The whole matrix; every pick still falls back to the Screenshot portal at runtime.
+// The whole matrix. At runtime a refused KWin falls back to its interactive pick, and
+// ScreenCast or screencopy to the Screenshot portal; the frozen frame follows frameSourceChain.
 inline SourceType choose(const QString &currentDesktop, bool flatpak, const Probes &probes)
 {
     if (!flatpak && probe(probes.kwin))

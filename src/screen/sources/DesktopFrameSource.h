@@ -18,7 +18,8 @@ namespace Screen {
  * One frame of the whole virtual desktop, taken without any UI of Snim's own: the seam
  * shared by the capture strategies' full-desktop paths and the recording selector's
  * frozen frame. A source may still let the system ask for consent. grab() ends in
- * exactly one frameReady or frameFailed, possibly before it returns.
+ * exactly one frameReady or frameFailed, possibly before it returns; a grab() while one
+ * is in flight is ignored, and the pending one still answers.
  */
 class DesktopFrameSource : public QObject
 {
