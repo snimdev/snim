@@ -2,13 +2,26 @@
 #include "screen/sources/ScreencopyFrameSource.h"
 
 #include <QDebug>
-#include <QTimer>
 
 namespace Capture {
 
 ScreencopyCaptureStrategy::ScreencopyCaptureStrategy(QObject *parent)
     : WaylandCaptureStrategy(parent)
+    , m_source(new Screen::ScreencopyFrameSource(this))
 {
+    connect(m_source, &Screen::DesktopFrameSource::frameReady, this,
+            [this](const QPixmap &frame, const QRect &virtualGeometry) {
+                m_busy = false;
+                deliverFrame(frame, virtualGeometry, m_showSelector);
+            });
+    connect(m_source, &Screen::DesktopFrameSource::frameFailed, this, [this](const QString &reason) {
+        m_busy = false;
+        qWarning() << "Screencopy failed:" << reason << "- falling back to the portal";
+        if (m_showSelector)
+            WaylandCaptureStrategy::captureArea();
+        else
+            WaylandCaptureStrategy::captureFullScreen();
+    });
 }
 
 bool ScreencopyCaptureStrategy::isAvailable() const
@@ -18,31 +31,23 @@ bool ScreencopyCaptureStrategy::isAvailable() const
 
 void ScreencopyCaptureStrategy::captureFullScreen()
 {
-    if (!captureOutputs(false))
-        WaylandCaptureStrategy::captureFullScreen();
+    begin(false);
 }
 
 void ScreencopyCaptureStrategy::captureArea()
 {
-    if (!captureOutputs(true))
-        WaylandCaptureStrategy::captureArea();
+    begin(true);
 }
 
-bool ScreencopyCaptureStrategy::captureOutputs(bool showSelector)
+void ScreencopyCaptureStrategy::begin(bool showSelector)
 {
-    QRect virtualDesktop;
-    QString error;
-    const QPixmap screenshot = Screen::ScreencopyFrameSource::grabNow(&virtualDesktop, &error);
-    if (screenshot.isNull()) {
-        qWarning() << "Screencopy failed:" << error << "- falling back to the portal";
-        return false;
+    if (m_busy) {
+        qDebug() << "Screencopy capture already in progress";
+        return;
     }
-
-    // The frame is already taken; the overlay waits a tick so a dismissed tray menu finishes.
-    QTimer::singleShot(0, this, [this, screenshot, virtualDesktop, showSelector]() {
-        deliverFrame(screenshot, virtualDesktop, showSelector);
-    });
-    return true;
+    m_busy = true;
+    m_showSelector = showSelector;
+    m_source->grab();
 }
 
 } // namespace Capture

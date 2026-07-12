@@ -3,6 +3,10 @@
 
 #include "WaylandCaptureStrategy.h"
 
+namespace Screen {
+class ScreencopyFrameSource;
+} // namespace Screen
+
 namespace Capture {
 
 /**
@@ -26,8 +30,11 @@ public:
     [[nodiscard]] QString name() const override { return "Wayland Screencopy"; }
 
 private:
-    /// Captures and stitches every output; false leaves the request to the portal.
-    bool captureOutputs(bool showSelector);
+    void begin(bool showSelector);
+
+    Screen::ScreencopyFrameSource *m_source = nullptr;
+    bool m_busy = false;
+    bool m_showSelector = false;
 };
 
 } // namespace Capture
