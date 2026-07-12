@@ -3,47 +3,52 @@
 # Cuts a release by tagging main and pushing the tag; the release workflow does
 # everything else (build, Linux packages, DMG, notes, GitHub release).
 #
-# Usage: scripts/release.sh alpha|stable|major|minor|patch
-#   alpha   next prerelease: v1.0.0-alpha.1 -> v1.0.0-alpha.2, v1.0.0 -> v1.0.1-alpha.1
-#   stable  promotes the current alpha as is: v1.0.0-alpha.3 -> v1.0.0
-#   major|minor|patch  bumps the latest tag with any -alpha.N stripped first
+# Usage: scripts/release.sh beta|stable|major|minor|patch
+#   beta    next beta: v1.0.0-beta.3 -> v1.0.0-beta.4, v1.0.0 -> v1.0.1-beta.1
+#   stable  promotes the current beta as is: v1.0.0-beta.4 -> v1.0.0
+#   major|minor|patch  bumps a stable release: v1.0.0 -> v2.0.0, v1.1.0 or v1.0.1
+#
+# Versions are never skipped: a bump is refused while the latest tag is a prerelease,
+# since v1.0.0-beta.3 -> v1.0.1 would leave 1.0.0 unreleased.
 #
 #   SNIM_RELEASE_LATEST_TAG=<tag>  overrides the detected latest tag (for testing).
 #   SNIM_RELEASE_DRY_RUN=1         prints "<latest> -> <next>" and exits, touching nothing.
 
 set -euo pipefail
 
-BUMP="${1:?usage: release.sh alpha|stable|major|minor|patch}"
+BUMP="${1:?usage: release.sh beta|stable|major|minor|patch}"
 
 case "$BUMP" in
-    alpha|stable|major|minor|patch) ;;
+    beta|stable|major|minor|patch) ;;
     *)
-        echo "error: expected alpha, stable, major, minor or patch (got '$BUMP')" >&2
+        echo "error: expected beta, stable, major, minor or patch (got '$BUMP')" >&2
         exit 1
         ;;
 esac
 
 # Prereleases must sort below their release, which git only does when the suffix is known.
-# The 'v*' glob also keeps the rolling `alpha` channel tag out of the candidates.
 latest_release_tag() {
     if [ -n "${SNIM_RELEASE_LATEST_TAG-}" ]; then
         printf '%s\n' "$SNIM_RELEASE_LATEST_TAG"
         return
     fi
-    git -c versionsort.suffix=-alpha tag --list 'v*' --sort=-v:refname | head -n1
+    git -c versionsort.suffix=-beta. tag --list 'v*' --sort=-v:refname | head -n1
 }
 
 # next_tag <mode> <latest tag, empty when the repo has none>
 next_tag() {
     local MODE="$1"
     local LATEST="${2-}"
-    local VERSION BASE PRE MAJOR MINOR PATCH
+    local VERSION BASE PRE="" MAJOR MINOR PATCH
 
     VERSION="${LATEST#v}"
     BASE="${VERSION%%-*}"
-    PRE=""
     case "$VERSION" in
-        *-alpha.*) PRE="${VERSION#*-alpha.}" ;;
+        *-beta.*) PRE="${VERSION#*-beta.}" ;;
+        *-*)
+            echo "error: cannot count on from '$LATEST', which is not a beta" >&2
+            return 1
+            ;;
     esac
     if [ -n "$PRE" ]; then
         case "$PRE" in
@@ -58,30 +63,39 @@ next_tag() {
     : "${MAJOR:=0}" "${MINOR:=0}" "${PATCH:=0}"
 
     case "$MODE" in
-        alpha)
+        beta)
             if [ -n "$PRE" ]; then
-                printf 'v%s.%s.%s-alpha.%s\n' "$MAJOR" "$MINOR" "$PATCH" "$((PRE + 1))"
+                printf 'v%s.%s.%s-beta.%s\n' "$MAJOR" "$MINOR" "$PATCH" "$((PRE + 1))"
             elif [ -z "$LATEST" ]; then
-                printf 'v1.0.0-alpha.1\n'
+                printf 'v1.0.0-beta.1\n'
             else
-                printf 'v%s.%s.%s-alpha.1\n' "$MAJOR" "$MINOR" "$((PATCH + 1))"
+                printf 'v%s.%s.%s-beta.1\n' "$MAJOR" "$MINOR" "$((PATCH + 1))"
             fi
             ;;
         stable)
             if [ -z "$PRE" ]; then
                 if [ -z "$LATEST" ]; then
-                    echo "error: there is no prerelease to promote; use major, minor or patch" >&2
+                    echo "error: there is no prerelease to promote; use beta first" >&2
                 else
                     echo "error: $LATEST is not a prerelease; use major, minor or patch" >&2
                 fi
                 return 1
             fi
-            # Promotion only: the alpha was built from this very tree.
+            # Promotion only: the beta was built from this very tree.
             printf 'v%s.%s.%s\n' "$MAJOR" "$MINOR" "$PATCH"
             ;;
-        major) printf 'v%s.0.0\n' "$((MAJOR + 1))" ;;
-        minor) printf 'v%s.%s.0\n' "$MAJOR" "$((MINOR + 1))" ;;
-        patch) printf 'v%s.%s.%s\n' "$MAJOR" "$MINOR" "$((PATCH + 1))" ;;
+        major|minor|patch)
+            if [ -n "$PRE" ]; then
+                echo "error: $LATEST is a prerelease and $MAJOR.$MINOR.$PATCH is not out yet;" \
+                    "promote it with stable or cut another beta" >&2
+                return 1
+            fi
+            case "$MODE" in
+                major) printf 'v%s.0.0\n' "$((MAJOR + 1))" ;;
+                minor) printf 'v%s.%s.0\n' "$MAJOR" "$((MINOR + 1))" ;;
+                patch) printf 'v%s.%s.%s\n' "$MAJOR" "$MINOR" "$((PATCH + 1))" ;;
+            esac
+            ;;
     esac
 }
 
@@ -105,9 +119,7 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
 fi
 
 echo "==> Fetching origin"
-# --force because the `alpha` channel tag is rolling: every release deletes and recreates
-# it, and a plain fetch refuses to clobber the stale local copy.
-git fetch --quiet --tags --force origin
+git fetch --quiet --tags origin
 
 HEAD_SHA="$(git rev-parse HEAD)"
 if [ "$HEAD_SHA" != "$(git rev-parse origin/main)" ]; then
@@ -140,6 +152,10 @@ EOF
 LATEST_TAG="$(latest_release_tag)"
 NEW_TAG="$(next_tag "$BUMP" "$LATEST_TAG")"
 NEW_VERSION="${NEW_TAG#v}"
+if git rev-parse --quiet --verify "refs/tags/$NEW_TAG" > /dev/null; then
+    echo "error: $NEW_TAG already exists" >&2
+    exit 1
+fi
 
 echo
 echo "  ${LATEST_TAG:-(no tags)} -> $NEW_TAG"
