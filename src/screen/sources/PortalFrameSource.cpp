@@ -10,9 +10,9 @@
 #include <QUuid>
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QDBusMessage>
-#include <QtDBus/QDBusInterface>
 #include <QtDBus/QDBusObjectPath>
-#include <QtDBus/QDBusReply>
+#include <QtDBus/QDBusPendingCallWatcher>
+#include <QtDBus/QDBusPendingReply>
 
 namespace Screen {
 
@@ -99,12 +99,6 @@ bool PortalFrameSource::request(bool interactive, QString *error)
         *error = QStringLiteral("no D-Bus session bus");
         return false;
     }
-    QDBusInterface portal(kService, kPath, kScreenshot, bus);
-    if (!portal.isValid()) {
-        *error = QStringLiteral("the Screenshot portal is not available");
-        return false;
-    }
-
     const QString token = QUuid::createUuid().toString(QUuid::Id128);
     // The portal derives the Request path from our unique name plus the token, so we
     // can subscribe BEFORE the call and never race the response.
@@ -123,13 +117,20 @@ bool PortalFrameSource::request(bool interactive, QString *error)
     options[QStringLiteral("modal")] = false;
     m_interactive = interactive;
 
-    const QDBusReply<QDBusObjectPath> reply =
-        portal.call(QStringLiteral("Screenshot"), QString(), QVariant::fromValue(options));
-    if (!reply.isValid()) {
-        disconnectResponse();
-        *error = QStringLiteral("the Screenshot call failed: %1").arg(reply.error().message());
-        return false;
-    }
+    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kScreenshot,
+                                                      QStringLiteral("Screenshot"));
+    msg.setArguments({QString(), QVariant::fromValue(options)});
+    // Asynchronous: the reply only acknowledges the request, the Response signal answers it.
+    auto *watcher = new QDBusPendingCallWatcher(bus.asyncCall(msg), this);
+    const QString requestPath = m_requestPath;
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, requestPath](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        const QDBusPendingReply<QDBusObjectPath> reply = *w;
+        if (reply.isError() && m_busy && m_requestPath == requestPath)
+            finishFailed(QStringLiteral("the Screenshot call failed: %1").arg(reply.error().message()),
+                         false);
+    });
     qInfo() << "Screenshot portal: requested" << (interactive ? "with its dialog" : "silently");
     m_timeout->start();
     return true;
