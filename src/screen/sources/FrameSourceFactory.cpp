@@ -60,6 +60,7 @@ SourceType FrameSourceFactory::defaultType()
     if (const auto forced = StrategySelection::parseOverride(qEnvironmentVariable("SNIM_CAPTURE_STRATEGY")))
         return *forced;
 
+    // Each probe keeps its yes for the run, so a later pick asks D-Bus nothing.
     StrategySelection::Probes probes;
 #ifdef Q_OS_LINUX
     probes.kwin = [] { return KWinFrameSource::isServiceRegistered(); };

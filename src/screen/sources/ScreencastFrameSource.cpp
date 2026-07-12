@@ -32,6 +32,16 @@ bool s_pickMissedScreens = false;
 // Set by a grab that failed for any reason but a cancel; the run stops asking after it.
 bool s_failedThisRun = false;
 
+// Whether the ScreenCast portal persists consent. A yes is kept for the run; a no is
+// asked again, the portal may still be starting.
+bool portalPersists()
+{
+    static bool persists = false;
+    if (!persists)
+        persists = Session::portalVersion() >= Session::kFirstPersistingVersion;
+    return persists;
+}
+
 struct GrabResult {
     QList<Session::Stream> streams;
     QList<QImage> frames;
@@ -72,9 +82,7 @@ ScreencastFrameSource::~ScreencastFrameSource() = default;
 
 bool ScreencastFrameSource::isSupported()
 {
-    return isWaylandSession() && !s_failedThisRun
-           && Session::portalVersion() >= Session::kFirstPersistingVersion
-           && PipeWireFrames::canGrab();
+    return isWaylandSession() && !s_failedThisRun && portalPersists() && PipeWireFrames::canGrab();
 }
 
 bool ScreencastFrameSource::hasFailedThisRun()

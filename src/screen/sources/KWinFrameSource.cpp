@@ -28,21 +28,33 @@ constexpr int kCallTimeoutMs = 4000;
 // Probes run on the GUI thread, so a stuck bus may only hold it this long.
 constexpr int kProbeTimeoutMs = 2000;
 
+// A yes is kept for the run; a no is asked again, KWin may still be starting.
+bool s_serviceRegistered = false;
+quint32 s_apiVersion = 0;
+
 } // namespace
 
 bool KWinFrameSource::isServiceRegistered()
 {
+    if (s_serviceRegistered)
+        return true;
     QDBusMessage msg = QDBusMessage::createMethodCall(
         QStringLiteral("org.freedesktop.DBus"), QStringLiteral("/org/freedesktop/DBus"),
         QStringLiteral("org.freedesktop.DBus"), QStringLiteral("NameHasOwner"));
     msg.setArguments({kServiceName});
     const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
-    return reply.type() == QDBusMessage::ReplyMessage && reply.arguments().value(0).toBool();
+    s_serviceRegistered = reply.type() == QDBusMessage::ReplyMessage
+                          && reply.arguments().value(0).toBool();
+    return s_serviceRegistered;
 }
 
 KWinFrameSource::KWinFrameSource(QObject *parent)
     : DesktopFrameSource(parent)
 {
+    if (s_apiVersion > 0) {
+        m_apiVersion = s_apiVersion;
+        return;
+    }
     auto msg = QDBusMessage::createMethodCall(kServiceName, kObjectPath,
                                               QStringLiteral("org.freedesktop.DBus.Properties"),
                                               QStringLiteral("Get"));
@@ -51,6 +63,7 @@ KWinFrameSource::KWinFrameSource(QObject *parent)
     const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
     if (reply.type() == QDBusMessage::ReplyMessage) {
         m_apiVersion = reply.arguments().constFirst().value<QDBusVariant>().variant().toUInt();
+        s_apiVersion = m_apiVersion;
         qDebug() << "KWin ScreenShot2 API version:" << m_apiVersion;
     }
 }

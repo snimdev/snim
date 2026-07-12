@@ -32,17 +32,22 @@ constexpr int kResponseTimeoutMs = 120000;
 
 // Set once a portal refuses a silent request, so later requests skip straight to its dialog.
 bool s_portalNeedsDialog = false;
+// A yes is kept for the run; a no is asked again, the portal may still be starting.
+bool s_portalReachable = false;
 
 } // namespace
 
 bool PortalFrameSource::isPortalReachable()
 {
+    if (s_portalReachable)
+        return true;
     // The interface's version property answers only where a backend provides it.
     QDBusMessage msg = QDBusMessage::createMethodCall(
         kService, kPath, QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
     msg.setArguments({kScreenshot, QStringLiteral("version")});
     const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
-    return reply.type() == QDBusMessage::ReplyMessage;
+    s_portalReachable = reply.type() == QDBusMessage::ReplyMessage;
+    return s_portalReachable;
 }
 
 bool PortalFrameSource::hasFallbackTool(bool area)
