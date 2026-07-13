@@ -14,6 +14,8 @@ finish-args:
   # Webcam overlay in recordings (V4L2)
   - --device=all
   - --talk-name=org.kde.StatusNotifierWatcher
+  # Tray notifications
+  - --talk-name=org.freedesktop.Notifications
   - --filesystem=xdg-pictures/Screenshots:create
   - --filesystem=xdg-videos/Snim:create
 
