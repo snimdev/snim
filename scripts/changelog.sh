@@ -4,9 +4,10 @@
 # into `gh release create --notes-file`.
 #
 # Commit subjects follow `Area: Imperative description`, so they group into one
-# `## Area` section each; anything without a prefix lands under General. The first
-# release has no previous tag to diff against, so it gets a curated feature list
-# instead of the entire history.
+# `## Area` section each; anything without a prefix lands under General. A prerelease
+# diffs against the tag before it, a stable release against the last stable one. The
+# first release has no such tag, so it gets a curated feature list instead of the
+# entire history.
 #
 # Usage: scripts/changelog.sh <tag>
 #   SNIM_CHANGELOG_PREV=<tag>  overrides the detected previous tag (for testing).
@@ -18,7 +19,10 @@ REPO_URL="https://github.com/snimdev/snim"
 
 PREV="${SNIM_CHANGELOG_PREV-}"
 if [ -z "$PREV" ]; then
-    PREV="$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)"
+    case "$TAG" in
+        *-*) PREV="$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)" ;;
+        *) PREV="$(git describe --tags --abbrev=0 --match 'v*' --exclude 'v*-*' "$TAG^" 2>/dev/null || true)" ;;
+    esac
 fi
 
 emit_footer() {
