@@ -480,11 +480,13 @@ jobs:
           FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
           FLATPAK_GPG_KEY_ID: ${{ secrets.FLATPAK_GPG_KEY_ID }}
           DL_BASE_URL: ${{ vars.DL_BASE_URL }}
+          # A manual run's bundle updates from the scratch repository it may be published to.
+          REPO_NAME: ${{ github.event_name == 'push' && 'repo' || 'test-repo' }}
         run: |
           GNUPGHOME="$(mktemp -d)"
           export GNUPGHOME
           printf '%s\n' "$FLATPAK_GPG_PRIVATE_KEY" | gpg --batch --import
-          bash scripts/flatpak-repo.sh bundle repo ${{ matrix.arch }} Snim-${{ matrix.arch }}.flatpak
+          bash scripts/flatpak-repo.sh bundle repo ${{ matrix.arch }} Snim-${{ matrix.arch }}.flatpak "$REPO_NAME"
           rm -rf "$GNUPGHOME"
 
       - uses: actions/upload-artifact@v6

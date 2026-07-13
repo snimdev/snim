@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Signs Flatpak bundles and publishes the Snim Flatpak repository.
 #
-#   flatpak-repo.sh bundle <build-repo> <arch> <out.flatpak>
+#   flatpak-repo.sh bundle <build-repo> <arch> <out.flatpak> <repo|test-repo>
 #   flatpak-repo.sh publish <rclone-dir> <repo|test-repo> <bundle>...
 #
 # FLATPAK_GPG_KEY_ID names a secret key already in GNUPGHOME. <rclone-dir> is what
@@ -29,8 +29,12 @@ export_public_key() {
 }
 
 cmd_bundle() {
-  [ $# -eq 3 ] || die "usage: bundle <build-repo> <arch> <out.flatpak>"
-  local repo=$1 arch=$2 out=$3 pubkey
+  [ $# -eq 4 ] || die "usage: bundle <build-repo> <arch> <out.flatpak> <repo|test-repo>"
+  local repo=$1 arch=$2 out=$3 name=$4 pubkey
+  case "$name" in
+    repo|test-repo) ;;
+    *) die "the repository is either repo or test-repo, not $name" ;;
+  esac
   pubkey=$(mktemp)
   export_public_key "$pubkey"
   # A bundle carrying a key installs only if its commit is signed by it.
@@ -38,7 +42,7 @@ cmd_bundle() {
   # The key also makes the bundle's origin remote verify updates from the repository.
   flatpak build-bundle --gpg-keys="$pubkey" \
     --arch="$arch" \
-    --repo-url="$DL_BASE_URL/flatpak/repo" \
+    --repo-url="$DL_BASE_URL/flatpak/$name" \
     --runtime-repo="$RUNTIME_REPO" \
     "$repo" "$out" "$APP_ID" "$BRANCH"
   rm -f "$pubkey"
