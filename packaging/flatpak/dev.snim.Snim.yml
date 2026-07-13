@@ -10,8 +10,7 @@ finish-args:
   - --share=ipc
   - --socket=pulseaudio
   - --share=network
-  - --device=dri
-  # Webcam overlay in recordings (V4L2)
+  # Webcam overlay in recordings (V4L2); also covers DRI
   - --device=all
   - --talk-name=org.kde.StatusNotifierWatcher
   # Tray notifications
