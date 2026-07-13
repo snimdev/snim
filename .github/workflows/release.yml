@@ -835,8 +835,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     # Two interleaved publishes would each upload a summary missing the other's commit.
+    # Keyed on the target repository, so a test publish never queues behind or cancels a live one.
     concurrency:
-      group: flatpak-repo
+      group: flatpak-${{ github.event_name == 'push' && 'repo' || 'test-repo' }}
       cancel-in-progress: false
 
     steps:
