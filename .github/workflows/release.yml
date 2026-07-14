@@ -97,7 +97,6 @@ jobs:
             libffi-dev \
             libexpat1-dev \
             libxcb-cursor0 \
-            libfuse2 \
             gstreamer1.0-plugins-base \
             gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad \
