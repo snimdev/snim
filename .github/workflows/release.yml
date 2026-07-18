@@ -241,6 +241,15 @@ jobs:
           rm -f AppDir/usr/lib/libgst*.so* AppDir/usr/lib/libgobject-2.0.so* AppDir/usr/lib/libgmodule-2.0.so*
           test ! -e AppDir/usr/lib/libgstreamer-1.0.so.0
           test ! -e AppDir/usr/lib/libgobject-2.0.so.0
+          # linuxdeploy copied a copyright file for each library it bundled; drop those whose
+          # package no longer has a library here.
+          for doc in AppDir/usr/share/doc/*/; do
+            keep=
+            for lib in $(dpkg-query -L "$(basename "$doc")" 2>/dev/null | grep '\.so'); do
+              [ -e "AppDir/usr/lib/$(basename "$lib")" ] && keep=1
+            done
+            [ -n "$keep" ] || rm -rf "$doc"
+          done
           # A bundle without the xdg-shell integration is exactly what alpha.2 shipped:
           # the wayland plugin fails to load, the app runs under XWayland, and nothing
           # says so but a debug line.
