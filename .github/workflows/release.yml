@@ -234,6 +234,13 @@ jobs:
           # event 2" and the connection dies. The client has to be the host's.
           rm -f AppDir/usr/lib/libwayland-*.so*
           test ! -e AppDir/usr/lib/libwayland-client.so.0
+          # Where Qt ships its GStreamer media backend (the aarch64 archive does), the qt
+          # plugin deploys it with a whole GStreamer, and the recorder module's $ORIGIN
+          # rpath would bind that instead of the host's. Qt Multimedia defaults to FFmpeg anyway.
+          rm -f AppDir/usr/plugins/multimedia/libgstreamermediaplugin.so
+          rm -f AppDir/usr/lib/libgst*.so* AppDir/usr/lib/libgobject-2.0.so* AppDir/usr/lib/libgmodule-2.0.so*
+          test ! -e AppDir/usr/lib/libgstreamer-1.0.so.0
+          test ! -e AppDir/usr/lib/libgobject-2.0.so.0
           # A bundle without the xdg-shell integration is exactly what alpha.2 shipped:
           # the wayland plugin fails to load, the app runs under XWayland, and nothing
           # says so but a debug line.
