@@ -297,4 +297,4 @@ jobs:
           name: snim-windows-x64-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ steps.bundle.outputs.dir }}
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 3

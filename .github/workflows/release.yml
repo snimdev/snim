@@ -291,6 +291,7 @@ jobs:
             snim_*.deb
             snim-*.rpm
           if-no-files-found: error
+          retention-days: 3
 
   portability:
     name: Install on ${{ matrix.image }} (${{ matrix.arch }})
@@ -494,6 +495,7 @@ jobs:
           name: flatpak-${{ matrix.arch }}
           path: Snim-${{ matrix.arch }}.flatpak
           if-no-files-found: error
+          retention-days: 3
 
   macos-dmg:
     name: DMG (macOS arm64)
@@ -557,6 +559,7 @@ jobs:
           name: dmg
           path: Snim-*-macos-arm64.dmg
           if-no-files-found: error
+          retention-days: 3
 
   windows:
     name: Installer and zip (Windows x64)
@@ -760,6 +763,7 @@ jobs:
             dist/Snim-*-windows-x64-setup.exe
             dist/Snim-*-windows-x64.zip
           if-no-files-found: error
+          retention-days: 3
 
   release:
     name: Publish the GitHub release
