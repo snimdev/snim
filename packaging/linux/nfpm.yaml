@@ -73,16 +73,20 @@ overrides:
       - libglib2.0-0t64 | libglib2.0-0
       - libgstreamer1.0-0
       - gstreamer1.0-plugins-base
-      # An H.264 encoder: x264 from ugly needs nothing else, OpenH264 and VA-API from bad.
-      - gstreamer1.0-plugins-ugly | gstreamer1.0-plugins-bad
-      # Recording needs pipewiresrc (or ximagesrc on X11), mp4mux and videocrop from good.
+      # Recording needs pipewiresrc (or ximagesrc on X11), videocrop and mp4mux; audio pulsesrc
+      # and aacparse.
       - gstreamer1.0-plugins-good
       - gstreamer1.0-pipewire
+      # OpenH264's encoder and decoder, h264parse and voaacenc: enough to record with audio
+      # and to trim.
+      - gstreamer1.0-plugins-bad
       # The bundled libgcrypt and Kerberos.
       - libgpg-error0
       - libcom-err2
     recommends:
-      - gstreamer1.0-plugins-bad
+      # x264, the encoder Snim prefers, and FFmpeg's H.264 decoder and AAC encoder.
+      - gstreamer1.0-plugins-ugly
+      - gstreamer1.0-libav
       - xdg-desktop-portal
   rpm:
     depends:
@@ -105,14 +109,18 @@ overrides:
       - glib2
       - gstreamer1
       - gstreamer1-plugins-base
-      # x264 is RPM Fusion only; OpenH264 is Fedora's and needs h264parse from bad-free.
-      - ((gstreamer1-plugin-openh264 and gstreamer1-plugins-bad-free) or gstreamer1-plugins-ugly)
+      # videocrop, mp4mux and ximagesrc; audio pulsesrc and aacparse.
       - gstreamer1-plugins-good
       - pipewire-gstreamer
+      # h264parse and fdkaacenc.
+      - gstreamer1-plugins-bad-free
+      # Stock Fedora's only H.264 encoder and decoder, from its default-on Cisco repository.
+      - gstreamer1-plugin-openh264
       - libgpg-error
       - libcom_err
     recommends:
-      - gstreamer1-plugins-bad-free
+      # x264 from RPM Fusion; a weak dependency, so it is skipped where that is off.
+      - gstreamer1-plugins-ugly
       - xdg-desktop-portal
 
 rpm:

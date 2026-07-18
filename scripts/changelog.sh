@@ -85,7 +85,7 @@ Screen recording on Linux goes through the desktop portal, so it needs PipeWire 
 Recording uses your distribution's own GStreamer. The packages pull in its plugins; with
 the tarball, install `gstreamer1.0-plugins-good`, `gstreamer1.0-plugins-bad` and
 `gstreamer1.0-pipewire` (Debian, Ubuntu) or `gstreamer1-plugins-good`,
-`gstreamer1-plugins-bad-free` and `pipewire-gstreamer` (Fedora).
+`gstreamer1-plugins-bad-free`, `gstreamer1-plugin-openh264` and `pipewire-gstreamer` (Fedora).
 EOF
 
     # A hyphen in the tag means a prerelease (v1.0.0-beta.1), never a plain release.
