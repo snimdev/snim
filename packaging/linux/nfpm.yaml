@@ -44,29 +44,41 @@ contents:
     dst: /usr/share/doc/snim/copyright
     packager: deb
 
-# Exactly what linuxdeploy leaves to the host; everything else is in /opt/snim. glib, libwayland
-# and GStreamer must be the host's: a bundled libwayland misses newer protocol events, and the
-# dlopened recorder binds the host's GStreamer (pipeline elements live in plugins-base).
+# Every library the bundle links but does not carry (NEEDED entries missing from
+# /opt/snim/usr/lib), glibc and the GCC runtime aside. glib, libwayland and GStreamer must be
+# the host's: a bundled libwayland misses newer protocol events, and the dlopened modules
+# bind the host's GStreamer and its plugins.
 overrides:
   deb:
     depends:
       - libgl1
+      - libglx0
       - libopengl0
       - libegl1
       - libfontconfig1
-      - libharfbuzz0b
+      - libfreetype6
+      - libx11-6
+      - libx11-xcb1
+      - libxcb1
+      # Session management, which the aarch64 Qt links into its xcb integration.
+      - libsm6
+      - libice6
+      # For the bundled FFmpeg (libdrm), GnuTLS (gmp) and most of the rest (zlib).
+      - libdrm2
+      - libgmp10
+      - zlib1g
       - libwayland-client0
       - libwayland-cursor0
       - libwayland-egl1
       - libglib2.0-0t64 | libglib2.0-0
       - libgstreamer1.0-0
-      - libgstreamer-plugins-base1.0-0
       - gstreamer1.0-plugins-base
       # An H.264 encoder: x264 from ugly needs nothing else, OpenH264 and VA-API from bad.
       - gstreamer1.0-plugins-ugly | gstreamer1.0-plugins-bad
       # Recording needs pipewiresrc (or ximagesrc on X11), mp4mux and videocrop from good.
       - gstreamer1.0-plugins-good
       - gstreamer1.0-pipewire
+      # The bundled libgcrypt and Kerberos.
       - libgpg-error0
       - libcom-err2
     recommends:
@@ -78,7 +90,15 @@ overrides:
       - libglvnd-egl
       - libglvnd-opengl
       - fontconfig
-      - harfbuzz
+      - freetype
+      - libX11
+      - libX11-xcb
+      - libxcb
+      - libSM
+      - libICE
+      - libdrm
+      - gmp
+      - zlib
       - libwayland-client
       - libwayland-cursor
       - libwayland-egl
