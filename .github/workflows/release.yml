@@ -380,7 +380,12 @@ jobs:
           # newer compositor sends.
           wayland_platform=/opt/snim/usr/plugins/platforms/libqwayland.so
           test -e "$wayland_platform" || { echo "::error title=No Wayland platform plugin::$wayland_platform is not in the package"; exit 1; }
-          for binary in /opt/snim/usr/bin/snim "$module" "$video_module" "$shell_integration" "$wayland_platform"; do
+          # X11 sessions and XWayland load these, and their libxcb, libX11 and libSM are the host's.
+          xcb_platform=/opt/snim/usr/plugins/platforms/libqxcb.so
+          test -e "$xcb_platform" || { echo "::error title=No X11 platform plugin::$xcb_platform is not in the package"; exit 1; }
+          xcb_gl=$(find /opt/snim/usr/plugins/xcbglintegrations -name '*.so' 2>/dev/null | sort || true)
+          test -n "$xcb_gl" || { echo "::error title=No xcb GL integration::/opt/snim/usr/plugins/xcbglintegrations is empty"; exit 1; }
+          for binary in /opt/snim/usr/bin/snim "$module" "$video_module" "$shell_integration" "$wayland_platform" "$xcb_platform" $xcb_gl; do
             # -r resolves symbols too: a bundled library that is too old for a host
             # one shows up as an undefined symbol, never as "not found".
             ldd -r "$binary" > ldd.txt 2>&1 || true
