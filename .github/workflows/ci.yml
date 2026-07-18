@@ -125,7 +125,7 @@ jobs:
 
       - name: Install system dependencies
         # tesseract (OCR) + webp, giflib, libimagequant (animation export) + ninja + ccache +
-        # GL/GStreamer headers.
+        # GL/GStreamer headers + Wayland (screencopy) and xcb (X11 windows) headers.
         # cmake is not installed from apt: the runner image ships a newer one that
         # satisfies cmake_minimum_required.
         #
@@ -141,6 +141,8 @@ jobs:
           ccache
           libgl1-mesa-dev
           libgstreamer1.0-dev
+          libwayland-dev
+          libxcb1-dev
           tesseract-ocr
           libtesseract-dev
           libleptonica-dev
