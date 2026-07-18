@@ -18,8 +18,12 @@ description: |-
   or FTP. Qt is bundled under /opt/snim; GStreamer and Wayland come from the system.
 
 contents:
-  - src: AppDir/
-    dst: /opt/snim
+  # Owned explicitly, or rpm leaves it behind on removal.
+  - dst: /opt/snim
+    type: dir
+  # usr alone: the AppDir root holds only linuxdeploy's AppImage leftovers (AppRun, hooks).
+  - src: AppDir/usr/
+    dst: /opt/snim/usr
     type: tree
   - src: /opt/snim/usr/bin/snim
     dst: /usr/bin/snim

@@ -278,8 +278,8 @@ jobs:
 
       - name: Pack the portable tarball
         # An extracted install lives at a stable path, which is the only thing KWin's
-        # ScreenShot2 authorization can match against.
-        run: tar -czf Snim-${{ matrix.arch }}.tar.gz -C AppDir .
+        # ScreenShot2 authorization can match against. usr alone, like the packages.
+        run: tar -czf Snim-${{ matrix.arch }}.tar.gz -C AppDir usr
 
       - name: Build the .deb and .rpm
         env:
@@ -352,6 +352,16 @@ jobs:
         run: |
           mkdir -p /opt/snim-test
           tar -xzf Snim-${{ matrix.arch }}.tar.gz -C /opt/snim-test
+
+      - name: Only the bundle's usr tree is installed
+        run: |
+          for root in /opt/snim /opt/snim-test; do
+            stray=$(find "$root" -mindepth 1 -maxdepth 1 ! -name usr -printf '%f ')
+            if [ -n "$stray" ]; then
+              echo "::error title=Stray files in $root::$stray"
+              exit 1
+            fi
+          done
 
       - name: Every library resolves
         # The recorder and video modules too: they are dlopened at runtime, so a NEEDED
