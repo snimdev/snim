@@ -20,7 +20,10 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & test (macOS)
-    if: github.event_name == 'push' || !github.event.pull_request.draft
+    # A fork's pull request never runs here: it would be a stranger's code on a self-hosted Mac.
+    if: >-
+      github.event_name == 'push' || (!github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository)
     # The MACOS_RUNNER repo variable (a JSON label list) moves it to a self-hosted Mac.
     runs-on: ${{ vars.MACOS_RUNNER && fromJSON(vars.MACOS_RUNNER) || 'macos-15' }}
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
@@ -198,9 +201,11 @@ jobs:
   windows:
     name: Build & test (Windows)
     # Off until a Windows runner exists: setting the WINDOWS_RUNNER repo variable turns it on.
+    # Like macOS, a fork's pull request never reaches the self-hosted machine.
     if: >-
       vars.WINDOWS_RUNNER != '' && (github.event_name == 'push' ||
-      !github.event.pull_request.draft)
+      (!github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ${{ vars.WINDOWS_RUNNER && fromJSON(vars.WINDOWS_RUNNER) || 'windows-2022' }}
     timeout-minutes: 120  # a cold vcpkg cache builds every dependency, FFmpeg included
 
