@@ -32,7 +32,8 @@ enum class Status {
 [[nodiscard]] QString desktopFilePath();
 [[nodiscard]] QString iconFilePath();
 
-// The entry that install() writes, mirroring deploy/dev.snim.Snim.desktop.
+// The entry that install() writes: deploy/dev.snim.Snim.desktop.in (a resource) with
+// execPath as its Exec, or empty when the binary lacks that resource.
 [[nodiscard]] QString desktopEntryContents(const QString &execPath);
 
 [[nodiscard]] Status status();

@@ -1,5 +1,6 @@
-# Packages the release workflow's AppDir; run from the repository root with
-# SNIM_VERSION and SNIM_ARCH (amd64 or arm64) set.
+# Packages the release workflow's AppDir and the desktop entry it renders into
+# build/package; run from the repository root with SNIM_VERSION and SNIM_ARCH (amd64 or
+# arm64) set.
 name: snim
 version: ${SNIM_VERSION}
 # Turns 1.0.0-beta.1 into 1.0.0~beta.1, which sorts below 1.0.0 in dpkg and rpm.
@@ -28,7 +29,7 @@ contents:
   - src: /opt/snim/usr/bin/snim
     dst: /usr/bin/snim
     type: symlink
-  - src: packaging/linux/dev.snim.Snim.desktop
+  - src: build/package/dev.snim.Snim.desktop
     dst: /usr/share/applications/dev.snim.Snim.desktop
   - src: AppDir/usr/share/icons/hicolor/*/apps/dev.snim.Snim.*
     dst: /usr/share/icons/hicolor

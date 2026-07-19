@@ -94,6 +94,7 @@ private slots:
         QVERIFY(lines.contains("StartupWMClass=snim"));
         QVERIFY(lines.contains("Exec=/opt/snim/snim"));
         QVERIFY(lines.contains("X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2"));
+        QVERIFY(!entry.contains('@'));   // every placeholder of the shared template is filled
     }
 
     void paths_liveUnderTheDataHome()
@@ -185,7 +186,7 @@ private slots:
         QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents("/usr/bin/some-other-binary")));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::ExecMismatch);
 
-        // A bare command name (the shipped template's Exec=snim) is a mismatch too.
+        // A bare command name (what the AppDir and Flatpak entries carry) is a mismatch too.
         QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents("snim")));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::ExecMismatch);
 #endif

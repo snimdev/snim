@@ -137,10 +137,12 @@ jobs:
           cmake --install lsq-build
 
       - name: Configure
+        # linuxdeploy looks the desktop entry's Exec up in usr/bin, so it must be a bare name.
         run: >
           cmake -S . -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Release
           -DSNIM_VERSION=${{ steps.version.outputs.version }}
+          -DSNIM_DESKTOP_EXEC=snim
           -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR;${{ github.workspace }}/deps-prefix"
 
       - name: Build
@@ -296,6 +298,10 @@ jobs:
           curl -fsSLo nfpm.tar.gz "https://github.com/goreleaser/nfpm/releases/download/v$NFPM_VERSION/nfpm_${NFPM_VERSION}_Linux_$NFPM_ASSET.tar.gz"
           echo "$NFPM_SHA256  nfpm.tar.gz" | sha256sum -c -
           tar -xzf nfpm.tar.gz nfpm
+          # The system entry names the real binary, which KWin's ScreenShot2 check matches.
+          mkdir -p build/package
+          sed 's|@SNIM_DESKTOP_EXEC@|/opt/snim/usr/bin/snim|' deploy/dev.snim.Snim.desktop.in \
+            > build/package/dev.snim.Snim.desktop
           ./nfpm package -f packaging/linux/nfpm.yaml -p deb -t "snim_${SNIM_VERSION}_${SNIM_ARCH}.deb"
           ./nfpm package -f packaging/linux/nfpm.yaml -p rpm -t "snim-${SNIM_VERSION}.${{ matrix.arch }}.rpm"
 

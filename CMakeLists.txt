@@ -1180,7 +1180,15 @@ if(UNIX AND NOT APPLE)
         install(TARGETS snim_video_linux LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
     endif()
 
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/deploy/dev.snim.Snim.desktop"
+    # KWin authorizes ScreenShot2 only when Exec names the real binary, hence the absolute
+    # default. linuxdeploy and Flatpak want a bare command name and pass one instead.
+    set(SNIM_DESKTOP_EXEC "" CACHE STRING "Exec of the installed desktop entry (default: the installed binary)")
+    if(NOT SNIM_DESKTOP_EXEC)
+        set(SNIM_DESKTOP_EXEC "${CMAKE_INSTALL_FULL_BINDIR}/snim")
+    endif()
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/deploy/dev.snim.Snim.desktop.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/dev.snim.Snim.desktop" @ONLY)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/dev.snim.Snim.desktop"
             DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/deploy/dev.snim.Snim.metainfo.xml"

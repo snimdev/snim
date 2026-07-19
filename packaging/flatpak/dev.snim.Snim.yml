@@ -133,6 +133,8 @@ modules:
       # CI stamps the release version over this placeholder
       - -DSNIM_VERSION=0.0.0-dev
       - -DSNIM_BUILD_TESTS=OFF
+      # Flatpak rewrites Exec on export and wants the bare command
+      - -DSNIM_DESKTOP_EXEC=snim
     sources:
       - type: dir
         path: ../..

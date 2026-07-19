@@ -41,4 +41,8 @@
     <qresource prefix="/styles">
         <file>styles/editor.qss</file>
     </qresource>
+    <!-- The desktop entry template, which DesktopIntegration fills in -->
+    <qresource prefix="/desktop">
+        <file alias="dev.snim.Snim.desktop.in">../deploy/dev.snim.Snim.desktop.in</file>
+    </qresource>
 </RCC>

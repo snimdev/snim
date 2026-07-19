@@ -18,6 +18,7 @@ namespace {
 constexpr auto kDesktopFileName = "dev.snim.Snim.desktop";
 constexpr auto kIconName = "dev.snim.Snim";
 constexpr auto kIconResource = ":/icons/icons/app-icon.svg";
+constexpr auto kEntryTemplateResource = ":/desktop/dev.snim.Snim.desktop.in";
 
 QString dataHome()
 {
@@ -104,20 +105,11 @@ QString iconFilePath()
 
 QString desktopEntryContents(const QString &execPath)
 {
-    return QStringLiteral(
-               "[Desktop Entry]\n"
-               "Type=Application\n"
-               "Name=Snim\n"
-               "GenericName=Screenshot Tool\n"
-               "Comment=Screenshot, screen recording, OCR and upload tool\n"
-               "Exec=%1\n"
-               "Icon=dev.snim.Snim\n"
-               "Terminal=false\n"
-               "Categories=Utility;Qt;\n"
-               "StartupWMClass=snim\n"
-               "# KWin only authorizes ScreenShot2 for apps whose desktop entry declares it.\n"
-               "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2\n")
-        .arg(execPath);
+    QFile entryTemplate(QString::fromLatin1(kEntryTemplateResource));
+    if (!entryTemplate.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
+    return QString::fromUtf8(entryTemplate.readAll())
+        .replace(QLatin1String("@SNIM_DESKTOP_EXEC@"), execPath);
 }
 
 Status status()
@@ -168,10 +160,12 @@ bool install(QString *errorOut)
     if (!QDir().mkpath(applicationsDir))
         return fail(QStringLiteral("Cannot create %1").arg(applicationsDir));
 
+    const QString contents = desktopEntryContents(quoteExec(executablePath()));
+    if (contents.isEmpty())
+        return fail(QStringLiteral("This build lacks its desktop entry template."));
     QSaveFile entry(desktopPath);
     if (!entry.open(QIODevice::WriteOnly | QIODevice::Text))
         return fail(QStringLiteral("Cannot write %1: %2").arg(desktopPath, entry.errorString()));
-    const QString contents = desktopEntryContents(quoteExec(executablePath()));
     entry.write(contents.toUtf8());
     if (!entry.commit())
         return fail(QStringLiteral("Cannot write %1: %2").arg(desktopPath, entry.errorString()));

@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/cmake-build-debug"
 BINARY="$BUILD_DIR/snim"
-DESKTOP_TEMPLATE="$SCRIPT_DIR/deploy/dev.snim.Snim.desktop"
+DESKTOP_TEMPLATE="$SCRIPT_DIR/deploy/dev.snim.Snim.desktop.in"
 DESKTOP_DEST="$HOME/.local/share/applications/dev.snim.Snim.desktop"
 ICON_TEMPLATE="$SCRIPT_DIR/resources/icons/app-icon.svg"
 ICON_THEME_DIR="$HOME/.local/share/icons/hicolor"
@@ -16,7 +16,7 @@ cmake --build "$BUILD_DIR"
 
 # Install .desktop file with correct Exec= path for KWin ScreenShot2 permissions
 mkdir -p "$(dirname "$DESKTOP_DEST")"
-sed "s|^Exec=.*|Exec=$BINARY|" "$DESKTOP_TEMPLATE" > "$DESKTOP_DEST"
+sed "s|@SNIM_DESKTOP_EXEC@|$BINARY|" "$DESKTOP_TEMPLATE" > "$DESKTOP_DEST"
 
 # Install the app icon so the desktop entry's Icon= name resolves
 mkdir -p "$(dirname "$ICON_DEST")"
