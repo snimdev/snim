@@ -135,6 +135,9 @@ modules:
       - -DSNIM_BUILD_TESTS=OFF
       # Flatpak rewrites Exec on export and wants the bare command
       - -DSNIM_DESKTOP_EXEC=snim
+    # The sandbox cannot reach KWin's ScreenShot2, so its entry must not declare it
+    post-install:
+      - sed -i '/ScreenShot2/d' /app/share/applications/dev.snim.Snim.desktop
     sources:
       - type: dir
         path: ../..
