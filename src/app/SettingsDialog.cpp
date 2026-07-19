@@ -304,6 +304,30 @@ int indexForFtpEncryption(Upload::FtpEncryption enc)
     return kFtpEncExplicit;
 }
 
+// Why the keychain refused a secret and what to do about it, in this platform's words.
+QString keychainProblem(Core::KeychainStore::Failure why)
+{
+    switch (why) {
+    case Core::KeychainStore::Failure::NoService:
+        return SettingsDialog::tr("no keyring service is running. Install or start GNOME Keyring "
+                                  "or KWallet, then try again.");
+    case Core::KeychainStore::Failure::Locked:
+        return SettingsDialog::tr("the keyring stayed locked. Unlock it when asked, then try again.");
+    case Core::KeychainStore::Failure::None:
+    case Core::KeychainStore::Failure::Other:
+        break;
+    }
+#if defined(Q_OS_MACOS)
+    return SettingsDialog::tr("the macOS Keychain refused it.");
+#elif defined(Q_OS_WIN)
+    return SettingsDialog::tr("Windows Credential Manager refused it.");
+#elif defined(Q_OS_LINUX)
+    return SettingsDialog::tr("the keyring service reported an error.");
+#else
+    return SettingsDialog::tr("this build of Snim cannot keep passwords on this system.");
+#endif
+}
+
 // The one place that formats a list row ("★ Name - SFTP"), so the full rebuild and the
 // in-place refresh after a name edit cannot drift apart.
 QString displayRowText(const Upload::UploadProfile &p, bool isDefault)
@@ -864,15 +888,21 @@ void SettingsDialog::onUploadTestConnection()
     cfg.ftpEncryption = p.ftpEncryption;
     cfg.publicBaseUrl = p.publicBaseUrl;
     const QString staged = m_uploadNewSecrets.value(p.id);
+    auto readFailure = Core::KeychainStore::Failure::None;
     if (!staged.isEmpty()) {
         cfg.secretKey = staged;
-    } else if (const auto stored =
-                   Core::KeychainStore::retrieve(Upload::keychainServiceFor(p.type), p.id)) {
+    } else if (const auto stored = Core::KeychainStore::retrieve(
+                   Upload::keychainServiceFor(p.type), p.id, &readFailure)) {
         cfg.secretKey = *stored;
     }
 
     if (!cfg.isComplete()) {
-        setStatus(tr("Fill in the required fields first."), nullptr);
+        // An unreadable keychain explains a missing password better than the generic hint.
+        if (readFailure != Core::KeychainStore::Failure::None)
+            setStatus(tr("Snim could not read the password: %1").arg(keychainProblem(readFailure)),
+                      "#c62828");
+        else
+            setStatus(tr("Fill in the required fields first."), nullptr);
         return;
     }
 
@@ -1135,7 +1165,7 @@ void SettingsDialog::loadSettings()
         bindUploadForm(-1);
 }
 
-void SettingsDialog::saveSettings()
+QString SettingsDialog::saveSettings()
 {
     Core::Settings::setScreenshotFolder(m_screenshotFolderEdit->text());
     Core::Settings::setImageFormat(m_imageFormatCombo->currentData().toString());
@@ -1169,6 +1199,9 @@ void SettingsDialog::saveSettings()
 
     // Newly-entered secrets for surviving profiles. The service depends on the profile's
     // type, so resolve it in the working copy (a removed one is skipped by workingIds).
+    QHash<QString, QString> refused;
+    QStringList refusedNames;
+    auto why = Core::KeychainStore::Failure::None;
     for (auto it = m_uploadNewSecrets.cbegin(); it != m_uploadNewSecrets.cend(); ++it) {
         if (!workingIds.contains(it.key()) || it.value().isEmpty())
             continue;
@@ -1176,15 +1209,28 @@ void SettingsDialog::saveSettings()
                                           [&it](const Upload::UploadProfile &p) {
                                               return p.id == it.key();
                                           });
-        if (profile != m_uploadWorking.cend())
-            Core::KeychainStore::store(Upload::keychainServiceFor(profile->type), it.key(), it.value());
+        if (profile == m_uploadWorking.cend())
+            continue;
+        auto failure = Core::KeychainStore::Failure::None;
+        if (!Core::KeychainStore::store(Upload::keychainServiceFor(profile->type), it.key(),
+                                        it.value(), &failure)) {
+            refused.insert(it.key(), it.value());
+            refusedNames.append(QStringLiteral("\"%1\"").arg(
+                profile->name.isEmpty() ? tr("(unnamed)") : profile->name));
+            why = failure;
+        }
     }
 
     Upload::UploadProfiles::setAll(m_uploadWorking, m_uploadDefaultId);
-    m_uploadNewSecrets.clear();
+    // A refused secret stays staged and typed, so the next Apply tries it again.
+    m_uploadNewSecrets = refused;
+    if (!refused.isEmpty())
+        return tr("Snim could not save the password for %1: %2")
+            .arg(refusedNames.join(QStringLiteral(", ")), keychainProblem(why));
     m_uploadSecretEdit->clear();
     m_sftpSecretEdit->clear();
     m_ftpSecretEdit->clear();
+    return {};
 }
 
 void SettingsDialog::applySettings()
@@ -1207,8 +1253,14 @@ void SettingsDialog::applySettings()
         }
     }
 
-    saveSettings();
+    const QString secretsError = saveSettings();
     emit settingsApplied();
+    if (!secretsError.isEmpty()) {
+        // Everything else is saved; stay open so the user can fix the keyring and Apply again.
+        m_tabWidget->setCurrentWidget(m_uploadTab);
+        QMessageBox::warning(this, tr("Password not saved"), secretsError);
+        return;
+    }
     accept();
 }
 

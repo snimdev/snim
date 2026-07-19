@@ -60,7 +60,8 @@ private:
     QWidget *createUploadSftpPage();
     QWidget *createUploadFtpPage();
     void loadSettings();
-    void saveSettings();
+    // Empty when every staged secret reached the keychain; otherwise what to tell the user.
+    QString saveSettings();
     // Upload profiles UI helpers (work on the in-memory working copy).
     void refreshUploadList();                  // rebuild the list from m_uploadWorking
     void bindUploadForm(int row);              // load working[row] into the field widgets
