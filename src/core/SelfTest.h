@@ -17,7 +17,8 @@ struct Check {
 };
 
 // Bundle smoke checks for `snim --self-test`: the Qt plugins a deployed build needs,
-// bundled tessdata when present, the optional libraries compiled in, then `extra`.
+// bundled tessdata when present, the optional libraries compiled in, on Linux whether a
+// Secret Service answers, then `extra`.
 // Prints one line per check and returns the process exit code (0 when every check
 // passed). Needs a live QApplication; creates no tray icon or window.
 int run(std::ostream &out, const QList<Check> &extra = {});

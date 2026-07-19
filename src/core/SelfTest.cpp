@@ -10,6 +10,9 @@
 #include <QStyle>
 #include <QStyleFactory>
 
+#ifdef Q_OS_LINUX
+#include "core/SecretService.h"
+#endif
 #ifdef HAVE_TESSERACT
 #include <tesseract/baseapi.h>
 #endif
@@ -154,6 +157,18 @@ int run(std::ostream &out, const QList<Check> &extra)
     }
 #else
     report.skip(QStringLiteral("sftp"), QStringLiteral("not compiled in"));
+#endif
+
+#ifdef Q_OS_LINUX
+    {
+        // A session only: no item is read or written and nothing prompts. CI has no keyring.
+        QString detail;
+        const KeychainStore::Failure keychain = SecretService::probe(&detail);
+        if (keychain == KeychainStore::Failure::NoService)
+            report.skip(QStringLiteral("keychain"), detail);
+        else
+            report.check(QStringLiteral("keychain"), keychain == KeychainStore::Failure::None, detail);
+    }
 #endif
 
     for (const Check &check : extra) {
