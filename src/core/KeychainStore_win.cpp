@@ -17,8 +17,10 @@ std::wstring targetFor(const QString &service, const QString &account)
 
 } // namespace
 
-bool store(const QString &service, const QString &account, const QString &secret)
+bool store(const QString &service, const QString &account, const QString &secret, Failure *why)
 {
+    if (why)
+        *why = Failure::Other;
     if (service.isEmpty() || account.isEmpty())
         return false;
     std::wstring target = targetFor(service, account);
@@ -35,17 +37,26 @@ bool store(const QString &service, const QString &account, const QString &secret
     cred.Persist = CRED_PERSIST_LOCAL_MACHINE;   // this user on this machine, never roams
     const bool ok = CredWriteW(&cred, 0) != FALSE;
     SecureZeroMemory(blob.data(), static_cast<SIZE_T>(blob.size()));
+    if (ok && why)
+        *why = Failure::None;
     return ok;
 }
 
-std::optional<QString> retrieve(const QString &service, const QString &account)
+std::optional<QString> retrieve(const QString &service, const QString &account, Failure *why)
 {
+    if (why)
+        *why = Failure::Other;
     if (service.isEmpty() || account.isEmpty())
         return std::nullopt;
     const std::wstring target = targetFor(service, account);
     PCREDENTIALW cred = nullptr;
-    if (!CredReadW(target.c_str(), CRED_TYPE_GENERIC, 0, &cred) || !cred)
+    if (!CredReadW(target.c_str(), CRED_TYPE_GENERIC, 0, &cred) || !cred) {
+        if (why && GetLastError() == ERROR_NOT_FOUND)
+            *why = Failure::None;
         return std::nullopt;
+    }
+    if (why)
+        *why = Failure::None;
     const QString value = QString::fromUtf8(reinterpret_cast<const char *>(cred->CredentialBlob),
                                             static_cast<qsizetype>(cred->CredentialBlobSize));
     CredFree(cred);

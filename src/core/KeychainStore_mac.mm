@@ -17,8 +17,10 @@ static NSDictionary *baseQuery(const QString &service, const QString &account)
     };
 }
 
-bool store(const QString &service, const QString &account, const QString &secret)
+bool store(const QString &service, const QString &account, const QString &secret, Failure *why)
 {
+    if (why)
+        *why = Failure::Other;
     if (service.isEmpty() || account.isEmpty())
         return false;
     // Upsert: delete any existing item, then add (avoids errSecDuplicateItem).
@@ -28,11 +30,15 @@ bool store(const QString &service, const QString &account, const QString &secret
     add[(__bridge id)kSecValueData] = [secret.toNSString() dataUsingEncoding:NSUTF8StringEncoding];
     add[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleWhenUnlocked;
     const OSStatus status = SecItemAdd((__bridge CFDictionaryRef)add, nullptr);
+    if (status == errSecSuccess && why)
+        *why = Failure::None;
     return status == errSecSuccess;
 }
 
-std::optional<QString> retrieve(const QString &service, const QString &account)
+std::optional<QString> retrieve(const QString &service, const QString &account, Failure *why)
 {
+    if (why)
+        *why = Failure::Other;
     if (service.isEmpty() || account.isEmpty())
         return std::nullopt;
     NSMutableDictionary *query = [baseQuery(service, account) mutableCopy];
@@ -41,12 +47,16 @@ std::optional<QString> retrieve(const QString &service, const QString &account)
 
     CFTypeRef result = nullptr;
     const OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
+    if (status == errSecItemNotFound && why)
+        *why = Failure::None;
     if (status != errSecSuccess || !result)
         return std::nullopt;
     NSData *data = (__bridge_transfer NSData *)result;   // take ownership, ARC releases it
     NSString *value = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     if (!value)
         return std::nullopt;
+    if (why)
+        *why = Failure::None;
     return QString::fromNSString(value);
 }
 

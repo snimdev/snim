@@ -25,8 +25,15 @@ inline QString s3Service() { return QStringLiteral("dev.snim.s3"); }
 inline QString sftpService() { return QStringLiteral("dev.snim.sftp"); }
 inline QString ftpService() { return QStringLiteral("dev.snim.ftp"); }
 
-bool store(const QString &service, const QString &account, const QString &secret);
-[[nodiscard]] std::optional<QString> retrieve(const QString &service, const QString &account);
+// Why a call failed, so the UI can say what to do. NoService (no keyring daemon answers)
+// and Locked (an unlock prompt was dismissed) come from backings that can tell them apart.
+enum class Failure { None, NoService, Locked, Other };
+
+bool store(const QString &service, const QString &account, const QString &secret,
+           Failure *why = nullptr);
+// nullopt with *why == Failure::None means nothing is stored under the pair.
+[[nodiscard]] std::optional<QString> retrieve(const QString &service, const QString &account,
+                                              Failure *why = nullptr);
 bool erase(const QString &service, const QString &account);
 
 } // namespace Core::KeychainStore

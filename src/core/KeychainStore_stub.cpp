@@ -6,9 +6,19 @@
 // would slot in here behind the same Core::KeychainStore facade).
 namespace Core::KeychainStore {
 
-bool store(const QString &, const QString &, const QString &) { return false; }
+bool store(const QString &, const QString &, const QString &, Failure *why)
+{
+    if (why)
+        *why = Failure::Other;
+    return false;
+}
 
-std::optional<QString> retrieve(const QString &, const QString &) { return std::nullopt; }
+std::optional<QString> retrieve(const QString &, const QString &, Failure *why)
+{
+    if (why)
+        *why = Failure::Other;
+    return std::nullopt;
+}
 
 bool erase(const QString &, const QString &) { return false; }
 

@@ -50,9 +50,14 @@ void tst_KeychainStore::cleanup()
 
 void tst_KeychainStore::roundTripsASecret()
 {
-    QVERIFY(!KeychainStore::retrieve(m_service, m_account).has_value());
+    // Nothing stored is not a failure.
+    KeychainStore::Failure why = KeychainStore::Failure::Other;
+    QVERIFY(!KeychainStore::retrieve(m_service, m_account, &why).has_value());
+    QVERIFY(why == KeychainStore::Failure::None);
 
-    QVERIFY(KeychainStore::store(m_service, m_account, QStringLiteral("hunter2")));
+    why = KeychainStore::Failure::Other;
+    QVERIFY(KeychainStore::store(m_service, m_account, QStringLiteral("hunter2"), &why));
+    QVERIFY(why == KeychainStore::Failure::None);
     QCOMPARE(secretOf(m_account), QStringLiteral("hunter2"));
 
     // Overwrite in place, with non-ASCII to prove the UTF-8 round trip.
