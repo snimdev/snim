@@ -1,9 +1,8 @@
 #include "core/KeychainStore.h"
 
-// Fallback keychain backing (neither macOS nor Windows): a no-op so the app builds and
-// links everywhere. With no secret store, the S3 uploader's isConfigured() returns false
-// and the Upload action stays disabled until a platform-native store is added (libsecret
-// would slot in here behind the same Core::KeychainStore facade).
+// Fallback keychain backing (not macOS, Windows or Linux, which has the Secret Service in
+// KeychainStore_linux.cpp): a no-op so the app builds and links everywhere. With no secret
+// store, an uploader that needs a password reports itself not configured.
 namespace Core::KeychainStore {
 
 bool store(const QString &, const QString &, const QString &, Failure *why)

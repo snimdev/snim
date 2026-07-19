@@ -419,8 +419,8 @@ add_library(snim_lib STATIC
         src/core/SelfTest.h
 
         # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
-        # macOS keychain backing is added in the APPLE block; a stub elsewhere. The
-        # SFTP/FTP backends are conditional on libssh2/libcurl; everything here is not.
+        # keychain backings are added per platform below. The SFTP/FTP backends are
+        # conditional on libssh2/libcurl; everything here is not.
         src/upload/Uploader.h
         src/upload/UploaderFactory.cpp
         src/upload/UploaderFactory.h
@@ -734,8 +734,18 @@ elseif(WIN32)
 else()
     target_sources(snim_lib PRIVATE
             src/screen/WindowEnumerator_stub.cpp
-            src/screen/OverlayWindows_stub.cpp
-            src/core/KeychainStore_stub.cpp)
+            src/screen/OverlayWindows_stub.cpp)
+endif()
+
+# Upload secrets: Linux keeps them in the freedesktop Secret Service over Qt DBus; any
+# platform without a keychain backing above gets the no-op stub.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_sources(snim_lib PRIVATE
+            src/core/KeychainStore_linux.cpp
+            src/core/SecretService.cpp
+            src/core/SecretService.h)
+elseif(NOT APPLE AND NOT WIN32)
+    target_sources(snim_lib PRIVATE src/core/KeychainStore_stub.cpp)
 endif()
 
 # Linux-only capture strategies. These rely on Linux desktop APIs that don't

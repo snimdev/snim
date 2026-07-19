@@ -81,6 +81,11 @@ if(WIN32)
     list(APPEND SNIM_TESTS tst_keychainstore)
 endif()
 
+# The Secret Service client behind the Linux keychain.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(APPEND SNIM_TESTS tst_secretservice)
+endif()
+
 # The FFmpeg media layer is built on Windows only.
 if(WIN32)
     list(APPEND SNIM_TESTS tst_h264encoderchain tst_ffmpegencoder tst_windowsrecorder)
@@ -198,6 +203,32 @@ add_test(NAME tst_videoeditor_smoke COMMAND tst_videoeditor_smoke)
 set_tests_properties(tst_videoeditor_smoke PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# These reach the keychain through the upload code: a dead session bus keeps them off a
+# developer's real keyring (CI has none either), so the keychain just reports no service.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set_property(TEST tst_uploadconfig tst_uploadprofiles tst_uploaderfactory tst_uploadworkflow
+            tst_recordingworkflow APPEND PROPERTY ENVIRONMENT
+            "DBUS_SESSION_BUS_ADDRESS=unix:path=${CMAKE_CURRENT_BINARY_DIR}/no-session-bus")
+endif()
+
+# The Linux keychain against a fake and a real Secret Service, on a private session bus
+# where nothing is activatable, so it can never reach the desktop's own keyring.
+set(SNIM_BUS_TESTS)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_program(SNIM_DBUS_RUN_SESSION dbus-run-session)
+endif()
+if(SNIM_DBUS_RUN_SESSION)
+    add_executable(tst_keychainstore_linux tst_keychainstore_linux.cpp)
+    target_link_libraries(tst_keychainstore_linux PRIVATE snim_lib Qt6::Test)
+    add_test(NAME tst_keychainstore_linux
+            COMMAND ${SNIM_DBUS_RUN_SESSION}
+                    --config-file=${CMAKE_CURRENT_SOURCE_DIR}/data/private-session-bus.conf
+                    -- $<TARGET_FILE:tst_keychainstore_linux>)
+    set_tests_properties(tst_keychainstore_linux PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SNIM_TEST_PRIVATE_BUS=1")
+    list(APPEND SNIM_BUS_TESTS tst_keychainstore_linux)
+endif()
+
 # Convenience aggregate: build every test, then run the whole suite.
 #   CLI:    cmake --build <build-dir> --target check
 #   CLion:  pick the "check" target in the configuration switcher and Build/Run it.
@@ -208,7 +239,7 @@ add_custom_target(check
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         USES_TERMINAL
         COMMENT "Running all Snim tests")
-add_dependencies(check ${SNIM_TESTS} tst_imageeditor_smoke tst_videoeditor_smoke)
+add_dependencies(check ${SNIM_TESTS} ${SNIM_BUS_TESTS} tst_imageeditor_smoke tst_videoeditor_smoke)
 
 # Manual ScreenCast capture and recording checks against the real portal; never run by ctest.
 if(GSTREAMER_AVAILABLE)
