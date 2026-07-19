@@ -92,6 +92,7 @@ namespace App {
 
         // Deferred so startup completes before a dialog blocks it.
         QTimer::singleShot(0, m_recordingWorkflow.get(), &RecordingWorkflow::offerUnsavedRecordings);
+        QTimer::singleShot(0, m_captureWorkflow.get(), &CaptureWorkflow::offerStaleEntryRemoval);
     }
 
     Application::~Application() {

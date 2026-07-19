@@ -38,6 +38,13 @@ private slots:
                                                        false));
     }
 
+    void promptApplicable_neverForAStaleUserEntry()
+    {
+        // Removing it is offered at startup; writing over it would only add another copy.
+        QVERIFY(!CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::StaleUserEntry,
+                                                       false));
+    }
+
     void promptApplicable_onlyOncePerRun()
     {
         QVERIFY(!CaptureWorkflow::kwinPromptApplicable(false, DesktopIntegration::Status::NotInstalled,

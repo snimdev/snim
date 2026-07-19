@@ -13,7 +13,9 @@
  * to the interactive portal path. The .deb and .rpm ship such an entry system-wide and
  * dev-build.sh installs one, but dev builds started some other way and tarball users
  * have none, so the app repairs it itself. status() judges the entry the desktop actually
- * uses: the user's own when present, else the first one on XDG_DATA_DIRS.
+ * uses: the user's own when present, else the first one on XDG_DATA_DIRS. A user entry left
+ * by an old tarball or AppImage that hides a packaged install's right one is removed, not
+ * overwritten with another copy.
  *
  * Linux-only behaviour; the header compiles everywhere and reports NotApplicable
  * elsewhere. No UI lives here: App::CaptureWorkflow owns the prompt and the tray action.
@@ -24,6 +26,7 @@ enum class Status {
     Installed,                // entry present, authorization key set, Exec is this executable
     ExecMismatch,             // entry present but Exec points somewhere else
     MissingAuthorizationKey,  // entry present but does not declare the ScreenShot2 interface
+    StaleUserEntry,           // the user's entry is wrong and hides a system one that is right
     NotInstalled,             // no entry in the user's or any system applications folder
     NotApplicable             // not Linux, or inside Flatpak
 };
@@ -42,6 +45,10 @@ enum class Status {
 // icon, then refreshes the desktop caches best effort.
 // Returns false and fills errorOut when the entry cannot be written.
 bool install(QString *errorOut = nullptr);
+
+// Makes the entry the desktop sees right for this executable: removes a StaleUserEntry,
+// so a packaged install's own entry applies, and otherwise install()s.
+bool repair(QString *errorOut = nullptr);
 
 } // namespace Core::DesktopIntegration
 

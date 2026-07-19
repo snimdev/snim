@@ -44,6 +44,8 @@ public slots:
     void captureFullScreen() const;
     // Also where a recording's frame edit lands.
     void openImageEditor(const QPixmap &image, const Editor::AnnotationSet &annotations);
+    // At startup: a user desktop entry hiding this packaged install's own is offered for removal.
+    void offerStaleEntryRemoval();
 
 private slots:
     void onScreenshotReady(const QPixmap &screenshot, const Editor::AnnotationSet &annotations);
@@ -53,7 +55,7 @@ private:
     // then resume the pending capture (true retries it, false takes the slow fallback).
     void askForKWinAuthorization(const std::function<void(bool)> &resume);
 
-    // Writes the desktop entry and reports the outcome; shared by the prompt and the tray action.
+    // Repairs the desktop entry and reports the outcome: the tray action.
     void runDesktopIntegrationSetup();
     void refreshDesktopIntegrationAction() const;
 

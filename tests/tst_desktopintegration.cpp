@@ -225,19 +225,51 @@ private slots:
 #endif
     }
 
-    void userEntry_shadowsThePackagedOne()
+    void staleUserEntry_hidesThePackagedOne()
     {
 #ifndef Q_OS_LINUX
         QSKIP("Desktop integration is Linux only");
 #else
-        // KWin sees only the user's entry, so a stale one breaks a correct package.
+        // KWin and the launchers see only the user's entry, so an old tarball's breaks a package.
         const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
         QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents(appPath)));
+        QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents("/home/u/Apps/snim/usr/bin/snim")));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::StaleUserEntry);
+
+        // Repairing removes it rather than writing another copy.
+        QString error = "unset";
+        QVERIFY2(DesktopIntegration::repair(&error), qPrintable(error));
+        QVERIFY(error.isEmpty());
+        QVERIFY(!QFile::exists(DesktopIntegration::desktopFilePath()));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
+#endif
+    }
+
+    void staleUserEntry_withoutTheKey_isStaleToo()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
+        QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents(appPath)));
+        QVERIFY(writeEntry("[Desktop Entry]\nType=Application\nName=Snim\nExec=/opt/Snim.AppImage\n"));
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::StaleUserEntry);
+#endif
+    }
+
+    void userEntry_overAnotherBinarysPackage_isRewritten()
+    {
+#ifndef Q_OS_LINUX
+        QSKIP("Desktop integration is Linux only");
+#else
+        // A dev build or tarball beside a package: the system entry is not this binary's, so
+        // the user's own entry is what has to change.
+        QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents("/opt/snim/usr/bin/snim")));
         QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents("/usr/bin/some-other-binary")));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::ExecMismatch);
 
-        // Writing the user's entry repairs it.
-        QVERIFY(DesktopIntegration::install(nullptr));
+        QVERIFY(DesktopIntegration::repair(nullptr));
+        QVERIFY(QFile::exists(DesktopIntegration::desktopFilePath()));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
 #endif
     }

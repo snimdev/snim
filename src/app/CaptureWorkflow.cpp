@@ -100,9 +100,11 @@ namespace App {
                                                const bool alreadyShown) {
         if (dismissed)
             return false;
-        // Entry already correct (or not ours to write): the refusal has another cause.
+        // Entry already correct (or not ours to write): the refusal has another cause. A stale
+        // user entry is offered for removal at startup instead of being written over.
         if (status == Core::DesktopIntegration::Status::Installed
-            || status == Core::DesktopIntegration::Status::NotApplicable)
+            || status == Core::DesktopIntegration::Status::NotApplicable
+            || status == Core::DesktopIntegration::Status::StaleUserEntry)
             return false;
         return !alreadyShown;
     }
@@ -152,9 +154,40 @@ namespace App {
         resume(false);
     }
 
+    void CaptureWorkflow::offerStaleEntryRemoval() {
+        if (Core::Settings::desktopIntegrationPromptDismissed()
+            || Core::DesktopIntegration::status() != Core::DesktopIntegration::Status::StaleUserEntry)
+            return;
+
+        QMessageBox box;
+        box.setIcon(QMessageBox::Question);
+        box.setWindowTitle(tr("Old Snim menu entry"));
+        box.setText(tr("An older Snim left a menu entry in your applications folder that hides "
+                       "the one this installation provides."));
+        box.setInformativeText(tr("Remove %1 so the menu starts this version and KDE allows "
+                                  "dialog-free captures?")
+                                   .arg(Core::DesktopIntegration::desktopFilePath()));
+        QPushButton *remove = box.addButton(tr("Remove"), QMessageBox::AcceptRole);
+        box.addButton(tr("Keep"), QMessageBox::RejectRole);
+        box.setDefaultButton(remove);
+        box.exec();
+
+        if (box.clickedButton() != remove) {
+            // The tray's desktop integration action still offers it later.
+            Core::Settings::setDesktopIntegrationPromptDismissed(true);
+            return;
+        }
+        QString error;
+        if (!Core::DesktopIntegration::repair(&error)) {
+            QMessageBox::warning(nullptr, tr("Desktop integration"),
+                                 tr("Could not remove the old desktop entry:\n%1").arg(error));
+        }
+        refreshDesktopIntegrationAction();
+    }
+
     void CaptureWorkflow::runDesktopIntegrationSetup() {
         QString error;
-        if (Core::DesktopIntegration::install(&error)) {
+        if (Core::DesktopIntegration::repair(&error)) {
             QMessageBox::information(nullptr, tr("Desktop integration"),
                                      tr("Done. The next capture uses the fast path."));
         } else {

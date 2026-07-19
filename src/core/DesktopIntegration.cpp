@@ -11,6 +11,8 @@
 #include <QStandardPaths>
 #include <QStringList>
 
+#include <optional>
+
 namespace Core::DesktopIntegration {
 
 namespace {
@@ -76,6 +78,25 @@ bool declaresScreenShot2(const QString &contents)
     return false;
 }
 
+// One entry's verdict for this executable; status() weighs the user's against the system's.
+Status judge(const QString &contents)
+{
+    if (!declaresScreenShot2(contents))
+        return Status::MissingAuthorizationKey;
+    const QString target = execTarget(contents);
+    if (target.isEmpty() || canonical(target) != executablePath())
+        return Status::ExecMismatch;
+    return Status::Installed;
+}
+
+std::optional<QString> readEntry(const QString &path)
+{
+    QFile entry(path);
+    if (!entry.open(QIODevice::ReadOnly | QIODevice::Text))
+        return std::nullopt;
+    return QString::fromUtf8(entry.readAll());
+}
+
 void refreshCaches(const QString &applicationsDir)
 {
     if (QStandardPaths::isTestModeEnabled())   // tests must not rebuild the live session caches
@@ -122,22 +143,21 @@ Status status()
         return Status::NotApplicable;
 
     // The first match is the one launchers and KWin see: the user's entry shadows a packaged one.
-    const QString entryPath =
-        QStandardPaths::locate(QStandardPaths::ApplicationsLocation, QLatin1String(kDesktopFileName));
-    QFile entry(entryPath);
-    if (entryPath.isEmpty() || !entry.open(QIODevice::ReadOnly | QIODevice::Text))
+    const QStringList entries =
+        QStandardPaths::locateAll(QStandardPaths::ApplicationsLocation, QLatin1String(kDesktopFileName));
+    const std::optional<QString> contents =
+        entries.isEmpty() ? std::nullopt : readEntry(entries.first());
+    if (!contents)
         return Status::NotInstalled;
-    const QString contents = QString::fromUtf8(entry.readAll());
-    entry.close();
 
-    if (!declaresScreenShot2(contents))
-        return Status::MissingAuthorizationKey;
-
-    const QString target = execTarget(contents);
-    if (target.isEmpty() || canonical(target) != executablePath())
-        return Status::ExecMismatch;
-
-    return Status::Installed;
+    const Status verdict = judge(*contents);
+    if (verdict != Status::Installed && entries.size() > 1
+        && QFileInfo(entries.first()) == QFileInfo(desktopFilePath())) {
+        const std::optional<QString> next = readEntry(entries.at(1));
+        if (next && judge(*next) == Status::Installed)
+            return Status::StaleUserEntry;
+    }
+    return verdict;
 #endif
 }
 
@@ -188,6 +208,25 @@ bool install(QString *errorOut)
         errorOut->clear();
     return true;
 #endif
+}
+
+bool repair(QString *errorOut)
+{
+#ifdef Q_OS_LINUX
+    if (status() == Status::StaleUserEntry) {
+        const QString desktopPath = desktopFilePath();
+        if (!QFile::remove(desktopPath)) {
+            if (errorOut)
+                *errorOut = QStringLiteral("Cannot remove %1").arg(desktopPath);
+            return false;
+        }
+        refreshCaches(QFileInfo(desktopPath).absolutePath());
+        if (errorOut)
+            errorOut->clear();
+        return true;
+    }
+#endif
+    return install(errorOut);
 }
 
 } // namespace Core::DesktopIntegration
