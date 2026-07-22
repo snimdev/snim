@@ -15,6 +15,8 @@ finish-args:
   - --talk-name=org.kde.StatusNotifierWatcher
   # Tray notifications
   - --talk-name=org.freedesktop.Notifications
+  # Upload passwords live in the host keyring (GNOME Keyring, KWallet, KeePassXC)
+  - --talk-name=org.freedesktop.secrets
   - --filesystem=xdg-pictures/Screenshots:create
   - --filesystem=xdg-videos/Snim:create
 
