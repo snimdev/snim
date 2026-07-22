@@ -626,6 +626,10 @@ void LinuxRecordingStrategy::handleSessionFailed(const QString &error)
 {
     if (!isRecording())
         return;
+    if (m_session->wasCancelled()) {
+        cancel();
+        return;
+    }
     fail(error);
 }
 
@@ -844,6 +848,13 @@ void LinuxRecordingStrategy::fail(const QString &error)
     if (!path.isEmpty() && QFileInfo(path).size() == 0)
         QFile::remove(path);
     emit failed(error);
+}
+
+void LinuxRecordingStrategy::cancel()
+{
+    qInfo() << "Recording: cancelled before the first frame";
+    teardown();
+    emit cancelled();
 }
 
 void LinuxRecordingStrategy::teardown()

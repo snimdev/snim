@@ -33,6 +33,8 @@ public:
         stopCalled = true;
         if (finishOnStop)
             emitFinished(lastPath);
+        if (cancelOnStop)
+            emitCancelled();
     }
     bool isRecording() const override { return m_running; }
     bool isAvailable() const override { return available; }
@@ -41,10 +43,12 @@ public:
     void emitStarted() { m_running = true; emit started(); }
     void emitFinished(const QString &p) { m_running = false; emit finished(p); }
     void emitFailed(const QString &e) { m_running = false; emit failed(e); }
+    void emitCancelled() { m_running = false; emit cancelled(); }
 
     QString lastPath;
     bool available = true;
     bool finishOnStop = false;
+    bool cancelOnStop = false;
     bool stopCalled = false;
     bool m_running = false;
 };
@@ -186,6 +190,35 @@ private slots:
         // The finished file stays journaled for the next start.
         QVERIFY(RecordingJournal::isRecoverable(fake->lastPath));
         RecordingJournal::discard(fake->lastPath);
+    }
+
+    void aCancelledPickerShowsNothing()
+    {
+        FakeRecordingStrategy *fake = makeWorkflow();
+        m_workflow->setOfferPrompt(laterPrompt());
+        m_controller->startRecording(regionTarget());
+
+        // A failure here would block on a modal box; a cancel returns straight to idle.
+        fake->emitCancelled();
+        QVERIFY(!m_workflow->isRecording());
+        QVERIFY(m_offers.isEmpty());
+        QVERIFY(!editorOpen());
+        QCOMPARE(m_tray->recordAreaAction()->text(), QStringLiteral("Record Area"));
+        QVERIFY(!RecordingJournal::recoverable().contains(fake->lastPath));
+    }
+
+    void quitDuringStartDoesNotWaitOutTheTimeout()
+    {
+        FakeRecordingStrategy *fake = makeWorkflow();
+        m_controller->startRecording(regionTarget());
+        fake->cancelOnStop = true;   // stopped before the first frame
+
+        QElapsedTimer clock;
+        clock.start();
+        m_workflow->finishBeforeQuit();
+        QVERIFY(fake->stopCalled);
+        QVERIFY(clock.elapsed() < 1000);
+        QVERIFY(!m_controller->isActive());
     }
 
 private:

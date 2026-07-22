@@ -85,6 +85,7 @@ private:
     void runOnPipelineThread(std::function<void()> task);
     void teardown();
     void fail(const QString &error);
+    void cancel();
 
     Screen::ScreenCastPortalSession *m_session = nullptr;
     GstElement *m_pipeline = nullptr;

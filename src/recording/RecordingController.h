@@ -49,7 +49,8 @@ public:
     void togglePause();   // pause if recording, resume if paused
 
     [[nodiscard]] bool isRecording() const { return m_state == State::Recording; }
-    // Starting or recording: a stop() now ends in recordingFinished or recordingFailed.
+    // Starting or recording: a stop() now ends in recordingFinished, recordingFailed or
+    // recordingCancelled.
     [[nodiscard]] bool isActive() const
     {
         return m_state == State::Starting || m_state == State::Recording;
@@ -60,6 +61,7 @@ signals:
     void recordingStateChanged(bool recording);   // drives tray text + the Stop widget
     void recordingFinished(const QString &path);   // success: file written (temp path)
     void recordingFailed(const QString &error);
+    void recordingCancelled();                     // backed out before capture began: no error
     void partialRecordingKept(const QString &path);   // precedes recordingFailed when footage survived
     void recordingDuration(qint64 ms);             // elapsed, forwarded to the Stop widget
     void recordingPausedChanged(bool paused);      // pause/resume, for the controls

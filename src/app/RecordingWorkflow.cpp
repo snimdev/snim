@@ -195,6 +195,7 @@ namespace App {
         };
         connect(controller, &Recording::RecordingController::recordingFinished, &loop, finish);
         connect(controller, &Recording::RecordingController::recordingFailed, &loop, finish);
+        connect(controller, &Recording::RecordingController::recordingCancelled, &loop, finish);
         // Just past the Linux recorder's own 5 s EOS timeout.
         QTimer::singleShot(6000, &loop, &QEventLoop::quit);
         controller->stop();

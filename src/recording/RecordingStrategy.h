@@ -17,7 +17,8 @@ namespace Recording {
  *
  * start()/stop() are asynchronous: a backend emits started() once capture is
  * actually running (on macOS, after the screen-recording permission prompt) and
- * finished() once the output file is fully written and closed.
+ * finished() once the output file is fully written and closed. A backend whose system
+ * picker the user dismisses emits cancelled() instead of failed().
  */
 class RecordingStrategy : public QObject
 {
@@ -48,6 +49,7 @@ signals:
     void started();                        // capture is running
     void finished(const QString &path);    // file written and closed
     void failed(const QString &error);     // permission denied / setup / writer error
+    void cancelled();                      // the user backed out before capture began
     void durationChanged(qint64 ms);       // recorded time (pauses excluded), for the label
     void pausedChanged(bool paused);       // pause/resume toggled
 };

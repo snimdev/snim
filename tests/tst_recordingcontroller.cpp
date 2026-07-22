@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "recording/RecordingController.h"
+#include "recording/RecordingJournal.h"
 #include "recording/RecordingStrategy.h"
 #include "recording/RecordTarget.h"
 
@@ -27,6 +28,7 @@ public:
     void emitStarted() { m_running = true; emit started(); }
     void emitFinished(const QString &p) { m_running = false; emit finished(p); }
     void emitFailed(const QString &e) { m_running = false; emit failed(e); }
+    void emitCancelled() { m_running = false; emit cancelled(); }
 
     RecordTarget lastTarget;
     QString lastPath;
@@ -102,6 +104,33 @@ private slots:
         f->emitFailed("boom");
         QCOMPARE(failedSpy.count(), 1);
         QVERIFY(!ctrl.isRecording());
+    }
+
+    void cancelReturnsQuietlyToIdle()
+    {
+        auto fake = std::make_unique<FakeRecordingStrategy>();
+        FakeRecordingStrategy *f = fake.get();
+        RecordingController ctrl(std::move(fake));
+
+        QSignalSpy failedSpy(&ctrl, &RecordingController::recordingFailed);
+        QSignalSpy keptSpy(&ctrl, &RecordingController::partialRecordingKept);
+        QSignalSpy cancelledSpy(&ctrl, &RecordingController::recordingCancelled);
+        RecordTarget t;
+        t.regionVirtual = QRect(0, 0, 50, 50);
+        ctrl.startRecording(t);
+        QVERIFY(ctrl.isActive());
+
+        f->emitCancelled();
+        QCOMPARE(cancelledSpy.count(), 1);
+        QCOMPARE(failedSpy.count(), 0);
+        QCOMPARE(keptSpy.count(), 0);
+        QVERIFY(!ctrl.isActive());
+        QVERIFY(!RecordingJournal::recoverable().contains(f->lastPath));
+
+        // Idle again: the next attempt starts.
+        f->startCalled = false;
+        ctrl.startRecording(t);
+        QVERIFY(f->startCalled);
     }
 
     void failureReportsTheFootageThatSurvived()

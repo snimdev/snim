@@ -445,6 +445,16 @@ void RecordingController::wireStrategy()
             emit partialRecordingKept(partial);
         emit recordingFailed(error);
     });
+    connect(m_strategy.get(), &RecordingStrategy::cancelled, this, [this] {
+        m_state = State::Idle;
+        // Nothing was captured, so there is nothing for the journal to offer later.
+        if (const QString path = std::exchange(m_outputPath, QString()); !path.isEmpty())
+            RecordingJournal::discard(path);
+        destroyCameraBubble();
+        destroyFrameOverlay();
+        emit recordingStateChanged(false);
+        emit recordingCancelled();
+    });
     connect(m_strategy.get(), &RecordingStrategy::durationChanged,
             this, &RecordingController::recordingDuration);
     connect(m_strategy.get(), &RecordingStrategy::pausedChanged,
