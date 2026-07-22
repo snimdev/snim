@@ -83,7 +83,12 @@ private:
     void setValvesDropping(bool drop);
     // Runs blocking GStreamer calls off the GUI thread, in submission order.
     void runOnPipelineThread(std::function<void()> task);
-    void teardown();
+
+    // What becomes of the output file once the pipeline has let go of it.
+    enum class Output { Keep, RemoveIfEmpty, Remove };
+    // Drops the pipeline and the session. `then` runs on this thread once the pipeline
+    // is down and the output dealt with, or after a grace period if it hangs.
+    void teardown(Output output = Output::Keep, std::function<void()> then = {});
     void fail(const QString &error);
     void cancel();
 
@@ -91,6 +96,7 @@ private:
     GstElement *m_pipeline = nullptr;
     GThreadPool *m_runner = nullptr;
     std::shared_ptr<StrategyLink> m_link;   // the current pipeline's way back to this object
+    std::shared_ptr<StrategyLink> m_life;   // for pipelines being torn down, cut only on destruction
     QTimer *m_durationTimer = nullptr;
     QTimer *m_firstFrameTimer = nullptr;
     QTimer *m_eosTimer = nullptr;

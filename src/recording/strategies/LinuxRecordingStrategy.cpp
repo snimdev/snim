@@ -29,6 +29,8 @@ namespace {
 
 constexpr int kDurationIntervalMs = 250;
 constexpr int kEosTimeoutMs = 5000;
+// Past this a pipeline still shutting down is stuck, not writing, so its outcome is reported.
+constexpr int kReleaseGraceMs = 2000;
 // Past pipewiresrc's own 30 s wait for the stream.
 constexpr int kFirstFrameTimeoutMs = 35000;
 
@@ -353,8 +355,11 @@ void runTask(gpointer data, gpointer userData)
 } // namespace
 
 LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent)
-    : RecordingStrategy(parent), m_source(currentVideoSource())
+    : RecordingStrategy(parent), m_life(std::make_shared<StrategyLink>()),
+      m_source(currentVideoSource())
 {
+    m_life->strategy = this;
+
     m_durationTimer = new QTimer(this);
     m_durationTimer->setInterval(kDurationIntervalMs);
     connect(m_durationTimer, &QTimer::timeout, this, [this] {
@@ -386,6 +391,10 @@ LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent)
 
 LinuxRecordingStrategy::~LinuxRecordingStrategy()
 {
+    {
+        const std::lock_guard<std::mutex> lock(m_life->mutex);
+        m_life->strategy = nullptr;
+    }
     teardown();
 }
 
@@ -842,22 +851,17 @@ void LinuxRecordingStrategy::reportError(quint64 generation, const QString &erro
 void LinuxRecordingStrategy::fail(const QString &error)
 {
     qWarning() << "Recording failed:" << error;
-    const QString path = m_outputPath;
-    teardown();
     // A fragmented file keeps what was recorded before the failure.
-    if (!path.isEmpty() && QFileInfo(path).size() == 0)
-        QFile::remove(path);
-    emit failed(error);
+    teardown(Output::RemoveIfEmpty, [this, error] { emit failed(error); });
 }
 
 void LinuxRecordingStrategy::cancel()
 {
     qInfo() << "Recording: cancelled before the first frame";
-    teardown();
-    emit cancelled();
+    teardown(Output::Remove, [this] { emit cancelled(); });
 }
 
-void LinuxRecordingStrategy::teardown()
+void LinuxRecordingStrategy::teardown(Output output, std::function<void()> then)
 {
     // Invalidates every callback still in flight for the pipeline being dropped.
     ++m_generation;
@@ -882,17 +886,37 @@ void LinuxRecordingStrategy::teardown()
     }
     m_link.reset();
 
-    // Shutting down can block on a stuck stream; pipewiresrc uses the fd until it is done.
+    // Shutting down can block on a stuck stream, and until it is down the pipeline still
+    // uses the fd and may still write the output.
     const int fd = std::exchange(m_pipewireFd, -1);
-    if (GstElement *pipeline = std::exchange(m_pipeline, nullptr)) {
-        runOnPipelineThread([pipeline, fd] {
+    GstElement *pipeline = std::exchange(m_pipeline, nullptr);
+    const QString path = output == Output::Keep ? QString() : m_outputPath;
+    const bool removeAlways = output == Output::Remove;
+    const auto release = [pipeline, fd, path, removeAlways] {
+        if (pipeline) {
             gst_element_set_state(pipeline, GST_STATE_NULL);
             gst_object_unref(pipeline);
-            if (fd >= 0)
-                ::close(fd);
+        }
+        if (fd >= 0)
+            ::close(fd);
+        if (!path.isEmpty() && (removeAlways || QFileInfo(path).size() == 0))
+            QFile::remove(path);
+    };
+    if (pipeline && then) {
+        auto pending = std::make_shared<std::function<void()>>(std::move(then));
+        const auto reportOnce = [pending] {
+            if (const std::function<void()> report = std::exchange(*pending, {}))
+                report();
+        };
+        QTimer::singleShot(kReleaseGraceMs, this, reportOnce);
+        runOnPipelineThread([release, reportOnce, life = m_life] {
+            release();
+            post(life, [reportOnce](LinuxRecordingStrategy *, quint64) { reportOnce(); });
         });
-    } else if (fd >= 0) {
-        ::close(fd);
+    } else if (pipeline) {
+        runOnPipelineThread(release);
+    } else {
+        release();
     }
     if (GThreadPool *runner = std::exchange(m_runner, nullptr))
         g_thread_pool_free(runner, FALSE, FALSE);
@@ -904,6 +928,9 @@ void LinuxRecordingStrategy::teardown()
     m_recording = false;
     m_stopping = false;
     m_paused = false;
+
+    if (!pipeline && then)
+        then();
 }
 
 } // namespace Recording
