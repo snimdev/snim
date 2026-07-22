@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QGuiApplication>
 #include <QRect>
 #include <QScreen>
@@ -16,6 +17,7 @@
 // SNIM_PROBE_AUDIO=1 records system audio too. SNIM_PROBE_AREA picks what to record:
 // "x,y,w,h" in logical coordinates, "full" for the whole desktop or "screen:N".
 // SNIM_PROBE_FRAME=1 shows the recording frame overlay while capturing, like the app.
+// SNIM_PROBE_STOP_MS=n stops n ms after start, first frame or not.
 int main(int argc, char *argv[])
 {
     if (qEnvironmentVariableIsEmpty("SNIM_RECORDER_MODULE"))
@@ -81,6 +83,11 @@ int main(int argc, char *argv[])
                              frame->hide();
                          QTimer::singleShot(200, &app, [&app] { app.exit(0); });
                      });
+    QObject::connect(recorder.get(), &Recording::RecordingStrategy::cancelled, &app, [&] {
+        std::fprintf(stderr, "probe: cancelled after %lld ms, output %s\n", clock.elapsed(),
+                     QFile::exists(out) ? "left behind" : "removed");
+        QTimer::singleShot(200, &app, [&app] { app.exit(5); });
+    });
     QObject::connect(recorder.get(), &Recording::RecordingStrategy::failed, &app,
                      [&](const QString &error) {
                          std::fprintf(stderr, "probe: failed after %lld ms: %s\n",
@@ -135,5 +142,11 @@ int main(int argc, char *argv[])
     target.captureSystemAudio = qEnvironmentVariableIsSet("SNIM_PROBE_AUDIO");
     clock.start();
     recorder->start(target, out);
+    if (const int stopMs = qEnvironmentVariableIntValue("SNIM_PROBE_STOP_MS"); stopMs > 0) {
+        QTimer::singleShot(stopMs, &app, [&] {
+            std::fprintf(stderr, "probe: early stop at t=%lld ms\n", clock.elapsed());
+            recorder->stop();
+        });
+    }
     return app.exec();
 }

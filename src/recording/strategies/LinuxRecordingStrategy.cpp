@@ -510,11 +510,9 @@ void LinuxRecordingStrategy::stop()
     if (!isRecording() || m_stopping)
         return;
 
-    if (!m_pipeline) {
-        // The portal handshake never produced a stream, so there is nothing to finalize.
-        m_stopping = true;
-        teardown();
-        emit failed(tr("The recording was stopped before it started."));
+    // Before the first frame nothing needs finalizing, and EOS would wait on the source.
+    if (!m_recording) {
+        cancel();
         return;
     }
 
@@ -834,6 +832,10 @@ void LinuxRecordingStrategy::reportEos(quint64 generation)
 {
     if (generation != m_generation)
         return;
+    if (!m_recording) {
+        fail(tr("The recording ended before the first frame arrived."));
+        return;
+    }
 
     const QString path = m_outputPath;
     qInfo() << "Recording: finalized" << path;
