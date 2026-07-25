@@ -27,11 +27,22 @@ public:
     explicit ScreenCastPortalSession(QObject *parent = nullptr);
     ~ScreenCastPortalSession() override;
 
+    // What the picker offers to share.
+    enum class Source { Monitor, Window };
+
     struct Options {
         bool captureCursor = false;
         bool multiple = false;
+        Source source = Source::Monitor;
         // QSettings key holding the restore token; empty means the picker shows every time.
         QString restoreTokenKey;
+    };
+
+    // What the portal advertises; 0 where a property was not read.
+    struct Capabilities {
+        uint version = 0;
+        uint sourceTypes = 0;   // AvailableSourceTypes
+        uint cursorModes = 0;   // AvailableCursorModes
     };
 
     struct Stream {
@@ -44,6 +55,14 @@ public:
 
     // The ScreenCast interface version, 0 when the portal cannot be reached.
     [[nodiscard]] static uint portalVersion();
+
+    // SelectSources' options, short of the handle token.
+    [[nodiscard]] static QVariantMap sourceSelection(const Options &options,
+                                                     const Capabilities &portal,
+                                                     const QString &restoreToken);
+
+    // Whether the portal can share this source; one that does not say is trusted.
+    [[nodiscard]] static bool offers(Source source, const Capabilities &portal);
 
     // Restore tokens are single use: Start hands back the one to present next time.
     [[nodiscard]] static QString restoreToken(const QString &key);

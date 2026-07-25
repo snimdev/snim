@@ -74,7 +74,7 @@ set(SNIM_TESTS
 # The dlopened Linux modules only exist where they are built.
 if(GSTREAMER_AVAILABLE)
     list(APPEND SNIM_TESTS tst_linuxrecordermodule tst_gstvideoexporter tst_recordingrecovery
-            tst_screencasttoken tst_gstsupport)
+            tst_screencasttoken tst_screencastrequest tst_gstsupport)
 endif()
 
 # Round-trips the real Credential Manager, so it only exists on Windows.

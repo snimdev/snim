@@ -38,9 +38,15 @@ const char *const kClosedDetailsSlot = SLOT(handleSessionClosedWithDetails(QVari
 
 // SelectSources source types and cursor modes, as the ScreenCast spec numbers them.
 constexpr uint kSourceMonitor = 1;
+constexpr uint kSourceWindow = 2;
 constexpr uint kCursorHidden = 1;
 constexpr uint kCursorEmbedded = 2;
 constexpr uint kPersistUntilRevoked = 2;
+
+uint sourceType(ScreenCastPortalSession::Source source)
+{
+    return source == ScreenCastPortalSession::Source::Window ? kSourceWindow : kSourceMonitor;
+}
 
 // The stream vardict carries position and size as (ii); a missing one leaves the rect
 // null and the caller infers the geometry from the stream's pixel size.
@@ -96,6 +102,31 @@ bool ScreenCastPortalSession::isPortalAvailable()
 uint ScreenCastPortalSession::portalVersion()
 {
     return readUintProperty(QStringLiteral("version"));
+}
+
+QVariantMap ScreenCastPortalSession::sourceSelection(const Options &options,
+                                                     const Capabilities &portal,
+                                                     const QString &restoreToken)
+{
+    uint cursorMode = options.captureCursor ? kCursorEmbedded : kCursorHidden;
+    if (portal.cursorModes != 0 && (portal.cursorModes & cursorMode) == 0)
+        cursorMode = kCursorHidden;
+
+    QVariantMap selection;
+    selection.insert(QStringLiteral("types"), sourceType(options.source));
+    selection.insert(QStringLiteral("multiple"), options.multiple);
+    selection.insert(QStringLiteral("cursor_mode"), cursorMode);
+    if (!options.restoreTokenKey.isEmpty() && portal.version >= kFirstPersistingVersion) {
+        selection.insert(QStringLiteral("persist_mode"), kPersistUntilRevoked);
+        if (!restoreToken.isEmpty())
+            selection.insert(QStringLiteral("restore_token"), restoreToken);
+    }
+    return selection;
+}
+
+bool ScreenCastPortalSession::offers(Source source, const Capabilities &portal)
+{
+    return portal.sourceTypes == 0 || (portal.sourceTypes & sourceType(source)) != 0;
 }
 
 QString ScreenCastPortalSession::restoreToken(const QString &key)
@@ -210,6 +241,19 @@ void ScreenCastPortalSession::handleCreateSessionResponse(uint response,
 
 void ScreenCastPortalSession::selectSources()
 {
+    // Each property is a blocking read, so only those that decide something.
+    Capabilities portal;
+    portal.cursorModes = readUintProperty(QStringLiteral("AvailableCursorModes"));
+    if (!m_options.restoreTokenKey.isEmpty())
+        portal.version = portalVersion();
+    if (m_options.source != Source::Monitor)
+        portal.sourceTypes = readUintProperty(QStringLiteral("AvailableSourceTypes"));
+    if (!offers(m_options.source, portal)) {
+        fail(tr("This desktop's screen sharing cannot share a single window. "
+                "Record an area instead."));
+        return;
+    }
+
     const QString handleToken = newToken();
     m_selectRequestPath = requestPath(handleToken);
 
@@ -219,22 +263,9 @@ void ScreenCastPortalSession::selectSources()
         return;
     }
 
-    uint cursorMode = m_options.captureCursor ? kCursorEmbedded : kCursorHidden;
-    const uint availableModes = readUintProperty(QStringLiteral("AvailableCursorModes"));
-    if (availableModes != 0 && (availableModes & cursorMode) == 0)
-        cursorMode = kCursorHidden;
-
-    QVariantMap options;
+    QVariantMap options = sourceSelection(m_options, portal,
+                                          restoreToken(m_options.restoreTokenKey));
     options.insert(QStringLiteral("handle_token"), handleToken);
-    options.insert(QStringLiteral("types"), kSourceMonitor);
-    options.insert(QStringLiteral("multiple"), m_options.multiple);
-    options.insert(QStringLiteral("cursor_mode"), cursorMode);
-    if (!m_options.restoreTokenKey.isEmpty() && portalVersion() >= kFirstPersistingVersion) {
-        options.insert(QStringLiteral("persist_mode"), kPersistUntilRevoked);
-        const QString token = restoreToken(m_options.restoreTokenKey);
-        if (!token.isEmpty())
-            options.insert(QStringLiteral("restore_token"), token);
-    }
 
     QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kScreenCast,
                                                       QStringLiteral("SelectSources"));
