@@ -37,8 +37,8 @@ private:
     // No-op on X11 and where LayerShellQt is missing.
     void applyLayerShell();
 
-    // X11: map just the shaped border ring around the hole (screen-local) on screen.
-    void showRing(QScreen *screen);
+    // X11: map just the shaped border ring around the region's grabbed pixels on screen.
+    void showRing(QScreen *screen, const QRect &regionVirtual);
 
     QRect m_hole;   // recorded region in widget-local coordinates (screen-local on X11)
     const bool m_x11;

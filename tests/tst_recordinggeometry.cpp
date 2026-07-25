@@ -304,52 +304,104 @@ private slots:
         QCOMPARE(grab.outputPx, QSize(300, 200));
     }
 
-    void x11FrameRingHugsTheHole()
+    void x11FrameRingHugsTheGrab()
     {
-        const QRect screen(0, 0, 2560, 1440);
-        const QRect hole(200, 150, 640, 360);
-        const FrameRing ring = x11FrameRing(hole, screen, 2);
+        const QRect grab(200, 150, 640, 360);
+        const FrameRing ring = x11FrameRing(grab, QSize(2560, 1440), 1.0, 2);
         QVERIFY(ring.valid);
         QCOMPARE(ring.window, QRect(198, 148, 644, 364));
 
-        // The strips are exactly the window minus the hole: no pixel inside it.
+        // The strips are exactly the window minus the grab: no pixel inside it.
         QRegion shape;
         for (const QRect &strip : ring.strips)
             shape += strip;
-        const QRect localHole = hole.translated(-ring.window.topLeft());
-        QCOMPARE(shape, QRegion(QRect(QPoint(0, 0), ring.window.size())) - localHole);
-        QVERIFY(!shape.intersects(localHole));
+        const QRect localGrab = grab.translated(-ring.window.topLeft());
+        QCOMPARE(shape, QRegion(QRect(QPoint(0, 0), ring.window.size())) - localGrab);
         QCOMPARE(shape.boundingRect(), QRect(0, 0, 644, 364));
     }
 
     void x11FrameRingClipsAtTheScreenEdge()
     {
-        // A hole touching the left and top edges keeps only its right and bottom border.
-        const QRect screen(1920, 0, 1920, 1080);
-        const FrameRing ring = x11FrameRing(QRect(1920, 0, 400, 300), screen, 2);
+        // A grab touching the left and top edges keeps only its right and bottom border.
+        const QSize screen(1920, 1080);
+        const FrameRing ring = x11FrameRing(QRect(0, 0, 400, 300), screen, 1.0, 2);
         QVERIFY(ring.valid);
-        QCOMPARE(ring.window, QRect(1920, 0, 402, 302));
+        QCOMPARE(ring.window, QRect(0, 0, 402, 302));
         QRegion shape;
         for (const QRect &strip : ring.strips)
             shape += strip;
         QCOMPARE(shape, QRegion(0, 0, 402, 302) - QRegion(0, 0, 400, 300));
 
-        // A hole spilling off the screen is clamped to it first.
-        const FrameRing spill = x11FrameRing(QRect(3700, 900, 400, 400), screen, 2);
-        QVERIFY(spill.valid);
-        QCOMPARE(spill.window, QRect(3698, 898, 142, 182));
+        // A grab reaching the far edges loses the border there.
+        const FrameRing far = x11FrameRing(QRect(1780, 900, 140, 180), screen, 1.0, 2);
+        QVERIFY(far.valid);
+        QCOMPARE(far.window, QRect(1778, 898, 142, 182));
     }
 
     void x11FrameRingNeverCoversTheScreen()
     {
-        const QRect screen(0, 0, 1920, 1080);
-        QVERIFY(!x11FrameRing(screen, screen, 2).valid);
-        QVERIFY(!x11FrameRing(QRect(1, 1, 1918, 1078), screen, 2).valid);
-        QVERIFY(!x11FrameRing(QRect(4000, 0, 100, 100), screen, 2).valid);
-        QVERIFY(!x11FrameRing(QRect(), screen, 2).valid);
-        QVERIFY(!x11FrameRing(QRect(10, 10, 100, 100), screen, 0).valid);
+        const QSize screen(1920, 1080);
+        QVERIFY(!x11FrameRing(QRect(QPoint(0, 0), screen), screen, 1.0, 2).valid);
+        QVERIFY(!x11FrameRing(QRect(1, 1, 1918, 1078), screen, 1.0, 2).valid);
+        QVERIFY(!x11FrameRing(QRect(), screen, 1.0, 2).valid);
+        QVERIFY(!x11FrameRing(QRect(10, 10, 100, 100), screen, 1.0, 0).valid);
         // One edge with room left is enough for a (partial) ring.
-        QVERIFY(x11FrameRing(QRect(0, 0, 1920, 1000), screen, 2).valid);
+        QVERIFY(x11FrameRing(QRect(0, 0, 1920, 1000), screen, 1.0, 2).valid);
+    }
+
+    void x11FrameRingStaysOutOfTheGrabWhenScaled()
+    {
+        // Xft.dpi 120, 144, 168, 192 and 216 on a 2560x1440 monitor.
+        for (const qreal dpr : {1.25, 1.5, 1.75, 2.0, 2.25}) {
+            const QSize logical(qRound(2560 / dpr), qRound(1440 / dpr));
+            const X11Screen screen{QRect(QPoint(0, 0), logical), dpr};
+            for (int offset = 0; offset < 24; ++offset) {
+                const QRect region(97 + offset, 61 + 3 * offset, 641 - offset, 359 + offset);
+                const X11Grab grab = x11Grab(region, {screen}, true);
+                QVERIFY(grab.valid);
+                const FrameRing ring = x11FrameRing(grab.rootPx, logical, dpr, 2);
+                QVERIFY(ring.valid);
+
+                const QRegion shape = qtNativeShape(ring, dpr);
+                QVERIFY2(!shape.intersects(grab.rootPx),
+                         qPrintable(QStringLiteral("dpr %1 region %2,%3").arg(dpr)
+                                        .arg(region.x()).arg(region.y())));
+                // Every side keeps a visible border, at most one scale step from the grab.
+                const QRect box = shape.boundingRect();
+                const int step = qCeil(dpr);
+                QVERIFY(grab.rootPx.left() - box.left() >= 1);
+                QVERIFY(grab.rootPx.top() - box.top() >= 1);
+                QVERIFY(box.right() - grab.rootPx.right() >= 1);
+                QVERIFY(box.bottom() - grab.rootPx.bottom() >= 1);
+                const QRect touching = grab.rootPx.adjusted(-step, -step, step, step);
+                QVERIFY(shape.intersects(QRect(touching.left(), grab.rootPx.top(),
+                                               step, grab.rootPx.height())));
+                QVERIFY(shape.intersects(QRect(grab.rootPx.right() + 1, grab.rootPx.top(),
+                                               step, grab.rootPx.height())));
+                QVERIFY(shape.intersects(QRect(grab.rootPx.left(), touching.top(),
+                                               grab.rootPx.width(), step)));
+                QVERIFY(shape.intersects(QRect(grab.rootPx.left(), grab.rootPx.bottom() + 1,
+                                               grab.rootPx.width(), step)));
+            }
+        }
+    }
+
+private:
+    // Where Qt 6 puts a shaped top-level in screen pixels: toNativeWindowGeometry rounds
+    // the window's position and size separately, toNativeLocalRegion maps a mask by edges.
+    static QRegion qtNativeShape(const FrameRing &ring, qreal dpr)
+    {
+        const auto px = [dpr](int v) { return qRound(v * dpr); };
+        const QRect window(px(ring.window.x()), px(ring.window.y()),
+                           px(ring.window.width()), px(ring.window.height()));
+        QRegion shape;
+        for (const QRect &strip : ring.strips) {
+            const QRect native(QPoint(px(strip.x()), px(strip.y())),
+                               QPoint(px(strip.x() + strip.width()) - 1,
+                                      px(strip.y() + strip.height()) - 1));
+            shape += native.translated(window.topLeft()).intersected(window);
+        }
+        return shape;
     }
 };
 

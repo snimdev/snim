@@ -6,6 +6,7 @@
 #include <QRect>
 #include <QSize>
 #include <QVector>
+#include <QtMath>
 
 namespace Recording {
 
@@ -203,33 +204,80 @@ inline X11Grab x11Grab(const QRect &regionVirtual, const QVector<X11Screen> &scr
 }
 
 struct FrameRing {
-    QRect window;            // ring window, in the coordinates of the inputs
+    QRect window;            // ring window, screen-local logical
     QVector<QRect> strips;   // the border itself, local to window
     bool  valid = false;
 };
 
+namespace detail {
+
+// One axis of the X11 frame ring, logical: where the window starts, then its leading
+// strip, the hole and the trailing strip.
+struct RingAxis {
+    int start = 0;
+    int lead = 0;
+    int hole = 0;
+    int trail = 0;
+};
+
+// Lays one axis out around the grabbed pixels [first, end) on a screen `length` logical
+// px long. Qt maps a window's position and size each with round(v * dpr), but a mask rect
+// by its edges, so the strips are placed against exactly that.
+inline RingAxis ringAxis(int first, int end, int length, qreal dpr, int border)
+{
+    const auto px = [dpr](int logical) { return qRound(logical * dpr); };
+    RingAxis axis;
+    axis.lead = border;
+    axis.start = qCeil(first / dpr);
+    while (axis.start >= 0 && px(axis.start) + px(axis.lead) > first)
+        --axis.start;
+    if (axis.start < 0) {   // the full border does not fit before the screen edge
+        axis.start = 0;
+        while (axis.lead > 0 && px(axis.lead) > first)
+            --axis.lead;
+    }
+    axis.hole = 1;
+    while (px(axis.start) + px(axis.lead + axis.hole) < end)
+        ++axis.hole;
+    axis.trail = qBound(0, length - (axis.start + axis.lead + axis.hole), border);
+    return axis;
+}
+
+} // namespace detail
+
 /**
- * The X11 recording frame: a window just large enough for a @p borderWidth border
- * around @p hole, clamped to @p screen, and the strips of it the border covers (the
- * window minus the hole, window-local), which the window's shape is cut to. Invalid
- * when no border fits, or when the window would cover the whole screen: window
- * managers unredirect full-screen windows from the compositor. Pure, so it's unit-tested.
+ * The X11 recording frame around @p grabPx, the pixels the recorder reads (x11Grab's
+ * rootPx) local to the screen the frame is drawn on, which is @p screenSize logical at
+ * @p dpr. Returns a window just large enough for a @p borderWidth border, screen-local
+ * logical, and the strips of it the border covers, window-local, which its shape is cut
+ * to. Every strip is placed so that, as Qt maps it to pixels, it ends before the grab
+ * starts and starts after it ends: under fractional scaling the border may leave a pixel
+ * of gap, but never lands inside the recording. Invalid when no border fits, or when the
+ * window would cover the whole screen: window managers unredirect full-screen windows
+ * from the compositor. Pure, so it's unit-tested.
  */
-inline FrameRing x11FrameRing(const QRect &hole, const QRect &screen, int borderWidth)
+inline FrameRing x11FrameRing(const QRect &grabPx, const QSize &screenSize, qreal dpr,
+                              int borderWidth)
 {
     FrameRing out;
-    const QRect inner = hole.intersected(screen);
-    if (inner.isEmpty() || borderWidth <= 0)
+    if (grabPx.isEmpty() || screenSize.isEmpty() || dpr <= 0.0 || borderWidth <= 0)
         return out;
 
-    const QRect window = inner.adjusted(-borderWidth, -borderWidth, borderWidth, borderWidth)
-                             .intersected(screen);
-    if (window == inner || window == screen)
+    const detail::RingAxis x = detail::ringAxis(grabPx.left(), grabPx.left() + grabPx.width(),
+                                                screenSize.width(), dpr, borderWidth);
+    const detail::RingAxis y = detail::ringAxis(grabPx.top(), grabPx.top() + grabPx.height(),
+                                                screenSize.height(), dpr, borderWidth);
+    const QRect window(x.start, y.start,
+                       qMin(x.lead + x.hole + x.trail, screenSize.width() - x.start),
+                       qMin(y.lead + y.hole + y.trail, screenSize.height() - y.start));
+    if (window.isEmpty() || window == QRect(QPoint(0, 0), screenSize))
         return out;
 
-    out.window = window;
     out.strips = surroundingRects(QRect(QPoint(0, 0), window.size()),
-                                  inner.translated(-window.topLeft()));
+                                  QRect(x.lead, y.lead, x.hole, y.hole));
+    if (out.strips.isEmpty())
+        return out;
+    out.window = window;
     out.valid = true;
     return out;
 }

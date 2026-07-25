@@ -59,7 +59,7 @@ void RecordingFrameOverlay::showForRegion(const QRect &regionVirtual)
     if (m_hole.isEmpty())
         return;
     if (m_x11) {
-        showRing(screen);
+        showRing(screen, regionVirtual);
         return;
     }
 
@@ -76,12 +76,20 @@ void RecordingFrameOverlay::showForRegion(const QRect &regionVirtual)
     update();
 }
 
-void RecordingFrameOverlay::showRing(QScreen *screen)
+void RecordingFrameOverlay::showRing(QScreen *screen, const QRect &regionVirtual)
 {
     // Border only: the dim needs a full-screen window, which xfwm4 frames to eat clicks.
-    const QRect screenGeo = screen->geometry();
-    const FrameRing ring = x11FrameRing(m_hole, QRect(QPoint(0, 0), screenGeo.size()),
-                                        kBorderWidth);
+    // It goes around the very pixels the X11 recorder reads, so it rounds as they do.
+    QVector<X11Screen> screens;
+    const QList<QScreen *> all = QGuiApplication::screens();
+    for (const QScreen *each : all)
+        screens.append(X11Screen{each->geometry(), each->devicePixelRatio()});
+    const X11Screen here{screen->geometry(), screen->devicePixelRatio()};
+    const QRect grabPx = x11Grab(regionVirtual, screens, true)
+                             .rootPx.intersected(Screen::X11ScreenMap::nativeRect(here))
+                             .translated(-here.geometry.topLeft());
+    const QRect screenGeo = here.geometry;
+    const FrameRing ring = x11FrameRing(grabPx, screenGeo.size(), here.dpr, kBorderWidth);
     if (!ring.valid)
         return;
 
