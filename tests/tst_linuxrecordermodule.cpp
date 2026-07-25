@@ -1,5 +1,7 @@
 #include <QtTest>
 #include <QLibrary>
+#include <QTemporaryDir>
+#include <algorithm>
 #include <memory>
 
 #include "recording/RecordingFactory.h"
@@ -102,28 +104,54 @@ private slots:
         QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Linux);
     }
 
-    // Last two: once the real module is loaded it stays loaded, whatever the variable says.
-    void missingPiecesAgreeWithAvailability()
+    // Last two: once the real module is loaded it stays loaded, and GStreamer keeps the
+    // registry it started with, whatever the variables say.
+    void aHostWithoutPluginsIsToldWhatToInstall()
     {
+        // GStreamer itself, but none of its plugins: an empty registry and no plugin paths.
+        QTemporaryDir registry;
+        QVERIFY(registry.isValid());
+        qputenv("GST_REGISTRY_1_0", registry.filePath(QStringLiteral("registry.bin")).toUtf8());
+        qputenv("GST_PLUGIN_SYSTEM_PATH_1_0", "");
+        qputenv("GST_PLUGIN_PATH_1_0", "");
         qputenv("SNIM_RECORDER_MODULE", SNIM_RECORDER_MODULE_PATH);
+
         const QStringList missing = LinuxRecorderModule::missingPieces();
-        qInfo() << "Missing here:" << missing;
-        QCOMPARE(missing.isEmpty(), LinuxRecorderModule::isAvailable());
+        qInfo() << "Missing without plugins:" << missing;
+        const auto names = [&missing](const QString &needle) {
+            return std::any_of(missing.cbegin(), missing.cend(), [&needle](const QString &piece) {
+                return piece.contains(needle);
+            });
+        };
+        // Named with the packages that ship them, encoder included.
+        QVERIFY(names(QStringLiteral("mp4mux")));
+        QVERIFY(names(QStringLiteral("gstreamer1.0-plugins-good")));
+        QVERIFY(names(QStringLiteral("an H.264 encoder")));
+
+        // Every way in agrees: the module, a strategy of its own and the factory's stub.
+        QCOMPARE(LinuxRecorderModule::missingPieces(), missing);
+        QVERIFY(!LinuxRecorderModule::isAvailable());
+        const std::unique_ptr<RecordingStrategy> strategy(LinuxRecorderModule::create());
+        QVERIFY(strategy);
+        QVERIFY(!strategy->isAvailable());
+        QCOMPARE(RecordingFactory::createStrategy(RecordingFactory::StrategyType::Linux)->name(),
+                 QStringLiteral("Unsupported"));
     }
 
-    // Whatever this host has installed: only how the answer is shaped is checked.
-    void theElementCheckSplitsFoundFromMissing()
+    // Still without plugins: the self-test's check finds nothing and names what is missing.
+    void theElementCheckNamesWhatIsMissing()
     {
-        qputenv("SNIM_RECORDER_MODULE", SNIM_RECORDER_MODULE_PATH);
         const LinuxRecorderModule::ElementCheck check = LinuxRecorderModule::checkElements();
         qInfo() << "Found:" << check.found << "missing:" << check.missing;
-        QVERIFY(!check.found.isEmpty() || !check.missing.isEmpty());
+        QVERIFY(check.found.isEmpty());
+        const auto names = [&check](const QString &needle) {
+            return std::any_of(check.missing.cbegin(), check.missing.cend(),
+                               [&needle](const QString &piece) { return piece.contains(needle); });
+        };
         // Offscreen is no X11 session, so the PipeWire source and the frame grab are checked.
-        if (check.missing.isEmpty()) {
-            QVERIFY(check.found.contains(QStringLiteral("pipewiresrc")));
-            QVERIFY(check.found.contains(QStringLiteral("appsink")));
-            QVERIFY(!check.found.contains(QStringLiteral("ximagesrc")));
-        }
+        QVERIFY(names(QStringLiteral("pipewiresrc")));
+        QVERIFY(names(QStringLiteral("appsink")));
+        QVERIFY(names(QStringLiteral("an H.264 encoder")));
     }
 };
 
