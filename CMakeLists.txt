@@ -345,6 +345,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# Optional XCB - the X11 window picker. Qt's xcb platform plugin needs libxcb at
+# runtime anyway; without its headers the picker falls back to whole screens.
+set(XCB_AVAILABLE FALSE)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PkgConfig_FOUND)
+    pkg_check_modules(XCB IMPORTED_TARGET xcb)
+    if(XCB_FOUND)
+        set(XCB_AVAILABLE TRUE)
+        message(STATUS "XCB found - enabling the X11 window picker")
+        message(STATUS "  Version: ${XCB_VERSION}")
+    else()
+        message(STATUS "XCB not found - the X11 window picker falls back to screens")
+        message(STATUS "  Install with: sudo apt install libxcb1-dev / sudo dnf install libxcb-devel")
+    endif()
+endif()
+
 # Optional native Wayland screencopy (ext-image-copy-capture, wlr-screencopy): instant,
 # prompt-free captures on wlroots-family compositors. The protocol XMLs are vendored, so
 # only libwayland-client and wayland-scanner are needed.
@@ -732,6 +748,16 @@ elseif(WIN32)
             src/core/KeychainStore_win.cpp
             src/core/SingleInstance.h
             src/core/SingleInstance_win.cpp)
+elseif(XCB_AVAILABLE)
+    target_sources(snim_lib PRIVATE
+            # The window manager's client list over Qt's own XCB connection
+            src/screen/WindowEnumerator_x11.cpp
+            src/screen/X11WindowFilter.h
+            src/screen/X11Windows.cpp
+            src/screen/X11Windows.h
+            src/screen/OverlayWindows_stub.cpp
+            src/core/KeychainStore_stub.cpp)
+    target_link_libraries(snim_lib PRIVATE PkgConfig::XCB)
 else()
     target_sources(snim_lib PRIVATE
             src/screen/WindowEnumerator_stub.cpp

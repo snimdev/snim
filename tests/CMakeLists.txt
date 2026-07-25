@@ -28,6 +28,7 @@ set(SNIM_TESTS
         tst_winscreenmap
         tst_x11screenmap
         tst_winwindowfilter
+        tst_x11windowfilter
         tst_mixeddpicapture
         tst_frozenframegrabber
         tst_ocrservice
