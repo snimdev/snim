@@ -324,6 +324,29 @@ private slots:
         QCOMPARE(grab.outputPx, QSize(300, 200));
     }
 
+    void x11WindowKeepsItsFrameAndDropsTheRest()
+    {
+        // A 530x354 frame window with 10 px invisible borders around a 510x334 window.
+        const X11WindowGrab grab = x11WindowGrab(QSize(530, 354), QMargins(10, 10, 10, 10),
+                                                 QSize(408, 267), true);
+        QVERIFY(grab.valid);
+        QCOMPARE(grab.cropPx, QMargins(10, 10, 10, 10));
+        QCOMPARE(grab.outputPx, QSize(510, 334));
+        // Logical size at 1.25 without retinaCapture, evened out.
+        QCOMPARE(x11WindowGrab(QSize(530, 354), QMargins(10, 10, 10, 10), QSize(408, 267),
+                               false).outputPx,
+                 QSize(408, 266));
+    }
+
+    void x11WindowEvensOutOddSizesByCropping()
+    {
+        const X11WindowGrab grab = x11WindowGrab(QSize(501, 301), QMargins(), QSize(), true);
+        QVERIFY(grab.valid);
+        QCOMPARE(grab.cropPx, QMargins(0, 0, 1, 1));
+        QCOMPARE(grab.outputPx, QSize(500, 300));
+        QVERIFY(!x11WindowGrab(QSize(20, 20), QMargins(10, 10, 10, 10), QSize(), true).valid);
+    }
+
     void x11FrameRingHugsTheGrab()
     {
         const QRect grab(200, 150, 640, 360);

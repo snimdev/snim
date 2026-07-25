@@ -1,9 +1,13 @@
 #ifndef SCREEN_X11WINDOWS_H
 #define SCREEN_X11WINDOWS_H
 
+#include <QMargins>
 #include <QRect>
+#include <QSize>
 #include <QVector>
 #include <QtGlobal>
+
+#include <optional>
 
 namespace Screen::X11Windows {
 
@@ -18,6 +22,21 @@ struct Window {
 
 // The windows the picker offers, topmost first.
 [[nodiscard]] QVector<Window> pickableWindows();
+
+// What recording a client window reads: the top-level holding it, its frame where the
+// window manager adds one, so the decorations are recorded too.
+struct Capture {
+    quint64 window = 0;   // the top-level to read
+    QSize size;           // its size
+    QMargins crop;        // what of it is not the window: invisible borders, a drawn shadow
+};
+
+// Nothing when the client is gone or not shown.
+[[nodiscard]] std::optional<Capture> capture(quint64 client);
+
+// Whether the client is still open: listed by the window manager, which drops it once
+// its program closes or withdraws it (a minimized window stays), or alive without one.
+[[nodiscard]] bool isOpen(quint64 client);
 
 } // namespace Screen::X11Windows
 

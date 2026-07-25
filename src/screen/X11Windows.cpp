@@ -183,6 +183,30 @@ X11WindowFilter::Candidate collect(xcb_connection_t *c, const Pending &p, const 
     return w;
 }
 
+xcb_atom_t atom(xcb_connection_t *c, const char *name)
+{
+    xcb_generic_error_t *error = nullptr;
+    const auto reply = take(xcb_intern_atom_reply(
+                                c, xcb_intern_atom(c, 1, std::strlen(name), name), &error),
+                            error);
+    return reply ? reply->atom : XCB_ATOM_NONE;
+}
+
+// The window's place on the root window; null when it is gone.
+QRect rootRect(xcb_connection_t *c, xcb_window_t window, xcb_window_t root)
+{
+    const xcb_get_geometry_cookie_t geometryCookie = xcb_get_geometry(c, window);
+    const xcb_translate_coordinates_cookie_t originCookie =
+        xcb_translate_coordinates(c, window, root, 0, 0);
+    xcb_generic_error_t *error = nullptr;
+    const auto geometry = take(xcb_get_geometry_reply(c, geometryCookie, &error), error);
+    error = nullptr;
+    const auto origin = take(xcb_translate_coordinates_reply(c, originCookie, &error), error);
+    if (!geometry || !origin)
+        return {};
+    return {origin->dst_x, origin->dst_y, geometry->width, geometry->height};
+}
+
 } // namespace
 
 QVector<Window> pickableWindows()
@@ -212,6 +236,50 @@ QVector<Window> pickableWindows()
             pickable.append(Window{p.window, w.bounds});
     }
     return pickable;
+}
+
+std::optional<Capture> capture(quint64 client)
+{
+    xcb_connection_t *c = connection();
+    if (!c || xcb_connection_has_error(c))
+        return std::nullopt;
+    const xcb_window_t root = rootWindow(c);
+
+    // The client's ancestor right below the root: what the window manager stacks.
+    xcb_window_t top = xcb_window_t(client);
+    for (int depth = 0; depth < 8; ++depth) {
+        xcb_generic_error_t *error = nullptr;
+        const auto tree = take(xcb_query_tree_reply(c, xcb_query_tree(c, top), &error), error);
+        if (!tree)
+            return std::nullopt;
+        if (tree->parent == root || tree->parent == XCB_WINDOW_NONE)
+            break;
+        top = tree->parent;
+    }
+
+    const Atoms atoms = internAtoms(c);
+    const X11WindowFilter::Candidate window =
+        collect(c, request(c, xcb_window_t(client), root, atoms), atoms);
+    const QRect topRect = rootRect(c, top, root);
+    if (!window.viewable || window.bounds.isEmpty() || topRect.isEmpty())
+        return std::nullopt;
+    return Capture{top, topRect.size(), X11WindowFilter::cropMargins(topRect, window.bounds)};
+}
+
+bool isOpen(quint64 client)
+{
+    xcb_connection_t *c = connection();
+    if (!c || xcb_connection_has_error(c))
+        return false;
+    const QVector<quint32> clients =
+        windowList(c, rootWindow(c), atom(c, "_NET_CLIENT_LIST"));
+    if (!clients.isEmpty())
+        return clients.contains(quint32(client));
+    xcb_generic_error_t *error = nullptr;
+    return take(xcb_get_window_attributes_reply(
+                    c, xcb_get_window_attributes(c, xcb_window_t(client)), &error),
+                error)
+           != nullptr;
 }
 
 } // namespace Screen::X11Windows

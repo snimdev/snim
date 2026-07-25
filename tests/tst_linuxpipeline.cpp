@@ -81,6 +81,18 @@ private slots:
                                              "endx=3839 endy=1079")));
     }
 
+    void aWindowSourceFollowsTheWindowById()
+    {
+        // No start or end: ximagesrc then reads the whole window and tracks its size.
+        QCOMPARE(x11WindowSource(0x2019fd, true, 30),
+                 QStringLiteral("ximagesrc name=src xid=2103805 use-damage=false "
+                                "show-pointer=true ! video/x-raw,framerate=30/1"));
+        const QString chain = videoChain(x11WindowSource(42, false, 60), 60,
+                                         QStringLiteral("x264enc"), QStringLiteral("mp4mux"));
+        QVERIFY(chain.contains(QStringLiteral("! videocrop name=crop ! videoscale ")));
+        QVERIFY(chain.contains(QStringLiteral("capsfilter name=outcaps")));
+    }
+
     void bothSourcesShareTheChain()
     {
         const QString x11 = videoChain(x11Source(QRect(0, 0, 64, 64), true, 30), 30,

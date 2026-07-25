@@ -345,18 +345,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
-# Optional XCB - the X11 window picker. Qt's xcb platform plugin needs libxcb at
-# runtime anyway; without its headers the picker falls back to whole screens.
+# Optional XCB - the X11 window picker and window recording. Qt's xcb platform plugin
+# needs libxcb at runtime anyway; without its headers both fall back to whole screens.
 set(XCB_AVAILABLE FALSE)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PkgConfig_FOUND)
     pkg_check_modules(XCB IMPORTED_TARGET xcb)
     if(XCB_FOUND)
         set(XCB_AVAILABLE TRUE)
-        message(STATUS "XCB found - enabling the X11 window picker")
+        message(STATUS "XCB found - enabling the X11 window picker and window recording")
         message(STATUS "  Version: ${XCB_VERSION}")
     else()
-        message(STATUS "XCB not found - the X11 window picker falls back to screens")
+        message(STATUS "XCB not found - X11 window picking and recording fall back to screens")
         message(STATUS "  Install with: sudo apt install libxcb1-dev / sudo dnf install libxcb-devel")
     endif()
 endif()
@@ -897,6 +897,15 @@ if(GSTREAMER_AVAILABLE)
             Qt::Gui
             Qt::DBus
             ${GSTREAMER_LIBRARIES})
+    if(XCB_AVAILABLE)
+        # Window recording reads the picked window by id, through the picker's own queries.
+        target_sources(snim_recorder_linux PRIVATE
+                src/screen/X11WindowFilter.h
+                src/screen/X11Windows.cpp
+                src/screen/X11Windows.h)
+        target_link_libraries(snim_recorder_linux PRIVATE PkgConfig::XCB)
+        target_compile_definitions(snim_recorder_linux PRIVATE SNIM_HAVE_XCB)
+    endif()
     # RecordingStrategy stays undefined in the module and binds to the loading binary at
     # dlopen time, which needs that binary's own symbols in its dynamic table.
     set_target_properties(Snim PROPERTIES ENABLE_EXPORTS ON)

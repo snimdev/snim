@@ -32,8 +32,9 @@ struct StrategyLink;
 
 /**
  * Linux recording backend: a GStreamer pipeline that encodes the selection to H.264.
- * In an X11 session ximagesrc reads it straight off the root window; elsewhere an
- * xdg-desktop-portal ScreenCast stream is cropped down to it. The header stays free of
+ * In an X11 session ximagesrc reads it straight off the root window, or reads the picked
+ * window by its id; elsewhere an xdg-desktop-portal ScreenCast stream is cropped down to
+ * it, or is the window the portal's picker chose. The header stays free of
  * GStreamer headers, so the rest of the codebase includes this like any other class;
  * everything else lives in the .cpp.
  */
@@ -57,11 +58,7 @@ public:
     // For `snim --self-test`: the elements this session's recording and ScreenCast
     // screenshots need, without asking the portal. `found` ends with the encoder.
     static void checkElements(QStringList *found, QStringList *missing);
-    [[nodiscard]] WindowCapture windowCapture() const override
-    {
-        return m_source == LinuxPipeline::VideoSource::Portal ? WindowCapture::SystemPicked
-                                                              : WindowCapture::Alone;
-    }
+    [[nodiscard]] WindowCapture windowCapture() const override;
     [[nodiscard]] QString name() const override
     {
         return m_source == LinuxPipeline::VideoSource::X11 ? QStringLiteral("X11/GStreamer")
@@ -81,6 +78,7 @@ private:
     void handleSessionClosed();
 
     void startX11();
+    void startX11Window();
     bool buildPipeline(quint32 nodeId, QString *error);
     void configurePortalSource(GstElement *src, GstElement *crop, GstElement *outcaps,
                                quint32 nodeId);
@@ -105,9 +103,12 @@ private:
     QTimer *m_durationTimer = nullptr;
     QTimer *m_firstFrameTimer = nullptr;
     QTimer *m_eosTimer = nullptr;
+    QTimer *m_windowWatch = nullptr;
 
     const LinuxPipeline::VideoSource m_source;
     X11Grab m_x11Grab;
+    quint64 m_x11Window = 0;   // the top-level read for a window recording, else 0
+    X11WindowGrab m_x11WindowGrab;
 
     RecordTarget m_target;
     QString m_outputPath;

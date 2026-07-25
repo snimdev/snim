@@ -7,6 +7,9 @@
 #include "recording/strategies/LinuxRecorderModule.h"
 #include "screen/ScreenCastPortalSession.h"
 #include "screen/sources/DesktopFrameSource.h"
+#ifdef SNIM_HAVE_XCB
+#include "screen/X11Windows.h"
+#endif
 
 #include <gst/gst.h>
 
@@ -28,6 +31,7 @@ namespace Recording {
 namespace {
 
 constexpr int kDurationIntervalMs = 250;
+constexpr int kWindowWatchMs = 500;
 constexpr int kEosTimeoutMs = 5000;
 // Past this a pipeline still shutting down is stuck, not writing, so its outcome is reported.
 constexpr int kReleaseGraceMs = 2000;
@@ -400,6 +404,18 @@ LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent)
                 "(xdg-desktop-portal and its backend for this desktop) is working."));
     });
 
+    // ximagesrc keeps sending the last picture of a window that is gone.
+    m_windowWatch = new QTimer(this);
+    m_windowWatch->setInterval(kWindowWatchMs);
+    connect(m_windowWatch, &QTimer::timeout, this, [this] {
+#ifdef SNIM_HAVE_XCB
+        if (Screen::X11Windows::isOpen(m_target.windowId))
+            return;
+        qInfo() << "Recording: the recorded window closed";
+        stop();
+#endif
+    });
+
     m_eosTimer = new QTimer(this);
     m_eosTimer->setSingleShot(true);
     m_eosTimer->setInterval(kEosTimeoutMs);
@@ -416,6 +432,17 @@ LinuxRecordingStrategy::~LinuxRecordingStrategy()
         m_life->strategy = nullptr;
     }
     teardown();
+}
+
+RecordingStrategy::WindowCapture LinuxRecordingStrategy::windowCapture() const
+{
+    if (m_source == LinuxPipeline::VideoSource::Portal)
+        return WindowCapture::SystemPicked;
+#ifdef SNIM_HAVE_XCB
+    return WindowCapture::Alone;
+#else
+    return WindowCapture::WithOverlays;   // no window ids: the picked window's area
+#endif
 }
 
 bool LinuxRecordingStrategy::isAvailable() const
@@ -509,6 +536,11 @@ void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &ou
 
 void LinuxRecordingStrategy::startX11()
 {
+    if (m_target.kind == RecordTarget::Kind::Window && m_target.windowId != 0) {
+        startX11Window();
+        return;
+    }
+
     m_x11Grab = x11Grab(m_target.regionVirtual, x11Screens(), m_target.retinaCapture);
     if (!m_x11Grab.valid) {
         teardown();
@@ -525,6 +557,36 @@ void LinuxRecordingStrategy::startX11()
         return;
     }
     startPipeline();
+}
+
+void LinuxRecordingStrategy::startX11Window()
+{
+#ifdef SNIM_HAVE_XCB
+    const std::optional<Screen::X11Windows::Capture> capture =
+        Screen::X11Windows::capture(m_target.windowId);
+    m_x11WindowGrab = capture ? x11WindowGrab(capture->size, capture->crop,
+                                              m_target.regionVirtual.size(),
+                                              m_target.retinaCapture)
+                              : X11WindowGrab{};
+    if (!m_x11WindowGrab.valid) {
+        teardown();
+        emit failed(tr("The window to record is no longer open."));
+        return;
+    }
+    m_x11Window = capture->window;
+    qInfo() << "Recording: reading X11 window" << Qt::hex << Qt::showbase << m_x11Window
+            << Qt::dec << Qt::noshowbase << capture->size << "cropped by"
+            << m_x11WindowGrab.cropPx << "into" << m_x11WindowGrab.outputPx;
+
+    QString error;
+    if (!buildPipeline(0, &error)) {
+        teardown();
+        emit failed(error);
+        return;
+    }
+    m_windowWatch->start();
+    startPipeline();
+#endif
 }
 
 void LinuxRecordingStrategy::stop()
@@ -687,9 +749,14 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
                         ? QStringLiteral("qtmux") : QStringLiteral("mp4mux");
 
     const bool x11 = m_source == LinuxPipeline::VideoSource::X11;
-    const QString source = x11 ? LinuxPipeline::x11Source(m_x11Grab.rootPx,
-                                                          m_target.captureCursor, m_target.fps)
-                               : LinuxPipeline::portalSource();
+    QString source = LinuxPipeline::portalSource();
+    if (x11 && m_x11Window != 0) {
+        source = LinuxPipeline::x11WindowSource(m_x11Window, m_target.captureCursor,
+                                                m_target.fps);
+    } else if (x11) {
+        source = LinuxPipeline::x11Source(m_x11Grab.rootPx, m_target.captureCursor,
+                                          m_target.fps);
+    }
     QString description = LinuxPipeline::videoChain(source, m_target.fps, encoder, mux);
 
     if (m_target.captureMic || m_target.captureSystemAudio) {
@@ -766,7 +833,12 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         gst_object_unref(micsrc);
     }
 
-    if (x11) {
+    if (x11 && m_x11Window != 0) {
+        const QMargins &cropPx = m_x11WindowGrab.cropPx;
+        g_object_set(crop, "left", cropPx.left(), "top", cropPx.top(), "right", cropPx.right(),
+                     "bottom", cropPx.bottom(), nullptr);
+        setOutputCaps(outcaps, m_x11WindowGrab.outputPx);
+    } else if (x11) {
         // ximagesrc stamps running time itself and grabs just the area, so no probes.
         setOutputCaps(outcaps, m_x11Grab.outputPx);
     } else {
@@ -898,6 +970,8 @@ void LinuxRecordingStrategy::teardown(Output output, std::function<void()> then)
     m_durationTimer->stop();
     m_firstFrameTimer->stop();
     m_eosTimer->stop();
+    m_windowWatch->stop();
+    m_x11Window = 0;
 
     for (GstPad *pad : std::as_const(m_valvePads))
         gst_object_unref(pad);

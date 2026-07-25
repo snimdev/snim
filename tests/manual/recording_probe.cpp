@@ -10,13 +10,15 @@
 
 #include "recording/RecordingFrameOverlay.h"
 #include "recording/strategies/LinuxRecorderModule.h"
+#include "screen/WindowEnumerator.h"
 
 // Manual check, not a ctest: records an area through the real recorder (the portal, or
 // ximagesrc in an X11 session).
 // Usage: snim_recording_probe <out.mp4> [seconds] [pause-at-seconds pause-length]
 // SNIM_PROBE_AUDIO=1 records system audio too. SNIM_PROBE_AREA picks what to record:
 // "x,y,w,h" in logical coordinates, "full" for the whole desktop, "screen:N", "window"
-// for the one the portal's picker chooses or "window:<X11 id>".
+// for the one the portal's picker chooses, "window:<X11 id>" or "window:top" for the
+// topmost one the window picker offers.
 // SNIM_PROBE_FRAME=1 shows the recording frame overlay while capturing, like the app.
 // SNIM_PROBE_STOP_MS=n stops n ms after start, first frame or not.
 int main(int argc, char *argv[])
@@ -136,8 +138,19 @@ int main(int argc, char *argv[])
     if (spec.startsWith(QLatin1String("window"))) {
         target.kind = Recording::RecordTarget::Kind::Window;
         target.windowId = spec.mid(7).toULongLong(nullptr, 0);
-        target.systemPicker = target.windowId == 0;
         area = QRect();
+        if (spec == QLatin1String("window:top")) {
+            const QVector<Screen::WindowInfo> windows = Screen::enumerateWindowInfos();
+            for (const Screen::WindowInfo &w : windows) {
+                std::fprintf(stderr, "probe: window 0x%llx at %d,%d %dx%d\n", w.id, w.rect.x(),
+                             w.rect.y(), w.rect.width(), w.rect.height());
+            }
+            if (!windows.isEmpty()) {
+                target.windowId = windows.first().id;
+                area = windows.first().rect;
+            }
+        }
+        target.systemPicker = target.windowId == 0;
     }
     std::fprintf(stderr, "probe: %s recording %d,%d %dx%d window 0x%llx\n",
                  qPrintable(recorder->name()), area.x(), area.y(), area.width(), area.height(),

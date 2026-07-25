@@ -3,6 +3,7 @@
 
 #include "screen/X11ScreenMap.h"
 
+#include <QMargins>
 #include <QRect>
 #include <QSize>
 #include <QVector>
@@ -213,6 +214,39 @@ inline X11Grab x11Grab(const QRect &regionVirtual, const QVector<X11Screen> &scr
 
     out.rootPx = rootPx;
     out.outputPx = outputPx;
+    out.valid = true;
+    return out;
+}
+
+struct X11WindowGrab {
+    QMargins cropPx;   // what to crop off the recorded top-level window
+    QSize outputPx;    // final encoded size
+    bool  valid = false;
+};
+
+/**
+ * Recording one X11 window: crop the top-level that holds it, @p windowPx, by @p cropPx
+ * down to the window itself, and encode the window's own pixels or, without
+ * retinaCapture, its @p logical size. One more pixel comes off the right or bottom where
+ * H.264 4:2:0 needs even sizes. Margins stay put as the window resizes, so they hold for
+ * the whole recording. Pure, so it's unit-tested.
+ */
+inline X11WindowGrab x11WindowGrab(const QSize &windowPx, const QMargins &cropPx,
+                                   const QSize &logical, bool retinaCapture)
+{
+    X11WindowGrab out;
+    const QSize kept(windowPx.width() - cropPx.left() - cropPx.right(),
+                     windowPx.height() - cropPx.top() - cropPx.bottom());
+    if (kept.width() < 2 || kept.height() < 2)
+        return out;
+
+    QSize output = retinaCapture || logical.isEmpty() ? kept : logical;
+    output = QSize(output.width() & ~1, output.height() & ~1);
+    if (output.width() < 2 || output.height() < 2)
+        return out;
+
+    out.cropPx = cropPx + QMargins(0, 0, kept.width() & 1, kept.height() & 1);
+    out.outputPx = output;
     out.valid = true;
     return out;
 }

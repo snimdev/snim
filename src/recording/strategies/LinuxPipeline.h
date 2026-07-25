@@ -81,6 +81,17 @@ enum class VideoSource { Portal, X11 };
         .arg(fps);
 }
 
+// One window by its X id, wherever it moves: ximagesrc reads it window-relative and
+// renegotiates as it resizes, and the pinned output caps scale every size to the first.
+[[nodiscard]] inline QString x11WindowSource(quint64 xid, bool showPointer, int fps)
+{
+    return QStringLiteral("ximagesrc name=src xid=%1 use-damage=false show-pointer=%2 "
+                          "! video/x-raw,framerate=%3/1")
+        .arg(xid)
+        .arg(showPointer ? QStringLiteral("true") : QStringLiteral("false"))
+        .arg(fps);
+}
+
 // The source, then everything shared: pause valve, rate cap, crop and scale, encoder, muxer.
 [[nodiscard]] inline QString videoChain(const QString &source, int fps, const QString &encoder,
                                         const QString &mux)
