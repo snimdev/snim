@@ -26,6 +26,7 @@ set(SNIM_TESTS
         tst_screencaststitch
         tst_screencopygeometry
         tst_winscreenmap
+        tst_x11screenmap
         tst_winwindowfilter
         tst_mixeddpicapture
         tst_frozenframegrabber

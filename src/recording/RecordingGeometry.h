@@ -1,6 +1,8 @@
 #ifndef RECORDING_RECORDINGGEOMETRY_H
 #define RECORDING_RECORDINGGEOMETRY_H
 
+#include "screen/X11ScreenMap.h"
+
 #include <QRect>
 #include <QSize>
 #include <QVector>
@@ -57,7 +59,8 @@ struct StreamCrop {
  * where to crop inside the stream's pixel buffer, and how large the encoded output
  * should be. `streamRectLogical` is the stream's place on the virtual desktop and
  * `streamSizePx` its real buffer size, so their ratio is the compositor's scale
- * (fractional under Wayland, 1.0 on X11 portals). Both sizes are rounded down to even
+ * (fractional under Wayland; on X11 the screen's Qt scale, once the root-window rect the
+ * portal reports is mapped to logical). Both sizes are rounded down to even
  * because H.264 4:2:0 cannot encode odd dimensions. Pure, so it's unit-tested without
  * a portal or GStreamer.
  */
@@ -143,10 +146,7 @@ inline QRect resolveStreamRect(const QSize &capsPx,
     return {};
 }
 
-struct X11Screen {
-    QRect geometry;   // QScreen::geometry(), logical
-    qreal dpr = 1.0;  // QScreen::devicePixelRatio()
-};
+using X11Screen = Screen::X11ScreenMap::Screen;
 
 struct X11Grab {
     QRect rootPx;     // area of the X11 root window to read, in physical pixels
@@ -155,10 +155,9 @@ struct X11Grab {
 };
 
 /**
- * Map a virtual-desktop logical rect onto the X11 root window for ximagesrc. Qt's xcb
- * scaling keeps each screen's top-left at its native position and scales only sizes and
- * offsets within it, so every screen the rect touches maps its own piece with its own
- * ratio and the grab is their bounding box. Without retinaCapture the output keeps the
+ * Map a virtual-desktop logical rect onto the X11 root window for ximagesrc, the forward
+ * direction of Screen::X11ScreenMap: every screen the rect touches maps its own piece
+ * with its own ratio and the grab is their bounding box. Without retinaCapture the output keeps the
  * logical size. Sizes round down to even for H.264 4:2:0. Pure, so it's unit-tested.
  */
 inline X11Grab x11Grab(const QRect &regionVirtual, const QVector<X11Screen> &screens,
@@ -179,10 +178,8 @@ inline X11Grab x11Grab(const QRect &regionVirtual, const QVector<X11Screen> &scr
         const int top = qRound(local.top() * screen.dpr);
         const int right = qRound((local.left() + local.width()) * screen.dpr);
         const int bottom = qRound((local.top() + local.height()) * screen.dpr);
-        const QRect screenPx(origin, QSize(qRound(screen.geometry.width() * screen.dpr),
-                                           qRound(screen.geometry.height() * screen.dpr)));
         const QRect piece = QRect(origin + QPoint(left, top), QSize(right - left, bottom - top))
-                                .intersected(screenPx);
+                                .intersected(Screen::X11ScreenMap::nativeRect(screen));
         if (piece.isEmpty())
             continue;
         rootPx = rootPx.united(piece);
