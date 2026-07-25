@@ -15,7 +15,8 @@
 // ximagesrc in an X11 session).
 // Usage: snim_recording_probe <out.mp4> [seconds] [pause-at-seconds pause-length]
 // SNIM_PROBE_AUDIO=1 records system audio too. SNIM_PROBE_AREA picks what to record:
-// "x,y,w,h" in logical coordinates, "full" for the whole desktop or "screen:N".
+// "x,y,w,h" in logical coordinates, "full" for the whole desktop, "screen:N", "window"
+// for the one the portal's picker chooses or "window:<X11 id>".
 // SNIM_PROBE_FRAME=1 shows the recording frame overlay while capturing, like the app.
 // SNIM_PROBE_STOP_MS=n stops n ms after start, first frame or not.
 int main(int argc, char *argv[])
@@ -131,10 +132,16 @@ int main(int argc, char *argv[])
     } else if (const QStringList parts = spec.split(QLatin1Char(',')); parts.size() == 4) {
         area = QRect(parts[0].toInt(), parts[1].toInt(), parts[2].toInt(), parts[3].toInt());
     }
-    std::fprintf(stderr, "probe: %s recording %d,%d %dx%d\n", qPrintable(recorder->name()),
-                 area.x(), area.y(), area.width(), area.height());
-
     Recording::RecordTarget target;
+    if (spec.startsWith(QLatin1String("window"))) {
+        target.kind = Recording::RecordTarget::Kind::Window;
+        target.windowId = spec.mid(7).toULongLong(nullptr, 0);
+        target.systemPicker = target.windowId == 0;
+        area = QRect();
+    }
+    std::fprintf(stderr, "probe: %s recording %d,%d %dx%d window 0x%llx\n",
+                 qPrintable(recorder->name()), area.x(), area.y(), area.width(), area.height(),
+                 target.windowId);
     target.regionVirtual = area;
     target.fps = 30;
     target.captureCursor = qEnvironmentVariableIsSet("SNIM_PROBE_CURSOR");

@@ -143,6 +143,7 @@ struct CallbackContext {
 
 struct CropContext {
     std::shared_ptr<StrategyLink> link;
+    bool wholeStream = false;        // a window stream: keep all of it
     QRect regionVirtual;
     QRect streamRect;                // null when the portal sent no geometry
     QVector<StreamSource> screens;
@@ -233,13 +234,16 @@ GstPadProbeReturn onCapsEvent(GstPad *pad, GstPadProbeInfo *info, gpointer data)
     QRect streamRect = ctx->streamRect;
     // KDE reports monitor shares in output-local coordinates (position 0,0 for any
     // monitor), so a rect that misses the selection is repositioned by inference too.
-    if (streamRect.isEmpty() || !streamRect.intersects(ctx->regionVirtual)) {
+    if (!ctx->wholeStream
+        && (streamRect.isEmpty() || !streamRect.intersects(ctx->regionVirtual))) {
         streamRect = resolveStreamRect(capsPx, ctx->screens, ctx->virtualDesktop,
                                        ctx->regionVirtual);
     }
 
-    const StreamCrop crop = portalStreamCrop(ctx->regionVirtual, streamRect, capsPx,
-                                             ctx->retina);
+    const StreamCrop crop = ctx->wholeStream
+                            ? windowStreamCrop(streamRect.size(), capsPx, ctx->retina)
+                            : portalStreamCrop(ctx->regionVirtual, streamRect, capsPx,
+                                               ctx->retina);
     if (!crop.valid) {
         post(ctx->link, [](LinuxRecordingStrategy *strategy, quint64 generation) {
             strategy->reportError(generation,
@@ -491,10 +495,16 @@ void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &ou
                 this, &LinuxRecordingStrategy::handleSessionClosed);
     }
 
-    // Window capture goes through regionVirtual too: there are no window ids to hand the
-    // portal on Linux yet.
-    qInfo() << "Recording: asking the ScreenCast portal for" << target.regionVirtual;
-    m_session->open(target.captureCursor);
+    Screen::ScreenCastPortalSession::Options options;
+    options.captureCursor = target.captureCursor;
+    if (target.kind == RecordTarget::Kind::Window) {
+        // The portal's picker chooses the window, and its stream follows it.
+        options.source = Screen::ScreenCastPortalSession::Source::Window;
+        qInfo() << "Recording: asking the ScreenCast portal for a window";
+    } else {
+        qInfo() << "Recording: asking the ScreenCast portal for" << target.regionVirtual;
+    }
+    m_session->open(options);
 }
 
 void LinuxRecordingStrategy::startX11()
@@ -818,6 +828,7 @@ void LinuxRecordingStrategy::configurePortalSource(GstElement *src, GstElement *
                       new RestampContext{src}, freeRestampContext);
     auto *cropCtx = new CropContext;
     cropCtx->link = m_link;
+    cropCtx->wholeStream = m_target.kind == RecordTarget::Kind::Window;
     cropCtx->regionVirtual = m_target.regionVirtual;
     cropCtx->streamRect = m_streamRect;
     cropCtx->screens = m_screens;

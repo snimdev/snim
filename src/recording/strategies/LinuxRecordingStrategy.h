@@ -57,6 +57,11 @@ public:
     // For `snim --self-test`: the elements this session's recording and ScreenCast
     // screenshots need, without asking the portal. `found` ends with the encoder.
     static void checkElements(QStringList *found, QStringList *missing);
+    [[nodiscard]] WindowCapture windowCapture() const override
+    {
+        return m_source == LinuxPipeline::VideoSource::Portal ? WindowCapture::SystemPicked
+                                                              : WindowCapture::Alone;
+    }
     [[nodiscard]] QString name() const override
     {
         return m_source == LinuxPipeline::VideoSource::X11 ? QStringLiteral("X11/GStreamer")

@@ -103,6 +103,20 @@ inline StreamCrop portalStreamCrop(const QRect &regionVirtual,
     return out;
 }
 
+/**
+ * The crop for a portal window stream: the stream is the window, so all of it, at the
+ * size it starts with (later sizes are scaled to that). The portal's own size for it is
+ * logical, which the output keeps without retinaCapture; a portal that sends none leaves
+ * the pixel size. Pure, so it's unit-tested.
+ */
+inline StreamCrop windowStreamCrop(const QSize &streamSizeLogical, const QSize &streamSizePx,
+                                   bool retinaCapture)
+{
+    const QRect whole(QPoint(0, 0),
+                      streamSizeLogical.isEmpty() ? streamSizePx : streamSizeLogical);
+    return portalStreamCrop(whole, whole, streamSizePx, retinaCapture);
+}
+
 struct StreamSource {
     QRect rectLogical;   // screen or virtual desktop rect in logical coords
     QSize sizePx;        // its pixel size (logical size * device pixel ratio)

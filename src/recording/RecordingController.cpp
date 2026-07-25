@@ -160,6 +160,10 @@ void RecordingController::recordWindow()
         emit recordingFailed(tr("Screen recording is unavailable on this system."));
         return;
     }
+    if (m_strategy->windowCapture() == RecordingStrategy::WindowCapture::SystemPicked) {
+        beginRecordingForSelection(QRect(), /*windowId=*/0, /*isWindow=*/true);
+        return;
+    }
     presentSelection(/*windowPick=*/true);
 }
 
@@ -394,15 +398,23 @@ void RecordingController::beginRecordingForSelection(const QRect &area, quint64 
     m_askedCameraPermission = false;
     m_askedMicPermission = false;
 
-    // Re-evaluate the camera setting (bar toggles), get a fresh window id for the
-    // capture filter, and park the bubble where the recording will actually be.
-    ensureCameraBubble(area);
-    if (m_cameraBubble)
-        m_cameraBubble->moveToRegionCorner(area);
+    const RecordingStrategy::WindowCapture windowCapture = m_strategy->windowCapture();
+    const bool systemPicker = isWindow
+                              && windowCapture == RecordingStrategy::WindowCapture::SystemPicked;
+    if (isWindow && windowCapture != RecordingStrategy::WindowCapture::WithOverlays) {
+        destroyCameraBubble();   // the recording holds the window alone
+    } else {
+        // Re-evaluate the camera setting (bar toggles), get a fresh window id for the
+        // capture filter, and park the bubble where the recording will actually be.
+        ensureCameraBubble(area);
+        if (m_cameraBubble)
+            m_cameraBubble->moveToRegionCorner(area);
+    }
 
     RecordTarget target;
     target.kind = isWindow ? RecordTarget::Kind::Window : RecordTarget::Kind::Region;
     target.windowId = windowId;
+    target.systemPicker = systemPicker;
     target.regionVirtual = area;       // window: fallback rect for older macOS
     target.fps = Core::Settings::recordingFps();
     target.captureCursor = Core::Settings::recordingCaptureCursor();

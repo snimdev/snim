@@ -40,7 +40,8 @@ public:
     // Show the AreaSelector to pick a region, then record it.
     void recordArea();
 
-    // Show the AreaSelector in window-pick mode, then record the chosen window.
+    // Show the AreaSelector in window-pick mode, then record the chosen window. A backend
+    // whose system picker chooses windows (the ScreenCast portal) skips the selector.
     void recordWindow();
 
     // Record an already-resolved target (the shared core; also the test entry point).

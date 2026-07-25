@@ -77,6 +77,26 @@ private slots:
         QCOMPARE(c.outputPx, QSize(100, 50));
     }
 
+    void windowStreamKeepsTheWholeWindow()
+    {
+        // A 640x400 window on a 2x output streams 1280x800 pixels.
+        const StreamCrop crop = windowStreamCrop(QSize(640, 400), QSize(1280, 800), true);
+        QVERIFY(crop.valid);
+        QCOMPARE(crop.cropPx, QRect(0, 0, 1280, 800));
+        QCOMPARE(crop.outputPx, QSize(1280, 800));
+        QCOMPARE(windowStreamCrop(QSize(640, 400), QSize(1280, 800), false).outputPx,
+                 QSize(640, 400));
+    }
+
+    void windowStreamWithoutGeometryKeepsItsPixels()
+    {
+        // No size from the portal, and an odd one from the window: even, never cropped off.
+        const StreamCrop crop = windowStreamCrop(QSize(), QSize(801, 451), false);
+        QVERIFY(crop.valid);
+        QCOMPARE(crop.cropPx, QRect(0, 0, 800, 450));
+        QCOMPARE(crop.outputPx, QSize(800, 450));
+    }
+
     void resolveStreamRectWorkspaceShare()
     {
         const QVector<StreamSource> screens{{QRect(0, 0, 2560, 1440), QSize(2560, 1440)},

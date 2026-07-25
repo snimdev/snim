@@ -46,6 +46,13 @@ private slots:
         byRect.kind = RecordTarget::Kind::Window;
         byRect.regionVirtual = QRect(0, 0, 10, 10);
         QVERIFY(byRect.isValid());                  // rect fallback (window id unknown)
+
+        RecordTarget picked;
+        picked.kind = RecordTarget::Kind::Window;
+        picked.systemPicker = true;
+        QVERIFY(picked.isValid());                  // the portal's picker chooses it later
+        picked.kind = RecordTarget::Kind::Region;
+        QVERIFY(!picked.isValid());                 // a region still needs its rect
     }
 
     void displayLocalMapping()

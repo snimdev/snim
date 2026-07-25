@@ -45,6 +45,17 @@ public:
     [[nodiscard]] virtual bool isAvailable() const = 0;
     [[nodiscard]] virtual QString name() const = 0;
 
+    // What a window recording holds, and who picks the window.
+    enum class WindowCapture {
+        WithOverlays,   // the picked window plus Snim's camera bubble
+        Alone,          // the picked window only: a bubble would never be recorded
+        SystemPicked,   // alone, and the system's own picker chooses it (the portal's)
+    };
+    [[nodiscard]] virtual WindowCapture windowCapture() const
+    {
+        return WindowCapture::WithOverlays;
+    }
+
 signals:
     void started();                        // capture is running
     void finished(const QString &path);    // file written and closed

@@ -25,6 +25,10 @@ struct RecordTarget {
     // Platform window handle for true window capture (macOS CGWindowID). 0 = none.
     quint64 windowId = 0;
 
+    // Window only: the system's picker chooses the window once recording starts (the
+    // ScreenCast portal's), so neither the id nor the rect is known up front.
+    bool systemPicker = false;
+
     // The webcam-bubble window to KEEP in the capture (CGWindowID) while the rest of
     // our app is excluded. 0 = no camera overlay.
     quint64 cameraWindowId = 0;
@@ -45,7 +49,7 @@ struct RecordTarget {
     QByteArray micDeviceId;   // QAudioDevice::id() = Core Audio device UID; empty = default input
 
     [[nodiscard]] bool isValid() const {
-        return kind == Kind::Window ? (windowId != 0 || !regionVirtual.isEmpty())
+        return kind == Kind::Window ? (systemPicker || windowId != 0 || !regionVirtual.isEmpty())
                                     : !regionVirtual.isEmpty();
     }
 };

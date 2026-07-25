@@ -24,6 +24,7 @@ public:
     bool isRecording() const override { return m_running; }
     bool isAvailable() const override { return true; }
     QString name() const override { return QStringLiteral("Fake"); }
+    WindowCapture windowCapture() const override { return capture; }
 
     void emitStarted() { m_running = true; emit started(); }
     void emitFinished(const QString &p) { m_running = false; emit finished(p); }
@@ -35,6 +36,7 @@ public:
     bool startCalled = false;
     bool stopCalled = false;
     bool m_running = false;
+    WindowCapture capture = WindowCapture::WithOverlays;
 };
 
 class tst_RecordingController : public QObject
@@ -131,6 +133,33 @@ private slots:
         f->startCalled = false;
         ctrl.startRecording(t);
         QVERIFY(f->startCalled);
+    }
+
+    void aSystemPickerChoosesTheWindowItself()
+    {
+        auto fake = std::make_unique<FakeRecordingStrategy>();
+        FakeRecordingStrategy *f = fake.get();
+        f->capture = RecordingStrategy::WindowCapture::SystemPicked;
+        RecordingController ctrl(std::move(fake));
+
+        ctrl.recordWindow();
+        // Straight to the backend: no frozen frame, no window picker of Snim's own.
+        QVERIFY(f->startCalled);
+        QCOMPARE(f->lastTarget.kind, RecordTarget::Kind::Window);
+        QVERIFY(f->lastTarget.systemPicker);
+        QCOMPARE(f->lastTarget.windowId, quint64(0));
+        QVERIFY(f->lastTarget.regionVirtual.isEmpty());
+        QVERIFY(f->lastTarget.isValid());
+        QVERIFY(ctrl.isActive());
+        for (const QWidget *widget : QApplication::topLevelWidgets())
+            QVERIFY(!widget->isVisible());
+
+        // The stream is the window alone: no frame around a region, no camera bubble.
+        f->emitStarted();
+        for (const QWidget *widget : QApplication::topLevelWidgets())
+            QVERIFY(!widget->isVisible());
+        f->emitFinished(f->lastPath);
+        QVERIFY(!ctrl.isActive());
     }
 
     void failureReportsTheFootageThatSurvived()
