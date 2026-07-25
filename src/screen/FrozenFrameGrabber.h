@@ -39,6 +39,9 @@ public:
     // Why the last grab failed, worded for the user; empty after a success.
     [[nodiscard]] QString lastError() const { return m_lastError; }
 
+    // Whether the last grab failed because the user dismissed the system's dialog.
+    [[nodiscard]] bool wasCancelled() const { return m_cancelled; }
+
     // The failure text for a desktop named like XDG_CURRENT_DESKTOP.
     [[nodiscard]] static QString failureMessage(const QString &currentDesktop,
                                                 const QString &reason, bool cancelled);
@@ -61,6 +64,7 @@ private:
 
     Done m_done;             // non-null only while an asynchronous grab is in flight
     QString m_lastError;
+    bool m_cancelled = false;
 };
 
 } // namespace Screen

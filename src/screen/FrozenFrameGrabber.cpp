@@ -30,6 +30,7 @@ void FrozenFrameGrabber::grab(Done done)
     if (m_done)
         return;   // a grab is still in flight: ignore the re-entry
     m_lastError.clear();
+    m_cancelled = false;
 
 #ifdef Q_OS_LINUX
     if (isWaylandSession()) {
@@ -95,6 +96,7 @@ void FrozenFrameGrabber::finish(const QPixmap &frozen, const QRect &virtualGeome
 void FrozenFrameGrabber::fail(const QString &reason, bool cancelled)
 {
     m_lastError = failureMessage(qEnvironmentVariable("XDG_CURRENT_DESKTOP"), reason, cancelled);
+    m_cancelled = cancelled;
     qWarning().noquote() << "Frozen frame: no frame for the selection:" << reason;
     finish({}, {});
 }

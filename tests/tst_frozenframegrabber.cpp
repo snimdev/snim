@@ -37,6 +37,7 @@ private slots:
         });
         QVERIFY(called);
         QVERIFY(grabber.lastError().isEmpty());
+        QVERIFY(!grabber.wasCancelled());
     }
 
     void gnomeIsToldToPickTheScreens()
