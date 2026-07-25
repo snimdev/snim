@@ -14,7 +14,6 @@
 
 #include <functional>
 #include <memory>
-#include <optional>
 
 typedef struct _GstElement GstElement;
 typedef struct _GstPad GstPad;
@@ -54,6 +53,7 @@ public:
     [[nodiscard]] bool isRecording() const override { return m_starting || m_recording; }
     [[nodiscard]] bool isAvailable() const override;
     // What this host lacks to record, named with the packages to install. Empty when none.
+    // GStreamer is probed once per session, the portal until it answers.
     [[nodiscard]] static QStringList missingPieces();
     // For `snim --self-test`: the elements this session's recording and ScreenCast
     // screenshots need, without asking the portal. `found` ends with the encoder.
@@ -128,8 +128,6 @@ private:
     bool m_recording = false;
     bool m_stopping = false;
     bool m_paused = false;
-
-    mutable std::optional<bool> m_available;
 };
 
 } // namespace Recording

@@ -38,17 +38,21 @@ constexpr int kReleaseGraceMs = 2000;
 // Past pipewiresrc's own 30 s wait for the stream.
 constexpr int kFirstFrameTimeoutMs = 35000;
 
+// Fixed for the session, like everything it probes.
 LinuxPipeline::VideoSource currentVideoSource()
 {
-    const bool hasXimagesrc = Media::Gst::ensureInitialized()
-                              && Media::Gst::hasFactory("ximagesrc");
-    const QString platform = QGuiApplication::platformName();
-    const bool wayland = Screen::isWaylandSession();
-    // The portal probe is a blocking D-Bus call, so only make it when it decides anything.
-    const bool askPortal = platform == QLatin1String("xcb") && !wayland && !hasXimagesrc;
-    return LinuxPipeline::videoSourceFor(
-        platform, wayland, hasXimagesrc,
-        askPortal && Screen::ScreenCastPortalSession::isPortalAvailable());
+    static const LinuxPipeline::VideoSource source = [] {
+        const bool hasXimagesrc = Media::Gst::ensureInitialized()
+                                  && Media::Gst::hasFactory("ximagesrc");
+        const QString platform = QGuiApplication::platformName();
+        const bool wayland = Screen::isWaylandSession();
+        // The portal probe is a blocking D-Bus call, so only make it when it decides anything.
+        const bool askPortal = platform == QLatin1String("xcb") && !wayland && !hasXimagesrc;
+        return LinuxPipeline::videoSourceFor(
+            platform, wayland, hasXimagesrc,
+            askPortal && Screen::ScreenCastPortalSession::isPortalAvailable());
+    }();
+    return source;
 }
 
 // A plain X11 session, where coordinates the X server reports are root-window pixels.
@@ -447,9 +451,7 @@ RecordingStrategy::WindowCapture LinuxRecordingStrategy::windowCapture() const
 
 bool LinuxRecordingStrategy::isAvailable() const
 {
-    if (!m_available.has_value())
-        m_available = missingPieces().isEmpty();
-    return *m_available;
+    return missingPieces().isEmpty();
 }
 
 QStringList LinuxRecordingStrategy::missingPieces()
@@ -458,16 +460,21 @@ QStringList LinuxRecordingStrategy::missingPieces()
         return {QStringLiteral("a working GStreamer (it failed to initialize)")};
 
     const LinuxPipeline::VideoSource source = currentVideoSource();
+    // Plugins do not change while the app runs, so GStreamer is probed once.
+    static const QStringList gstMissing = Media::Gst::missingPieces(
+        LinuxPipeline::requiredElements(source), Media::Gst::hasFactory,
+        Media::Gst::probeH264Plugins());
+    // A yes is kept for the run; a no is asked again, the portal may still be starting.
+    static bool portalSeen = false;
     QStringList pieces;
-    if (source == LinuxPipeline::VideoSource::Portal
-        && !Screen::ScreenCastPortalSession::isPortalAvailable()) {
-        pieces << QStringLiteral("the ScreenCast portal (xdg-desktop-portal and a backend "
-                                 "for this desktop)");
+    if (source == LinuxPipeline::VideoSource::Portal && !portalSeen) {
+        portalSeen = Screen::ScreenCastPortalSession::isPortalAvailable();
+        if (!portalSeen) {
+            pieces << QStringLiteral("the ScreenCast portal (xdg-desktop-portal and a backend "
+                                     "for this desktop)");
+        }
     }
-    pieces << Media::Gst::missingPieces(
-        LinuxPipeline::requiredElements(source),
-        Media::Gst::hasFactory, Media::Gst::probeH264Plugins());
-    return pieces;
+    return pieces + gstMissing;
 }
 
 void LinuxRecordingStrategy::checkElements(QStringList *found, QStringList *missing)
