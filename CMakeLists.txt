@@ -755,8 +755,7 @@ elseif(XCB_AVAILABLE)
             src/screen/X11WindowFilter.h
             src/screen/X11Windows.cpp
             src/screen/X11Windows.h
-            src/screen/OverlayWindows_stub.cpp
-            src/core/KeychainStore_stub.cpp)
+            src/screen/OverlayWindows_stub.cpp)
     target_link_libraries(snim_lib PRIVATE PkgConfig::XCB)
 else()
     target_sources(snim_lib PRIVATE
