@@ -780,9 +780,10 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
                 " audiomixer name=amix ! valve name=audiovalve drop=false "
                 "! audioconvert ! audioresample "
                 "! audio/x-raw,rate=48000,channels=2 ! %1 ! aacparse ! queue ! mux.").arg(aac);
+            // The pipeline keeps the monotonic clock StreamTimestamp compares stamps to.
             if (m_target.captureMic) {
                 description += QStringLiteral(
-                    " pulsesrc name=micsrc ! valve name=micvalve drop=false "
+                    " pulsesrc name=micsrc provide-clock=false ! valve name=micvalve drop=false "
                     "! queue ! audioconvert ! audioresample ! amix.");
             }
             if (m_target.captureSystemAudio) {

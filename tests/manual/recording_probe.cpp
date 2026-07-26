@@ -15,7 +15,7 @@
 // Manual check, not a ctest: records an area through the real recorder (the portal, or
 // ximagesrc in an X11 session).
 // Usage: snim_recording_probe <out.mp4> [seconds] [pause-at-seconds pause-length]
-// SNIM_PROBE_AUDIO=1 records system audio too. SNIM_PROBE_AREA picks what to record:
+// SNIM_PROBE_AUDIO=1 records system audio too, SNIM_PROBE_MIC=1 the default microphone. SNIM_PROBE_AREA picks what to record:
 // "x,y,w,h" in logical coordinates, "full" for the whole desktop, "screen:N", "window"
 // for the one the portal's picker chooses, "window:<X11 id>" or "window:top" for the
 // topmost one the window picker offers.
@@ -160,6 +160,7 @@ int main(int argc, char *argv[])
     target.captureCursor = qEnvironmentVariableIsSet("SNIM_PROBE_CURSOR");
     target.retinaCapture = !qEnvironmentVariableIsSet("SNIM_PROBE_LOGICAL");
     target.captureSystemAudio = qEnvironmentVariableIsSet("SNIM_PROBE_AUDIO");
+    target.captureMic = qEnvironmentVariableIsSet("SNIM_PROBE_MIC");
     clock.start();
     recorder->start(target, out);
     if (const int stopMs = qEnvironmentVariableIntValue("SNIM_PROBE_STOP_MS"); stopMs > 0) {
