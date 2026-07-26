@@ -64,10 +64,7 @@ SourceType FrameSourceFactory::defaultType()
     StrategySelection::Probes probes;
 #ifdef Q_OS_LINUX
     probes.kwin = [] { return KWinFrameSource::isServiceRegistered(); };
-    probes.portal = [] {
-        return isWaylandSession()
-               && (PortalFrameSource::isPortalReachable() || PortalFrameSource::hasFallbackTool(false));
-    };
+    probes.portal = [] { return isWaylandSession() && PortalFrameSource::isPortalReachable(); };
 #endif
 #ifdef SNIM_HAVE_SCREENCOPY
     probes.screencopy = [] { return ScreencopyFrameSource::isAvailable(); };

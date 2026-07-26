@@ -14,7 +14,7 @@ class DesktopFrameSource;
 enum class SourceType {
     Auto,           // Automatically select best available strategy
     KWin,           // KWin ScreenShot2 D-Bus (preferred on KDE Plasma)
-    Portal,         // The Screenshot portal, or a screenshot tool on Wayland
+    Portal,         // The Screenshot portal on Wayland
     Screencast,     // One frame from a restored ScreenCast portal session
     Screencopy,     // Native Wayland screencopy (wlroots-family compositors)
     Native          // Force native Qt strategy

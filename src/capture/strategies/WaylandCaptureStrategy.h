@@ -4,9 +4,6 @@
 #include "CaptureStrategy.h"
 #include <QObject>
 #include <QPixmap>
-#include <QProcess>
-
-class QTemporaryFile;
 
 namespace Screen {
 class PortalFrameSource;
@@ -15,7 +12,7 @@ class PortalFrameSource;
 namespace Capture {
 
 /**
- * Wayland capture strategy using XDG Desktop Portal and fallback tools
+ * Wayland capture strategy using the XDG Desktop Portal's Screenshot interface
  */
 class WaylandCaptureStrategy : public CaptureStrategy
 {
@@ -23,7 +20,6 @@ class WaylandCaptureStrategy : public CaptureStrategy
 
 public:
     explicit WaylandCaptureStrategy(QObject *parent = nullptr);
-    ~WaylandCaptureStrategy() override;
 
     void captureFullScreen() override;
     void captureArea() override;
@@ -32,19 +28,11 @@ public:
     bool isAvailable() const override;
     QString name() const override { return "Wayland Portal Capture"; }
 
-private slots:
-    void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
-
 private:
-    bool useFallbackCapture();
-    bool hasAvailableFallbackTools() const;
-    bool executeScreenshotTool(const QString &tool);
-    void cleanupTempFile();
+    void grabThroughPortal(bool showSelector);
 
-    QTemporaryFile *m_tempFile;
-    QProcess *m_fallbackProcess;
-    bool m_captureArea;
     Screen::PortalFrameSource *m_portalSource;
+    bool m_portalShowsSelector = false;
 };
 
 } // namespace Capture

@@ -3,7 +3,6 @@
 
 #include <QDebug>
 #include <QFile>
-#include <QStandardPaths>
 #include <QImage>
 #include <QTimer>
 #include <QUrl>
@@ -48,20 +47,6 @@ bool PortalFrameSource::isPortalReachable()
     const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
     s_portalReachable = reply.type() == QDBusMessage::ReplyMessage;
     return s_portalReachable;
-}
-
-bool PortalFrameSource::hasFallbackTool(bool area)
-{
-    const QStringList candidates = area
-        ? QStringList{QStringLiteral("spectacle"), QStringLiteral("flameshot"),
-                      QStringLiteral("gnome-screenshot")}
-        : QStringList{QStringLiteral("spectacle"), QStringLiteral("grim"),
-                      QStringLiteral("gnome-screenshot"), QStringLiteral("flameshot")};
-    for (const QString &tool : candidates) {
-        if (!QStandardPaths::findExecutable(tool).isEmpty())
-            return true;
-    }
-    return false;
 }
 
 PortalFrameSource::PortalFrameSource(QObject *parent)
