@@ -79,12 +79,8 @@ void RecordingFrameOverlay::showRing(QScreen *screen, const QRect &regionVirtual
 {
     // Border only: the dim needs a full-screen window, which xfwm4 frames to eat clicks.
     // It goes around the very pixels the X11 recorder reads, so it rounds as they do.
-    QVector<X11Screen> screens;
-    const QList<QScreen *> all = QGuiApplication::screens();
-    for (const QScreen *each : all)
-        screens.append(X11Screen{each->geometry(), each->devicePixelRatio()});
     const X11Screen here{screen->geometry(), screen->devicePixelRatio()};
-    const QRect grabPx = x11Grab(regionVirtual, screens, true)
+    const QRect grabPx = x11Grab(regionVirtual, Screen::X11ScreenMap::currentScreens(), true)
                              .rootPx.intersected(Screen::X11ScreenMap::nativeRect(here))
                              .translated(-here.geometry.topLeft());
     const QRect screenGeo = here.geometry;

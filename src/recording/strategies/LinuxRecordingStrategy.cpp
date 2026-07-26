@@ -63,16 +63,6 @@ bool isX11Session()
     return QGuiApplication::platformName() == QLatin1String("xcb") && !Screen::isWaylandSession();
 }
 
-// GUI thread only.
-QVector<X11Screen> x11Screens()
-{
-    QVector<X11Screen> screens;
-    const QList<QScreen *> all = QGuiApplication::screens();
-    for (const QScreen *screen : all)
-        screens.append(X11Screen{screen->geometry(), screen->devicePixelRatio()});
-    return screens;
-}
-
 void setOutputCaps(GstElement *outcaps, const QSize &size)
 {
     GstCaps *caps = gst_caps_new_simple("video/x-raw",
@@ -551,7 +541,8 @@ void LinuxRecordingStrategy::startX11()
         return;
     }
 
-    m_x11Grab = x11Grab(m_target.regionVirtual, x11Screens(), m_target.retinaCapture);
+    m_x11Grab = x11Grab(m_target.regionVirtual, Screen::X11ScreenMap::currentScreens(),
+                        m_target.retinaCapture);
     if (!m_x11Grab.valid) {
         teardown();
         emit failed(tr("The selected area is not on any screen."));
@@ -690,7 +681,8 @@ void LinuxRecordingStrategy::handleSessionReady(quint32 nodeId, const QRect &str
     m_pipewireFd = pipewireFd;
     // An X11 portal reports root-window pixels, which Qt's scaling does not share.
     m_streamRect = isX11Session()
-                   ? Screen::X11ScreenMap::toLogical(streamRectLogical, x11Screens())
+                   ? Screen::X11ScreenMap::toLogical(streamRectLogical,
+                                                     Screen::X11ScreenMap::currentScreens())
                    : streamRectLogical;
     qInfo() << "Recording: portal stream" << nodeId << "geometry" << streamRectLogical
             << "logical" << m_streamRect;

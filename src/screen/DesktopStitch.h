@@ -4,6 +4,7 @@
 #include <QImage>
 #include <QList>
 #include <QPainter>
+#include <QPixmap>
 #include <QRect>
 #include <QtMath>
 
@@ -20,6 +21,12 @@ namespace Screen {
 struct PlacedFrame {
     QRect logical;   // empty when the source sent no geometry
     QImage image;
+};
+
+// One screen's own grab: its logical geometry and the native, DPR-tagged pixmap.
+struct ScreenGrab {
+    QRect geometry;
+    QPixmap pixmap;
 };
 
 // Frames a source sent without geometry: a lone one is taken to be the whole desktop,

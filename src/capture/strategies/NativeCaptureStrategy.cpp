@@ -3,15 +3,14 @@
 #include "screen/WindowEnumerator.h"
 #include "capture/OverlayAnnotations.h"
 #include "screen/OverlayWindows.h"
+#include "screen/sources/QtScreensFrameSource.h"
 #include <QScreen>
 #include <QApplication>
 #include <QCursor>
 #include <QDebug>
 #include <QTimer>
 #include <QWindow>
-#include <QPainter>
 #include <QGuiApplication>
-#include <algorithm>
 
 namespace Capture {
 
@@ -154,70 +153,12 @@ QPixmap NativeCaptureStrategy::captureScreen()
 
 QPixmap NativeCaptureStrategy::captureAllScreens()
 {
-    m_screenGrabs.clear();
-    QList<QScreen*> screens = QGuiApplication::screens();
-    if (screens.isEmpty()) {
-        qDebug() << "No screens available";
-        return QPixmap();
-    }
-
-    // Calculate virtual desktop geometry (union of all screen geometries)
-    QRect virtualDesktop;
-    for (QScreen *screen : screens) {
-        virtualDesktop = virtualDesktop.united(screen->geometry());
-    }
-
-    m_virtualGeometry = virtualDesktop;
-
-    qDebug() << "Capturing all screens - Virtual desktop:" << virtualDesktop;
-
-    // Composite at the highest DPR among all screens so the sharpest display
-    // isn't downscaled. Using a single DPR is fine because each screen is drawn
-    // into an explicit logical destination rect below (DPI-correct regardless of
-    // the individual screen's own DPR).
-    qreal dpr = 1.0;
-    for (QScreen *screen : screens) {
-        dpr = std::max(dpr, screen->devicePixelRatio());
-    }
-
-    // Create a pixmap large enough to hold all screens
-    QPixmap fullScreenshot(virtualDesktop.size() * dpr);
-    fullScreenshot.setDevicePixelRatio(dpr);
-    fullScreenshot.fill(Qt::black);
-
-    // Paint each screen onto the full screenshot
-    QPainter painter(&fullScreenshot);
-
-    for (QScreen *screen : screens) {
-        QRect screenGeometry = screen->geometry();
-        QPixmap screenPixmap = screen->grabWindow(0);
-
-        // Calculate position relative to virtual desktop
-        QPoint offset = screenGeometry.topLeft() - virtualDesktop.topLeft();
-
-        qDebug() << "  - Screen:" << screen->name()
-                 << "Geometry:" << screenGeometry
-                 << "Offset:" << offset
-                 << "Screenshot size:" << screenPixmap.size();
-
-        // Draw into the screen's LOGICAL destination rect, scaling its raw pixels
-        // to fit. This stays correct on mixed-DPI setups (e.g. a 2x Retina screen
-        // next to a 1x external display), where drawing the pixmap 1:1 at the
-        // offset would misalign/mis-scale the secondary screen.
-        const QRect destLogical(offset, screenGeometry.size());
-        painter.drawPixmap(destLogical, screenPixmap, screenPixmap.rect());
 #ifdef Q_OS_WIN
-        // Mixed DPIs are common on Windows: a single-screen area crops this grab instead.
-        m_screenGrabs.append({ screenGeometry, screenPixmap });
+    // Mixed DPIs are common on Windows: a single-screen area crops its own screen's grab.
+    return Screen::QtScreensFrameSource::grabNow(&m_virtualGeometry, &m_screenGrabs);
+#else
+    return Screen::QtScreensFrameSource::grabNow(&m_virtualGeometry);
 #endif
-    }
-
-    painter.end();
-
-    qDebug() << "Full screenshot size:" << fullScreenshot.size()
-             << "DPR:" << fullScreenshot.devicePixelRatio();
-
-    return fullScreenshot;
 }
 
 void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry,

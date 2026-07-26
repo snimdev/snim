@@ -2,6 +2,7 @@
 #define SCREEN_QTSCREENSFRAMESOURCE_H
 
 #include "DesktopFrameSource.h"
+#include "screen/DesktopStitch.h"
 
 namespace Screen {
 
@@ -18,8 +19,9 @@ public:
 
     void grab() override;
 
-    // Null when there are no screens.
-    [[nodiscard]] static QPixmap grabNow(QRect *virtualGeometryOut);
+    // Null when there are no screens. screenGrabsOut, when given, gets each screen's own grab.
+    [[nodiscard]] static QPixmap grabNow(QRect *virtualGeometryOut,
+                                         QList<ScreenGrab> *screenGrabsOut = nullptr);
 };
 
 } // namespace Screen

@@ -13,11 +13,9 @@
 
 namespace Screen {
 
-namespace {
-
-QVector<WinScreenMap::Screen> screenMap()
+QVector<WinScreenMap::Screen> WinScreenMap::currentScreens()
 {
-    QVector<WinScreenMap::Screen> map;
+    QVector<Screen> map;
     const QList<QScreen*> screens = QGuiApplication::screens();
     for (QScreen *screen : screens) {
         auto *native = screen->nativeInterface<QNativeInterface::QWindowsScreen>();
@@ -33,6 +31,18 @@ QVector<WinScreenMap::Screen> screenMap()
     }
     return map;
 }
+
+QRect WinScreenMap::frameBounds(void *window)
+{
+    const HWND hwnd = static_cast<HWND>(window);
+    // The extended frame excludes the invisible resize borders GetWindowRect includes.
+    RECT r{};
+    if (FAILED(DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &r, sizeof(r))))
+        GetWindowRect(hwnd, &r);
+    return QRect(r.left, r.top, r.right - r.left, r.bottom - r.top);
+}
+
+namespace {
 
 WinWindowFilter::Candidate describe(HWND hwnd)
 {
@@ -53,11 +63,7 @@ WinWindowFilter::Candidate describe(HWND hwnd)
     GetWindowThreadProcessId(hwnd, &processId);
     w.processId = processId;
 
-    // The extended frame excludes the invisible resize borders GetWindowRect includes.
-    RECT r{};
-    if (FAILED(DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &r, sizeof(r))))
-        GetWindowRect(hwnd, &r);
-    w.bounds = QRect(r.left, r.top, r.right - r.left, r.bottom - r.top);
+    w.bounds = WinScreenMap::frameBounds(hwnd);
     return w;
 }
 
@@ -72,7 +78,7 @@ BOOL CALLBACK collect(HWND hwnd, LPARAM param)
 QVector<WindowInfo> enumerateWindowInfos()
 {
     QVector<WindowInfo> result;
-    const QVector<WinScreenMap::Screen> screens = screenMap();
+    const QVector<WinScreenMap::Screen> screens = WinScreenMap::currentScreens();
     if (screens.isEmpty())
         return result;
 

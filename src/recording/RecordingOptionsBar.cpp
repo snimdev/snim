@@ -21,11 +21,49 @@
 
 #include "screen/OverlayWindows.h"
 
+#include <functional>
+
 namespace Recording {
 
 namespace {
 const QColor kIconColor(235, 235, 240);
 const QColor kIconDim(150, 150, 158);
+
+// One device menu entry; preferred is the one checked while no device is stored.
+struct DeviceChoice {
+    QString description;
+    QByteArray id;
+    bool preferred = false;
+};
+
+// "Off" leads the exclusive list, so the menu is the reliable way to turn the device off
+// even where the icon toggle is awkward to hit. Picking a device hands its id on.
+void fillDeviceMenu(QMenu *menu, QObject *context, const QString &offText,
+                    const QString &noneText, bool enabled, const QByteArray &current,
+                    const QList<DeviceChoice> &devices, const std::function<void()> &turnOff,
+                    const std::function<void(const QByteArray &)> &pick)
+{
+    menu->clear();
+    auto *group = new QActionGroup(menu);
+
+    QAction *off = menu->addAction(offText);
+    off->setCheckable(true);
+    off->setChecked(!enabled);
+    group->addAction(off);
+    QObject::connect(off, &QAction::triggered, context, turnOff);
+    menu->addSeparator();
+
+    for (const DeviceChoice &device : devices) {
+        QAction *a = menu->addAction(device.description);
+        a->setCheckable(true);
+        a->setChecked(enabled
+                      && (device.id == current || (current.isEmpty() && device.preferred)));
+        group->addAction(a);
+        QObject::connect(a, &QAction::triggered, context, [pick, id = device.id] { pick(id); });
+    }
+    if (devices.isEmpty())
+        menu->addAction(noneText)->setEnabled(false);
+}
 } // namespace
 
 RecordingOptionsBar::RecordingOptionsBar(QWidget *parent)
@@ -228,66 +266,32 @@ void RecordingOptionsBar::setRecordVisible(bool visible)
 
 void RecordingOptionsBar::rebuildCameraMenu()
 {
-    m_cameraMenu->clear();
-    auto *group = new QActionGroup(m_cameraMenu);
-    const bool enabled = Core::Settings::cameraEnabled();
-
-    // "Off" leads the exclusive list, so the menu is the reliable way to turn the
-    // camera off even where the icon toggle is awkward to hit.
-    QAction *off = m_cameraMenu->addAction(tr("Camera off"));
-    off->setCheckable(true);
-    off->setChecked(!enabled);
-    group->addAction(off);
-    connect(off, &QAction::triggered, this, [this] { applyCameraEnabled(false); });
-    m_cameraMenu->addSeparator();
-
-    const QByteArray current = Core::Settings::cameraDeviceId();
+    QList<DeviceChoice> devices;
     const QList<QCameraDevice> cams = QMediaDevices::videoInputs();
-    for (const QCameraDevice &cam : cams) {
-        QAction *a = m_cameraMenu->addAction(cam.description());
-        a->setCheckable(true);
-        a->setChecked(enabled
-                      && (cam.id() == current || (current.isEmpty() && cam == cams.first())));
-        group->addAction(a);
-        const QByteArray id = cam.id();
-        connect(a, &QAction::triggered, this, [this, id] {
-            Core::Settings::setCameraDeviceId(id);
-            applyCameraEnabled(true);   // re-ensures the bubble on the new device
-        });
-    }
-    if (cams.isEmpty())
-        m_cameraMenu->addAction(tr("No camera found"))->setEnabled(false);
+    for (const QCameraDevice &cam : cams)
+        devices.append({cam.description(), cam.id(), cam == cams.first()});
+    fillDeviceMenu(m_cameraMenu, this, tr("Camera off"), tr("No camera found"),
+                   Core::Settings::cameraEnabled(), Core::Settings::cameraDeviceId(), devices,
+                   [this] { applyCameraEnabled(false); },
+                   [this](const QByteArray &id) {
+                       Core::Settings::setCameraDeviceId(id);
+                       applyCameraEnabled(true);   // re-ensures the bubble on the new device
+                   });
 }
 
 void RecordingOptionsBar::rebuildMicMenu()
 {
-    m_micMenu->clear();
-    auto *group = new QActionGroup(m_micMenu);
-    const bool enabled = Core::Settings::micEnabled();
-
-    QAction *off = m_micMenu->addAction(tr("Microphone off"));
-    off->setCheckable(true);
-    off->setChecked(!enabled);
-    group->addAction(off);
-    connect(off, &QAction::triggered, this, [this] { applyMicEnabled(false); });
-    m_micMenu->addSeparator();
-
-    const QByteArray current = Core::Settings::micDeviceId();
+    QList<DeviceChoice> devices;
     const QList<QAudioDevice> mics = QMediaDevices::audioInputs();
-    for (const QAudioDevice &mic : mics) {
-        QAction *a = m_micMenu->addAction(mic.description());
-        a->setCheckable(true);
-        a->setChecked(enabled
-                      && (mic.id() == current || (current.isEmpty() && mic.isDefault())));
-        group->addAction(a);
-        const QByteArray id = mic.id();
-        connect(a, &QAction::triggered, this, [this, id] {
-            Core::Settings::setMicDeviceId(id);
-            applyMicEnabled(true);
-        });
-    }
-    if (mics.isEmpty())
-        m_micMenu->addAction(tr("No microphone found"))->setEnabled(false);
+    for (const QAudioDevice &mic : mics)
+        devices.append({mic.description(), mic.id(), mic.isDefault()});
+    fillDeviceMenu(m_micMenu, this, tr("Microphone off"), tr("No microphone found"),
+                   Core::Settings::micEnabled(), Core::Settings::micDeviceId(), devices,
+                   [this] { applyMicEnabled(false); },
+                   [this](const QByteArray &id) {
+                       Core::Settings::setMicDeviceId(id);
+                       applyMicEnabled(true);
+                   });
 }
 
 void RecordingOptionsBar::repositionInParent()

@@ -17,7 +17,6 @@
 #include <QtGui/qscreen_platform.h>
 
 #include <windows.h>
-#include <dwmapi.h>
 #include <objbase.h>
 
 #include <atomic>
@@ -64,30 +63,12 @@ QStringList encoderOrder(const H264EncoderSettings &probe)
     return chain.mid(chain.indexOf(picked));
 }
 
-QVector<Screen::WinScreenMap::Screen> screenMap()
-{
-    QVector<Screen::WinScreenMap::Screen> map;
-    for (QScreen *screen : QGuiApplication::screens()) {
-        auto *native = screen->nativeInterface<QNativeInterface::QWindowsScreen>();
-        MONITORINFO info{};
-        info.cbSize = sizeof(info);
-        if (!native || !GetMonitorInfoW(native->handle(), &info))
-            continue;
-        const RECT &m = info.rcMonitor;
-        map.append({QRect(m.left, m.top, m.right - m.left, m.bottom - m.top),
-                    screen->geometry().topLeft(), screen->devicePixelRatio()});
-    }
-    return map;
-}
-
 // Logical size over physical size for a window, through the screens it lies on.
 QSizeF logicalScale(HWND window)
 {
-    RECT r{};
-    if (FAILED(DwmGetWindowAttribute(window, DWMWA_EXTENDED_FRAME_BOUNDS, &r, sizeof(r))))
-        GetWindowRect(window, &r);
-    const QRect physical(r.left, r.top, r.right - r.left, r.bottom - r.top);
-    const QRect logical = Screen::WinScreenMap::toLogical(physical, screenMap());
+    namespace Map = Screen::WinScreenMap;
+    const QRect physical = Map::frameBounds(window);
+    const QRect logical = Map::toLogical(physical, Map::currentScreens());
     if (physical.isEmpty() || logical.isEmpty())
         return {1.0, 1.0};
     return {qreal(logical.width()) / physical.width(), qreal(logical.height()) / physical.height()};

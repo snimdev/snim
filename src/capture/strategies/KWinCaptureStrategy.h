@@ -56,9 +56,9 @@ private:
     void callScreenShotMethod(const QString &method, const QVariantList &args,
                               bool showAreaSelector, int timeout = 4000);
 
-    /// Hand a denied capture to the gate. Returns false when there is no gate left to
-    /// consult, meaning the caller must fall back itself.
-    bool requestAuthorization(AuthorizationResume resume);
+    /// A denied capture: the gate, while unasked, chooses between retry and the
+    /// CaptureInteractive fallback; without it the fallback runs at once.
+    void handleDenied(std::function<void()> retry, bool showSelector, int kind);
 
     /// Every screen through the KWin frame source
     void captureWorkspace(bool showSelector);

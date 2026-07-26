@@ -3,9 +3,6 @@
 #include "screen/X11ScreenMap.h"
 #include "screen/X11Windows.h"
 
-#include <QGuiApplication>
-#include <QScreen>
-
 namespace Screen {
 
 // The X11 desktop's windows, from its window manager. Elsewhere (a Wayland session, the
@@ -16,10 +13,7 @@ QVector<WindowInfo> enumerateWindowInfos()
     if (windows.isEmpty())
         return {};
 
-    QVector<X11ScreenMap::Screen> screens;
-    const QList<QScreen *> all = QGuiApplication::screens();
-    for (const QScreen *screen : all)
-        screens.append(X11ScreenMap::Screen{screen->geometry(), screen->devicePixelRatio()});
+    const QVector<X11ScreenMap::Screen> screens = X11ScreenMap::currentScreens();
 
     QVector<WindowInfo> result;
     for (const X11Windows::Window &window : windows) {

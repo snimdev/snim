@@ -83,6 +83,14 @@ inline QRect toLogical(const QRect &physical, const QVector<Screen> &screens)
     return QRect(tl, QSize(br.x() - tl.x(), br.y() - tl.y()));
 }
 
+#ifdef Q_OS_WIN
+// The native lookups, defined in WindowEnumerator_win.cpp. Qt's screens with their
+// monitor rects (none off the windows platform plugin), and a window's (HWND) visible
+// frame in physical pixels.
+QVector<Screen> currentScreens();
+QRect frameBounds(void *window);
+#endif
+
 } // namespace Screen::WinScreenMap
 
 #endif // SCREEN_WINSCREENMAP_H

@@ -1,8 +1,10 @@
 #ifndef SCREEN_X11SCREENMAP_H
 #define SCREEN_X11SCREENMAP_H
 
+#include <QGuiApplication>
 #include <QPoint>
 #include <QRect>
+#include <QScreen>
 #include <QVector>
 #include <QtGlobal>
 
@@ -13,7 +15,7 @@ namespace Screen::X11ScreenMap {
  * scaling (Xft.dpi, QT_SCALE_FACTOR) keeps each screen's top-left at its native position
  * and scales only sizes and offsets within it, so every point goes through the screen it
  * lies on. Edges round to the nearest pixel both ways, as Qt rounds a screen's size.
- * Pure, so the scaled cases are tested on every host.
+ * The mapping is pure, so the scaled cases are tested on every host.
  */
 struct Screen {
     QRect geometry;   // QScreen::geometry(), logical
@@ -85,6 +87,16 @@ inline QRect toLogical(const QRect &rootPx, const QVector<Screen> &screens)
     if (bottomRight.x() <= topLeft.x() || bottomRight.y() <= topLeft.y())
         return {};
     return {topLeft, QSize(bottomRight.x() - topLeft.x(), bottomRight.y() - topLeft.y())};
+}
+
+// Every screen Qt knows, as the mapping takes them. GUI thread only.
+inline QVector<Screen> currentScreens()
+{
+    QVector<Screen> screens;
+    const QList<QScreen *> all = QGuiApplication::screens();
+    for (const QScreen *screen : all)
+        screens.append(Screen{screen->geometry(), screen->devicePixelRatio()});
+    return screens;
 }
 
 } // namespace Screen::X11ScreenMap

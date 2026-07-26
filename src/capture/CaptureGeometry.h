@@ -1,6 +1,8 @@
 #ifndef CAPTURE_CAPTUREGEOMETRY_H
 #define CAPTURE_CAPTUREGEOMETRY_H
 
+#include "screen/DesktopStitch.h"
+
 #include <QList>
 #include <QPixmap>
 #include <QRect>
@@ -51,11 +53,7 @@ inline QPixmap cropVirtualArea(const QPixmap &shot, const QRect &virtualGeometry
     return cropped;
 }
 
-// One screen's own grab: its logical geometry and the native, DPR-tagged pixmap.
-struct ScreenGrab {
-    QRect geometry;
-    QPixmap pixmap;
-};
+using Screen::ScreenGrab;
 
 // The grab whose screen wholly holds area, so it crops at that screen's own DPR with
 // no resampling. Null when area spans screens or a grab does not cover its screen.

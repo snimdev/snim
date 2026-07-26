@@ -38,25 +38,31 @@ void KWinCaptureStrategy::setAuthorizationGate(AuthorizationGate gate)
     m_authGate = std::move(gate);
 }
 
-bool KWinCaptureStrategy::requestAuthorization(AuthorizationResume resume)
+void KWinCaptureStrategy::handleDenied(std::function<void()> retry, bool showSelector, int kind)
 {
     if (!m_authGate || m_gateConsumed) {
-        return false;
+        qDebug() << "Permission denied, falling back to CaptureInteractive";
+        fallbackToInteractive(showSelector, kind);
+        return;
     }
     m_gateConsumed = true;
+    qDebug() << "Permission denied, asking before any fallback";
 
     QPointer<KWinCaptureStrategy> alive(this);
-    AuthorizationResume guarded = [alive, resume = std::move(resume)](bool retryFast) {
-        if (alive) {
-            resume(retryFast);
-        }
+    AuthorizationResume resume = [this, alive, retry = std::move(retry), showSelector,
+                                  kind](bool retryFast) {
+        if (!alive)
+            return;
+        if (retryFast)
+            retry();
+        else
+            fallbackToInteractive(showSelector, kind);
     };
 
     // Queued: the gate opens a modal dialog, which must not run inside the D-Bus reply handler.
-    QTimer::singleShot(0, this, [this, guarded = std::move(guarded)]() mutable {
-        m_authGate(std::move(guarded));
+    QTimer::singleShot(0, this, [this, resume = std::move(resume)]() mutable {
+        m_authGate(std::move(resume));
     });
-    return true;
 }
 
 // --- Public capture methods ---
@@ -102,17 +108,7 @@ void KWinCaptureStrategy::workspaceFailed(const QString &reason, bool cancelled)
 {
     const bool showSelector = m_workspaceSelector;
     if (m_workspace->wasDenied()) {
-        if (requestAuthorization([this, showSelector](bool retryFast) {
-                if (retryFast)
-                    captureWorkspace(showSelector);
-                else
-                    fallbackToInteractive(showSelector, 1);
-            })) {
-            qDebug() << "Permission denied, asking before any fallback";
-            return;
-        }
-        qDebug() << "Permission denied, falling back to CaptureInteractive";
-        fallbackToInteractive(showSelector, 1);
+        handleDenied([this, showSelector] { captureWorkspace(showSelector); }, showSelector, 1);
         return;
     }
     if (cancelled) {
@@ -130,20 +126,11 @@ void KWinCaptureStrategy::callScreenShotMethod(const QString &method, const QVar
     using Shot = Screen::KWinFrameSource::Shot;
     Screen::KWinFrameSource::call(method, args, timeout, this,
                                   [this, method, args, showAreaSel, timeout](const Shot &shot) {
-        // Permission denied: ask the gate first, else fall back to CaptureInteractive
         if (shot.denied) {
             const int kind = (method == QLatin1String("CaptureActiveWindow")) ? 0 : 1;
-            if (requestAuthorization([this, method, args, showAreaSel, timeout, kind](bool retryFast) {
-                    if (retryFast)
-                        callScreenShotMethod(method, args, showAreaSel, timeout);
-                    else
-                        fallbackToInteractive(showAreaSel, kind);
-                })) {
-                qDebug() << "Permission denied, asking before any fallback";
-                return;
-            }
-            qDebug() << "Permission denied, falling back to CaptureInteractive";
-            fallbackToInteractive(showAreaSel, kind);
+            handleDenied([this, method, args, showAreaSel, timeout] {
+                callScreenShotMethod(method, args, showAreaSel, timeout);
+            }, showAreaSel, kind);
             return;
         }
         if (shot.cancelled) {

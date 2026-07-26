@@ -6,8 +6,10 @@
 
 namespace Screen {
 
-QPixmap QtScreensFrameSource::grabNow(QRect *virtualGeometryOut)
+QPixmap QtScreensFrameSource::grabNow(QRect *virtualGeometryOut, QList<ScreenGrab> *screenGrabsOut)
 {
+    if (screenGrabsOut)
+        screenGrabsOut->clear();
     const QList<QScreen*> screens = QGuiApplication::screens();
     if (screens.isEmpty())
         return {};
@@ -29,6 +31,8 @@ QPixmap QtScreensFrameSource::grabNow(QRect *virtualGeometryOut)
         const QPixmap shot = s->grabWindow(0);
         const QRect destLogical(geo.topLeft() - virtualDesktop.topLeft(), geo.size());
         painter.drawPixmap(destLogical, shot, shot.rect());
+        if (screenGrabsOut)
+            screenGrabsOut->append({geo, shot});
     }
     painter.end();
     return full;
