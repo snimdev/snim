@@ -1000,8 +1000,8 @@ void LinuxRecordingStrategy::teardown(Output output, std::function<void()> then)
     }
     m_link.reset();
 
-    // Shutting down can block on a stuck stream, and until it is down the pipeline still
-    // uses the fd and may still write the output.
+    // Until it is down the pipeline may write the output, and pipewiresrc shares its
+    // connection by fd number: ours stays open, so unreusable, until then.
     const int fd = std::exchange(m_pipewireFd, -1);
     GstElement *pipeline = std::exchange(m_pipeline, nullptr);
     const QString path = output == Output::Keep ? QString() : m_outputPath;

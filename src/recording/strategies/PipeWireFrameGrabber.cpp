@@ -90,7 +90,8 @@ extern "C" bool snimGrabPipeWireFrames(int pipewireFd, const quint32 *nodeIds, i
             GST_BIN(pipeline.get()), QStringLiteral("src%1").arg(i).toUtf8().constData()));
         if (!src)
             return failWith(QStringLiteral("The frame pipeline could not be built"));
-        // pipewiresrc dups the fd, so the caller still owns and closes its own.
+        // pipewiresrc dups the fd but shares its connection by fd number, so the caller
+        // keeps its own open until this returns, the pipeline down by then.
         g_object_set(src.get(), "fd", pipewireFd,
                      "path", QByteArray::number(nodeIds[i]).constData(), nullptr);
     }
