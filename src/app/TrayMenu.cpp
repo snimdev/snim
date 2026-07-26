@@ -151,8 +151,9 @@ namespace App {
                                ? QString("Screen recording could not start its recorder")
                                : "Screen recording needs " + missing.join("; ");
 #elif defined(Q_OS_LINUX)
-        const QString reason = "Screen recording requires GStreamer (with an H.264 encoder) "
-                               "and, outside X11, the ScreenCast portal";
+        // Built without GStreamer: installing it now would not bring the recorder back.
+        const QString reason = "This build has no screen recording (it was built without "
+                               "GStreamer)";
 #elif defined(SNIM_HAVE_WIN_RECORDER)
         QString reason = Recording::WindowsRecordingStrategy::unavailableReason();
         if (reason.isEmpty())
