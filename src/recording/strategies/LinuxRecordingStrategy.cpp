@@ -36,7 +36,9 @@ constexpr int kEosTimeoutMs = 5000;
 // Past this a pipeline still shutting down is stuck, not writing, so its outcome is reported.
 constexpr int kReleaseGraceMs = 2000;
 // Past pipewiresrc's own 30 s wait for the stream.
-constexpr int kFirstFrameTimeoutMs = 35000;
+constexpr int kFirstPortalFrameTimeoutMs = 35000;
+// ximagesrc reads the X server directly, so its first frame takes milliseconds.
+constexpr int kFirstX11FrameTimeoutMs = 5000;
 
 // Fixed for the session, like everything it probes.
 LinuxPipeline::VideoSource currentVideoSource()
@@ -396,10 +398,11 @@ LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent)
 
     m_firstFrameTimer = new QTimer(this);
     m_firstFrameTimer->setSingleShot(true);
-    m_firstFrameTimer->setInterval(kFirstFrameTimeoutMs);
+    m_firstFrameTimer->setInterval(m_source == LinuxPipeline::VideoSource::X11
+                                       ? kFirstX11FrameTimeoutMs
+                                       : kFirstPortalFrameTimeoutMs);
     connect(m_firstFrameTimer, &QTimer::timeout, this, [this] {
-        qWarning() << "No frame arrived from the screen share within" << kFirstFrameTimeoutMs
-                   << "ms";
+        qWarning() << "No first frame arrived within" << m_firstFrameTimer->interval() << "ms";
         if (m_source == LinuxPipeline::VideoSource::X11) {
             fail(tr("The X server sent no picture."));
             return;
