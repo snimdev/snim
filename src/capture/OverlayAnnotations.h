@@ -46,7 +46,6 @@ public:
 
     // Empty or a non-drawing tool (pointer) means none. Tools stay armed after each shape.
     void setActiveTool(const QString &id);
-    [[nodiscard]] QString activeTool() const { return m_activeTool; }
 
     bool press(const QPoint &virt);
     bool move(const QPoint &virt);

@@ -25,12 +25,10 @@ private slots:
         PauseAwareClock clock;
         clock.start(0);
         clock.pause(1000);
-        QVERIFY(clock.isPaused());
         QCOMPARE(clock.toOutput(999), qint64(999));
         QCOMPARE(clock.toOutput(1000), qint64(-1));
         QCOMPARE(clock.toOutput(5000), qint64(-1));   // still paused
         clock.resume(3000);
-        QVERIFY(!clock.isPaused());
         QCOMPARE(clock.toOutput(2999), qint64(-1));
         QCOMPARE(clock.toOutput(3000), qint64(1000));
         QCOMPARE(clock.toOutput(4000), qint64(2000));
@@ -56,7 +54,6 @@ private slots:
         PauseAwareClock clock;
         clock.pause(10);                 // before start
         clock.resume(20);
-        QVERIFY(!clock.isPaused());
         clock.start(100);
         clock.resume(150);               // not paused
         clock.pause(200);
@@ -86,7 +83,6 @@ private slots:
         clock.start(0);
         clock.pause(10);
         clock.start(100);
-        QVERIFY(!clock.isPaused());
         QCOMPARE(clock.toOutput(150), qint64(50));
         clock.reset();
         QVERIFY(!clock.isStarted());

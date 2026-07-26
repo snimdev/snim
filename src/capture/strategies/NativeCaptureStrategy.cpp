@@ -58,7 +58,7 @@ void NativeCaptureStrategy::captureWindow()
         return;
     }
 
-    const QVector<QRect> windows = Screen::enumerateWindows();
+    const QVector<Screen::WindowInfo> windows = Screen::enumerateWindowInfos();
     QTimer::singleShot(0, [this, windows]() {
         showAreaSelector(m_fullScreenshot, m_virtualGeometry, /*windowPick=*/true, windows);
     });
@@ -221,7 +221,8 @@ QPixmap NativeCaptureStrategy::captureAllScreens()
 }
 
 void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry,
-                                             bool windowPick, const QVector<QRect> &windows)
+                                             bool windowPick,
+                                             const QVector<Screen::WindowInfo> &windows)
 {
     qDebug() << "Virtual desktop geometry:" << virtualGeometry;
     qDebug() << "Screenshot size:" << screenshot.size() << "DPR:" << screenshot.devicePixelRatio();
@@ -241,7 +242,7 @@ void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QR
         selector->setScreenOffset(screenGeometry.topLeft());
         if (windowPick) {
             selector->setMode(Screen::AreaSelector::Mode::WindowPick);
-            selector->setWindows(windows);
+            selector->setWindowInfos(windows);
         }
         // Action toolbar only for normal area capture (not window-pick, not OCR).
         selector->setActionsEnabled(quickActionsEnabled() && !windowPick);

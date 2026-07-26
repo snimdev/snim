@@ -78,15 +78,8 @@ void configureRecordingHud(QWidget *widget)
     raiseTopmost(hwnd, /*activate=*/false);
 }
 
-void configureSelectionHud(QWidget *widget)
-{
-    // Off macOS the options bar is a child of the overlay, so this is a no-op there.
-    HWND hwnd = topLevelHandle(widget);
-    if (!hwnd)
-        return;
-    disableTransitions(hwnd);
-    raiseTopmost(hwnd, /*activate=*/false);
-}
+// Off macOS the options bar is a child of the overlay, so there is nothing to float.
+void configureSelectionHud(QWidget *) {}
 
 void excludeFromCapture(QWidget *widget)
 {

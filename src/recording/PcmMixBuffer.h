@@ -103,8 +103,6 @@ public:
         m_start += frames;
     }
 
-    [[nodiscard]] int channels() const { return m_channels; }
-
 private:
     int m_channels;
     std::int64_t m_holdback;

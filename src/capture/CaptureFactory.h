@@ -24,16 +24,6 @@ public:
         QObject *parent = nullptr
     );
 
-    /**
-     * Get the default strategy type for the current system
-     */
-    static StrategyType getDefaultStrategyType();
-
-    /**
-     * Whether createStrategy(type) would hand out that type's own strategy
-     */
-    static bool isStrategyAvailable(StrategyType type);
-
 private:
     CaptureFactory() = default; // Static class
 };

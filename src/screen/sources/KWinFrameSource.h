@@ -39,7 +39,7 @@ public:
     // Off by default: a frame frozen under a selector must not show a stale pointer.
     void setIncludeCursor(bool include) { m_includeCursor = include; }
 
-    static QVariantMap buildOptions(bool includeCursor = true, bool nativeResolution = true);
+    static QVariantMap buildOptions(bool includeCursor = true);
 
     // One ScreenShot2 reply: the image, or why there is none.
     struct Shot {

@@ -106,17 +106,6 @@ private slots:
         QVERIFY(s);
     }
 
-    void availabilityByType()
-    {
-        QVERIFY(CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Native));
-        QVERIFY(CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Auto));
-#if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
-        QVERIFY(CaptureFactory::getDefaultStrategyType() == CaptureFactory::StrategyType::Native);
-        QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::KWin));
-        QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Portal));
-#endif
-    }
-
     void screencastIsPreferredWhereItBringsSilence()
     {
         using StrategySelection::prefersScreencast;
@@ -164,14 +153,13 @@ private slots:
     void theOverrideDecidesTheDefault()
     {
         const ScopedEnv forced{{"SNIM_CAPTURE_STRATEGY", QByteArrayLiteral("native")}};
-        QVERIFY(CaptureFactory::getDefaultStrategyType() == CaptureFactory::StrategyType::Native);
+        QCOMPARE(FrameSourceFactory::defaultType(), CaptureFactory::StrategyType::Native);
     }
 
     void anUnavailableScreencastStillYieldsAStrategy()
     {
         // Offscreen is no Wayland session, so this must land on a fallback, never null.
         const ScopedEnv session = outsideWayland();
-        QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Screencast));
         auto s = CaptureFactory::createStrategy(CaptureFactory::StrategyType::Screencast);
         QVERIFY(s);
         QVERIFY(s->name() != QStringLiteral("ScreenCast Portal Capture"));
@@ -247,17 +235,16 @@ private slots:
     void screencopyIsNeverPickedOffscreen()
     {
         // No Wayland connection here: the factory must fall back, never hand out a dead strategy.
-        QVERIFY(!CaptureFactory::isStrategyAvailable(CaptureFactory::StrategyType::Screencopy));
         auto s = CaptureFactory::createStrategy(CaptureFactory::StrategyType::Screencopy);
         QVERIFY(s);
         QVERIFY(s->name() != QStringLiteral("Wayland Screencopy"));
-        QVERIFY(CaptureFactory::getDefaultStrategyType() != CaptureFactory::StrategyType::Screencopy);
+        QVERIFY(FrameSourceFactory::defaultType() != CaptureFactory::StrategyType::Screencopy);
     }
 
     void theOverrideForcesScreencopy()
     {
         const ScopedEnv forced{{"SNIM_CAPTURE_STRATEGY", QByteArrayLiteral("wlroots")}};
-        QCOMPARE(CaptureFactory::getDefaultStrategyType(), CaptureFactory::StrategyType::Screencopy);
+        QCOMPARE(FrameSourceFactory::defaultType(), CaptureFactory::StrategyType::Screencopy);
         // Forced but unavailable still yields a working strategy.
         QVERIFY(CaptureFactory::createStrategy());
     }
@@ -295,6 +282,7 @@ private slots:
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Screencopy));
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Screencast));
 #if defined(Q_OS_MACOS) || defined(Q_OS_WIN)
+        QCOMPARE(FrameSourceFactory::defaultType(), CaptureFactory::StrategyType::Native);
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::KWin));
         QVERIFY(!FrameSourceFactory::create(CaptureFactory::StrategyType::Portal));
 #endif

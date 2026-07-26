@@ -6,13 +6,12 @@
 using Screen::ScreenCastPortalSession;
 using Screen::ScreencastFrameSource;
 
-// Screenshot consent must never restore, or be wiped by, the recorder's session.
+// Screenshot consent lives under its own key; a session without one persists nothing.
 class tst_ScreencastToken : public QObject
 {
     Q_OBJECT
 
     const QString m_captureKey = QString::fromLatin1(ScreencastFrameSource::kRestoreTokenKey);
-    const QString m_recordingKey = QStringLiteral("recording/screencastRestoreToken");
 
 private slots:
     void initTestCase()
@@ -27,9 +26,8 @@ private slots:
         QSettings().clear();
     }
 
-    void captureAndRecordingUseDifferentKeys()
+    void theScreenshotKeyIsUnderCapture()
     {
-        QVERIFY(m_captureKey != m_recordingKey);
         QVERIFY(m_captureKey.startsWith(QStringLiteral("capture/")));
     }
 
@@ -39,32 +37,22 @@ private slots:
             m_captureKey, {{QStringLiteral("restore_token"), QStringLiteral("abc")}});
         QCOMPARE(ScreenCastPortalSession::restoreToken(m_captureKey), QStringLiteral("abc"));
         QVERIFY(ScreencastFrameSource::hasRestoreToken());
-        QVERIFY(ScreenCastPortalSession::restoreToken(m_recordingKey).isEmpty());
     }
 
     void aStartWithoutTokenForgetsTheOldOne()
     {
         QSettings().setValue(m_captureKey, QStringLiteral("old"));
-        QSettings().setValue(m_recordingKey, QStringLiteral("recorder"));
         ScreenCastPortalSession::storeRestoreToken(m_captureKey, {});
         QVERIFY(!ScreencastFrameSource::hasRestoreToken());
-        QCOMPARE(QSettings().value(m_recordingKey).toString(), QStringLiteral("recorder"));
     }
 
-    void theSettingsResetForgetsBothPicks()
+    void theSettingsResetForgetsThePick()
     {
         QSettings().setValue(m_captureKey, QStringLiteral("screens"));
-        QSettings().setValue(m_recordingKey, QStringLiteral("recorder"));
         QVERIFY(ScreencastFrameSource::remembersScreenPick());
         ScreencastFrameSource::forgetScreenPicks();
         QVERIFY(!ScreencastFrameSource::remembersScreenPick());
         QVERIFY(!QSettings().contains(m_captureKey));
-        QVERIFY(!QSettings().contains(m_recordingKey));
-    }
-
-    void theRecordingKeyIsTheSessionsOwn()
-    {
-        QCOMPARE(QString::fromLatin1(ScreenCastPortalSession::kRecordingRestoreTokenKey), m_recordingKey);
     }
 
     void anEmptyKeyPersistsNothing()

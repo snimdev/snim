@@ -87,21 +87,12 @@ private slots:
     {
         qputenv("SNIM_RECORDER_MODULE", "/nonexistent/libsnim-recorder-linux.so");
         QVERIFY(!LinuxRecorderModule::create());
-        QVERIFY(!RecordingFactory::isStrategyAvailable(RecordingFactory::StrategyType::Linux));
 
-        auto strategy = RecordingFactory::createStrategy(RecordingFactory::StrategyType::Linux);
+        auto strategy = RecordingFactory::createStrategy();
         QVERIFY(strategy);
         QCOMPARE(strategy->name(), QStringLiteral("Unsupported"));
         QVERIFY(!strategy->isAvailable());
-    }
-
-    void autoStillResolvesWithoutTheModule()
-    {
-        qputenv("SNIM_RECORDER_MODULE", "/nonexistent/libsnim-recorder-linux.so");
-        QVERIFY(RecordingFactory::isStrategyAvailable(RecordingFactory::StrategyType::Auto));
-        QVERIFY(RecordingFactory::createStrategy());
-        // Built with Linux recording support, whether or not it can run here.
-        QCOMPARE(RecordingFactory::getDefaultStrategyType(), RecordingFactory::StrategyType::Linux);
+        QVERIFY(!strategy->isRecording());
     }
 
     // Last two: once the real module is loaded it stays loaded, and GStreamer keeps the
@@ -130,12 +121,10 @@ private slots:
 
         // Every way in agrees: the module, a strategy of its own and the factory's stub.
         QCOMPARE(LinuxRecorderModule::missingPieces(), missing);
-        QVERIFY(!LinuxRecorderModule::isAvailable());
         const std::unique_ptr<RecordingStrategy> strategy(LinuxRecorderModule::create());
         QVERIFY(strategy);
         QVERIFY(!strategy->isAvailable());
-        QCOMPARE(RecordingFactory::createStrategy(RecordingFactory::StrategyType::Linux)->name(),
-                 QStringLiteral("Unsupported"));
+        QCOMPARE(RecordingFactory::createStrategy()->name(), QStringLiteral("Unsupported"));
     }
 
     // Still without plugins: the self-test's check finds nothing and names what is missing.

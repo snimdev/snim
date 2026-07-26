@@ -281,12 +281,6 @@ WasapiAudioSource::~WasapiAudioSource()
     stop();
 }
 
-bool WasapiAudioSource::hasEndpoint(Kind kind)
-{
-    ComScope com;
-    return openDevice(kind, QByteArray()) != nullptr;
-}
-
 bool WasapiAudioSource::start(const QByteArray &deviceId, Handler handler, QString *error)
 {
     stop();

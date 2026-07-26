@@ -68,13 +68,12 @@ KWinFrameSource::KWinFrameSource(QObject *parent)
     }
 }
 
-QVariantMap KWinFrameSource::buildOptions(bool includeCursor, bool nativeResolution)
+QVariantMap KWinFrameSource::buildOptions(bool includeCursor)
 {
     QVariantMap options;
     if (includeCursor)
         options.insert(QStringLiteral("include-cursor"), true);
-    if (nativeResolution)
-        options.insert(QStringLiteral("native-resolution"), true);
+    options.insert(QStringLiteral("native-resolution"), true);
     options.insert(QStringLiteral("include-shadow"), false);
     return options;
 }

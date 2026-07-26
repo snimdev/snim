@@ -88,6 +88,15 @@ private:
         QCOMPARE(state.last().at(0).toRect(), sel.translated(30, 20));
     }
 
+    // The tool strip's checked slot is the armed tool; empty when none is.
+    static QString armedTool(const OverlayAnnotations &s)
+    {
+        for (const auto &slot : s.toolbarSlots())
+            if (slot.checked)
+                return slot.id;
+        return {};
+    }
+
     // Selections travel in virtual-desktop coords, so a local drag lands at the offset rect.
     QRect selectionFor(const QPoint &from, const QPoint &to) const
     {
@@ -276,7 +285,7 @@ private slots:
         const auto session = attachSession();
         drag(QPoint(40, 40), QPoint(240, 180));
         QTest::keyClick(m_sel.data(), Qt::Key_R);
-        QCOMPARE(session->activeTool(), QStringLiteral("rectangle"));
+        QCOMPARE(armedTool(*session), QStringLiteral("rectangle"));
 
         stroke(QPoint(80, 80), QPoint(160, 140));
         QVERIFY(session->hasItems());
@@ -325,7 +334,7 @@ private slots:
         const auto session = attachSession();
         drag(QPoint(40, 40), QPoint(240, 180));
         QTest::keyClick(m_sel.data(), Qt::Key_N);
-        QCOMPARE(session->activeTool(), QStringLiteral("step"));
+        QCOMPARE(armedTool(*session), QStringLiteral("step"));
         QSignalSpy area(m_sel.data(), &AreaSelector::areaSelected);
 
         QTest::mouseClick(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(80, 80));
@@ -345,7 +354,7 @@ private slots:
         const auto session = attachSession();
         drag(QPoint(40, 40), QPoint(240, 180));
         QTest::keyClick(m_sel.data(), Qt::Key_H);
-        QCOMPARE(session->activeTool(), QStringLiteral("highlight"));
+        QCOMPARE(armedTool(*session), QStringLiteral("highlight"));
         stroke(QPoint(80, 100), QPoint(180, 100));
 
         QSignalSpy copy(m_sel.data(), &AreaSelector::copyRequested);
@@ -381,7 +390,7 @@ private slots:
         const auto session = attachSession();
         drag(QPoint(40, 40), QPoint(240, 180));
         QTest::keyClick(m_sel.data(), Qt::Key_B);
-        QCOMPARE(session->activeTool(), QStringLiteral("blur"));
+        QCOMPARE(armedTool(*session), QStringLiteral("blur"));
 
         QTest::mousePress(m_sel.data(), Qt::LeftButton, Qt::NoModifier, QPoint(100, 110));
         for (int x = 110; x <= 180; x += 10)
@@ -420,7 +429,7 @@ private slots:
 
         QTest::keyClick(m_sel.data(), Qt::Key_Escape);
         QVERIFY(!session->isEditingText());
-        QCOMPARE(session->activeTool(), QStringLiteral("text"));
+        QCOMPARE(armedTool(*session), QStringLiteral("text"));
         const Editor::AnnotationSet set = session->snapshot(sel);
         QCOMPARE(set.size(), 1);
         QCOMPARE(set.entries().at(0).toolId, QStringLiteral("text"));
@@ -431,7 +440,7 @@ private slots:
 
         QSignalSpy state(m_sel.data(), &AreaSelector::liveStateChanged);
         QTest::keyClick(m_sel.data(), Qt::Key_Escape);
-        QVERIFY(session->activeTool().isEmpty());
+        QVERIFY(armedTool(*session).isEmpty());
         QVERIFY(session->hasItems());
         for (const auto &args : state)
             QCOMPARE(args.at(1).toInt(), kAdjusting);
@@ -453,7 +462,7 @@ private slots:
         const QRect sel = selectionFor(QPoint(40, 40), QPoint(240, 180));
         drag(QPoint(40, 40), QPoint(240, 180));
         QTest::keyClick(m_sel.data(), Qt::Key_T);
-        QCOMPARE(session->activeTool(), QStringLiteral("text"));
+        QCOMPARE(armedTool(*session), QStringLiteral("text"));
         QTest::mouseMove(m_sel.data(), QPoint(100, 100));
         QCOMPARE(m_sel->cursor().shape(), Qt::IBeamCursor);
 
@@ -469,7 +478,7 @@ private slots:
         QTest::keyClick(m_sel.data(), Qt::Key_Escape);
 
         QCOMPARE(texts(session->snapshot(sel)), QStringList({"ab", "cd"}));
-        QCOMPARE(session->activeTool(), QStringLiteral("text"));
+        QCOMPARE(armedTool(*session), QStringLiteral("text"));
         QVERIFY(m_sel->isVisible());
     }
 
@@ -549,7 +558,7 @@ private slots:
         QCOMPARE(area.count(), 0);
         QVERIFY(state.isEmpty());   // no selection nudges either
         QVERIFY(session->isEditingText());
-        QCOMPARE(session->activeTool(), QStringLiteral("text"));
+        QCOMPARE(armedTool(*session), QStringLiteral("text"));
         QVERIFY(m_sel->isVisible());
 
         QTest::keyClick(m_sel.data(), Qt::Key_Escape);
@@ -628,7 +637,7 @@ private slots:
         drag(QPoint(40, 40), QPoint(240, 180));
         QTest::keyClick(m_sel.data(), Qt::Key_R);
         QTest::keyClick(m_sel.data(), Qt::Key_R);
-        QVERIFY(session->activeTool().isEmpty());
+        QVERIFY(armedTool(*session).isEmpty());
 
         verifyInteriorDragMoves(selectionFor(QPoint(40, 40), QPoint(240, 180)));
         QVERIFY(!session->hasItems());
@@ -650,7 +659,7 @@ private slots:
         QSignalSpy state(m_sel.data(), &AreaSelector::liveStateChanged);
 
         QTest::keyClick(m_sel.data(), Qt::Key_Escape);
-        QVERIFY(session->activeTool().isEmpty());
+        QVERIFY(armedTool(*session).isEmpty());
         QVERIFY(session->hasItems());
         for (const auto &args : state)
             QCOMPARE(args.at(1).toInt(), kAdjusting);

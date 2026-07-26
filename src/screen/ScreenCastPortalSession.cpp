@@ -27,9 +27,6 @@ const QString kSession = QStringLiteral("org.freedesktop.portal.Session");
 const QString kProperties = QStringLiteral("org.freedesktop.DBus.Properties");
 const QString kClosed = QStringLiteral("Closed");
 
-const QString kRestoreTokenKey =
-    QString::fromLatin1(ScreenCastPortalSession::kRecordingRestoreTokenKey);
-
 const char *const kCreateSlot = SLOT(handleCreateSessionResponse(uint,QVariantMap));
 const char *const kSelectSlot = SLOT(handleSelectSourcesResponse(uint,QVariantMap));
 const char *const kStartSlot = SLOT(handleStartResponse(uint,QVariantMap));
@@ -88,17 +85,6 @@ ScreenCastPortalSession::~ScreenCastPortalSession()
     close();
 }
 
-bool ScreenCastPortalSession::isPortalAvailable()
-{
-    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kProperties,
-                                                      QStringLiteral("Get"));
-    msg.setArguments({kScreenCast, QStringLiteral("version")});
-
-    // Blocking, but bounded and only used to decide whether a recorder exists at all.
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 2000);
-    return reply.type() == QDBusMessage::ReplyMessage;
-}
-
 uint ScreenCastPortalSession::portalVersion()
 {
     return readUintProperty(QStringLiteral("version"));
@@ -145,24 +131,9 @@ void ScreenCastPortalSession::storeRestoreToken(const QString &key, const QVaria
         QSettings().setValue(key, token);
 }
 
-void ScreenCastPortalSession::open(bool captureCursor)
-{
-    Options options;
-    options.captureCursor = captureCursor;
-    open(options);
-}
-
 void ScreenCastPortalSession::open(const Options &options)
 {
     close();
-
-    // Older builds persisted the picked source, which silently pinned every later
-    // recording to it; drop the leftover token so the picker comes back.
-    static const bool tokenDropped = [] {
-        QSettings().remove(kRestoreTokenKey);
-        return true;
-    }();
-    Q_UNUSED(tokenDropped)
 
     m_options = options;
     m_cancelled = false;

@@ -18,7 +18,6 @@ bool AreaSelector::ToolbarHandler::mousePress(QMouseEvent *event)
     const int b = s.toolbarButtonAt(local);
     if (b < 0) return false;
     s.m_cursorVirt = s.toVirt(local);
-    s.m_hasCursor = true;
     s.activateBarSlot(s.toolbarSlots().at(b));
     return true;
 }
@@ -41,7 +40,6 @@ bool AreaSelector::LayerHandler::mousePress(QMouseEvent *event)
 {
     if (!forward(SelectionLayer::MouseAction::Press, event)) return false;
     m_sel.m_cursorVirt = m_sel.toVirt(event->pos());
-    m_sel.m_hasCursor = true;
     return true;
 }
 
@@ -104,7 +102,6 @@ bool AreaSelector::SelectionHandler::mousePress(QMouseEvent *event)
     if (event->button() != Qt::LeftButton) return true;
     const QPoint local = event->pos();
     s.m_cursorVirt = s.toVirt(local);
-    s.m_hasCursor = true;
 
     if (s.m_mode == Mode::WindowPick) {
         s.updateHoverWindow();
@@ -146,7 +143,6 @@ bool AreaSelector::SelectionHandler::mouseMove(QMouseEvent *event)
     auto &s = m_sel;
     const QPoint local = event->pos();
     s.m_cursorVirt = s.toVirt(local);
-    s.m_hasCursor = true;
 
     if (s.m_mode == Mode::WindowPick) {
         s.updateHoverWindow();

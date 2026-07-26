@@ -42,9 +42,9 @@ public:
     // Whether an earlier pick was remembered, so the next grab should be silent.
     [[nodiscard]] static bool hasRestoreToken();
 
-    // Whether screenshots or recordings remember a pick, for the Settings reset.
+    // Whether screenshots remember a pick, for the Settings reset.
     [[nodiscard]] static bool remembersScreenPick();
-    // Forgets the screenshot pick, and any recording pick an older build left.
+    // Forgets the screenshot pick.
     static void forgetScreenPicks();
 
 signals:

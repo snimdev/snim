@@ -29,18 +29,6 @@ struct WindowInfo {
  */
 QVector<WindowInfo> enumerateWindowInfos();
 
-// Rect-only convenience for the screenshot window-pick path (which doesn't need
-// the id). Single source of truth: derived from enumerateWindowInfos().
-inline QVector<QRect> enumerateWindows()
-{
-    QVector<QRect> rects;
-    const QVector<WindowInfo> infos = enumerateWindowInfos();
-    rects.reserve(infos.size());
-    for (const WindowInfo &w : infos)
-        rects.append(w.rect);
-    return rects;
-}
-
 } // namespace Screen
 
 #endif // SCREEN_WINDOWENUMERATOR_H

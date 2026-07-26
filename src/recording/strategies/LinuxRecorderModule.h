@@ -49,9 +49,6 @@ inline constexpr char kCheckEntryPoint[] = "snimLinuxRecorderCheckElements";
 // on disk, no GStreamer on this host, a symbol that will not resolve.
 [[nodiscard]] RecordingStrategy *create(QObject *parent = nullptr);
 
-// Whether the module loads AND its strategy finds its video source, the plugins and an encoder.
-[[nodiscard]] bool isAvailable();
-
 // What keeps recording from working here, for the tray and the log. A module that will
 // not load is itself the missing piece.
 [[nodiscard]] QStringList missingPieces();

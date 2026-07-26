@@ -33,7 +33,6 @@ set(SNIM_TESTS
         tst_frozenframegrabber
         tst_ocrservice
         tst_integration_scene
-        tst_recordingfactory
         tst_recordtarget
         tst_recordinggeometry
         tst_linuxpipeline
@@ -109,13 +108,6 @@ if(GSTREAMER_AVAILABLE)
     target_compile_definitions(tst_linuxrecordermodule PRIVATE
             SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
     set_target_properties(tst_linuxrecordermodule PROPERTIES ENABLE_EXPORTS ON)
-
-    # Keeps tst_recordingfactory reaching the real backend, as it did when the strategy
-    # was linked in: without the override it would only ever see the stub.
-    add_dependencies(tst_recordingfactory snim_recorder_linux)
-    set_target_properties(tst_recordingfactory PROPERTIES ENABLE_EXPORTS ON)
-    set_tests_properties(tst_recordingfactory PROPERTIES ENVIRONMENT
-            "QT_QPA_PLATFORM=offscreen;SNIM_RECORDER_MODULE=$<TARGET_FILE:snim_recorder_linux>")
 
     # Same seam for the trim exporter module; the test also drives GStreamer itself to
     # make a fixture with audio.

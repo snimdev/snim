@@ -77,7 +77,7 @@ Type fallbackFor(Type type)
 std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType type, QObject *parent)
 {
     if (type == StrategyType::Auto)
-        type = getDefaultStrategyType();
+        type = Screen::FrameSourceFactory::defaultType();
 
     for (;;) {
         auto strategy = makeStrategy(type, parent);
@@ -91,19 +91,6 @@ std::unique_ptr<CaptureStrategy> CaptureFactory::createStrategy(StrategyType typ
                              << Screen::FrameSourceFactory::typeName(next);
         type = next;
     }
-}
-
-CaptureFactory::StrategyType CaptureFactory::getDefaultStrategyType()
-{
-    return Screen::FrameSourceFactory::defaultType();
-}
-
-bool CaptureFactory::isStrategyAvailable(StrategyType type)
-{
-    if (type == StrategyType::Auto)
-        return true;   // Auto always lands on a strategy, Native at worst
-    const auto strategy = makeStrategy(type, nullptr);
-    return strategy && strategy->isAvailable();
 }
 
 } // namespace Capture

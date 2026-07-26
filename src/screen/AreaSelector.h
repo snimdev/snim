@@ -53,12 +53,9 @@ namespace Screen {
 
         void setMode(Mode mode) { m_mode = mode; }
 
-        // Candidate window rects (virtual-desktop logical coords, front-to-back)
-        // used by WindowPick mode. Empty -> falls back to screen-under-cursor.
-        void setWindows(const QVector<QRect> &windows) { m_windows = windows; }
-
-        // Like setWindows, but also keeps each window's platform id so a WindowPick
-        // emits windowPicked(rect, id) for true window capture.
+        // Candidate windows (virtual-desktop logical coords, front-to-back) used by
+        // WindowPick mode, each with its platform id so a pick emits windowPicked(rect,
+        // id) for true window capture. Empty -> falls back to screen-under-cursor.
         void setWindowInfos(const QVector<WindowInfo> &infos);
 
         // Show the floating action toolbar (Edit/Copy/Save/Cancel) during the
@@ -105,7 +102,6 @@ namespace Screen {
         void keyPressEvent(QKeyEvent *event) override;
         void showEvent(QShowEvent *event) override;
         void resizeEvent(QResizeEvent *event) override;
-        void leaveEvent(QEvent *event) override;
         void inputMethodEvent(QInputMethodEvent *event) override;
 
     private:
@@ -180,7 +176,6 @@ namespace Screen {
         QRect   m_resizeBaseVirt;       // selection snapshot when a handle drag starts
         Handle  m_activeHandle = Handle::None;
         QPoint  m_moveGrabOffsetVirt;   // cursorVirt - selection.topLeft() while moving
-        bool    m_hasCursor = false;
 
         QPixmap m_screenshot;           // full virtual-desktop frozen frame
         QImage  m_screenshotImage;      // cached copy for pixel color sampling

@@ -52,7 +52,7 @@ LinuxPipeline::VideoSource currentVideoSource()
         const bool askPortal = platform == QLatin1String("xcb") && !wayland && !hasXimagesrc;
         return LinuxPipeline::videoSourceFor(
             platform, wayland, hasXimagesrc,
-            askPortal && Screen::ScreenCastPortalSession::isPortalAvailable());
+            askPortal && Screen::ScreenCastPortalSession::portalVersion() > 0);
     }();
     return source;
 }
@@ -471,7 +471,7 @@ QStringList LinuxRecordingStrategy::missingPieces()
     static bool portalSeen = false;
     QStringList pieces;
     if (source == LinuxPipeline::VideoSource::Portal && !portalSeen) {
-        portalSeen = Screen::ScreenCastPortalSession::isPortalAvailable();
+        portalSeen = Screen::ScreenCastPortalSession::portalVersion() > 0;
         if (!portalSeen) {
             pieces << QStringLiteral("the ScreenCast portal (xdg-desktop-portal and a backend "
                                      "for this desktop)");

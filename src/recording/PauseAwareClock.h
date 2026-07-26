@@ -54,7 +54,6 @@ public:
     }
 
     [[nodiscard]] bool isStarted() const { return m_started; }
-    [[nodiscard]] bool isPaused() const { return m_paused; }
 
     // Output time for a capture timestamp, or -1 before the start or inside a pause.
     [[nodiscard]] qint64 toOutput(qint64 captureUs) const

@@ -21,8 +21,6 @@ class ScreenCastPortalSession : public QObject
 public:
     // persist_mode and restore_token arrived with version 4 of the interface.
     static constexpr uint kFirstPersistingVersion = 4;
-    // Where older builds kept the recorder's pick; open() drops it.
-    static constexpr char kRecordingRestoreTokenKey[] = "recording/screencastRestoreToken";
 
     explicit ScreenCastPortalSession(QObject *parent = nullptr);
     ~ScreenCastPortalSession() override;
@@ -50,9 +48,6 @@ public:
         QRect rectLogical;   // null when the portal sent no geometry
     };
 
-    // Probe: reads the interface version, creating no session.
-    [[nodiscard]] static bool isPortalAvailable();
-
     // The ScreenCast interface version, 0 when the portal cannot be reached.
     [[nodiscard]] static uint portalVersion();
 
@@ -68,7 +63,6 @@ public:
     [[nodiscard]] static QString restoreToken(const QString &key);
     static void storeRestoreToken(const QString &key, const QVariantMap &startResults);
 
-    void open(bool captureCursor);
     void open(const Options &options);
     void close();
 

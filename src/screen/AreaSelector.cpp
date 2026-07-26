@@ -873,7 +873,6 @@ void AreaSelector::showEvent(QShowEvent *event)
     activateWindow();
     setFocus();
     m_cursorVirt = QCursor::pos();   // global == virtual-desktop logical
-    m_hasCursor = rect().contains(toLocal(m_cursorVirt));
     if (m_mode == Mode::WindowPick)
         updateHoverWindow();
     rebuildBackgroundCache();
@@ -885,15 +884,6 @@ void AreaSelector::resizeEvent(QResizeEvent *event)
 {
     m_dimmedBg = QPixmap(); // size changed -> rebuild lazily on next paint
     QWidget::resizeEvent(event);
-}
-
-void AreaSelector::leaveEvent(QEvent *event)
-{
-    if (m_phase != Phase::Dragging) {
-        m_hasCursor = false;
-        update();
-    }
-    QWidget::leaveEvent(event);
 }
 
 } // namespace Screen

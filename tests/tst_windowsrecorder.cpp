@@ -4,11 +4,12 @@
 #include <QTemporaryDir>
 
 #include "recording/RecordTarget.h"
-#include "recording/strategies/windows/WasapiAudioSource.h"
 #include "recording/strategies/windows/WindowsRecordingStrategy.h"
 #include "Mp4Boxes.h"
 
 #include <windows.h>
+#include <mmdeviceapi.h>
+#include <wrl/client.h>
 
 using namespace Recording;
 using namespace TestSupport;
@@ -26,6 +27,23 @@ bool interactiveDesktop()
         return false;
     CloseDesktop(desktop);
     return true;
+}
+
+// Whether a default playback device exists for loopback audio.
+bool hasPlaybackDevice()
+{
+    const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    bool found = false;
+    {
+        Microsoft::WRL::ComPtr<IMMDeviceEnumerator> enumerator;
+        Microsoft::WRL::ComPtr<IMMDevice> device;
+        found = SUCCEEDED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
+                                           IID_PPV_ARGS(&enumerator)))
+                && SUCCEEDED(enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device));
+    }
+    if (SUCCEEDED(com))
+        CoUninitialize();
+    return found;
 }
 
 } // namespace
@@ -59,7 +77,7 @@ private slots:
         RecordTarget target;
         target.regionVirtual = QGuiApplication::primaryScreen()->geometry();
         target.fps = 30;
-        target.captureSystemAudio = WasapiAudioSource::hasEndpoint(WasapiAudioSource::Kind::Loopback);
+        target.captureSystemAudio = hasPlaybackDevice();
 
         QSignalSpy started(&strategy, &RecordingStrategy::started);
         QSignalSpy finished(&strategy, &RecordingStrategy::finished);

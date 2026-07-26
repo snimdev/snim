@@ -3,6 +3,7 @@
 
 #include "CaptureStrategy.h"
 #include "capture/CaptureGeometry.h"
+#include "screen/WindowEnumerator.h"
 #include <QScreen>
 #include <QApplication>
 #include <QTimer>
@@ -40,7 +41,8 @@ private:
     QPixmap captureScreen();
     QPixmap captureAllScreens();
     void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry,
-                          bool windowPick = false, const QVector<QRect> &windows = {});
+                          bool windowPick = false,
+                          const QVector<Screen::WindowInfo> &windows = {});
     void onCopyRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
     void onSaveRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
     // The frame and its geometry to crop area from: one screen's own grab when it holds area.

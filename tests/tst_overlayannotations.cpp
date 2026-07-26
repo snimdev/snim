@@ -55,6 +55,15 @@ private:
         return true;
     }
 
+    // The tool strip's checked slot is the armed tool; empty when none is.
+    static QString armedTool(const OverlayAnnotations &s)
+    {
+        for (const auto &slot : s.toolbarSlots())
+            if (slot.checked)
+                return slot.id;
+        return {};
+    }
+
     // Rectangle at virtual (-1700,250)-(-1600,350): crop-local (100,50)-(200,150).
     static void drawRect(OverlayAnnotations &s, const QPoint &from = {-1700, 250},
                          const QPoint &to = {-1600, 350})
@@ -144,7 +153,7 @@ private slots:
         OverlayAnnotations s(frame(1), kVirtual);
         s.setSelection(kArea);
         drawRect(s);
-        QCOMPARE(s.activeTool(), QStringLiteral("rectangle"));
+        QCOMPARE(armedTool(s), QStringLiteral("rectangle"));
         drawRect(s, {-1750, 220}, {-1650, 300});
         s.undo();
         QVERIFY(s.canUndo());   // two separate undo steps
@@ -327,7 +336,7 @@ private slots:
         s.undo();
         QVERIFY(s.press({-1650, 250}));
         QCOMPARE(stepNumbers(s.snapshot(kArea)), QList<int>({1, 2}));
-        QCOMPARE(s.activeTool(), QStringLiteral("step"));
+        QCOMPARE(armedTool(s), QStringLiteral("step"));
     }
 
     void highlightIsBlendedIntoTheCrop()

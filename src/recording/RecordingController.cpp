@@ -29,8 +29,7 @@
 namespace Recording {
 
 RecordingController::RecordingController(QObject *parent)
-    : RecordingController(RecordingFactory::createStrategy(RecordingFactory::StrategyType::Auto),
-                          parent)
+    : RecordingController(RecordingFactory::createStrategy(), parent)
 {
 }
 

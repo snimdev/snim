@@ -27,7 +27,7 @@ enum class SourceType {
 class FrameSourceFactory
 {
 public:
-    // Null when the source is not built in or this session does not offer it. The portal
+    // Null for Auto, a source not built in, or one this session does not offer. The portal
     // and Qt grab sources exist wherever they are built; their grab says what is missing.
     [[nodiscard]] static std::unique_ptr<DesktopFrameSource> create(SourceType type,
                                                                     QObject *parent = nullptr);

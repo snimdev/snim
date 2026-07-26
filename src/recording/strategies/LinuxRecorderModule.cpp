@@ -2,8 +2,6 @@
 
 #include "core/DynamicModule.h"
 
-#include <memory>
-
 namespace Recording::LinuxRecorderModule {
 
 namespace {
@@ -38,12 +36,6 @@ RecordingStrategy *create(QObject *parent)
     if (!entry)
         return nullptr;
     return reinterpret_cast<CreateFunction>(entry)(parent);
-}
-
-bool isAvailable()
-{
-    const std::unique_ptr<RecordingStrategy> probe(create());
-    return probe && probe->isAvailable();
 }
 
 QStringList missingPieces()

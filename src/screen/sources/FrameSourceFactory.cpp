@@ -20,7 +20,7 @@ std::unique_ptr<DesktopFrameSource> FrameSourceFactory::create(SourceType type, 
 {
     switch (type) {
     case SourceType::Auto:
-        return create(defaultType(), parent);
+        break;
     case SourceType::KWin:
 #ifdef Q_OS_LINUX
         if (KWinFrameSource::isServiceRegistered()) {

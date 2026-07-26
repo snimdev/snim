@@ -34,9 +34,6 @@ public:
     WasapiAudioSource(const WasapiAudioSource &) = delete;
     WasapiAudioSource &operator=(const WasapiAudioSource &) = delete;
 
-    // Whether a default playback (Loopback) or recording (Microphone) device exists.
-    [[nodiscard]] static bool hasEndpoint(Kind kind);
-
     // deviceId is a microphone's QAudioDevice::id() (the endpoint id); empty or
     // unplugged falls back to the default device. Ignored for loopback.
     [[nodiscard]] bool start(const QByteArray &deviceId, Handler handler, QString *error);
