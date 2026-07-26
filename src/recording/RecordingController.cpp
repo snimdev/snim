@@ -75,7 +75,7 @@ void RecordingController::destroyCameraBubble()
 }
 
 // Recording frame: dim + border marking the recorded region for the whole recording.
-// One of our own windows, so the capture filter excludes it, never in the video.
+// macOS's capture filter leaves it out of the video; elsewhere it stays outside the region.
 void RecordingController::showFrameOverlay()
 {
     if (m_activeRegion.isEmpty() || !Core::Settings::recordingFrameEnabled())

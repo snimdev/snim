@@ -20,7 +20,7 @@ namespace Recording::LinuxPipeline {
 enum class VideoSource { Portal, X11 };
 
 // An xcb client inside a Wayland session (XWayland) sees only other X clients. Without
-// ximagesrc (the Flatpak runtime lacks it) an X11 session still records through a portal.
+// ximagesrc (a plugins-good built without X11) an X11 session still records through a portal.
 [[nodiscard]] inline VideoSource videoSourceFor(QStringView platformName, bool waylandSession,
                                                 bool hasXimagesrc, bool hasPortal)
 {

@@ -38,9 +38,8 @@ RecordingFrameOverlay::RecordingFrameOverlay(QWidget *parent)
 
 void RecordingFrameOverlay::showForRegion(const QRect &regionVirtual)
 {
-    // The recorder captures one display: the one under the region's center (with a
-    // first-intersecting / primary fallback). Mirror that choice here, and clamp the
-    // hole to the screen exactly like the strategy clamps its sourceRect.
+    // One display gets the frame, clamped to it: the one under the region's center (else
+    // the first it touches, else the primary), which is all macOS records.
     QScreen *screen = nullptr;
     const QList<QScreen *> screens = QGuiApplication::screens();
     for (QScreen *cand : screens)

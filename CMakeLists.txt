@@ -859,7 +859,7 @@ if(GSTREAMER_AVAILABLE)
             src/screen/PipeWireFrames.h
             src/screen/ScreenCastPortalSession.cpp
             src/screen/ScreenCastPortalSession.h)
-    # Activates the Linux branch of RecordingFactory + makes Auto pick the portal
+    # Activates the Linux branch of RecordingFactory + makes Auto pick the GStreamer
     # recorder. PUBLIC because the tests check the macro.
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_LINUX_RECORDER)
 

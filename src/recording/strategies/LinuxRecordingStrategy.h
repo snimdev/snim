@@ -32,8 +32,9 @@ struct StrategyLink;
 /**
  * Linux recording backend: a GStreamer pipeline that encodes the selection to H.264.
  * In an X11 session ximagesrc reads it straight off the root window, or reads the picked
- * window by its id; elsewhere an xdg-desktop-portal ScreenCast stream is cropped down to
- * it, or is the window the portal's picker chose. The header stays free of
+ * window by its id; elsewhere, and in an X11 session without ximagesrc, an
+ * xdg-desktop-portal ScreenCast stream is cropped down to it, or is the window the
+ * portal's picker chose. The header stays free of
  * GStreamer headers, so the rest of the codebase includes this like any other class;
  * everything else lives in the .cpp.
  */
