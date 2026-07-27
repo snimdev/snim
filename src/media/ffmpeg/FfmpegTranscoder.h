@@ -40,7 +40,6 @@ public:
     [[nodiscard]] bool wasCancelled() const { return m_cancelled.load(); }
 
     [[nodiscard]] QString errorString() const { return m_error; }
-    [[nodiscard]] QString videoEncoderName() const { return m_videoEncoderName; }
 
 protected:
     // Source time to seek to before decoding (it lands on the keyframe at or before it).
@@ -75,7 +74,6 @@ private:
 
     std::atomic_bool m_cancelled{false};
     QString m_error;
-    QString m_videoEncoderName;
     qint64 m_startUs = 0;
     int m_videoFramesKept = 0;
 };

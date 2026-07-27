@@ -133,13 +133,13 @@ private:
         // A keyframe a second lets a recording close a fragment every second.
         const double gopSeconds = settings.tuning == H264EncoderSettings::Live ? 1.0 : 2.0;
         context->gop_size = std::max(1, int(av_q2d(settings.frameRate) * gopSeconds));
-        context->bit_rate = settings.bitRate > 0 ? settings.bitRate : derivedBitRate(settings);
+        context->bit_rate = derivedBitRate(settings);
         context->color_range = settings.colorRange;
         context->color_primaries = settings.colorPrimaries;
         context->color_trc = settings.colorTrc;
         context->colorspace = settings.colorSpace;
-        if (settings.globalHeader)
-            context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+        // MP4 wants the SPS/PPS out of band.
+        context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
         // Live frames come at uneven times; B-frame reordering skews the track's start and length.
         if (settings.tuning == H264EncoderSettings::Live)
             context->max_b_frames = 0;

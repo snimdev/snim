@@ -34,7 +34,6 @@ bool FfmpegTranscoder::fail(const QString &message, int error)
 bool FfmpegTranscoder::run(const QString &input, const QString &output)
 {
     m_error.clear();
-    m_videoEncoderName.clear();
     m_videoFramesKept = 0;
     QFile::remove(output);
     const bool ok = transcode(input, output) && !wasCancelled();
@@ -122,7 +121,6 @@ bool FfmpegTranscoder::transcode(const QString &input, const QString &output)
     FfmpegEncoder encoder;
     if (!encoder.open(settings))
         return fail(encoder.errorString());
-    m_videoEncoderName = encoder.videoEncoderName();
 
     PacketPtr packet = makePacket();
     if (!packet)

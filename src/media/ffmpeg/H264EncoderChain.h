@@ -17,8 +17,6 @@ struct H264EncoderSettings {
     int height = 0;                   // even
     AVRational timeBase{1, 90000};
     AVRational frameRate{30, 1};      // nominal, for rate control and the GOP
-    qint64 bitRate = 0;               // hardware encoders; 0 derives it from size and rate
-    bool globalHeader = false;        // MP4 and MOV want the SPS/PPS out of band
     Tuning tuning = Live;
 
     // Tagged into the stream; a transcode copies its source's.

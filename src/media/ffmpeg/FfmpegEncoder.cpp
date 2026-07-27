@@ -66,7 +66,6 @@ bool FfmpegEncoder::open(const FfmpegEncoderSettings &settings)
     m_sourceHeight = settings.video.height;
     m_settings.video.width &= ~1;
     m_settings.video.height &= ~1;
-    m_settings.video.globalHeader = true;
     if (m_settings.video.width <= 0 || m_settings.video.height <= 0)
         return fail(QStringLiteral("The video is too small to encode"));
 
@@ -121,7 +120,6 @@ bool FfmpegEncoder::openVideo()
     if (!opened)
         return fail(QStringLiteral("No H.264 encoder could be opened"));
     m_video.codec = std::move(opened.context);
-    m_videoEncoderName = opened.name;
 
     m_video.stream = avformat_new_stream(m_format.get(), nullptr);
     if (!m_video.stream)

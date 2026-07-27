@@ -94,8 +94,6 @@ private slots:
         const QString path = m_dir.filePath(QStringLiteral("clip.mp4"));
         FfmpegEncoder encoder;
         QVERIFY2(encoder.open(settingsFor(path)), qPrintable(encoder.errorString()));
-        QCOMPARE(encoder.videoEncoderName(), QStringLiteral("libx264"));
-        QVERIFY(encoder.hasAudio());
         QVERIFY2(encodeOneSecond(encoder, 160, 120, kChannels), qPrintable(encoder.errorString()));
 
         const Mp4Info info = readMp4(path);
@@ -153,7 +151,6 @@ private slots:
         const QString path = m_dir.filePath(QStringLiteral("silent.mp4"));
         FfmpegEncoder encoder;
         QVERIFY2(encoder.open(settingsFor(path, 160, 120, 0)), qPrintable(encoder.errorString()));
-        QVERIFY(!encoder.hasAudio());
         QVERIFY(encoder.addAudio(nullptr, 0, 0));   // ignored without a track
         QVERIFY2(encodeOneSecond(encoder, 160, 120, 0), qPrintable(encoder.errorString()));
 

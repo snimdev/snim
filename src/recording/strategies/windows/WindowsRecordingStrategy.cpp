@@ -210,7 +210,6 @@ void WindowsRecordingStrategy::Engine::begin(const Setup &setup)
     probe.width = setup.outputPx.isEmpty() ? 1280 : setup.outputPx.width() & ~1;
     probe.height = setup.outputPx.isEmpty() ? 720 : setup.outputPx.height() & ~1;
     probe.frameRate = AVRational{qMax(setup.fps, 1), 1};
-    probe.globalHeader = true;
     const QStringList encoders = encoderOrder(probe);
 
     // Audio that cannot start leaves the recording silent rather than failing it.

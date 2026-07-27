@@ -53,8 +53,6 @@ public:
     // Drains the encoders and writes the index. The file is complete only if this succeeds.
     [[nodiscard]] bool finish();
 
-    [[nodiscard]] QString videoEncoderName() const { return m_videoEncoderName; }
-    [[nodiscard]] bool hasAudio() const { return m_audio.codec != nullptr; }
     [[nodiscard]] QString errorString() const { return m_error; }
 
 private:
@@ -78,7 +76,6 @@ private:
     OutputFormatPtr m_format;
     Stream m_video;
     Stream m_audio;
-    QString m_videoEncoderName;
     QString m_error;
     bool m_open = false;
 

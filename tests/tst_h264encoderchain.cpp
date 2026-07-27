@@ -11,7 +11,6 @@ H264EncoderSettings smallSettings()
     H264EncoderSettings settings;
     settings.width = 320;
     settings.height = 240;
-    settings.globalHeader = true;
     return settings;
 }
 
