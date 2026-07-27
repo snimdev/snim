@@ -33,6 +33,8 @@ public:
     [[nodiscard]] bool isRecording() const override { return m_active; }
     [[nodiscard]] bool isAvailable() const override;
     [[nodiscard]] QString name() const override { return QStringLiteral("Graphics Capture"); }
+    // Graphics Capture records the window's own surface, which never holds the bubble.
+    [[nodiscard]] WindowCapture windowCapture() const override { return WindowCapture::Alone; }
 
     // Why recording cannot run on this system, or empty when it can.
     [[nodiscard]] static QString unavailableReason();
