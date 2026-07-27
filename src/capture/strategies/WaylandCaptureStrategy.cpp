@@ -31,8 +31,8 @@ namespace Capture {
     }
 
     void WaylandCaptureStrategy::captureWindow() {
-        // Use the same method as full screen for now
-        captureFullScreen();
+        // Wayland lists no windows: the user draws around the one they want.
+        captureArea();
     }
 
     bool WaylandCaptureStrategy::isAvailable() const {

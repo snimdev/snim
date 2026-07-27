@@ -42,7 +42,7 @@ void ScreencastCaptureStrategy::captureArea()
 
 void ScreencastCaptureStrategy::captureWindow()
 {
-    begin(false);
+    begin(true);
 }
 
 bool ScreencastCaptureStrategy::isAvailable() const
