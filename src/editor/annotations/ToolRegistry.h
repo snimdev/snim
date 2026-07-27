@@ -29,7 +29,6 @@ struct ToolSpec {
     QChar shortcut;                   // single-key shortcut, upper case
 
     bool isDrawingTool = true;        // false for the pointer (no template/commit)
-    bool autoRevealPanel = true;      // reveal the side panel when picked
     bool switchToPointerAfter = false;// true for Text (one-shot placement)
 
     // Build this tool's interaction (owned by the QObject parent).

@@ -11,12 +11,6 @@ BaseDrawingInteraction::BaseDrawingInteraction(QObject *parent)
 {
 }
 
-BaseDrawingInteraction::~BaseDrawingInteraction()
-{
-    // Preview item should be owned by scene and cleaned up there
-    m_previewItem = nullptr;
-}
-
 bool BaseDrawingInteraction::onMousePress(const QPointF &scenePos, QGraphicsScene *scene)
 {
     if (!scene) return false;

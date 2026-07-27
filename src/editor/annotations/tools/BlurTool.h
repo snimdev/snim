@@ -52,9 +52,6 @@ public:
     // Source image for blur effect
     void setSourcePixmap(const QPixmap &pixmap);
 
-signals:
-    void pathChanged();
-
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
 

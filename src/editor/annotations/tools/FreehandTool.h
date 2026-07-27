@@ -39,12 +39,6 @@ public:
     void setPen(const QPen &pen);
     [[nodiscard]] QPen pen() const { return m_pen; }
 
-signals:
-    void pathChanged();
-
-protected:
-    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
-
 private:
     void updateGeometry();
     QPainterPath createStrokePath() const;

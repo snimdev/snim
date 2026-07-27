@@ -16,9 +16,8 @@ bool PointerToolInteraction::onMousePress(const QPointF &scenePos, QGraphicsScen
     // Find item at click position
     QGraphicsItem *item = scene->itemAt(scenePos, QTransform());
     if (item) {
-        // Get the top-level item (not child items of a group)
-        item = getTopLevelItem(item);
-        emit itemClicked(item);
+        // The top-level item, not a child such as a handle
+        emit itemClicked(item->topLevelItem());
     }
 
     // Always return false to let Qt's default selection/dragging behavior work
@@ -46,18 +45,6 @@ void PointerToolInteraction::cleanup(QGraphicsScene *scene)
 {
     Q_UNUSED(scene)
     // Pointer tool has nothing to clean up
-}
-
-QGraphicsItem* PointerToolInteraction::getTopLevelItem(QGraphicsItem *item) const
-{
-    if (!item) return nullptr;
-
-    // Traverse up to find the top-level parent
-    while (item->parentItem() != nullptr) {
-        item = item->parentItem();
-    }
-
-    return item;
 }
 
 } // namespace Editor::Interactions

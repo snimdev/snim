@@ -78,7 +78,6 @@ private:
     QColor m_gradStart = QColor("#4f46e5");
     QColor m_gradEnd   = QColor("#9333ea");
     int    m_wallpaperIndex = 0;
-    QPixmap m_wallpaper;   // optional custom image (overrides the preset when set)
     int    m_padding = 64;
     int    m_cornerRadius = 14;
     int    m_shadowStrength = 45;   // 0..100 (drives blur + opacity)

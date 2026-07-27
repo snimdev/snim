@@ -169,7 +169,6 @@ void ShapeTool::setShapeRect(const QRectF &rect)
     if (m_shapeRect != rect) {
         m_shapeRect = rect;
         updateGeometry();
-        emit shapeChanged();
     }
 }
 
@@ -209,8 +208,6 @@ QVariant ShapeTool::itemChange(GraphicsItemChange change, const QVariant &value)
                 m_handles[i]->setVisible(selected);
             }
         }
-    } else if (change == ItemPositionHasChanged) {
-        emit shapeChanged();
     }
 
     return QGraphicsObject::itemChange(change, value);

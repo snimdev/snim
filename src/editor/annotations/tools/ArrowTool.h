@@ -35,7 +35,6 @@ public:
     void applyStyleFrom(const ITool* other) override;   // copies pen + head type
 
     // Arrow manipulation
-    void updateArrow(const QPointF &start, const QPointF &end);
     void setStartPoint(const QPointF &point);
     void setEndPoint(const QPointF &point);
 
@@ -48,9 +47,6 @@ public:
 
     void setArrowHeadType(ArrowHeadType type);
     [[nodiscard]] ArrowHeadType arrowHeadType() const { return m_arrowHeadType; }
-
-signals:
-    void arrowChanged();
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;

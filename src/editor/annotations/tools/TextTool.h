@@ -5,7 +5,6 @@
 #include <QGraphicsTextItem>
 #include <QGraphicsSceneMouseEvent>
 #include <QFocusEvent>
-#include <QGraphicsSceneWheelEvent>
 
 namespace Editor::Tools {
 
@@ -28,7 +27,6 @@ public:
 protected:
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
-    void wheelEvent(QGraphicsSceneWheelEvent *event) override;
 
 signals:
     void textChanged();

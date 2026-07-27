@@ -46,7 +46,6 @@ private slots:
         const ToolSpec *p = ToolRegistry::find("pointer");
         QVERIFY(p);
         QVERIFY(!p->isDrawingTool);
-        QVERIFY(!p->autoRevealPanel);
         QVERIFY(!bool(p->makeTemplate));        // no property template
         QVERIFY(bool(p->makeInteraction));      // but it has an interaction
     }

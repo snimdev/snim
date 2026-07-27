@@ -22,7 +22,6 @@ class BaseDrawingInteraction : public QObject, public IDrawingInteraction
 
 public:
     explicit BaseDrawingInteraction(QObject *parent = nullptr);
-    ~BaseDrawingInteraction() override;
 
     // IDrawingInteraction interface
     bool onMousePress(const QPointF &scenePos, QGraphicsScene *scene) override;
@@ -33,13 +32,6 @@ public:
 
     // Boundary management
     void setImageBounds(const QRect &bounds) { m_imageBounds = bounds; }
-
-signals:
-    /**
-     * @brief Emitted when a complete shape is drawn
-     * Subclasses define what data is emitted (points, rect, etc.)
-     */
-    void drawingCompleted();
 
 protected:
     /**

@@ -3,9 +3,6 @@
 
 #include "editor/video/VideoExporter.h"
 
-#include <QString>
-#include <QStringList>
-
 /**
  * The GStreamer trim exporter ships as its own module, libsnim-video-linux.so, which
  * VideoExporter::create dlopens instead of linking, for the same reasons as the
@@ -23,9 +20,6 @@ namespace Editor::Video::LinuxVideoModule {
 
 inline constexpr char kEntryPoint[] = "snimCreateLinuxVideoExporter";
 inline constexpr char kBaseName[] = "snim-video-linux";
-
-// Core::DynamicModule's search order; SNIM_VIDEO_MODULE replaces the whole list.
-[[nodiscard]] QStringList candidatePaths(const QString &binDir);
 
 // Loads the module and calls its entry point. Returns nullptr on ANY failure.
 [[nodiscard]] VideoExporter *create(QObject *parent = nullptr);

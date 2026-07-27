@@ -43,7 +43,6 @@ public:
     // Template mode: the panel's number field becomes a one-shot override of the
     // number the next stamp would otherwise derive from the layer stack.
     void setTemplateMode(bool templateMode);
-    [[nodiscard]] bool isTemplateMode() const { return m_templateMode; }
     bool takePendingOverride(int *out);
 
     static constexpr qreal DEFAULT_DIAMETER = 28.0;

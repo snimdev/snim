@@ -158,17 +158,6 @@ void HighlightTool::applyStyleFrom(const ITool* other)
     }
 }
 
-QVariant HighlightTool::itemChange(GraphicsItemChange change, const QVariant &value)
-{
-    if (change == ItemSelectedChange) {
-        // Handle selection change if needed
-    } else if (change == ItemPositionHasChanged) {
-        emit pathChanged();
-    }
-
-    return QGraphicsObject::itemChange(change, value);
-}
-
 QList<ToolProperty> HighlightTool::getProperties() const
 {
     QList<ToolProperty> properties;

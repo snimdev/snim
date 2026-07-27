@@ -12,11 +12,6 @@ constexpr Core::DynamicModule kModule{kBaseName, "SNIM_VIDEO_MODULE", kEntryPoin
 
 } // namespace
 
-QStringList candidatePaths(const QString &binDir)
-{
-    return kModule.candidatePaths(binDir);
-}
-
 VideoExporter *create(QObject *parent)
 {
     const QFunctionPointer entry = kModule.resolve();

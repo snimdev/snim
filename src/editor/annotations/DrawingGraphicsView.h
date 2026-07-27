@@ -35,11 +35,6 @@ public:
 
 signals:
     /**
-     * @brief Emitted when an item is clicked with pointer tool
-     */
-    void itemClicked(QGraphicsItem *item);
-
-    /**
      * @brief ⌘/Ctrl+wheel over (or with a selected) text item requests a font-size
      * change of `steps` notches. Editor turns this into an undoable command;
      * the view never mutates the model itself.

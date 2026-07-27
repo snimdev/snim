@@ -48,12 +48,6 @@ public:
     static constexpr qreal HIGHLIGHT_WIDTH_LARGE = 35.0;
     static constexpr qreal HIGHLIGHT_OPACITY = 0.3;
 
-signals:
-    void pathChanged();
-
-protected:
-    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
-
 private:
     void updateGeometry();
     QPainterPath createStrokePath() const;

@@ -54,7 +54,6 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Pointer";
             s.shortcut = u'V';
             s.isDrawingTool = false;
-            s.autoRevealPanel = false;
             s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PointerToolInteraction(p); };
             v.push_back(s);
         }

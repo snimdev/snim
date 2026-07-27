@@ -18,7 +18,6 @@ public:
     ~ShapeHandleTool() override = default;
 
     void updatePosition(const QPointF &point);
-    HandlePosition handlePosition() const { return m_position; }
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;

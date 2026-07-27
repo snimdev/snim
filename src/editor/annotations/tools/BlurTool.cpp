@@ -307,13 +307,10 @@ void BlurTool::applyStyleFrom(const ITool* other)
 
 QVariant BlurTool::itemChange(GraphicsItemChange change, const QVariant &value)
 {
-    if (change == ItemSelectedChange) {
-        // Handle selection change if needed
-    } else if (change == ItemPositionHasChanged) {
+    if (change == ItemPositionHasChanged) {
         // The blur sampled the pixels under its previous position; re-blur the pixels it
         // now covers so it keeps obscuring what's beneath it (coalesced via the timer).
         scheduleRegeneration();
-        emit pathChanged();
     }
 
     return QGraphicsObject::itemChange(change, value);

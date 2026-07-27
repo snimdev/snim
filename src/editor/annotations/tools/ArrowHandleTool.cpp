@@ -28,8 +28,6 @@ ArrowHandleTool::ArrowHandleTool(HandleType type, ArrowTool *arrowTool, QGraphic
 
     // Set initial size
     setRect(-HANDLE_SIZE/2, -HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
-
-    qDebug() << "ArrowHandleTool created, type:" << (type == StartHandle ? "Start" : "End");
 }
 
 void ArrowHandleTool::updatePosition(const QPointF &point)
@@ -42,8 +40,6 @@ void ArrowHandleTool::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
         m_dragging = true;
-        m_dragStartPos = event->scenePos();
-        qDebug() << "ArrowHandleTool: Mouse press, starting drag";
         event->accept();
         // Don't propagate to parent - we're handling this
     } else {
@@ -56,8 +52,6 @@ void ArrowHandleTool::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
     if (m_dragging && m_arrowTool) {
         // Convert scene position to arrow's local coordinate system
         QPointF newPos = m_arrowTool->mapFromScene(event->scenePos());
-
-        qDebug() << "ArrowHandleTool: Dragging to" << newPos;
 
         // Update the appropriate arrow endpoint
         if (m_type == StartHandle) {

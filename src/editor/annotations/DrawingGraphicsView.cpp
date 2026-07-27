@@ -151,17 +151,9 @@ void DrawingGraphicsView::wheelEvent(QWheelEvent *event)
         const int numDegrees = event->angleDelta().y() / 8;
         const int numSteps = numDegrees / 15;
 
-        // Calculate zoom factor
+        // Calculate zoom factor (negative steps zoom out)
         const double scaleFactor = 1.15;
-        double factor = 1.0;
-
-        if (numSteps > 0) {
-            // Zoom in
-            factor = qPow(scaleFactor, numSteps);
-        } else if (numSteps < 0) {
-            // Zoom out
-            factor = qPow(scaleFactor, numSteps);
-        }
+        double factor = qPow(scaleFactor, numSteps);
 
         // Apply zoom with limits
         QTransform currentTransform = transform();

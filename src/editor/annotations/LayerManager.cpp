@@ -84,13 +84,6 @@ void LayerManager::removeLayer(Layer *layer) {
     updateLayerList();
 }
 
-void LayerManager::removeSelectedLayer() {
-    Layer *selected = selectedLayer();
-    if (selected && selected->type() != Layer::Background && selected->type() != Layer::Backdrop) {
-        emit deleteLayerRequested(selected);
-    }
-}
-
 Layer* LayerManager::layerForItem(QTreeWidgetItem *item) const {
     return item ? m_itemToLayer.value(item, nullptr) : nullptr;
 }

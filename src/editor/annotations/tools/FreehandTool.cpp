@@ -128,17 +128,6 @@ void FreehandTool::applyStyleFrom(const ITool* other)
         setPen(o->pen());
 }
 
-QVariant FreehandTool::itemChange(GraphicsItemChange change, const QVariant &value)
-{
-    if (change == ItemSelectedChange) {
-        // Handle selection change if needed
-    } else if (change == ItemPositionHasChanged) {
-        emit pathChanged();
-    }
-
-    return QGraphicsObject::itemChange(change, value);
-}
-
 QList<ToolProperty> FreehandTool::getProperties() const
 {
     QList<ToolProperty> properties;

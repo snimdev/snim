@@ -165,19 +165,8 @@ void BackdropItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QW
             break;
         }
         case Fill::Wallpaper:
-            if (!m_wallpaper.isNull()) {
-                // optional custom image: aspect-fill the canvas
-                const QSizeF target = m_canvasRect.size();
-                QPixmap scaled = m_wallpaper.scaled(target.toSize(), Qt::KeepAspectRatioByExpanding,
-                                                    Qt::SmoothTransformation);
-                const QRectF src((scaled.width() - target.width()) / 2.0,
-                                 (scaled.height() - target.height()) / 2.0,
-                                 target.width(), target.height());
-                painter->drawPixmap(m_canvasRect, scaled, src);
-            } else {
-                paintMeshWallpaper(painter, m_canvasRect,
-                                   kWallpapers[qBound(0, m_wallpaperIndex, kWallpaperCount - 1)]);
-            }
+            paintMeshWallpaper(painter, m_canvasRect,
+                               kWallpapers[qBound(0, m_wallpaperIndex, kWallpaperCount - 1)]);
             break;
     }
 }
@@ -297,7 +286,6 @@ QList<ToolProperty> BackdropItem::getProperties() const
         preset.controlType = "swatches";
         preset.options["items"] = names;
         preset.options["previews"] = previews;
-        preset.options["columns"] = 3;
         preset.value = m_activePreset;
         props << preset;
     }
@@ -328,7 +316,6 @@ QList<ToolProperty> BackdropItem::getProperties() const
         grad.controlType = "swatches";
         grad.options["items"] = names;
         grad.options["previews"] = previews;
-        grad.options["columns"] = 3;
         // No preset highlighted while using manual colors.
         grad.value = m_customGradient ? QString() : names.value(m_gradientIndex);
         props << grad;
@@ -356,7 +343,6 @@ QList<ToolProperty> BackdropItem::getProperties() const
         wall.controlType = "swatches";
         wall.options["items"] = names;
         wall.options["previews"] = previews;
-        wall.options["columns"] = 3;
         wall.value = names.value(m_wallpaperIndex);
         props << wall;
     }

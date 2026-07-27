@@ -114,7 +114,6 @@ LayerProperties::LayerProperties(QWidget *parent)
 
     m_stackedWidget = new QStackedWidget(this);
     m_stackedWidget->setObjectName("propertiesStack");
-    m_originalPalette = m_stackedWidget->palette();
     mainLayout->addWidget(m_stackedWidget);
 
     m_emptyWidget = new QWidget();
@@ -127,12 +126,10 @@ LayerProperties::LayerProperties(QWidget *parent)
 void LayerProperties::setLayer(Layer *layer)
 {
     if (!layer) {
-        hidePropertiesStyle();
         m_stackedWidget->setCurrentWidget(m_emptyWidget);
         return;
     }
 
-    showPropertiesStyle();
     if (m_layerWidgetMap.contains(layer)) {
         m_stackedWidget->setCurrentWidget(m_layerWidgetMap[layer]);
     } else {
@@ -153,12 +150,10 @@ void LayerProperties::rebuildLayer(Layer *layer)
 void LayerProperties::setTool(Tools::ITool *tool, const QString &toolName)
 {
     if (!tool) {
-        hidePropertiesStyle();
         m_stackedWidget->setCurrentWidget(m_emptyWidget);
         return;
     }
 
-    showPropertiesStyle();
     buildPropertiesUIForTool(tool, toolName);
 }
 
@@ -168,9 +163,6 @@ void LayerProperties::removeLayer(Layer *layer)
         QWidget *widget = m_layerWidgetMap.take(layer);
         m_stackedWidget->removeWidget(widget);
         widget->deleteLater();
-        if (m_layerWidgetMap.isEmpty()) {
-            hidePropertiesStyle();
-        }
     }
 }
 
@@ -331,7 +323,7 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
 
 void LayerProperties::buildPropertiesUI(Layer *layer)
 {
-    auto* tool = dynamic_cast<Tools::ITool*>(layer->getTool());
+    auto* tool = dynamic_cast<Tools::ITool*>(layer->item());
     if (!tool) {
         m_stackedWidget->setCurrentWidget(m_emptyWidget);
         return;
@@ -406,16 +398,6 @@ void LayerProperties::buildPropertiesUIForTool(Tools::ITool *tool, const QString
     m_toolWidget = scroll;
     m_stackedWidget->addWidget(scroll);
     m_stackedWidget->setCurrentWidget(scroll);
-}
-
-void LayerProperties::showPropertiesStyle()
-{
-    // Styling handled by editor.qss via #propertiesStack object name
-}
-
-void LayerProperties::hidePropertiesStyle()
-{
-    // Styling handled by editor.qss via #propertiesStack object name
 }
 
 } // namespace Editor

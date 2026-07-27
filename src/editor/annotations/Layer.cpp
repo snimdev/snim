@@ -45,9 +45,4 @@ void Layer::setItem(QGraphicsItem *item)
     }
 }
 
-QGraphicsItem* Layer::getTool() const
-{
-    return m_item;
-}
-
 } // namespace Editor

@@ -124,12 +124,4 @@ void TextTool::focusOutEvent(QFocusEvent *event)
     QGraphicsTextItem::focusOutEvent(event);
 }
 
-void TextTool::wheelEvent(QGraphicsSceneWheelEvent *event)
-{
-    // ⌘/Ctrl+wheel font resize is owned by DrawingGraphicsView (it consumes the
-    // event and routes the change through an undoable PropertyChangeCommand on
-    // "fontSize"), so the item only sees ordinary wheel events here.
-    QGraphicsTextItem::wheelEvent(event);
-}
-
 } // namespace Editor

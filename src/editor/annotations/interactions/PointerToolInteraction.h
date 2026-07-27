@@ -33,13 +33,6 @@ signals:
      * @param item The clicked graphics item
      */
     void itemClicked(QGraphicsItem *item);
-
-private:
-    /**
-     * @brief Find the top-level parent of an item
-     * Used to select the main item rather than child items (e.g., handles)
-     */
-    QGraphicsItem* getTopLevelItem(QGraphicsItem *item) const;
 };
 
 } // namespace Editor::Interactions

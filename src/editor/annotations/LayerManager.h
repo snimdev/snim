@@ -20,7 +20,6 @@ public:
     void updateLayerList();
     void addLayer(Layer *layer);        // append a top-level node (leaf or group)
     void removeLayer(Layer *layer);     // remove a top-level node
-    void removeSelectedLayer();
     void deleteCurrentLayer();          // delete the current leaf, then select a neighbour
     Layer* selectedLayer() const;       // the current (single) layer, for the panel
     QList<Layer*> selectedLayers() const;   // all selected (for grouping)

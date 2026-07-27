@@ -3,7 +3,6 @@
 
 #include <QWidget>
 #include <QMap>
-#include <QPalette>
 #include "tools/ITool.h"
 
 class QStackedWidget;
@@ -34,14 +33,11 @@ private:
     void buildPropertiesUI(Layer *layer);
     void buildPropertiesUIForTool(Tools::ITool *tool, const QString &title);
     QLayout* createPropertyControl(Tools::ITool *tool, const Tools::ToolProperty &prop, QWidget *parent);
-    void showPropertiesStyle();
-    void hidePropertiesStyle();
 
     QStackedWidget *m_stackedWidget;
     QMap<Layer*, QWidget*> m_layerWidgetMap;
     QWidget* m_emptyWidget;
     QWidget* m_toolWidget;  // Widget for standalone tool (not from layer)
-    QPalette m_originalPalette;
 };
 
 } // namespace Editor

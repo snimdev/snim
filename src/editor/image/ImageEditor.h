@@ -9,9 +9,6 @@
 #include <QToolBar>
 #include <QAction>
 #include <QSplitter>
-#include <QGraphicsLineItem>
-#include <QMouseEvent>
-#include <QPen>
 #include <QDateTime>
 #include <QHash>
 #include <QString>
@@ -58,9 +55,6 @@ signals:
                          bool deleteWhenDone, const QString &profileId);
 
 protected:
-    void mousePressEvent(QMouseEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
-    void mouseReleaseEvent(QMouseEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;   // editor keyboard shortcuts
@@ -70,7 +64,6 @@ private slots:
     void onLayerVisibilityChanged(Layer *layer, bool visible);
     void onDeleteLayerRequested(Layer *layer);
     void onLayerSelected(Layer *layer);
-    void onItemClicked(QGraphicsItem *item);
 
 private:
     class LayerSink;
@@ -88,7 +81,6 @@ private:
     // Keyboard-shortcut helpers (all document mutations go through QUndoCommands).
     void duplicateSelectedLayer();                 // ⌘/Ctrl+D: clone() + AddLayerCommand
     void nudgeSelectedLayer(qreal dx, qreal dy);   // arrows: MoveLayerCommand
-    Layer* createBackgroundLayer();
     void setBackdropEnabled(bool on);
     void onBackgroundButtonClicked();
     void showBackdropPopover();
@@ -99,8 +91,6 @@ private:
     void applyShadow();
     void onBackdropChanged(const QString &propertyId);
     void selectLayerByItem(QGraphicsItem *item);
-    bool isWithinImageBounds(const QPoint &point) const;
-    QPoint clampToImageBounds(const QPoint &point) const;
     QIcon createThemedIcon(const QString &iconPath);
 
     // UI Components
@@ -117,8 +107,6 @@ private:
     QAction *m_uploadAction = nullptr;
 
     // - Toolbar :: View controls
-    QAction *m_fitAction;
-    QAction *m_actualSizeAction;
     QAction *m_panelsAction;       // toggle the Layers/Properties side panel
     QAction *m_backgroundAction;   // toggle the CleanShot-style beautify backdrop
 
@@ -147,7 +135,6 @@ private:
     QDateTime m_capturedAt = QDateTime::currentDateTime();   // opens right after capture
     bool m_firstShown = false;   // fit/center the view only on the first show
     bool m_dirty = false;        // unsaved changes (layers added/edited, backdrop, ...)
-    Layer *m_backgroundLayer;
     BackdropItem *m_backdropItem;  // beautify backdrop (null when off)
     Layer *m_backdropLayer;
     QWidget *m_backdropPopover = nullptr;   // floating quick-actions popover

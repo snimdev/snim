@@ -24,7 +24,6 @@ public:
     bool onMouseMove(const QPointF &scenePos, QGraphicsScene *scene) override;
     bool onMouseRelease(const QPointF &scenePos, QGraphicsScene *scene) override;
     Qt::CursorShape getCursor() const override { return Qt::CrossCursor; }
-    Qt::CursorShape getDrawingCursor() const override { return Qt::CrossCursor; }
     void cleanup(QGraphicsScene *scene) override;
     bool isDrawing() const override { return false; }
 

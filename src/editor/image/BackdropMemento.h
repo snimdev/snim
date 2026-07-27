@@ -23,14 +23,6 @@ class BackdropItem;
  */
 class BackdropMemento
 {
-public:
-    // Public interface: copy/move only. No way to read or mutate the state.
-    BackdropMemento(const BackdropMemento &) = default;
-    BackdropMemento(BackdropMemento &&) = default;
-    BackdropMemento &operator=(const BackdropMemento &) = default;
-    BackdropMemento &operator=(BackdropMemento &&) = default;
-    ~BackdropMemento() = default;
-
 private:
     friend class BackdropItem;   // only BackdropItem builds/reads the private state
 

@@ -56,9 +56,6 @@ public:
     // Handle management
     void updateHandlePosition(HandlePosition position, const QPointF &scenePos);
 
-signals:
-    void shapeChanged();
-
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     void updateGeometry();

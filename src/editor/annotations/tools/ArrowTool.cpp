@@ -168,20 +168,11 @@ void ArrowTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
     }
 }
 
-void ArrowTool::updateArrow(const QPointF &start, const QPointF &end)
-{
-    m_startPoint = start;
-    m_endPoint = end;
-    updateGeometry();
-    emit arrowChanged();
-}
-
 void ArrowTool::setStartPoint(const QPointF &point)
 {
     if (m_startPoint != point) {
         m_startPoint = point;
         updateGeometry();
-        emit arrowChanged();
     }
 }
 
@@ -190,7 +181,6 @@ void ArrowTool::setEndPoint(const QPointF &point)
     if (m_endPoint != point) {
         m_endPoint = point;
         updateGeometry();
-        emit arrowChanged();
     }
 }
 
@@ -214,23 +204,13 @@ QVariant ArrowTool::itemChange(GraphicsItemChange change, const QVariant &value)
 {
     if (change == ItemSelectedChange) {
         bool selected = value.toBool();
-        qDebug() << "ArrowTool: Selection changed to" << selected;
         // Show/hide handles based on selection
         if (m_startHandle) {
             m_startHandle->setVisible(selected);
-            qDebug() << "Start handle visibility:" << selected;
         }
         if (m_endHandle) {
             m_endHandle->setVisible(selected);
-            qDebug() << "End handle visibility:" << selected;
         }
-    } else if (change == ItemPositionChange) {
-        // When the arrow is moved, we don't need to update geometry
-        // The start/end points stay the same relative to the arrow's position
-        qDebug() << "ArrowTool: Position changing to" << value.toPointF();
-    } else if (change == ItemPositionHasChanged) {
-        qDebug() << "ArrowTool: Position changed to" << pos();
-        emit arrowChanged();
     }
 
     return QGraphicsObject::itemChange(change, value);

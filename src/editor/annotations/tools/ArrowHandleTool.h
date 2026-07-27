@@ -21,7 +21,6 @@ public:
     ~ArrowHandleTool() override = default;
 
     void updatePosition(const QPointF &point);
-    HandleType handleType() const { return m_type; }
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
@@ -35,7 +34,6 @@ private:
     HandleType m_type;
     ArrowTool *m_arrowTool;
     bool m_dragging;
-    QPointF m_dragStartPos;
     bool m_hovered;
 
     static constexpr qreal HANDLE_SIZE = 8.0;

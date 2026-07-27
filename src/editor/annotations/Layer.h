@@ -46,8 +46,6 @@ public:
     QGraphicsItem* item() const { return m_item; }
     void setItem(QGraphicsItem *item);
 
-    QGraphicsItem* getTool() const;
-
     // Child management (meaningful for Group layers).
     void addChild(Layer *child);
     void removeChild(Layer *child);
@@ -55,7 +53,6 @@ public:
 
 signals:
     void visibilityChanged(bool visible);
-    void nameChanged(const QString &name);
 
 private:
     QString m_name;

@@ -6,7 +6,6 @@
 #include "editor/video/AnimationParams.h"
 #include "editor/video/AnimationOptionsDialog.h"
 #include "editor/video/Timecode.h"
-#include "upload/UploaderFactory.h"
 #include "upload/UploadConfig.h"
 #include "upload/UploadMenu.h"
 #include <QMenu>

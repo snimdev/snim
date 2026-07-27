@@ -20,7 +20,6 @@
 #include "editor/image/BackdropPresets.h"
 #include "editor/annotations/interactions/PointerToolInteraction.h"
 #include <QGraphicsPixmapItem>
-#include <QGraphicsLineItem>
 #include <QInputDialog>
 #include <QPainter>
 #include <QDir>
@@ -29,20 +28,15 @@
 #include <QStatusBar>
 #include <QApplication>
 #include <QClipboard>
-#include <QStyle>
 #include <QKeySequence>
 #include <QTimer>
 #include <QStandardPaths>
 #include <QDateTime>
 #include <QElapsedTimer>
-#include "upload/UploaderFactory.h"
 #include "upload/UploadConfig.h"
 #include "upload/UploadMenu.h"
 #include <QLineEdit>
-#include <QSettings>
-#include <QDebug>
 #include <QPalette>
-#include <QFile>
 #include <QScreen>
 #include <QGuiApplication>
 #include <QCursor>
@@ -94,8 +88,6 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_toolbar(nullptr)
     , m_saveAsAction(nullptr)
     , m_copyAction(nullptr)
-    , m_fitAction(nullptr)
-    , m_actualSizeAction(nullptr)
     , m_panelsAction(nullptr)
     , m_backgroundAction(nullptr)
     , m_splitter(nullptr)
@@ -103,43 +95,24 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     , m_layerManager(nullptr)
     , m_layerProperties(nullptr)
     , m_originalScreenshot(screenshot)
-    , m_backgroundLayer(nullptr)
     , m_backdropItem(nullptr)
     , m_backdropLayer(nullptr)
 {
-    qDebug() << "ImageEditor constructor called with screenshot size:" << screenshot.size();
-    qDebug() << "Setting window title...";
     setWindowTitle("Image Editor");
 
     // Undo/redo stack, created before the toolbar so its Undo/Redo actions exist.
     m_undoStack = new QUndoStack(this);
 
-    qDebug() << "About to call setupUI()...";
     setupUI();
-    qDebug() << "setupUI() completed successfully";
-
-    qDebug() << "About to call setupToolbar()...";
     setupToolbar();
-    qDebug() << "setupToolbar() completed successfully";
-
-    qDebug() << "About to call setupStrategies()...";
     setupStrategies();
-    qDebug() << "setupStrategies() completed successfully";
 
     // Create background layer and add to layer manager
-    qDebug() << "About to create background layer...";
-    m_backgroundLayer = createBackgroundLayer();
-    qDebug() << "Background layer created, about to add to layer manager...";
-
-    if (m_layerManager) {
-        m_layerManager->addLayer(m_backgroundLayer);
-        qDebug() << "Background layer added to layer manager";
-    } else {
-        qDebug() << "ERROR: m_layerManager is null!";
-    }
+    auto *background = new Layer("Background", Layer::Background, this);
+    background->setItem(m_pixmapItem);
+    m_layerManager->addLayer(background);
 
     // Connect layer manager signals
-    qDebug() << "Connecting layer manager signals...";
     connect(m_layerManager, &LayerManager::layerVisibilityChanged,
             this, &ImageEditor::onLayerVisibilityChanged);
     connect(m_layerManager, &LayerManager::deleteLayerRequested,
@@ -210,8 +183,6 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     // A freshly-opened capture (even with the auto default backdrop) counts as
     // clean, so closing it without edits doesn't prompt to save.
     m_dirty = false;
-
-    qDebug() << "ImageEditor constructor completed successfully";
 }
 
 ImageEditor::~ImageEditor()
@@ -305,9 +276,6 @@ void ImageEditor::setupUI()
 
     // Set image bounds for the view (scene/logical coordinates)
     m_view->setImageBounds(imageRect.toRect());
-
-    // Connect item clicked signal (strategies will be connected later)
-    connect(m_view, &DrawingGraphicsView::itemClicked, this, &ImageEditor::onItemClicked);
 
     // ⌘/Ctrl+wheel over text → undoable font-size change (reuses PropertyChangeCommand,
     // whose mergeWith collapses a whole wheel spin into one undo step).
@@ -504,7 +472,7 @@ void ImageEditor::setupToolbar()
     connect(m_panelsAction, &QAction::toggled, this,
             [this](bool on) { if (m_rightSplitter) m_rightSplitter->setVisible(on); });
     m_toolbar->addAction(m_panelsAction);
-    // (Drawing tools auto-reveal this panel via activateTool's autoRevealPanel flag.)
+    // (Drawing tools auto-reveal this panel in activateTool.)
 }
 
 void ImageEditor::setupStrategies()
@@ -519,7 +487,7 @@ void ImageEditor::setupStrategies()
     m_builder->setStepNumberProvider([this] { return nextStepNumber(m_layerManager->layers()); });
 
     if (auto *p = dynamic_cast<PointerToolInteraction*>(m_builder->interaction("pointer")))
-        connect(p, &PointerToolInteraction::itemClicked, this, &ImageEditor::onItemClicked);
+        connect(p, &PointerToolInteraction::itemClicked, this, &ImageEditor::selectLayerByItem);
 
     // So the click that ends editing doesn't place another box.
     connect(m_builder, &AnnotationBuilder::textPlaced, this, [this] { activateTool("pointer"); });
@@ -632,7 +600,7 @@ void ImageEditor::activateTool(const QString &toolId)
     if (QAction *act = m_actions.value(toolId))
         act->setChecked(true);
 
-    if (spec->autoRevealPanel && m_panelsAction)
+    if (spec->isDrawingTool && m_panelsAction)
         m_panelsAction->setChecked(true);
 }
 
@@ -801,13 +769,6 @@ void ImageEditor::nudgeSelectedLayer(qreal dx, qreal dy)
     if (QGraphicsItem *it = sel->item())
         m_undoStack->push(new Commands::MoveLayerCommand(it, QPointF(dx, dy),
                                                          QStringLiteral("Nudge")));
-}
-
-Layer* ImageEditor::createBackgroundLayer()
-{
-    auto *layer = new Layer("Background", Layer::Background, this);
-    layer->setItem(m_pixmapItem);
-    return layer;
 }
 
 namespace {
@@ -1255,11 +1216,6 @@ void ImageEditor::onLayerSelected(Layer *layer)
     }
 }
 
-void ImageEditor::onItemClicked(QGraphicsItem *item)
-{
-    selectLayerByItem(item);
-}
-
 void ImageEditor::selectLayerByItem(QGraphicsItem *item)
 {
     for (Layer *layer : m_layerManager->layers()) {
@@ -1268,34 +1224,6 @@ void ImageEditor::selectLayerByItem(QGraphicsItem *item)
             break;
         }
     }
-}
-
-bool ImageEditor::isWithinImageBounds(const QPoint &point) const
-{
-    return QRect(QPoint(0, 0), m_originalScreenshot.deviceIndependentSize().toSize()).contains(point);
-}
-
-QPoint ImageEditor::clampToImageBounds(const QPoint &point) const
-{
-    QRect bounds(QPoint(0, 0), m_originalScreenshot.deviceIndependentSize().toSize());
-    int clampedX = qMax(bounds.left(), qMin(bounds.right(), point.x()));
-    int clampedY = qMax(bounds.top(), qMin(bounds.bottom(), point.y()));
-    return QPoint(clampedX, clampedY);
-}
-
-void ImageEditor::mousePressEvent(QMouseEvent *event)
-{
-    QMainWindow::mousePressEvent(event);
-}
-
-void ImageEditor::mouseMoveEvent(QMouseEvent *event)
-{
-    QMainWindow::mouseMoveEvent(event);
-}
-
-void ImageEditor::mouseReleaseEvent(QMouseEvent *event)
-{
-    QMainWindow::mouseReleaseEvent(event);
 }
 
 } // namespace Editor::Image
