@@ -2,7 +2,6 @@
 #define OCRSERVICE_H
 
 #include <QObject>
-#include <QPixmap>
 #include <QImage>
 #include <functional>
 #include "OCRResult.h"
@@ -30,14 +29,6 @@ public:
     [[nodiscard]] static bool isAvailable();
 
     /**
-     * @brief Perform OCR on a QPixmap
-     * @param pixmap The image to process
-     * @param language Language code (default: "eng" for English)
-     * @return OCRResult containing the extracted text and metadata
-     */
-    [[nodiscard]] OCRResult performOCR(const QPixmap& pixmap, const QString& language = "eng");
-
-    /**
      * @brief Perform OCR on a QImage
      * @param image The image to process
      * @param language Language code (default: "eng" for English)
@@ -54,19 +45,6 @@ public:
      */
     static void performOCRAsync(const QImage& image, const QString& language,
                                 QObject* context, std::function<void(const OCRResult&)> onDone);
-
-    /**
-     * @brief Get list of available languages
-     * @return List of language codes that can be used for OCR
-     */
-    [[nodiscard]] static QStringList getAvailableLanguages();
-
-signals:
-    /**
-     * @brief Emitted when OCR processing is complete
-     * @param result The OCR result
-     */
-    void ocrCompleted(const OCRResult& result);
 
 private:
     /**

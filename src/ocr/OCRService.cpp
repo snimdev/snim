@@ -1,10 +1,7 @@
 #include "OCRService.h"
 #include "core/BundledPaths.h"
 #include "core/Perf.h"
-#include <QClipboard>
 #include <QElapsedTimer>
-#include <QGuiApplication>
-#include <QBuffer>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
@@ -130,19 +127,6 @@ bool OCRService::isAvailable() {
 #endif
 }
 
-QStringList OCRService::getAvailableLanguages() {
-#ifdef HAVE_TESSERACT
-    // Common languages, actual availability depends on installed language packs
-    return {"eng", "deu", "fra", "spa", "ita", "por", "rus", "jpn", "chi_sim", "chi_tra"};
-#else
-    return {};
-#endif
-}
-
-OCRResult OCRService::performOCR(const QPixmap& pixmap, const QString& language) {
-    return performOCR(pixmap.toImage(), language);
-}
-
 OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
     OCRResult result;
 
@@ -165,7 +149,6 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
     if (!m_impl->ensureLanguage(language)) {
         result.setSuccess(false);
         result.setErrorMessage("Failed to initialize Tesseract for language: " + language);
-        emit ocrCompleted(result);
         return result;
     }
 
@@ -193,34 +176,6 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
         result.setOverallConfidence(confidence / 100.0f);
 
         delete[] outText;
-
-        // Optionally get word-level results for bounding boxes
-        tesseract::ResultIterator* ri = m_impl->api()->GetIterator();
-        QList<TextRegion> regions;
-
-        if (ri) {
-            tesseract::PageIteratorLevel level = tesseract::RIL_WORD;
-            do {
-                const char* word = ri->GetUTF8Text(level);
-                if (word) {
-                    float wordConfidence = ri->Confidence(level);
-                    int x1, y1, x2, y2;
-                    ri->BoundingBox(level, &x1, &y1, &x2, &y2);
-
-                    TextRegion region;
-                    region.text = QString::fromUtf8(word);
-                    region.boundingBox = QRect(x1, y1, x2 - x1, y2 - y1);
-                    region.confidence = wordConfidence / 100.0f;
-                    regions.append(region);
-
-                    delete[] word;
-                }
-            } while (ri->Next(level));
-
-            delete ri;
-        }
-
-        result.setTextRegions(regions);
     } else {
         result.setSuccess(false);
         result.setErrorMessage("Failed to extract text from image");
@@ -234,7 +189,6 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
     result.setErrorMessage("Tesseract OCR is not available. Please install tesseract-ocr and rebuild the application.");
 #endif
 
-    emit ocrCompleted(result);
     return result;
 }
 

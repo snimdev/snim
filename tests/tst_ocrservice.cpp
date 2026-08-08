@@ -24,7 +24,7 @@ private slots:
             QSKIP("Tesseract compiled in; covered by recognizesRenderedText()");
         // No Tesseract: performOCR must fail cleanly with a message.
         OCRService svc;
-        const OCRResult r = svc.performOCR(QPixmap(10, 10));
+        const OCRResult r = svc.performOCR(QImage(10, 10, QImage::Format_RGB32));
         QVERIFY(!r.isSuccess());
         QVERIFY(!r.getErrorMessage().isEmpty());
     }
@@ -46,7 +46,7 @@ private slots:
         }
 
         OCRService svc;
-        const OCRResult r = svc.performOCR(pm, "eng");
+        const OCRResult r = svc.performOCR(pm.toImage(), "eng");
         if (!r.isSuccess())
             QSKIP("Tesseract present but init/recognition unavailable on this host (e.g. no tessdata)");
         QVERIFY(r.getText().toUpper().contains("HELLO"));
