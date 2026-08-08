@@ -31,7 +31,7 @@ public:
 
     [[nodiscard]] bool isAvailable() const override;
 
-    // Factory probe: reads the interface version, creating no session.
+    // Factory probe: reads the interface version, creating no session. A yes is cached.
     [[nodiscard]] static bool isPortalAvailable();
 
 private slots:

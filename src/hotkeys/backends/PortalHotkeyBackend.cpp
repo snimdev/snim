@@ -38,6 +38,11 @@ const QString kProperties = QStringLiteral("org.freedesktop.DBus.Properties");
 const char *const kCreateSlot = SLOT(handleCreateSessionResponse(uint,QVariantMap));
 const char *const kBindSlot = SLOT(handleBindShortcutsResponse(uint,QVariantMap));
 
+// Probes run on the GUI thread, so a stuck portal may only hold it this long.
+constexpr int kProbeTimeoutMs = 2000;
+// A yes is kept for the run; a no is asked again, the portal may still be starting.
+bool s_portalAvailable = false;
+
 } // namespace
 
 PortalHotkeyBackend::PortalHotkeyBackend(QObject *parent) : HotkeyBackend(parent)
@@ -69,17 +74,19 @@ PortalHotkeyBackend::~PortalHotkeyBackend()
 
 bool PortalHotkeyBackend::isPortalAvailable()
 {
+    if (s_portalAvailable)
+        return true;
     QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kProperties,
                                                       QStringLiteral("Get"));
     msg.setArguments({kShortcuts, QStringLiteral("version")});
-
-    // Blocking, but bounded and called once at startup, before a backend is chosen.
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 2000);
-    return reply.type() == QDBusMessage::ReplyMessage;
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
+    s_portalAvailable = reply.type() == QDBusMessage::ReplyMessage;
+    return s_portalAvailable;
 }
 
 bool PortalHotkeyBackend::isAvailable() const
 {
+    // The factory built this backend after a yes, so applyBindings never waits on D-Bus.
     return isPortalAvailable();
 }
 
