@@ -63,14 +63,8 @@ private slots:
         QVERIFY(Settings::recordingCaptureCursor());                   // default on
         QVERIFY(Settings::recordingFolder().endsWith("Snim"));     // default <Movies>/Snim
 
-        Settings::setRecordingFormat("mov");
         Settings::setRecordingFps(60);
-        Settings::setRecordingCaptureCursor(false);
-        Settings::setRecordingFolder("/tmp/snim-recordings");
-        QCOMPARE(Settings::recordingFormat(), QStringLiteral("mov"));
         QCOMPARE(Settings::recordingFps(), 60);
-        QVERIFY(!Settings::recordingCaptureCursor());
-        QCOMPARE(Settings::recordingFolder(), QStringLiteral("/tmp/snim-recordings"));
     }
 
     void recordingInputs_defaults_then_roundtrip()

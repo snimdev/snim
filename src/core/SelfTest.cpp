@@ -53,17 +53,6 @@ private:
     bool m_failed = false;
 };
 
-// Where OCRService looks for bundled language packs; empty when there is no such place.
-QString bundledTessdataDir()
-{
-#ifdef Q_OS_MACOS
-    return QDir::cleanPath(QCoreApplication::applicationDirPath()
-                           + QStringLiteral("/../Resources/tessdata"));
-#else
-    return BundledPaths::forThisPlatform(QCoreApplication::applicationDirPath()).tessdataDir;
-#endif
-}
-
 } // namespace
 
 int run(std::ostream &out, const QList<Check> &extra)
@@ -101,7 +90,7 @@ int run(std::ostream &out, const QList<Check> &extra)
     report.check(QStringLiteral("multimedia"), !decodable.isEmpty(),
                  QStringLiteral("%1 decodable formats").arg(decodable.size()));
 
-    const QString tessdata = bundledTessdataDir();
+    const QString tessdata = BundledPaths::tessdataDirForThisApp();
     const bool tessdataBundled = !tessdata.isEmpty() && QDir(tessdata).exists();
     if (tessdataBundled)
         report.check(QStringLiteral("tessdata"),

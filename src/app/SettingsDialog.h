@@ -84,32 +84,32 @@ private:
     void updateBackgroundButtonStyle();
 
     // UI Components
-    QTabWidget *m_tabWidget;
+    QTabWidget *m_tabWidget = nullptr;
 
     // General Tab
-    QWidget *m_generalTab;
-    QLineEdit *m_screenshotFolderEdit;
-    QPushButton *m_browseButton;
-    QComboBox *m_imageFormatCombo;
-    QPushButton *m_foregroundColorButton;
-    QPushButton *m_backgroundColorButton;
-    QColor m_foregroundColor;
-    QColor m_backgroundColor;
+    QWidget *m_generalTab = nullptr;
+    QLineEdit *m_screenshotFolderEdit = nullptr;
+    QPushButton *m_browseButton = nullptr;
+    QComboBox *m_imageFormatCombo = nullptr;
+    QPushButton *m_foregroundColorButton = nullptr;
+    QPushButton *m_backgroundColorButton = nullptr;
+    QColor m_foregroundColor = Qt::red;
+    QColor m_backgroundColor = Qt::transparent;
 
     // Recording Tab
-    QWidget *m_recordingTab;
-    QCheckBox *m_cameraEnabledCheck;
-    QComboBox *m_cameraCombo;
-    QCheckBox *m_micEnabledCheck;
-    QComboBox *m_micCombo;
-    QCheckBox *m_systemAudioCheck;
-    QCheckBox *m_frameCheck;   // "Highlight recorded area while recording"
+    QWidget *m_recordingTab = nullptr;
+    QCheckBox *m_cameraEnabledCheck = nullptr;
+    QComboBox *m_cameraCombo = nullptr;
+    QCheckBox *m_micEnabledCheck = nullptr;
+    QComboBox *m_micCombo = nullptr;
+    QCheckBox *m_systemAudioCheck = nullptr;
+    QCheckBox *m_frameCheck = nullptr;   // "Highlight recorded area while recording"
 
     // Upload Tab (multi-destination: S3-compatible / SFTP / FTP). The secret is NOT
     // persisted to QSettings - it goes to the OS keychain (service = the profile type's,
     // account = the profile id) on Apply. The form binds to the selected profile in an
     // in-memory working copy; nothing is persisted until Apply.
-    QWidget *m_uploadTab;
+    QWidget *m_uploadTab = nullptr;
     QCheckBox *m_uploadEnabledCheck = nullptr;
     QListWidget *m_uploadList = nullptr;
     QPushButton *m_uploadAddButton = nullptr;
@@ -172,16 +172,15 @@ private:
         Hotkeys::HotkeyAction action;
         QKeySequenceEdit *edit;
     };
-    [[nodiscard]] bool hasHotkeyConflicts() const;
 
-    QWidget *m_hotkeysTab;
+    QWidget *m_hotkeysTab = nullptr;
     QVector<HotkeyRow> m_hotkeyRows;
     QLabel *m_hotkeyConflictLabel = nullptr;   // hidden unless two rows collide
 
     // Dialog buttons
-    QPushButton *m_applyButton;
-    QPushButton *m_cancelButton;
-    QPushButton *m_resetButton;
+    QPushButton *m_applyButton = nullptr;
+    QPushButton *m_cancelButton = nullptr;
+    QPushButton *m_resetButton = nullptr;
 };
 
 } // namespace App

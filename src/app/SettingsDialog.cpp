@@ -29,27 +29,6 @@ namespace App {
 
 SettingsDialog::SettingsDialog(QWidget *parent)
     : QDialog(parent)
-    , m_tabWidget(nullptr)
-    , m_generalTab(nullptr)
-    , m_screenshotFolderEdit(nullptr)
-    , m_browseButton(nullptr)
-    , m_imageFormatCombo(nullptr)
-    , m_foregroundColorButton(nullptr)
-    , m_backgroundColorButton(nullptr)
-    , m_foregroundColor(Qt::red)
-    , m_backgroundColor(Qt::transparent)
-    , m_recordingTab(nullptr)
-    , m_cameraEnabledCheck(nullptr)
-    , m_cameraCombo(nullptr)
-    , m_micEnabledCheck(nullptr)
-    , m_micCombo(nullptr)
-    , m_systemAudioCheck(nullptr)
-    , m_frameCheck(nullptr)
-    , m_uploadTab(nullptr)
-    , m_hotkeysTab(nullptr)
-    , m_applyButton(nullptr)
-    , m_cancelButton(nullptr)
-    , m_resetButton(nullptr)
 {
     setWindowTitle("Settings");
     setModal(true);
@@ -326,15 +305,6 @@ QString keychainProblem(Core::KeychainStore::Failure why)
 #else
     return SettingsDialog::tr("this build of Snim cannot keep passwords on this system.");
 #endif
-}
-
-// The one place that formats a list row ("★ Name - SFTP"), so the full rebuild and the
-// in-place refresh after a name edit cannot drift apart.
-QString displayRowText(const Upload::UploadProfile &p, bool isDefault)
-{
-    const QString name = p.name.isEmpty() ? SettingsDialog::tr("(unnamed)") : p.name;
-    const QString label = name + QStringLiteral(" - ") + Upload::providerDisplayName(p.type);
-    return isDefault ? QStringLiteral("★ ") + label : label;
 }
 
 } // namespace
@@ -624,7 +594,7 @@ void SettingsDialog::refreshUploadList()
     const QSignalBlocker block(m_uploadList);   // don't fire selection changes while rebuilding
     m_uploadList->clear();
     for (const Upload::UploadProfile &p : m_uploadWorking)
-        m_uploadList->addItem(displayRowText(p, p.id == m_uploadDefaultId));
+        m_uploadList->addItem(Upload::profileLabel(p, p.id == m_uploadDefaultId));
     const bool any = !m_uploadWorking.isEmpty();
     m_uploadRemoveButton->setEnabled(any);
     m_uploadDefaultButton->setEnabled(any);
@@ -789,7 +759,7 @@ void SettingsDialog::onUploadSelectionChanged(int row)
     if (m_uploadCurrentRow >= 0 && m_uploadCurrentRow < m_uploadWorking.size()) {
         const Upload::UploadProfile &p = m_uploadWorking[m_uploadCurrentRow];
         if (auto *it = m_uploadList->item(m_uploadCurrentRow))
-            it->setText(displayRowText(p, p.id == m_uploadDefaultId));
+            it->setText(Upload::profileLabel(p, p.id == m_uploadDefaultId));
     }
     bindUploadForm(row);
 }
@@ -1004,21 +974,6 @@ void SettingsDialog::validateHotkeys()
     m_hotkeyConflictLabel->setVisible(!messages.isEmpty());
 }
 
-bool SettingsDialog::hasHotkeyConflicts() const
-{
-    QSet<QString> seen;
-    for (const HotkeyRow &row : m_hotkeyRows) {
-        const QKeySequence seq = row.edit->keySequence();
-        if (seq.isEmpty())
-            continue;
-        const QString text = seq.toString(QKeySequence::PortableText);
-        if (seen.contains(text))
-            return true;
-        seen.insert(text);
-    }
-    return false;
-}
-
 void SettingsDialog::browseScreenshotFolder()
 {
     QString currentPath = m_screenshotFolderEdit->text();
@@ -1220,7 +1175,8 @@ QString SettingsDialog::saveSettings()
 void SettingsDialog::applySettings()
 {
     // Two actions sharing a sequence would register once and fire the wrong one.
-    if (hasHotkeyConflicts()) {
+    // validateHotkeys runs on every edit, so its label already names any clash.
+    if (!m_hotkeyConflictLabel->text().isEmpty()) {
         m_tabWidget->setCurrentWidget(m_hotkeysTab);
         QMessageBox::warning(this, tr("Conflicting hotkeys"),
                              tr("Two actions are assigned the same hotkey. Change or clear one "

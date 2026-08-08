@@ -54,6 +54,9 @@ struct UploadProfile {
     QString publicBaseUrl;   // override for the returned link (required for R2)
 };
 
+// "Name - SFTP", starred when it is the default: the transport matters when picking.
+QString profileLabel(const UploadProfile &p, bool isDefault);
+
 } // namespace Upload
 
 /**

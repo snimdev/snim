@@ -40,13 +40,7 @@ const char *bundledTessdataPath()
     if (qEnvironmentVariableIsSet("TESSDATA_PREFIX"))
         return nullptr;
     static const QByteArray path = [] {
-#ifdef Q_OS_MACOS
-        const QString dir = QDir::cleanPath(QCoreApplication::applicationDirPath()
-                                            + QStringLiteral("/../Resources/tessdata"));
-#else
-        const QString dir = Core::BundledPaths::forThisPlatform(
-            QCoreApplication::applicationDirPath()).tessdataDir;
-#endif
+        const QString dir = Core::BundledPaths::tessdataDirForThisApp();
         return QDir(dir).exists() ? QFile::encodeName(dir) : QByteArray();
     }();
     if (!path.isEmpty())

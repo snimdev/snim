@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QObject>
 #include <QUuid>
 #include <algorithm>
 
@@ -73,6 +74,13 @@ QString keychainServiceFor(ProviderType t)
     case ProviderType::S3:   break;
     }
     return Core::KeychainStore::s3Service();
+}
+
+QString profileLabel(const UploadProfile &p, bool isDefault)
+{
+    const QString name = p.name.isEmpty() ? QObject::tr("(unnamed)") : p.name;
+    const QString label = name + QStringLiteral(" - ") + providerDisplayName(p.type);
+    return isDefault ? QStringLiteral("★ ") + label : label;
 }
 
 } // namespace Upload

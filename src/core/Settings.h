@@ -23,7 +23,6 @@ public:
     // Portable mode: every setting lives in this INI file instead of the platform store.
     // Set before the first setting is read; an empty path restores the platform store.
     static void setPortableFile(const QString &iniPath);
-    static QString portableFile();
     // <dir>/snim.ini when that file exists, otherwise empty.
     static QString portableFileIn(const QString &dir);
     // The short-lived QSettings every accessor goes through.
@@ -37,13 +36,10 @@ public:
 
     // Recording
     static QString recordingFolder();                  // default: <Movies>/Snim
-    static void setRecordingFolder(const QString &path);
     static QString recordingFormat();                  // default: "mp4"
-    static void setRecordingFormat(const QString &fmt);
     static int recordingFps();                         // default: 30
     static void setRecordingFps(int fps);
     static bool recordingCaptureCursor();              // default: true
-    static void setRecordingCaptureCursor(bool on);
     static bool recordingRetina();                     // default: true (capture at native pixel scale)
     static void setRecordingRetina(bool on);
     static QStringList recordingsInProgress();         // RecordingJournal's entries

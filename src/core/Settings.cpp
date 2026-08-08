@@ -44,7 +44,6 @@ QString portablePath;
 }
 
 void Settings::setPortableFile(const QString &iniPath) { portablePath = iniPath; }
-QString Settings::portableFile() { return portablePath; }
 
 QString Settings::portableFileIn(const QString &dir)
 {
@@ -76,16 +75,13 @@ QString Settings::recordingFolder()
                         + "/Snim";
     return store()->value(kRecordingFolder, def).toString();
 }
-void Settings::setRecordingFolder(const QString &path) { store()->setValue(kRecordingFolder, path); }
 
 QString Settings::recordingFormat() { return store()->value(kRecordingFormat, "mp4").toString(); }
-void Settings::setRecordingFormat(const QString &fmt) { store()->setValue(kRecordingFormat, fmt); }
 
 int Settings::recordingFps() { return store()->value(kRecordingFps, 30).toInt(); }
 void Settings::setRecordingFps(int fps) { store()->setValue(kRecordingFps, fps); }
 
 bool Settings::recordingCaptureCursor() { return store()->value(kRecordingCaptureCursor, true).toBool(); }
-void Settings::setRecordingCaptureCursor(bool on) { store()->setValue(kRecordingCaptureCursor, on); }
 
 bool Settings::recordingRetina() { return store()->value(kRecordingRetina, true).toBool(); }
 void Settings::setRecordingRetina(bool on) { store()->setValue(kRecordingRetina, on); }

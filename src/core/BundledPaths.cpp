@@ -1,5 +1,6 @@
 #include "core/BundledPaths.h"
 
+#include <QCoreApplication>
 #include <QDir>
 
 namespace Core::BundledPaths {
@@ -33,6 +34,16 @@ Paths forThisPlatform(const QString &binDir)
     return forWindowsBinaryDir(binDir);
 #else
     return forBinaryDir(binDir);
+#endif
+}
+
+QString tessdataDirForThisApp()
+{
+    const QString binDir = QCoreApplication::applicationDirPath();
+#ifdef Q_OS_MACOS
+    return QDir::cleanPath(binDir + QLatin1String("/../Resources/tessdata"));
+#else
+    return forThisPlatform(binDir).tessdataDir;
 #endif
 }
 

@@ -28,11 +28,7 @@ inline void rebuildUploadMenu(QMenu *menu, const std::function<void(const QStrin
     if (!profiles.isEmpty())
         menu->addSeparator();
     for (const UploadProfile &p : profiles) {
-        // "Name - SFTP": the transport matters when picking between destinations.
-        const QString shown = p.name.isEmpty() ? QObject::tr("(unnamed)") : p.name;
-        const QString name = shown + QStringLiteral(" - ") + providerDisplayName(p.type);
-        const QString label = (p.id == defId) ? QStringLiteral("★ ") + name : name;
-        QAction *a = menu->addAction(label);
+        QAction *a = menu->addAction(profileLabel(p, p.id == defId));
         const QString id = p.id;
         QObject::connect(a, &QAction::triggered, menu, [onPick, id] { onPick(id); });
     }

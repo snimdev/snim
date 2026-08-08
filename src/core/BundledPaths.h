@@ -33,6 +33,9 @@ struct Paths {
 // forWindowsBinaryDir() on Windows, forBinaryDir() everywhere else.
 [[nodiscard]] Paths forThisPlatform(const QString &binDir);
 
+// The running app's language pack dir (Contents/Resources/tessdata in a macOS bundle).
+[[nodiscard]] QString tessdataDirForThisApp();
+
 } // namespace Core::BundledPaths
 
 #endif // CORE_BUNDLEDPATHS_H
