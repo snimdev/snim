@@ -30,8 +30,6 @@ public:
     void unregisterAll() override;
 
     [[nodiscard]] bool isAvailable() const override;
-    [[nodiscard]] QString name() const override;
-    [[nodiscard]] Capabilities capabilities() const override;
 
     // Factory probe: reads the interface version, creating no session.
     [[nodiscard]] static bool isPortalAvailable();

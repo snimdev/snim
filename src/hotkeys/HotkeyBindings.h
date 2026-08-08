@@ -23,8 +23,6 @@ public:
     [[nodiscard]] static QKeySequence sequence(HotkeyAction a);
     static void setSequence(HotkeyAction a, const QKeySequence &seq);
 
-    [[nodiscard]] static QKeySequence defaultSequence(HotkeyAction a);
-
     // Everything worth handing to a backend: normalized, unbound actions dropped,
     // in enum order.
     [[nodiscard]] static QList<HotkeyBinding> activeBindings();

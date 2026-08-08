@@ -33,8 +33,6 @@ public:
 
     // Can run here at all; says nothing about whether an individual sequence is free.
     [[nodiscard]] virtual bool isAvailable() const = 0;
-    [[nodiscard]] virtual QString name() const = 0;
-    [[nodiscard]] virtual Capabilities capabilities() const = 0;
 
 signals:
     void activated(Hotkeys::HotkeyAction action);

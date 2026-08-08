@@ -21,8 +21,6 @@ public:
     void registerAll(const QList<HotkeyBinding> &bindings) override;
     void unregisterAll() override {}
     [[nodiscard]] bool isAvailable() const override { return false; }
-    [[nodiscard]] QString name() const override { return QStringLiteral("Unsupported"); }
-    [[nodiscard]] Capabilities capabilities() const override { return Capability::None; }
 };
 
 } // namespace Hotkeys

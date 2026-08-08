@@ -933,7 +933,7 @@ void SettingsDialog::setupHotkeysTab()
         defaultButton->setText(tr("Default"));
         defaultButton->setToolTip(tr("Restore the factory hotkey"));
         connect(defaultButton, &QToolButton::clicked, this, [edit, action] {
-            edit->setKeySequence(Hotkeys::HotkeyBindings::defaultSequence(action));
+            edit->setKeySequence(Hotkeys::hotkeyActionDefault(action));
         });
 
         auto *row = new QHBoxLayout();
@@ -1272,7 +1272,7 @@ void SettingsDialog::resetSettings()
 
     // Form-level only, like the rest of this slot: committed on Apply.
     for (const HotkeyRow &row : m_hotkeyRows)
-        row.edit->setKeySequence(Hotkeys::HotkeyBindings::defaultSequence(row.action));
+        row.edit->setKeySequence(Hotkeys::hotkeyActionDefault(row.action));
     validateHotkeys();
 }
 

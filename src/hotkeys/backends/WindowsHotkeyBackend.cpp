@@ -114,16 +114,6 @@ bool WindowsHotkeyBackend::isAvailable() const
     return true;
 }
 
-QString WindowsHotkeyBackend::name() const
-{
-    return QStringLiteral("Win32");
-}
-
-HotkeyBackend::Capabilities WindowsHotkeyBackend::capabilities() const
-{
-    return Capability::UserConfiguresKeys;
-}
-
 bool WindowsHotkeyBackend::nativeEventFilter(const QByteArray &eventType, void *message,
                                              qintptr *result)
 {

@@ -2,7 +2,6 @@
 #include <QSettings>
 #include <QStandardPaths>
 
-#include "core/Settings.h"
 #include "hotkeys/HotkeyAction.h"
 #include "hotkeys/HotkeyBindings.h"
 
@@ -31,13 +30,11 @@ private slots:
     void absentKeysResolveToDefaults()
     {
         for (const HotkeyAction a : allHotkeyActions())
-            QCOMPARE(HotkeyBindings::sequence(a), HotkeyBindings::defaultSequence(a));
+            QCOMPARE(HotkeyBindings::sequence(a), hotkeyActionDefault(a));
 
         QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureArea),
                  QKeySequence("Ctrl+Shift+A"));
         QVERIFY(HotkeyBindings::sequence(HotkeyAction::RecordWindow).isEmpty());
-        QCOMPARE(HotkeyBindings::defaultSequence(HotkeyAction::OcrTextSnip),
-                 hotkeyActionDefault(HotkeyAction::OcrTextSnip));
     }
 
     void setThenReloadRoundTripsThroughPortableText()
@@ -47,7 +44,7 @@ private slots:
         QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureFullScreen),
                  QKeySequence("Ctrl+Alt+Shift+F9"));
         // What lands in QSettings is the portable spelling, not the native one.
-        QCOMPARE(Core::Settings::hotkeyCaptureFullScreen(),
+        QCOMPARE(QSettings().value("Hotkeys/CaptureFullScreen").toString(),
                  QKeySequence("Ctrl+Alt+Shift+F9").toString(QKeySequence::PortableText));
 
         // Overwriting replaces, and the other actions are untouched.
@@ -56,14 +53,26 @@ private slots:
         QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureArea), QKeySequence("Ctrl+Shift+A"));
     }
 
+    void keyNamesAreFrozen()
+    {
+        // Renaming a key would drop every user's bindings for that action.
+        const QStringList keys = {"Hotkeys/CaptureArea", "Hotkeys/CaptureWindow",
+                                  "Hotkeys/CaptureFullScreen", "Hotkeys/OcrTextSnip",
+                                  "Hotkeys/RecordArea", "Hotkeys/RecordWindow"};
+        for (int i = 0; i < keys.size(); ++i) {
+            HotkeyBindings::setSequence(allHotkeyActions().at(i), QKeySequence("Ctrl+Alt+F1"));
+            QCOMPARE(QSettings().value(keys.at(i)).toString(), QStringLiteral("Ctrl+Alt+F1"));
+        }
+    }
+
     void explicitClearStaysUnbound()
     {
         // The whole point of storing "" rather than removing the key: an action the
         // user unbound must NOT snap back to its default on the next read.
         HotkeyBindings::setSequence(HotkeyAction::CaptureArea, QKeySequence());
         QVERIFY(HotkeyBindings::sequence(HotkeyAction::CaptureArea).isEmpty());
-        QVERIFY(Core::Settings::hotkeyCaptureArea().isEmpty());
-        QVERIFY(!HotkeyBindings::defaultSequence(HotkeyAction::CaptureArea).isEmpty());  // default intact
+        QCOMPARE(QSettings().value("Hotkeys/CaptureArea"), QVariant(QString()));
+        QVERIFY(!hotkeyActionDefault(HotkeyAction::CaptureArea).isEmpty());  // default intact
 
         for (const HotkeyBinding &b : HotkeyBindings::activeBindings())
             QVERIFY(b.action != HotkeyAction::CaptureArea);

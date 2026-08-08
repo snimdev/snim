@@ -18,8 +18,8 @@
 
 #include <unistd.h>
 
-// StartTransientUnit takes a(sv) properties plus a(sa(sv)) aux, which QtDBus cannot
-// marshal on its own. Global scope is required: Q_DECLARE_METATYPE cannot sit in a namespace.
+// StartTransientUnit takes a(sv) properties plus a(sa(sv)) aux; QtDBus marshals the pairs
+// once registered. Global scope is required: Q_DECLARE_METATYPE cannot sit in a namespace.
 using SnimScopeProperty = QPair<QString, QDBusVariant>;
 using SnimScopeProperties = QList<SnimScopeProperty>;
 using SnimScopeAux = QPair<QString, SnimScopeProperties>;
@@ -29,38 +29,6 @@ Q_DECLARE_METATYPE(SnimScopeProperty)
 Q_DECLARE_METATYPE(SnimScopeProperties)
 Q_DECLARE_METATYPE(SnimScopeAux)
 Q_DECLARE_METATYPE(SnimScopeAuxList)
-
-QDBusArgument &operator<<(QDBusArgument &arg, const SnimScopeProperty &property)
-{
-    arg.beginStructure();
-    arg << property.first << property.second;
-    arg.endStructure();
-    return arg;
-}
-
-const QDBusArgument &operator>>(const QDBusArgument &arg, SnimScopeProperty &property)
-{
-    arg.beginStructure();
-    arg >> property.first >> property.second;
-    arg.endStructure();
-    return arg;
-}
-
-QDBusArgument &operator<<(QDBusArgument &arg, const SnimScopeAux &aux)
-{
-    arg.beginStructure();
-    arg << aux.first << aux.second;
-    arg.endStructure();
-    return arg;
-}
-
-const QDBusArgument &operator>>(const QDBusArgument &arg, SnimScopeAux &aux)
-{
-    arg.beginStructure();
-    arg >> aux.first >> aux.second;
-    arg.endStructure();
-    return arg;
-}
 #endif // Q_OS_LINUX
 
 namespace Core::AppScope {

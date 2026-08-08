@@ -88,11 +88,4 @@ bool GlobalHotkeyManager::isAvailable() const
     return m_backend && m_backend->isAvailable();
 }
 
-HotkeyBackend::Capabilities GlobalHotkeyManager::capabilities() const
-{
-    if (!m_backend)
-        return HotkeyBackend::Capability::None;
-    return m_backend->capabilities();
-}
-
 } // namespace Hotkeys

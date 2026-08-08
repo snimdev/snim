@@ -22,11 +22,6 @@ public:
 
     // Carbon is always there; only individual sequences can fail.
     [[nodiscard]] bool isAvailable() const override { return true; }
-    [[nodiscard]] QString name() const override { return QStringLiteral("Carbon"); }
-    [[nodiscard]] Capabilities capabilities() const override
-    {
-        return Capability::UserConfiguresKeys;
-    }
 
     // Backend hook: called by the Carbon handler after it hops onto this thread.
     void reportActivated(HotkeyAction action);

@@ -26,8 +26,6 @@ public:
     void unregisterAll() override;
 
     [[nodiscard]] bool isAvailable() const override;
-    [[nodiscard]] QString name() const override;
-    [[nodiscard]] Capabilities capabilities() const override;
 
     bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) override;
 

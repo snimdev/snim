@@ -35,11 +35,6 @@ public:
     }
     void unregisterAll() override { ++unregisterCount; }
     [[nodiscard]] bool isAvailable() const override { return available; }
-    [[nodiscard]] QString name() const override { return QStringLiteral("Fake"); }
-    [[nodiscard]] Capabilities capabilities() const override
-    {
-        return Capability::UserConfiguresKeys;
-    }
 
     void simulateActivation(HotkeyAction action) { emit activated(action); }
 
@@ -80,7 +75,6 @@ private slots:
         GlobalHotkeyManager mgr(std::move(fake));
 
         QVERIFY(mgr.isAvailable());
-        QVERIFY(mgr.capabilities().testFlag(HotkeyBackend::Capability::UserConfiguresKeys));
 
         mgr.applyBindings();
         QCOMPARE(f->registerCount, 1);

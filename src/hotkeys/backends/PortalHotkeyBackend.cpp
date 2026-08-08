@@ -16,29 +16,13 @@
 
 #include <optional>
 
-// BindShortcuts takes a(sa{sv}), which QtDBus cannot marshal on its own. Global scope is
+// BindShortcuts takes a(sa{sv}); QtDBus marshals the pairs once registered. Global scope is
 // required: Q_DECLARE_METATYPE cannot sit in a namespace.
 using SnimPortalShortcut = QPair<QString, QVariantMap>;
 using SnimPortalShortcutList = QList<SnimPortalShortcut>;
 
 Q_DECLARE_METATYPE(SnimPortalShortcut)
 Q_DECLARE_METATYPE(SnimPortalShortcutList)
-
-QDBusArgument &operator<<(QDBusArgument &arg, const SnimPortalShortcut &shortcut)
-{
-    arg.beginStructure();
-    arg << shortcut.first << shortcut.second;
-    arg.endStructure();
-    return arg;
-}
-
-const QDBusArgument &operator>>(const QDBusArgument &arg, SnimPortalShortcut &shortcut)
-{
-    arg.beginStructure();
-    arg >> shortcut.first >> shortcut.second;
-    arg.endStructure();
-    return arg;
-}
 
 namespace Hotkeys {
 
@@ -97,18 +81,6 @@ bool PortalHotkeyBackend::isPortalAvailable()
 bool PortalHotkeyBackend::isAvailable() const
 {
     return isPortalAvailable();
-}
-
-QString PortalHotkeyBackend::name() const
-{
-    return QStringLiteral("GlobalShortcuts portal");
-}
-
-HotkeyBackend::Capabilities PortalHotkeyBackend::capabilities() const
-{
-    // No UserConfiguresKeys: the desktop owns the final bindings and our sequences are
-    // only preferred_trigger hints, so the settings UI must show them as suggestions.
-    return Capability::None;
 }
 
 void PortalHotkeyBackend::registerAll(const QList<HotkeyBinding> &bindings)

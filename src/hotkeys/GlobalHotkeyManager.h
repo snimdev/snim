@@ -36,7 +36,6 @@ public:
     void applyBindings();
 
     [[nodiscard]] bool isAvailable() const;
-    [[nodiscard]] HotkeyBackend::Capabilities capabilities() const;
 
 signals:
     void actionTriggered(Hotkeys::HotkeyAction action);
