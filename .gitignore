@@ -72,23 +72,6 @@ CMakeUserPresets.json
 *.sublime-workspace
 
 # ============================================
-# Deployment/Distribution artifacts
-# ============================================
-deploy/niceshot-portable/
-deploy/*.tar.gz
-deploy/*.AppImage
-deploy/*.deb
-deploy/*.rpm
-deploy/*.flatpak
-deploy/AppDir/
-deploy/build-dir/
-deploy/repo/
-
-# AppImage tools
-deploy/linuxdeploy*.AppImage
-deploy/appimagecraft*
-
-# ============================================
 # Temporary/Cache files
 # ============================================
 *.o
@@ -218,12 +201,6 @@ DRAWINGGRAPHICSVIEW_REFACTORING.md
 !LICENSE
 !CLAUDE.md
 !docs/
-
-# Keep deployment scripts and configs
-!deploy/*.sh
-!deploy/*.yml
-!deploy/*.md
-!deploy/licenses/
 
 # Keep project metadata
 !.gitignore

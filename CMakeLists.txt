@@ -8,7 +8,6 @@ project(Snim VERSION ${SNIM_VERSION_NUMERIC})
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
 
 if(WIN32)
     add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
@@ -888,9 +887,7 @@ if(GSTREAMER_AVAILABLE)
             ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${GSTREAMER_INCLUDE_DIRS})
     # pkg-config reports plain library names; add its dirs so a non-default prefix links.
-    if(GSTREAMER_LIBRARY_DIRS)
-        target_link_directories(snim_recorder_linux PRIVATE ${GSTREAMER_LIBRARY_DIRS})
-    endif()
+    target_link_directories(snim_recorder_linux PRIVATE ${GSTREAMER_LIBRARY_DIRS})
     target_link_libraries(snim_recorder_linux PRIVATE
             Qt::Core
             Qt::Gui
@@ -930,9 +927,7 @@ if(GSTREAMER_AVAILABLE)
             ${CMAKE_CURRENT_SOURCE_DIR}
             ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${GSTREAMER_INCLUDE_DIRS})
-    if(GSTREAMER_LIBRARY_DIRS)
-        target_link_directories(snim_video_linux PRIVATE ${GSTREAMER_LIBRARY_DIRS})
-    endif()
+    target_link_directories(snim_video_linux PRIVATE ${GSTREAMER_LIBRARY_DIRS})
     target_link_libraries(snim_video_linux PRIVATE
             Qt::Core
             ${GSTREAMER_LIBRARIES})
@@ -1061,9 +1056,7 @@ if(LIBCURL_AVAILABLE)
     target_include_directories(snim_lib PRIVATE ${LIBCURL_INCLUDE_DIRS})
     # pkg-config reports plain library names; add its dirs so a non-default prefix
     # (Homebrew) still links. Empty for the find_package fallback (absolute paths).
-    if(LIBCURL_LIBRARY_DIRS)
-        target_link_directories(snim_lib PUBLIC ${LIBCURL_LIBRARY_DIRS})
-    endif()
+    target_link_directories(snim_lib PUBLIC ${LIBCURL_LIBRARY_DIRS})
     target_link_libraries(snim_lib PUBLIC ${LIBCURL_LIBRARIES})
 endif()
 
@@ -1078,9 +1071,7 @@ if(LIBSSH2_AVAILABLE)
     target_include_directories(snim_lib PRIVATE ${LIBSSH2_INCLUDE_DIRS})
     # pkg-config reports plain library names; add its dirs so a non-default prefix
     # (Homebrew) still links. Empty for the manual-detection fallback (absolute paths).
-    if(LIBSSH2_LIBRARY_DIRS)
-        target_link_directories(snim_lib PUBLIC ${LIBSSH2_LIBRARY_DIRS})
-    endif()
+    target_link_directories(snim_lib PUBLIC ${LIBSSH2_LIBRARY_DIRS})
     target_link_libraries(snim_lib PUBLIC ${LIBSSH2_LIBRARIES})
 endif()
 
@@ -1100,9 +1091,7 @@ list(REMOVE_DUPLICATES _webp_inc)
 target_include_directories(snim_lib PRIVATE ${_webp_inc})
 # pkg-config reports plain library names; add its dirs so a non-default prefix
 # (Homebrew) still links. Empty for the manual-detection fallback (absolute paths).
-if(LIBWEBP_LIBRARY_DIRS)
-    target_link_directories(snim_lib PUBLIC ${LIBWEBP_LIBRARY_DIRS})
-endif()
+target_link_directories(snim_lib PUBLIC ${LIBWEBP_LIBRARY_DIRS})
 target_link_libraries(snim_lib PUBLIC ${LIBWEBPMUX_LIBRARIES} ${LIBWEBP_LIBRARIES})
 
 # Animated GIF export, shared like WebP. PUBLIC link so the tests resolve the same symbols.
@@ -1110,9 +1099,7 @@ target_link_libraries(snim_lib PUBLIC GIF::GIF)
 target_include_directories(snim_lib PRIVATE ${IMAGEQUANT_INCLUDE_DIRS})
 # pkg-config reports plain library names; add its dirs so a non-default prefix
 # (Homebrew) still links. Empty for the manual-detection fallback (absolute paths).
-if(IMAGEQUANT_LIBRARY_DIRS)
-    target_link_directories(snim_lib PUBLIC ${IMAGEQUANT_LIBRARY_DIRS})
-endif()
+target_link_directories(snim_lib PUBLIC ${IMAGEQUANT_LIBRARY_DIRS})
 target_link_libraries(snim_lib PUBLIC ${IMAGEQUANT_LIBRARIES})
 
 # ---------------------------------------------------------------------------
@@ -1133,15 +1120,10 @@ if(APPLE)
             MACOSX_BUNDLE_COPYRIGHT "Copyright © 2026 Darko Gjorgjijoski"
     )
 
-    # Optional custom app icon: drop an AppIcon.icns into resources/ and it gets
-    # bundled automatically. Without it the bundle uses the default icon.
     set(SNIM_APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/AppIcon.icns")
-    if(EXISTS "${SNIM_APP_ICON}")
-        target_sources(Snim PRIVATE "${SNIM_APP_ICON}")
-        set_source_files_properties("${SNIM_APP_ICON}" PROPERTIES
-                MACOSX_PACKAGE_LOCATION "Resources")
-        set_target_properties(Snim PROPERTIES MACOSX_BUNDLE_ICON_FILE "AppIcon.icns")
-    endif()
+    target_sources(Snim PRIVATE "${SNIM_APP_ICON}")
+    set_source_files_properties("${SNIM_APP_ICON}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    set_target_properties(Snim PROPERTIES MACOSX_BUNDLE_ICON_FILE "AppIcon.icns")
 
     # Dev code signing. Without this the linker ad-hoc signs the binary, whose
     # identity is the binary's own hash - it changes on EVERY rebuild, so modern
@@ -1215,14 +1197,12 @@ if(UNIX AND NOT APPLE)
 
     install(TARGETS Snim RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-    # The recorder module is dlopened, not linked, so no deployment tool finds it by
-    # walking the binary: it needs an install rule of its own for the packages and the
-    # portable tarball to carry it (the loader looks in ../lib next to the binary).
-    if(TARGET snim_recorder_linux)
-        install(TARGETS snim_recorder_linux LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-    endif()
-    if(TARGET snim_video_linux)
-        install(TARGETS snim_video_linux LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    # The GStreamer modules are dlopened, not linked, so no deployment tool finds them by
+    # walking the binary: they need an install rule of their own for the packages and the
+    # portable tarball to carry them (the loader looks in ../lib next to the binary).
+    if(GSTREAMER_AVAILABLE)
+        install(TARGETS snim_recorder_linux snim_video_linux
+                LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
     endif()
 
     # KWin authorizes ScreenShot2 only when Exec names the real binary, hence the absolute
