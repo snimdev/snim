@@ -205,13 +205,6 @@ namespace App {
 
     void Application::captureTextSnip() {
         qDebug() << "Starting text snip with OCR";
-
-        if (!m_textSnipWorkflow) {
-            QMessageBox::warning(nullptr, "Text Snip",
-                               "Text snip feature is not initialized.");
-            return;
-        }
-
         Core::Perf::markCaptureStart("textsnip");
         m_textSnipWorkflow->startTextSnip();
     }

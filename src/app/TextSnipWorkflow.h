@@ -38,13 +38,6 @@ public:
      */
     [[nodiscard]] static bool isOCRAvailable();
 
-signals:
-    /**
-     * @brief Emitted when an error occurs
-     * @param errorMessage Description of the error
-     */
-    void errorOccurred(const QString &errorMessage);
-
 private slots:
     void onScreenCaptured(const QPixmap &screenshot);
 

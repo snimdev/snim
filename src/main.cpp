@@ -128,9 +128,5 @@ int main(int argc, char *argv[]) {
 
     app.setWindowIcon(QIcon(QStringLiteral(":/icons/icons/app-icon.svg")));
 
-    // Test debug output
-    qDebug() << "Application starting...";
-    qDebug() << "Debug output is working!";
-
     return app.exec();
 }

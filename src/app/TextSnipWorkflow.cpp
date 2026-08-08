@@ -24,8 +24,7 @@ TextSnipWorkflow::TextSnipWorkflow(QObject *parent)
     connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotReady,
             this, &TextSnipWorkflow::onScreenCaptured);
     connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotFailed,
-            this, [this](const QString &error) {
-                emit errorOccurred(error);
+            this, [](const QString &error) {
                 QMessageBox::warning(nullptr, "Screenshot Failed", error);
             });
     connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotCancelled,
@@ -50,7 +49,6 @@ void TextSnipWorkflow::startTextSnip() {
     }
 
     if (!isOCRAvailable()) {
-        emit errorOccurred("Tesseract OCR is not available. Please install tesseract-ocr package.");
         QMessageBox::warning(nullptr, "OCR Not Available",
                            "Tesseract OCR is not installed or not available.\n\n"
                            "Please install it using:\n"
@@ -76,10 +74,8 @@ void TextSnipWorkflow::onScreenCaptured(const QPixmap &screenshot) {
 }
 
 void TextSnipWorkflow::performOCR(const QPixmap &selectedRegion) {
-    if (selectedRegion.isNull()) {
-        emit errorOccurred("No screenshot available for OCR");
+    if (selectedRegion.isNull())
         return;
-    }
 
     if (m_ocrInFlight) {
         return;
@@ -131,7 +127,6 @@ void TextSnipWorkflow::performOCR(const QPixmap &selectedRegion) {
                 msgBox.exec();
             }
         } else {
-            emit errorOccurred(result.getErrorMessage());
             QMessageBox::warning(nullptr, "OCR Failed", result.getErrorMessage());
         }
     });
