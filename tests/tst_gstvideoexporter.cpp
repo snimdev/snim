@@ -91,8 +91,8 @@ QString makeClipWithAudio(const QString &path, QString *skipReason)
 
 } // namespace
 
-// The GStreamer trim exporter, loaded from the module this build produced. Durations are
-// read out of the written MP4 boxes, so the checks need no decoder of their own.
+// The GStreamer trim exporter, loaded from the module this build produced. The shared
+// contract runs in tst_videoexportercontract; this adds the GStreamer-made audio fixture.
 class tst_GstVideoExporter : public QObject
 {
     Q_OBJECT
@@ -103,8 +103,6 @@ private slots:
         if (!qEnvironmentVariableIsSet("SNIM_VIDEO_MODULE"))
             qputenv("SNIM_VIDEO_MODULE", SNIM_VIDEO_MODULE_PATH);
         QVERIFY(m_dir.isValid());
-        m_clip = QFINDTESTDATA("data/clip.mp4");
-        QVERIFY(!m_clip.isEmpty());
     }
 
     void theBuiltModuleResolvesAgainstItsHost()
@@ -115,42 +113,6 @@ private slots:
         QVERIFY2(library.load(), qPrintable(library.errorString()));
         QVERIFY2(library.resolve(LinuxVideoModule::kEntryPoint),
                  qPrintable(library.errorString()));
-    }
-
-    void trimsToTheExactFrame()
-    {
-        std::unique_ptr<VideoExporter> exporter(LinuxVideoModule::create());
-        QVERIFY2(exporter, "The video module did not load");
-        if (!exporter->isAvailable())
-            QSKIP("GStreamer lacks the plugins trimming needs");
-        const QString output = m_dir.filePath(QStringLiteral("trim.mp4"));
-        QVERIFY(runTrim(exporter.get(), m_clip, output, 700, 1900));
-
-        const Mp4Info info = readMp4(output);
-        QCOMPARE(info.tracks.size(), 1);
-        const Mp4Track *video = trackOf(info, "vide");
-        QVERIFY(video);
-        QVERIFY2(qAbs(video->durationMs - 1200) <= kFrameToleranceMs,
-                 qPrintable(QString::number(video->durationMs)));
-        QVERIFY2(qAbs(info.durationMs - 1200) <= kFrameToleranceMs,
-                 qPrintable(QString::number(info.durationMs)));
-    }
-
-    void writesQuickTimeForMov()
-    {
-        std::unique_ptr<VideoExporter> exporter(LinuxVideoModule::create());
-        QVERIFY2(exporter, "The video module did not load");
-        if (!exporter->isAvailable())
-            QSKIP("GStreamer lacks the plugins trimming needs");
-        const QString output = m_dir.filePath(QStringLiteral("trim.mov"));
-        QVERIFY(runTrim(exporter.get(), m_clip, output, 500, 2500));
-
-        const Mp4Info info = readMp4(output);
-        QCOMPARE(info.brand, QByteArray("qt  "));
-        const Mp4Track *video = trackOf(info, "vide");
-        QVERIFY(video);
-        QVERIFY2(qAbs(video->durationMs - 2000) <= kFrameToleranceMs,
-                 qPrintable(QString::number(video->durationMs)));
     }
 
     void carriesAudioAcross()
@@ -181,57 +143,6 @@ private slots:
                  qPrintable(QString::number(audio->durationMs)));
     }
 
-    void cancelLeavesNothingBehind()
-    {
-        std::unique_ptr<VideoExporter> exporter(LinuxVideoModule::create());
-        QVERIFY2(exporter, "The video module did not load");
-        if (!exporter->isAvailable())
-            QSKIP("GStreamer lacks the plugins trimming needs");
-        const QString output = m_dir.filePath(QStringLiteral("cancelled.mp4"));
-        QSignalSpy finished(exporter.get(), &VideoExporter::finished);
-        QSignalSpy failed(exporter.get(), &VideoExporter::failed);
-
-        exporter->trim(m_clip, output, 700, 1900);
-        exporter->cancel();
-        QTest::qWait(1000);
-
-        QCOMPARE(finished.count(), 0);
-        QCOMPARE(failed.count(), 0);
-        QVERIFY(!QFile::exists(output));
-
-        // Still usable afterwards.
-        QVERIFY(runTrim(exporter.get(), m_clip, output, 700, 1900));
-    }
-
-    void failsOnMissingInput()
-    {
-        std::unique_ptr<VideoExporter> exporter(LinuxVideoModule::create());
-        QVERIFY2(exporter, "The video module did not load");
-        if (!exporter->isAvailable())
-            QSKIP("GStreamer lacks the plugins trimming needs");
-        const QString output = m_dir.filePath(QStringLiteral("missing.mp4"));
-        QVERIFY(!runTrim(exporter.get(), m_dir.filePath(QStringLiteral("nope.mp4")), output,
-                         0, 1000));
-        QVERIFY(!QFile::exists(output));
-    }
-
-    void failsOnGarbageInput()
-    {
-        std::unique_ptr<VideoExporter> exporter(LinuxVideoModule::create());
-        QVERIFY2(exporter, "The video module did not load");
-        if (!exporter->isAvailable())
-            QSKIP("GStreamer lacks the plugins trimming needs");
-        const QString garbage = m_dir.filePath(QStringLiteral("garbage.mp4"));
-        QFile file(garbage);
-        QVERIFY(file.open(QIODevice::WriteOnly));
-        file.write(QByteArray(64 * 1024, '\x5a'));
-        file.close();
-
-        const QString output = m_dir.filePath(QStringLiteral("garbage-trim.mp4"));
-        QVERIFY(!runTrim(exporter.get(), garbage, output, 0, 1000));
-        QVERIFY(!QFile::exists(output));
-    }
-
 private:
     // True on finished(), false on failed(); exactly one of them must fire.
     bool runTrim(VideoExporter *exporter, const QString &input, const QString &output,
@@ -258,7 +169,6 @@ private:
     }
 
     QTemporaryDir m_dir;
-    QString m_clip;
 };
 
 QTEST_MAIN(tst_GstVideoExporter)

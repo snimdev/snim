@@ -109,20 +109,18 @@ private slots:
 
     void status_notInstalled_onEmptyDataHome()
     {
-#ifndef Q_OS_LINUX
-        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::NotApplicable);
-        return;
-#else
+#ifdef Q_OS_LINUX
         QVERIFY(!QFile::exists(DesktopIntegration::desktopFilePath()));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::NotInstalled);
+#else
+        QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::NotApplicable);
 #endif
     }
 
+    // Everything below writes desktop entries, which only Linux has.
+#ifdef Q_OS_LINUX
     void install_thenStatusIsInstalled()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         QString error = "unset";
         QVERIFY2(DesktopIntegration::install(&error), qPrintable(error));
         QVERIFY(error.isEmpty());
@@ -132,38 +130,26 @@ private slots:
         // The written Exec is the running binary, canonicalized.
         const QString expected = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
         QVERIFY(readEntry().contains("Exec=" + expected + "\n"));
-#endif
     }
 
     void install_writesTheIcon()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         QVERIFY(DesktopIntegration::install(nullptr));
         const QFileInfo icon(DesktopIntegration::iconFilePath());
         QVERIFY(icon.exists());
         QVERIFY(icon.size() > 0);
         QVERIFY(icon.isWritable());   // a read-only resource copy would block the next install
-#endif
     }
 
     void install_isRepeatable()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         QVERIFY(DesktopIntegration::install(nullptr));
         QVERIFY(DesktopIntegration::install(nullptr));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
-#endif
     }
 
     void missingAuthorizationKey_isDetected()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         QVERIFY(DesktopIntegration::install(nullptr));
 
         QStringList kept;
@@ -175,61 +161,41 @@ private slots:
         QVERIFY(writeEntry(kept.join('\n')));
 
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::MissingAuthorizationKey);
-#endif
     }
 
     void execMismatch_isDetected()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents("/usr/bin/some-other-binary")));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::ExecMismatch);
 
         // A bare command name (what the AppDir and Flatpak entries carry) is a mismatch too.
         QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents("snim")));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::ExecMismatch);
-#endif
     }
 
     void execWithFieldCodes_stillMatches()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
         QVERIFY(writeEntry(DesktopIntegration::desktopEntryContents(appPath + " %U")));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
-#endif
     }
 
     void packagedEntry_forThisExecutable_isInstalled()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
         QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents(appPath)));
         QVERIFY(!QFile::exists(DesktopIntegration::desktopFilePath()));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
-#endif
     }
 
     void packagedEntry_forAnotherExecutable_isNotAccepted()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents("/opt/snim/usr/bin/snim")));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::ExecMismatch);
-#endif
     }
 
     void staleUserEntry_hidesThePackagedOne()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         // KWin and the launchers see only the user's entry, so an old tarball's breaks a package.
         const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
         QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents(appPath)));
@@ -242,26 +208,18 @@ private slots:
         QVERIFY(error.isEmpty());
         QVERIFY(!QFile::exists(DesktopIntegration::desktopFilePath()));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
-#endif
     }
 
     void staleUserEntry_withoutTheKey_isStaleToo()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         const QString appPath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
         QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents(appPath)));
         QVERIFY(writeEntry("[Desktop Entry]\nType=Application\nName=Snim\nExec=/opt/Snim.AppImage\n"));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::StaleUserEntry);
-#endif
     }
 
     void userEntry_overAnotherBinarysPackage_isRewritten()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         // A dev build or tarball beside a package: the system entry is not this binary's, so
         // the user's own entry is what has to change.
         QVERIFY(writeSystemEntry(DesktopIntegration::desktopEntryContents("/opt/snim/usr/bin/snim")));
@@ -271,14 +229,10 @@ private slots:
         QVERIFY(DesktopIntegration::repair(nullptr));
         QVERIFY(QFile::exists(DesktopIntegration::desktopFilePath()));
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::Installed);
-#endif
     }
 
     void flatpak_isNotApplicable()
     {
-#ifndef Q_OS_LINUX
-        QSKIP("Desktop integration is Linux only");
-#else
         qputenv("FLATPAK_ID", "dev.snim.Snim");
         QCOMPARE(DesktopIntegration::status(), DesktopIntegration::Status::NotApplicable);
 
@@ -290,8 +244,8 @@ private slots:
         QVERIFY(!DesktopIntegration::install(&error));
         QVERIFY(!error.isEmpty());
         QVERIFY(readEntry().contains("Exec=/usr/bin/some-other-binary\n"));
-#endif
     }
+#endif
 };
 
 QTEST_MAIN(tst_DesktopIntegration)

@@ -17,6 +17,21 @@ class tst_OCRService : public QObject
 {
     Q_OBJECT
 
+    // Large bold "HELLO", which every English model reads.
+    static QImage hello()
+    {
+        QPixmap pm(360, 110);
+        pm.fill(Qt::white);
+        QPainter p(&pm);
+        QFont f("Helvetica", 56);
+        f.setBold(true);
+        p.setFont(f);
+        p.setPen(Qt::black);
+        p.drawText(pm.rect(), Qt::AlignCenter, "HELLO");
+        p.end();
+        return pm.toImage();
+    }
+
 private slots:
     void availabilityContract()
     {
@@ -34,19 +49,8 @@ private slots:
         if (!OCRService::isAvailable())
             QSKIP("Tesseract not compiled in");
 
-        QPixmap pm(360, 110);
-        pm.fill(Qt::white);
-        {
-            QPainter p(&pm);
-            QFont f("Helvetica", 56);
-            f.setBold(true);
-            p.setFont(f);
-            p.setPen(Qt::black);
-            p.drawText(pm.rect(), Qt::AlignCenter, "HELLO");
-        }
-
         OCRService svc;
-        const OCRResult r = svc.performOCR(pm.toImage(), "eng");
+        const OCRResult r = svc.performOCR(hello(), "eng");
         if (!r.isSuccess())
             QSKIP("Tesseract present but init/recognition unavailable on this host (e.g. no tessdata)");
         QVERIFY(r.getText().toUpper().contains("HELLO"));
@@ -54,21 +58,10 @@ private slots:
 
     void asyncDeliversOnCallerThread()
     {
-        QPixmap pm(360, 110);
-        pm.fill(Qt::white);
-        {
-            QPainter p(&pm);
-            QFont f("Helvetica", 56);
-            f.setBold(true);
-            p.setFont(f);
-            p.setPen(Qt::black);
-            p.drawText(pm.rect(), Qt::AlignCenter, "HELLO");
-        }
-
         bool done = false;
         OCRResult res;
         QThread *seenThread = nullptr;
-        OCRService::performOCRAsync(pm.toImage(), "eng", this,
+        OCRService::performOCRAsync(hello(), "eng", this,
                                     [&](const OCRResult &r) {
                                         res = r;
                                         seenThread = QThread::currentThread();

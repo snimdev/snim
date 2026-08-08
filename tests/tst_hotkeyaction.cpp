@@ -1,6 +1,5 @@
 #include <QtTest>
 #include <QSet>
-#include <QStandardPaths>
 
 #include "hotkeys/HotkeyAction.h"
 
@@ -13,13 +12,6 @@ class tst_HotkeyAction : public QObject
     Q_OBJECT
 
 private slots:
-    void initTestCase()
-    {
-        QCoreApplication::setOrganizationName("SnimTest");
-        QCoreApplication::setApplicationName("tst_hotkeyaction");
-        QStandardPaths::setTestModeEnabled(true);
-    }
-
     void allActionsIsTheWholeEnumInOrder()
     {
         const QList<HotkeyAction> all = allHotkeyActions();

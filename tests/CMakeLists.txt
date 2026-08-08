@@ -69,6 +69,8 @@ set(SNIM_TESTS
         tst_appscope
         tst_sandbox
         tst_bundledpaths
+        tst_imageeditor_smoke
+        tst_videoeditor_smoke
 )
 
 # The dlopened Linux modules only exist where they are built.
@@ -77,19 +79,15 @@ if(GSTREAMER_AVAILABLE)
             tst_screencasttoken tst_screencastrequest tst_gstsupport)
 endif()
 
-# Round-trips the real Credential Manager, so it only exists on Windows.
+# Windows only: the real Credential Manager round trip and the FFmpeg media layer.
 if(WIN32)
-    list(APPEND SNIM_TESTS tst_keychainstore)
+    list(APPEND SNIM_TESTS tst_keychainstore tst_h264encoderchain tst_ffmpegencoder
+            tst_windowsrecorder)
 endif()
 
 # The Secret Service client behind the Linux keychain.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     list(APPEND SNIM_TESTS tst_secretservice)
-endif()
-
-# The FFmpeg media layer is built on Windows only.
-if(WIN32)
-    list(APPEND SNIM_TESTS tst_h264encoderchain tst_ffmpegencoder tst_windowsrecorder)
 endif()
 
 foreach(test_name ${SNIM_TESTS})
@@ -109,50 +107,25 @@ if(GSTREAMER_AVAILABLE)
             SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
     set_target_properties(tst_linuxrecordermodule PROPERTIES ENABLE_EXPORTS ON)
 
-    # Same seam for the trim exporter module; the test also drives GStreamer itself to
-    # make a fixture with audio.
-    add_dependencies(tst_gstvideoexporter snim_video_linux)
-    target_compile_definitions(tst_gstvideoexporter PRIVATE
-            SNIM_VIDEO_MODULE_PATH="$<TARGET_FILE:snim_video_linux>")
-    set_target_properties(tst_gstvideoexporter PROPERTIES ENABLE_EXPORTS ON)
-    target_include_directories(tst_gstvideoexporter PRIVATE ${GSTREAMER_INCLUDE_DIRS})
-    if(GSTREAMER_LIBRARY_DIRS)
-        target_link_directories(tst_gstvideoexporter PRIVATE ${GSTREAMER_LIBRARY_DIRS})
-    endif()
-    target_link_libraries(tst_gstvideoexporter PRIVATE ${GSTREAMER_LIBRARIES})
-    set_tests_properties(tst_gstvideoexporter PROPERTIES ENVIRONMENT
-            "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
+    # Same seam for the trim exporter module.
+    foreach(test_name tst_gstvideoexporter tst_recordingrecovery tst_videoexportercontract)
+        add_dependencies(${test_name} snim_video_linux)
+        target_compile_definitions(${test_name} PRIVATE
+                SNIM_VIDEO_MODULE_PATH="$<TARGET_FILE:snim_video_linux>")
+        set_target_properties(${test_name} PROPERTIES ENABLE_EXPORTS ON)
+        set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
+                "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
+    endforeach()
 
-    # Kills a recording child mid-write with the recorder's own muxer setup, so it
-    # compiles GstSupport in; the trim module then reads back what survived.
+    # These drive GStreamer themselves: an audio fixture, a recording child killed mid-write
+    # with the recorder's own muxer setup, and real encodes through each chain.
+    foreach(test_name tst_gstvideoexporter tst_recordingrecovery tst_gstsupport)
+        target_include_directories(${test_name} PRIVATE ${GSTREAMER_INCLUDE_DIRS})
+        target_link_directories(${test_name} PRIVATE ${GSTREAMER_LIBRARY_DIRS})
+        target_link_libraries(${test_name} PRIVATE ${GSTREAMER_LIBRARIES})
+    endforeach()
     target_sources(tst_recordingrecovery PRIVATE ${CMAKE_SOURCE_DIR}/src/media/gst/GstSupport.cpp)
-    add_dependencies(tst_recordingrecovery snim_video_linux)
-    target_compile_definitions(tst_recordingrecovery PRIVATE
-            SNIM_VIDEO_MODULE_PATH="$<TARGET_FILE:snim_video_linux>")
-    set_target_properties(tst_recordingrecovery PROPERTIES ENABLE_EXPORTS ON)
-    target_include_directories(tst_recordingrecovery PRIVATE ${GSTREAMER_INCLUDE_DIRS})
-    if(GSTREAMER_LIBRARY_DIRS)
-        target_link_directories(tst_recordingrecovery PRIVATE ${GSTREAMER_LIBRARY_DIRS})
-    endif()
-    target_link_libraries(tst_recordingrecovery PRIVATE ${GSTREAMER_LIBRARIES})
-    set_tests_properties(tst_recordingrecovery PROPERTIES ENVIRONMENT
-            "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
-
-    # The encoder and parser choice, plus real encodes through each chain.
     target_sources(tst_gstsupport PRIVATE ${CMAKE_SOURCE_DIR}/src/media/gst/GstSupport.cpp)
-    target_include_directories(tst_gstsupport PRIVATE ${GSTREAMER_INCLUDE_DIRS})
-    if(GSTREAMER_LIBRARY_DIRS)
-        target_link_directories(tst_gstsupport PRIVATE ${GSTREAMER_LIBRARY_DIRS})
-    endif()
-    target_link_libraries(tst_gstsupport PRIVATE ${GSTREAMER_LIBRARIES})
-
-    # The exporter contract runs against the same module.
-    add_dependencies(tst_videoexportercontract snim_video_linux)
-    target_compile_definitions(tst_videoexportercontract PRIVATE
-            SNIM_VIDEO_MODULE_PATH="$<TARGET_FILE:snim_video_linux>")
-    set_target_properties(tst_videoexportercontract PROPERTIES ENABLE_EXPORTS ON)
-    set_tests_properties(tst_videoexportercontract PROPERTIES ENVIRONMENT
-            "QT_QPA_PLATFORM=offscreen;SNIM_VIDEO_MODULE=$<TARGET_FILE:snim_video_linux>")
 endif()
 
 if(WIN32)
@@ -160,10 +133,8 @@ if(WIN32)
     target_link_libraries(tst_ffmpegencoder PRIVATE snim_media_ffmpeg)
     # Graphics Capture needs real screens; the test skips where there is no desktop.
     set_tests_properties(tst_windowsrecorder PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=windows")
-endif()
 
-# FFmpeg must stay static in snim.exe, or it would clash with Qt Multimedia's DLLs.
-if(WIN32)
+    # FFmpeg must stay static in snim.exe, or it would clash with Qt Multimedia's DLLs.
     get_filename_component(_snim_linker_dir "${CMAKE_LINKER}" DIRECTORY)
     find_program(SNIM_DUMPBIN dumpbin HINTS "${_snim_linker_dir}" REQUIRED)
     add_test(NAME snim_no_shared_ffmpeg
@@ -171,31 +142,11 @@ if(WIN32)
                     -P "${CMAKE_SOURCE_DIR}/cmake/CheckNoSharedFfmpeg.cmake")
 endif()
 
-# install() copies the app icon out of the qrc, so this one needs the resources too.
-target_sources(tst_desktopintegration PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
-
-# The options bar themes :/icons/icons/*.svg at construction, so it needs the qrc too.
-target_sources(tst_recordingoptionsbar PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
-
-# The handoff test opens an ImageEditor, which loads its qss and icons from the qrc.
-target_sources(tst_annotationhandoff PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
-
-# The ImageEditor smoke test also needs the qrc (it loads :/styles + themed
-# :/icons at construction), so it gets resources.qrc compiled into it directly.
-add_executable(tst_imageeditor_smoke tst_imageeditor_smoke.cpp
-        ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
-target_link_libraries(tst_imageeditor_smoke PRIVATE snim_lib Qt6::Test)
-add_test(NAME tst_imageeditor_smoke COMMAND tst_imageeditor_smoke)
-set_tests_properties(tst_imageeditor_smoke PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
-
-# Same deal for the VideoEditor smoke test (themed toolbar icons at construction).
-add_executable(tst_videoeditor_smoke tst_videoeditor_smoke.cpp
-        ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
-target_link_libraries(tst_videoeditor_smoke PRIVATE snim_lib Qt6::Test)
-add_test(NAME tst_videoeditor_smoke COMMAND tst_videoeditor_smoke)
-set_tests_properties(tst_videoeditor_smoke PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+# These load :/ icons, styles or the app icon at construction, so the qrc is compiled in.
+foreach(test_name tst_desktopintegration tst_recordingoptionsbar tst_annotationhandoff
+        tst_imageeditor_smoke tst_videoeditor_smoke)
+    target_sources(${test_name} PRIVATE ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
+endforeach()
 
 # These reach the keychain through the upload code: a dead session bus keeps them off a
 # developer's real keyring (CI has none either), so the keychain just reports no service.
@@ -233,23 +184,18 @@ add_custom_target(check
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         USES_TERMINAL
         COMMENT "Running all Snim tests")
-add_dependencies(check ${SNIM_TESTS} ${SNIM_BUS_TESTS} tst_imageeditor_smoke tst_videoeditor_smoke)
+add_dependencies(check ${SNIM_TESTS} ${SNIM_BUS_TESTS})
 
 # Manual ScreenCast capture and recording checks against the real portal; never run by ctest.
 if(GSTREAMER_AVAILABLE)
-    add_executable(snim_screencast_probe manual/screencast_probe.cpp)
-    target_link_libraries(snim_screencast_probe PRIVATE snim_lib)
-    add_dependencies(snim_screencast_probe snim_recorder_linux)
-    target_compile_definitions(snim_screencast_probe PRIVATE
-            SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
-    set_target_properties(snim_screencast_probe PROPERTIES ENABLE_EXPORTS ON)
-
-    add_executable(snim_recording_probe manual/recording_probe.cpp)
-    target_link_libraries(snim_recording_probe PRIVATE snim_lib)
-    add_dependencies(snim_recording_probe snim_recorder_linux)
-    target_compile_definitions(snim_recording_probe PRIVATE
-            SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
-    set_target_properties(snim_recording_probe PROPERTIES ENABLE_EXPORTS ON)
+    foreach(probe screencast recording)
+        add_executable(snim_${probe}_probe manual/${probe}_probe.cpp)
+        target_link_libraries(snim_${probe}_probe PRIVATE snim_lib)
+        add_dependencies(snim_${probe}_probe snim_recorder_linux)
+        target_compile_definitions(snim_${probe}_probe PRIVATE
+                SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
+        set_target_properties(snim_${probe}_probe PROPERTIES ENABLE_EXPORTS ON)
+    endforeach()
 endif()
 
 # Manual frozen frame check for the recording selector on a live Linux desktop.

@@ -1,6 +1,5 @@
 #include <QtTest>
 #include <QRegularExpression>
-#include <QStandardPaths>
 
 #include "upload/Util.h"
 #include "upload/UploadConfig.h"
@@ -30,13 +29,6 @@ class tst_UploadUtil : public QObject
     }
 
 private slots:
-    void initTestCase()
-    {
-        QCoreApplication::setOrganizationName("SnimTest");
-        QCoreApplication::setApplicationName("tst_uploadutil");
-        QStandardPaths::setTestModeEnabled(true);
-    }
-
     // --- sanitizeHint -------------------------------------------------------
 
     void sanitizeHintKeepsOnlyTheFileName()

@@ -1,5 +1,4 @@
 #include <QtTest>
-#include <QStandardPaths>
 
 #include "hotkeys/MacKeyMapping.h"
 #include "hotkeys/PortalKeyMapping.h"
@@ -15,13 +14,6 @@ class tst_HotkeyMapping : public QObject
     Q_OBJECT
 
 private slots:
-    void initTestCase()
-    {
-        QCoreApplication::setOrganizationName("SnimTest");
-        QCoreApplication::setApplicationName("tst_hotkeymapping");
-        QStandardPaths::setTestModeEnabled(true);
-    }
-
     // --- macOS / Carbon ------------------------------------------------------
 
     void macMapsQtControlToCommand()
