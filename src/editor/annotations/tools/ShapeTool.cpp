@@ -1,5 +1,5 @@
 #include "ShapeTool.h"
-#include "ShapeHandleTool.h"
+#include "HandleItem.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QStyleOptionGraphicsItem>
@@ -13,11 +13,6 @@ ShapeTool::ShapeTool(const QRectF &rect, QGraphicsItem *parent)
     , m_brush(Qt::NoBrush)
     , m_opacity(1.0)
 {
-    // Initialize handles array
-    for (int i = 0; i < 8; ++i) {
-        m_handles[i] = nullptr;
-    }
-
     setFlags(QGraphicsItem::ItemIsSelectable |
              QGraphicsItem::ItemIsMovable |
              QGraphicsItem::ItemSendsGeometryChanges |
@@ -35,9 +30,30 @@ ShapeTool::ShapeTool(const QRectF &rect, QGraphicsItem *parent)
 void ShapeTool::createHandles()
 {
     for (int i = 0; i < 8; ++i) {
-        m_handles[i] = new ShapeHandleTool(static_cast<HandlePosition>(i), this, this);
-        m_handles[i]->setVisible(false);
+        const auto position = static_cast<HandlePosition>(i);
+        m_handles[i] = new HandleItem(cursorFor(position), [this, position](const QPointF &p) {
+            updateHandlePosition(position, p);
+        }, this);
     }
+}
+
+Qt::CursorShape ShapeTool::cursorFor(HandlePosition position)
+{
+    switch (position) {
+    case TopLeft:
+    case BottomRight:
+        return Qt::SizeFDiagCursor;
+    case TopCenter:
+    case BottomCenter:
+        return Qt::SizeVerCursor;
+    case TopRight:
+    case BottomLeft:
+        return Qt::SizeBDiagCursor;
+    case MiddleLeft:
+    case MiddleRight:
+        return Qt::SizeHorCursor;
+    }
+    return Qt::SizeAllCursor;
 }
 
 void ShapeTool::updateGeometry()
@@ -58,12 +74,8 @@ void ShapeTool::updateGeometry()
 
 void ShapeTool::updateHandles()
 {
-    for (int i = 0; i < 8; ++i) {
-        if (m_handles[i]) {
-            QPointF pos = getHandlePosition(static_cast<HandlePosition>(i));
-            m_handles[i]->updatePosition(pos);
-        }
-    }
+    for (int i = 0; i < 8; ++i)
+        m_handles[i]->setPos(getHandlePosition(static_cast<HandlePosition>(i)));
 }
 
 QPointF ShapeTool::getHandlePosition(HandlePosition position) const
@@ -201,13 +213,9 @@ void ShapeTool::setOpacity(qreal opacity)
 QVariant ShapeTool::itemChange(GraphicsItemChange change, const QVariant &value)
 {
     if (change == ItemSelectedChange) {
-        bool selected = value.toBool();
-        // Show/hide handles based on selection
-        for (int i = 0; i < 8; ++i) {
-            if (m_handles[i]) {
-                m_handles[i]->setVisible(selected);
-            }
-        }
+        const bool selected = value.toBool();
+        for (HandleItem *handle : m_handles)
+            handle->setVisible(selected);
     }
 
     return QGraphicsObject::itemChange(change, value);

@@ -1,5 +1,5 @@
 #include "ArrowTool.h"
-#include "ArrowHandleTool.h"
+#include "HandleItem.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QPainterPathStroker>
@@ -14,8 +14,6 @@ ArrowTool::ArrowTool(const QPointF &start, const QPointF &end, QGraphicsItem *pa
     , m_endPoint(end)
     , m_pen(Qt::red, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin)
     , m_arrowHeadType(Outlined)
-    , m_startHandle(nullptr)
-    , m_endHandle(nullptr)
 {
     setFlags(QGraphicsItem::ItemIsSelectable |
              QGraphicsItem::ItemIsMovable |  // Make the arrow movable
@@ -25,13 +23,10 @@ ArrowTool::ArrowTool(const QPointF &start, const QPointF &end, QGraphicsItem *pa
     setAcceptHoverEvents(true);
     setCursor(Qt::SizeAllCursor);  // Show move cursor when hovering
 
-    // Create handles
-    m_startHandle = new ArrowHandleTool(ArrowHandleTool::StartHandle, this, this);
-    m_endHandle = new ArrowHandleTool(ArrowHandleTool::EndHandle, this, this);
-
-    // Initially hide handles
-    m_startHandle->setVisible(false);
-    m_endHandle->setVisible(false);
+    m_startHandle = new HandleItem(Qt::PointingHandCursor,
+                                   [this](const QPointF &p) { setStartPoint(mapFromScene(p)); }, this);
+    m_endHandle = new HandleItem(Qt::PointingHandCursor,
+                                 [this](const QPointF &p) { setEndPoint(mapFromScene(p)); }, this);
 
     updateGeometry();
 }
@@ -120,12 +115,8 @@ QPainterPath ArrowTool::createStrokePath() const
 
 void ArrowTool::updateHandles()
 {
-    if (m_startHandle) {
-        m_startHandle->updatePosition(m_startPoint);
-    }
-    if (m_endHandle) {
-        m_endHandle->updatePosition(m_endPoint);
-    }
+    m_startHandle->setPos(m_startPoint);
+    m_endHandle->setPos(m_endPoint);
 }
 
 QRectF ArrowTool::boundingRect() const
@@ -203,14 +194,9 @@ void ArrowTool::setArrowHeadType(ArrowHeadType type)
 QVariant ArrowTool::itemChange(GraphicsItemChange change, const QVariant &value)
 {
     if (change == ItemSelectedChange) {
-        bool selected = value.toBool();
-        // Show/hide handles based on selection
-        if (m_startHandle) {
-            m_startHandle->setVisible(selected);
-        }
-        if (m_endHandle) {
-            m_endHandle->setVisible(selected);
-        }
+        const bool selected = value.toBool();
+        m_startHandle->setVisible(selected);
+        m_endHandle->setVisible(selected);
     }
 
     return QGraphicsObject::itemChange(change, value);

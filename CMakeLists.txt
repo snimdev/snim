@@ -510,12 +510,10 @@ add_library(snim_lib STATIC
         src/editor/annotations/DrawingGraphicsView.h
         src/editor/annotations/tools/ArrowTool.cpp
         src/editor/annotations/tools/ArrowTool.h
-        src/editor/annotations/tools/ArrowHandleTool.cpp
-        src/editor/annotations/tools/ArrowHandleTool.h
         src/editor/annotations/tools/ShapeTool.cpp
         src/editor/annotations/tools/ShapeTool.h
-        src/editor/annotations/tools/ShapeHandleTool.cpp
-        src/editor/annotations/tools/ShapeHandleTool.h
+        src/editor/annotations/tools/HandleItem.cpp
+        src/editor/annotations/tools/HandleItem.h
         src/editor/annotations/tools/RectangleTool.cpp
         src/editor/annotations/tools/RectangleTool.h
         src/editor/annotations/tools/EllipseTool.cpp

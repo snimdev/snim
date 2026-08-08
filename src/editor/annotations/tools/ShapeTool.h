@@ -9,7 +9,7 @@
 
 namespace Editor::Tools {
 
-class ShapeHandleTool;
+class HandleItem;
 
 class ShapeTool : public QGraphicsObject, public ITool
 {
@@ -53,9 +53,6 @@ public:
     void setOpacity(qreal opacity);
     [[nodiscard]] qreal getOpacity() const { return m_opacity; }
 
-    // Handle management
-    void updateHandlePosition(HandlePosition position, const QPointF &scenePos);
-
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     void updateGeometry();
@@ -76,10 +73,11 @@ protected:
 
 private:
     void createHandles();
+    static Qt::CursorShape cursorFor(HandlePosition position);
     QPointF getHandlePosition(HandlePosition position) const;
+    void updateHandlePosition(HandlePosition position, const QPointF &scenePos);
 
-    // Interactive handles (8 resize handles)
-    ShapeHandleTool *m_handles[8];
+    HandleItem *m_handles[8] = {};
     QRectF m_boundingRect;
 };
 

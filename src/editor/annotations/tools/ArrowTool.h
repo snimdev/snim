@@ -8,7 +8,7 @@
 
 namespace Editor::Tools {
 
-class ArrowHandleTool;
+class HandleItem;
 
 class ArrowTool : public QGraphicsObject, public ITool
 {
@@ -69,9 +69,8 @@ private:
     QPainterPath m_strokePath;
     QRectF m_boundingRect;
 
-    // Interactive handles
-    ArrowHandleTool *m_startHandle;
-    ArrowHandleTool *m_endHandle;
+    HandleItem *m_startHandle = nullptr;
+    HandleItem *m_endHandle = nullptr;
 };
 
 } // namespace Editor::Tools
