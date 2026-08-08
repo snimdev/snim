@@ -17,6 +17,12 @@ class tst_UploaderFactory : public QObject
 {
     Q_OBJECT
 
+    // Which backend the factory handed back.
+    static QString backend(const Uploader *up)
+    {
+        return QString::fromLatin1(up->metaObject()->className());
+    }
+
 private slots:
     void initTestCase()
     {
@@ -61,7 +67,7 @@ private slots:
         auto up = UploaderFactory::create(UploaderFactory::StrategyType::Auto);
         QVERIFY(up != nullptr);
         QVERIFY(!up->isConfigured());
-        QCOMPARE(up->name(), QStringLiteral("None"));   // the stub
+        QCOMPARE(backend(up.get()), QStringLiteral("Upload::StubUploader"));
     }
 
     void stubUploadFailsDeferred()
@@ -106,7 +112,7 @@ private slots:
         QVERIFY(s3.isComplete());
         auto s3Up = UploaderFactory::createForConfig(s3);
         QVERIFY(s3Up != nullptr);
-        QCOMPARE(s3Up->name(), QStringLiteral("S3"));
+        QCOMPARE(backend(s3Up.get()), QStringLiteral("Upload::S3Uploader"));
         QVERIFY(s3Up->isConfigured());           // reads the override, not the empty store
 
         UploadConfig ftp;
@@ -118,10 +124,10 @@ private slots:
         auto ftpUp = UploaderFactory::createForConfig(ftp);
         QVERIFY(ftpUp != nullptr);
 #ifdef HAVE_LIBCURL
-        QCOMPARE(ftpUp->name(), QStringLiteral("FTP"));
+        QCOMPARE(backend(ftpUp.get()), QStringLiteral("Upload::FtpUploader"));
         QVERIFY(ftpUp->isConfigured());
 #else
-        QCOMPARE(ftpUp->name(), QStringLiteral("None"));
+        QCOMPARE(backend(ftpUp.get()), QStringLiteral("Upload::StubUploader"));
 #endif
 
         UploadConfig sftp;
@@ -135,10 +141,10 @@ private slots:
         auto sftpUp = UploaderFactory::createForConfig(sftp);
         QVERIFY(sftpUp != nullptr);
 #ifdef HAVE_LIBSSH2
-        QCOMPARE(sftpUp->name(), QStringLiteral("SFTP"));
+        QCOMPARE(backend(sftpUp.get()), QStringLiteral("Upload::SftpUploader"));
         QVERIFY(sftpUp->isConfigured());
 #else
-        QCOMPARE(sftpUp->name(), QStringLiteral("None"));
+        QCOMPARE(backend(sftpUp.get()), QStringLiteral("Upload::StubUploader"));
 #endif
     }
 
@@ -151,7 +157,7 @@ private slots:
         QVERIFY(!empty.isComplete());
         auto up = UploaderFactory::createForConfig(empty);
         QVERIFY(up != nullptr);
-        QCOMPARE(up->name(), QStringLiteral("S3"));
+        QCOMPARE(backend(up.get()), QStringLiteral("Upload::S3Uploader"));
         QVERIFY(!up->isConfigured());
 
         QSignalSpy testSpy(up.get(), &Uploader::testFinished);
@@ -200,11 +206,11 @@ private slots:
         auto up = UploaderFactory::create(UploaderFactory::StrategyType::Auto, nullptr, b.id);
         QVERIFY(up != nullptr);
 #ifdef HAVE_LIBSSH2
-        QCOMPARE(up->name(), QStringLiteral("SFTP"));
+        QCOMPARE(backend(up.get()), QStringLiteral("Upload::SftpUploader"));
         QVERIFY(up->isConfigured());
 #else
         // A compiled-out backend explains itself instead of claiming "not configured".
-        QCOMPARE(up->name(), QStringLiteral("None"));
+        QCOMPARE(backend(up.get()), QStringLiteral("Upload::StubUploader"));
         QSignalSpy failedSpy(up.get(), &Uploader::failed);
         up->upload("/tmp/whatever.png", "whatever.png");
         QVERIFY(failedSpy.wait(1000));
@@ -238,11 +244,11 @@ private slots:
         auto up = UploaderFactory::create(UploaderFactory::StrategyType::Auto, nullptr, b.id);
         QVERIFY(up != nullptr);
 #ifdef HAVE_LIBCURL
-        QCOMPARE(up->name(), QStringLiteral("FTP"));
+        QCOMPARE(backend(up.get()), QStringLiteral("Upload::FtpUploader"));
         QVERIFY(up->isConfigured());
 #else
         // A compiled-out backend explains itself instead of claiming "not configured".
-        QCOMPARE(up->name(), QStringLiteral("None"));
+        QCOMPARE(backend(up.get()), QStringLiteral("Upload::StubUploader"));
         QSignalSpy failedSpy(up.get(), &Uploader::failed);
         up->upload("/tmp/whatever.png", "whatever.png");
         QVERIFY(failedSpy.wait(1000));

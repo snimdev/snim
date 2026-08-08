@@ -4,7 +4,6 @@
 
 #include <QBuffer>
 #include <QCoreApplication>
-#include <QElapsedTimer>
 #include <QFile>
 #include <QMetaObject>
 #include <QPointer>
@@ -74,30 +73,10 @@ size_t readCallback(char *buffer, size_t size, size_t nitems, void *userdata)
     return static_cast<size_t>(n);
 }
 
-struct ProgressCtx {
-    QPointer<FtpUploader> self;
-    std::shared_ptr<std::atomic_bool> cancel;
-    QElapsedTimer since;
-    curl_off_t lastPosted = -1;
-};
-
-int xferInfoCallback(void *userdata, curl_off_t, curl_off_t, curl_off_t ultotal, curl_off_t ulnow)
+// Polled every transfer loop, so a cancel lands between reads too (1 = abort).
+int xferInfoCallback(void *userdata, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
 {
-    auto *ctx = static_cast<ProgressCtx *>(userdata);
-    if (ctx->cancel->load())
-        return 1;   // -> CURLE_ABORTED_BY_CALLBACK
-    // curl ticks once per transfer loop; coalesce to ~10 updates/s (plus the final one)
-    // so a large upload can't flood the GUI event queue with queued invocations.
-    const bool done = ultotal > 0 && ulnow >= ultotal;
-    if (ultotal > 0 && ulnow != ctx->lastPosted && (done || ctx->since.elapsed() >= 100)) {
-        ctx->lastPosted = ulnow;
-        ctx->since.restart();
-        postToGui([self = ctx->self, ulnow, ultotal] {
-            if (self)
-                emit self->uploadProgress(static_cast<qint64>(ulnow), static_cast<qint64>(ultotal));
-        });
-    }
-    return 0;
+    return static_cast<std::atomic_bool *>(userdata)->load() ? 1 : 0;
 }
 
 // One store-and-forward transfer, described by value so upload() and testConnection()
@@ -113,8 +92,7 @@ struct Transfer {
 
 // Runs the transfer on the calling (worker) thread. CURLE_FAILED_INIT means curl itself
 // could not be set up; *responseCode gets the FTP reply code when the server sent one.
-CURLcode performTransfer(const Transfer &t, ReadCtx *readCtx, ProgressCtx *progressCtx,
-                         long *responseCode)
+CURLcode performTransfer(const Transfer &t, ReadCtx *readCtx, long *responseCode)
 {
     CURL *curl = curl_easy_init();
     if (!curl)
@@ -137,7 +115,7 @@ CURLcode performTransfer(const Transfer &t, ReadCtx *readCtx, ProgressCtx *progr
     curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &xferInfoCallback);
-    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, progressCtx);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, readCtx->cancel.get());
 
     // Only when named - an empty username means curl's built-in anonymous login.
     const QByteArray user = t.username.toUtf8();
@@ -217,11 +195,6 @@ FtpUploader::~FtpUploader()
     m_cancel->store(true);   // a worker still running stops at its next callback
 }
 
-void FtpUploader::cancel()
-{
-    m_cancel->store(true);
-}
-
 UploadConfig FtpUploader::activeConfig() const
 {
     return m_configOverride ? *m_configOverride : UploadConfig::forProfile(m_profileId);
@@ -273,8 +246,6 @@ void FtpUploader::upload(const QString &localPath, const QString &keyHint)
                                            ? remotePath.mid(1)
                                            : remotePath));
 
-    emit started();
-
     // The worker captures value copies only - never `this`. tr() below is the static
     // FtpUploader::tr(), so it needs no capture either. Fire and forget: the worker
     // reports back through the marshaled signals, so nobody holds the QFuture.
@@ -289,8 +260,6 @@ void FtpUploader::upload(const QString &localPath, const QString &keyHint)
         }
 
         ReadCtx readCtx{&file, cancel, false};
-        ProgressCtx progressCtx{self, cancel, {}, -1};
-        progressCtx.since.start();
 
         Transfer t;
         t.url = url;
@@ -300,7 +269,7 @@ void FtpUploader::upload(const QString &localPath, const QString &keyHint)
         t.size = file.size();
 
         long response = 0;
-        const CURLcode rc = performTransfer(t, &readCtx, &progressCtx, &response);
+        const CURLcode rc = performTransfer(t, &readCtx, &response);
 
         if (rc == CURLE_OK) {
             postToGui([self, publicUrl] {
@@ -313,10 +282,8 @@ void FtpUploader::upload(const QString &localPath, const QString &keyHint)
             postFailed(self, tr("Upload failed: could not read the local file."));
             return;
         }
-        if (rc == CURLE_ABORTED_BY_CALLBACK || cancel->load()) {
-            postFailed(self, tr("Upload cancelled."));
-            return;
-        }
+        if (rc == CURLE_ABORTED_BY_CALLBACK || cancel->load())
+            return;   // the uploader is gone, nobody to tell
         if (rc == CURLE_FAILED_INIT) {
             postFailed(self, tr("Upload failed: could not initialize the FTP transport."));
             return;
@@ -359,10 +326,6 @@ void FtpUploader::testConnection()
         body.open(QIODevice::ReadOnly);
 
         ReadCtx readCtx{&body, cancel, false};
-        // A null `self` here on purpose: a test posts no upload progress, but the
-        // callback still runs so the cancel flag is honored between ticks.
-        ProgressCtx progressCtx{QPointer<FtpUploader>(), cancel, {}, -1};
-        progressCtx.since.start();
 
         Transfer t;
         t.url = url;
@@ -380,7 +343,7 @@ void FtpUploader::testConnection()
         t.postQuote = QByteArrayLiteral("DELE ") + remoteName.toUtf8();
 
         long response = 0;
-        const CURLcode rc = performTransfer(t, &readCtx, &progressCtx, &response);
+        const CURLcode rc = performTransfer(t, &readCtx, &response);
 
         if (rc == CURLE_OK) {
             postTestResult(self, true, tr("Connected: uploaded and removed a test file."));
@@ -394,10 +357,8 @@ void FtpUploader::testConnection()
                               "Delete it manually.").arg(remotePath));
             return;
         }
-        if (rc == CURLE_ABORTED_BY_CALLBACK || cancel->load()) {
-            postTestResult(self, false, tr("Test cancelled."));
-            return;
-        }
+        if (rc == CURLE_ABORTED_BY_CALLBACK || cancel->load())
+            return;   // the tester is gone, nobody to tell
         if (rc == CURLE_FAILED_INIT) {
             postTestResult(self, false, tr("Test failed: could not initialize the FTP transport."));
             return;

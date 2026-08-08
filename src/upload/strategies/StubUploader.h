@@ -22,7 +22,6 @@ public:
     void upload(const QString &localPath, const QString &keyHint) override;
     void testConnection() override;
     [[nodiscard]] bool isConfigured() const override { return false; }
-    [[nodiscard]] QString name() const override { return QStringLiteral("None"); }
 
 private:
     QString m_message;

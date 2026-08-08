@@ -26,13 +26,6 @@ constexpr auto kRecordingFrameEnabled  = "Recording/FrameEnabled";
 constexpr auto kRecordingRetina        = "Recording/RetinaCapture";
 constexpr auto kRecordingsInProgress   = "Recording/InProgress";
 constexpr auto kUploadEnabled          = "Upload/Enabled";
-constexpr auto kUploadEndpoint         = "Upload/Endpoint";
-constexpr auto kUploadRegion           = "Upload/Region";
-constexpr auto kUploadBucket           = "Upload/Bucket";
-constexpr auto kUploadAccessKeyId      = "Upload/AccessKeyId";
-constexpr auto kUploadKeyPrefix        = "Upload/KeyPrefix";
-constexpr auto kUploadPublicBaseUrl    = "Upload/PublicBaseUrl";
-constexpr auto kUploadForcePathStyle   = "Upload/ForcePathStyle";
 constexpr auto kUploadProfilesJson     = "Upload/Profiles";
 constexpr auto kUploadDefaultProfileId = "Upload/DefaultProfileId";
 constexpr auto kUploadKnownHostKeys    = "Upload/KnownHostKeys";
@@ -135,20 +128,6 @@ void Settings::setRecordingFrameEnabled(bool on) { store()->setValue(kRecordingF
 
 bool Settings::uploadEnabled() { return store()->value(kUploadEnabled, false).toBool(); }
 void Settings::setUploadEnabled(bool on) { store()->setValue(kUploadEnabled, on); }
-QString Settings::uploadEndpoint() { return store()->value(kUploadEndpoint, "s3.amazonaws.com").toString(); }
-void Settings::setUploadEndpoint(const QString &v) { store()->setValue(kUploadEndpoint, v); }
-QString Settings::uploadRegion() { return store()->value(kUploadRegion, "us-east-1").toString(); }
-void Settings::setUploadRegion(const QString &v) { store()->setValue(kUploadRegion, v); }
-QString Settings::uploadBucket() { return store()->value(kUploadBucket).toString(); }
-void Settings::setUploadBucket(const QString &v) { store()->setValue(kUploadBucket, v); }
-QString Settings::uploadAccessKeyId() { return store()->value(kUploadAccessKeyId).toString(); }
-void Settings::setUploadAccessKeyId(const QString &v) { store()->setValue(kUploadAccessKeyId, v); }
-QString Settings::uploadKeyPrefix() { return store()->value(kUploadKeyPrefix).toString(); }
-void Settings::setUploadKeyPrefix(const QString &v) { store()->setValue(kUploadKeyPrefix, v); }
-QString Settings::uploadPublicBaseUrl() { return store()->value(kUploadPublicBaseUrl).toString(); }
-void Settings::setUploadPublicBaseUrl(const QString &v) { store()->setValue(kUploadPublicBaseUrl, v); }
-bool Settings::uploadForcePathStyle() { return store()->value(kUploadForcePathStyle, false).toBool(); }
-void Settings::setUploadForcePathStyle(bool on) { store()->setValue(kUploadForcePathStyle, on); }
 QString Settings::uploadProfilesJson() { return store()->value(kUploadProfilesJson).toString(); }
 void Settings::setUploadProfilesJson(const QString &json) { store()->setValue(kUploadProfilesJson, json); }
 QString Settings::uploadDefaultProfileId() { return store()->value(kUploadDefaultProfileId).toString(); }

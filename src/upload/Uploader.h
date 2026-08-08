@@ -26,9 +26,7 @@ public:
 
     // Upload localPath; keyHint is the desired remote filename (a unique prefix is added).
     virtual void upload(const QString &localPath, const QString &keyHint) = 0;
-    virtual void cancel() {}
     [[nodiscard]] virtual bool isConfigured() const = 0;
-    [[nodiscard]] virtual QString name() const = 0;
 
     // Check the destination end to end: a backend that supports testing writes a tiny
     // probe file through the real transport and removes it again, which is the only
@@ -43,8 +41,6 @@ public:
     }
 
 signals:
-    void started();
-    void uploadProgress(qint64 sent, qint64 total);
     void uploaded(const QUrl &publicUrl);
     void failed(const QString &error);
     // Exactly one emission per testConnection() call, always on this object's (GUI)

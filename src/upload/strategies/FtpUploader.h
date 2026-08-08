@@ -38,9 +38,7 @@ public:
 
     void upload(const QString &localPath, const QString &keyHint) override;
     void testConnection() override;
-    void cancel() override;
     [[nodiscard]] bool isConfigured() const override;
-    [[nodiscard]] QString name() const override { return QStringLiteral("FTP"); }
 
 private:
     // The config this uploader works against: the explicit snapshot when it was
@@ -49,8 +47,8 @@ private:
 
     QString m_profileId;                          // empty = default profile
     std::optional<UploadConfig> m_configOverride; // set = ignore m_profileId entirely
-    // Shared with the worker (which may outlive us): set by cancel() and the destructor,
-    // polled from curl's read/progress callbacks.
+    // Shared with the worker (which may outlive us): set by the destructor, polled from
+    // curl's read/progress callbacks.
     std::shared_ptr<std::atomic_bool> m_cancel;
     bool m_started = false;                       // single-shot guard
 };

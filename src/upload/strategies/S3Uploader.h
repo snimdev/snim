@@ -11,7 +11,6 @@
 
 class QNetworkAccessManager;
 class QNetworkReply;
-class QFile;
 
 namespace Upload {
 
@@ -36,9 +35,7 @@ public:
 
     void upload(const QString &localPath, const QString &keyHint) override;
     void testConnection() override;
-    void cancel() override;
     [[nodiscard]] bool isConfigured() const override;
-    [[nodiscard]] QString name() const override { return QStringLiteral("S3"); }
 
 private:
     void onFinished();
@@ -59,7 +56,6 @@ private:
     std::optional<UploadConfig> m_configOverride;   // set = ignore m_profileId entirely
     QNetworkAccessManager *m_nam = nullptr;
     QPointer<QNetworkReply> m_reply;
-    QFile *m_file = nullptr;          // streamed body; parented to the reply
     QUrl m_publicUrl;                 // computed at request time, emitted on success
     bool m_finished = false;          // guards single uploaded()/failed() emission
     QString m_probeKey;               // connection-test object, deleted once written

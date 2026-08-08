@@ -6,7 +6,6 @@
 
 #include <QCoreApplication>
 #include <QDir>
-#include <QElapsedTimer>
 #include <QFile>
 #include <QMetaObject>
 #include <QPointer>
@@ -395,11 +394,6 @@ SftpUploader::~SftpUploader()
     m_cancel->store(true);   // a worker still running stops at its next chunk
 }
 
-void SftpUploader::cancel()
-{
-    m_cancel->store(true);
-}
-
 UploadConfig SftpUploader::activeConfig() const
 {
     return m_configOverride ? *m_configOverride : UploadConfig::forProfile(m_profileId);
@@ -468,8 +462,6 @@ void SftpUploader::upload(const QString &localPath, const QString &keyHint)
                                                  : remotePath));
     }
 
-    emit started();
-
     // The worker captures value copies only - never `this`. tr() below is the static
     // SftpUploader::tr(), so it needs no capture either. Fire and forget: the worker
     // reports back through the marshaled signals, so nobody holds the QFuture.
@@ -517,18 +509,12 @@ void SftpUploader::upload(const QString &localPath, const QString &keyHint)
             (void) libssh2_sftp_unlink(res.sftp, remoteUtf8.constData());
         };
 
-        const qint64 total = file.size();
-        qint64 sent = 0;
-        qint64 lastPosted = -1;
-        QElapsedTimer since;
-        since.start();
         char buffer[32 * 1024];
 
         while (true) {
             if (cancel->load()) {
                 discardPartial();
-                postFailed(self, tr("Upload cancelled."));
-                return;
+                return;   // the uploader is gone, nobody to tell
             }
             const qint64 n = file.read(buffer, sizeof(buffer));
             if (n < 0) {
@@ -545,7 +531,6 @@ void SftpUploader::upload(const QString &localPath, const QString &keyHint)
             while (offset < n) {
                 if (cancel->load()) {
                     discardPartial();
-                    postFailed(self, tr("Upload cancelled."));
                     return;
                 }
                 const ssize_t written = libssh2_sftp_write(res.handle, buffer + offset,
@@ -561,25 +546,6 @@ void SftpUploader::upload(const QString &localPath, const QString &keyHint)
                 }
                 offset += written;
             }
-            sent += n;
-
-            // Coalesce to ~10 updates/s so a large upload can't flood the GUI event queue
-            // with queued invocations; the final position is posted after the loop.
-            if (since.elapsed() >= 100) {
-                since.restart();
-                lastPosted = sent;
-                postToGui([self, sent, total] {
-                    if (self)
-                        emit self->uploadProgress(sent, total);
-                });
-            }
-        }
-
-        if (lastPosted != sent) {               // guaranteed final progress tick
-            postToGui([self, sent, total] {
-                if (self)
-                    emit self->uploadProgress(sent, total);
-            });
         }
 
         // Close before reporting success: a write error can still surface here, and
@@ -645,10 +611,8 @@ void SftpUploader::testConnection()
             postTestResult(self, false, session.error);
             return;
         }
-        if (cancel->load()) {
-            postTestResult(self, false, tr("Test cancelled."));
-            return;
-        }
+        if (cancel->load())
+            return;   // the tester is gone, nobody to tell
         ensureRemoteDir(res.sftp, remotePath);
 
         const QByteArray probe = QByteArrayLiteral("Snim connection test");

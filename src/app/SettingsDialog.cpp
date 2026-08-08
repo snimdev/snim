@@ -870,23 +870,8 @@ void SettingsDialog::onUploadTestConnection()
     // there is one, else from the keychain - and is never written back here (only Apply
     // does that). `enabled` is forced on: the global upload switch says whether the app
     // uploads, not whether a destination may be checked while it is being set up.
-    Upload::UploadConfig cfg;
+    Upload::UploadConfig cfg{p};
     cfg.enabled = true;
-    cfg.type = p.type;
-    cfg.endpoint = p.endpoint;
-    cfg.region = p.region;
-    cfg.bucket = p.bucket;
-    cfg.accessKeyId = p.accessKeyId;
-    cfg.keyPrefix = p.keyPrefix;
-    cfg.forcePathStyle = p.forcePathStyle;
-    cfg.host = p.host;
-    cfg.port = p.port;
-    cfg.username = p.username;
-    cfg.remoteDir = p.remoteDir;
-    cfg.sftpAuth = p.sftpAuth;
-    cfg.privateKeyPath = p.privateKeyPath;
-    cfg.ftpEncryption = p.ftpEncryption;
-    cfg.publicBaseUrl = p.publicBaseUrl;
     const QString staged = m_uploadNewSecrets.value(p.id);
     auto readFailure = Core::KeychainStore::Failure::None;
     if (!staged.isEmpty()) {
@@ -1151,8 +1136,7 @@ void SettingsDialog::loadSettings()
         row.edit->setKeySequence(Hotkeys::HotkeyBindings::sequence(row.action));
     validateHotkeys();
 
-    // Upload - load the working copy of all profiles (this also runs the one-time
-    // legacy single-config migration the first time). Secrets stay in the keychain.
+    // Upload - load the working copy of all profiles. Secrets stay in the keychain.
     m_uploadEnabledCheck->setChecked(Core::Settings::uploadEnabled());
     m_uploadWorking = Upload::UploadProfiles::all();
     m_uploadDefaultId = Upload::UploadProfiles::defaultId();

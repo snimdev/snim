@@ -136,43 +136,6 @@ void write(const QVector<UploadProfile> &v)
         QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)));
 }
 
-// One-time: turn a pre-existing single Upload/* config into a "Default" profile and
-// re-key its secret from (legacy accessKeyId) to (new profile id). Runs only when the
-// profiles list is still empty but a legacy bucket exists; persisting a non-empty list
-// makes the guard fail forever after.
-QVector<UploadProfile> migrateLegacyIfNeeded()
-{
-    if (Core::Settings::uploadBucket().isEmpty())
-        return {};
-
-    UploadProfile p;
-    p.id = newId();
-    p.name = QStringLiteral("Default");
-    p.endpoint = Core::Settings::uploadEndpoint();
-    p.region = Core::Settings::uploadRegion();
-    p.bucket = Core::Settings::uploadBucket();
-    p.accessKeyId = Core::Settings::uploadAccessKeyId();
-    p.keyPrefix = Core::Settings::uploadKeyPrefix();
-    p.publicBaseUrl = Core::Settings::uploadPublicBaseUrl();
-    p.forcePathStyle = Core::Settings::uploadForcePathStyle();
-
-    // Move the secret from the old (accessKeyId-keyed) slot to the new (id-keyed) slot,
-    // then erase the old slot so no stale credential copy lingers in the keychain.
-    if (!p.accessKeyId.isEmpty()) {
-        const auto secret = Core::KeychainStore::retrieve(
-            Core::KeychainStore::s3Service(), p.accessKeyId);
-        if (secret) {
-            Core::KeychainStore::store(Core::KeychainStore::s3Service(), p.id, *secret);
-            Core::KeychainStore::erase(Core::KeychainStore::s3Service(), p.accessKeyId);
-        }
-    }
-
-    QVector<UploadProfile> v{p};
-    write(v);
-    Core::Settings::setUploadDefaultProfileId(p.id);
-    return v;
-}
-
 } // namespace
 
 QString newId()
@@ -184,9 +147,6 @@ QVector<UploadProfile> all()
 {
     const QByteArray json = Core::Settings::uploadProfilesJson().toUtf8();
     const QJsonArray arr = QJsonDocument::fromJson(json).array();
-    if (arr.isEmpty())
-        return migrateLegacyIfNeeded();   // empty list -> maybe a legacy single config
-
     QVector<UploadProfile> v;
     v.reserve(arr.size());
     for (const QJsonValue &e : arr)
@@ -204,41 +164,6 @@ UploadProfile byId(const QString &id)
     return {};
 }
 
-void save(const UploadProfile &p)
-{
-    if (p.id.isEmpty())
-        return;
-    QVector<UploadProfile> v = all();
-    bool replaced = false;
-    for (UploadProfile &e : v) {
-        if (e.id == p.id) { e = p; replaced = true; break; }
-    }
-    if (!replaced)
-        v.push_back(p);
-    write(v);
-    // First profile saved becomes the default automatically.
-    if (defaultId().isEmpty())
-        setDefault(p.id);
-}
-
-void remove(const QString &id)
-{
-    if (id.isEmpty())
-        return;
-    QVector<UploadProfile> v = all();
-    v.erase(std::remove_if(v.begin(), v.end(),
-                           [&](const UploadProfile &p) { return p.id == id; }), v.end());
-    write(v);
-    // Erase from every service, not just the removed profile's own: erase is idempotent,
-    // and this also sweeps a secret left behind if the type ever changed under the id.
-    Core::KeychainStore::erase(Core::KeychainStore::s3Service(), id);
-    Core::KeychainStore::erase(Core::KeychainStore::sftpService(), id);
-    Core::KeychainStore::erase(Core::KeychainStore::ftpService(), id);
-    // If the default was removed, hand it to the first remaining profile (or clear).
-    if (defaultId() == id)
-        setDefault(v.isEmpty() ? QString() : v.first().id);
-}
-
 void setAll(const QVector<UploadProfile> &profiles, const QString &defaultId)
 {
     write(profiles);
@@ -248,17 +173,12 @@ void setAll(const QVector<UploadProfile> &profiles, const QString &defaultId)
                                      [&](const UploadProfile &p) { return p.id == def; });
     if (!present)
         def = profiles.isEmpty() ? QString() : profiles.first().id;
-    setDefault(def);
+    Core::Settings::setUploadDefaultProfileId(def);
 }
 
 QString defaultId()
 {
     return Core::Settings::uploadDefaultProfileId();
-}
-
-void setDefault(const QString &id)
-{
-    Core::Settings::setUploadDefaultProfileId(id);
 }
 
 UploadProfile defaultProfile()

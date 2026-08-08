@@ -153,13 +153,10 @@ void S3Uploader::upload(const QString &localPath, const QString &keyHint)
         m_publicUrl = url;
     }
 
-    m_file = file;
     m_reply = m_nam->put(req, file);
     file->setParent(m_reply);   // file outlives the async PUT, dies with the reply
 
-    connect(m_reply, &QNetworkReply::uploadProgress, this, &Uploader::uploadProgress);
     connect(m_reply, &QNetworkReply::finished, this, &S3Uploader::onFinished);
-    emit started();
 }
 
 void S3Uploader::onFinished()
@@ -274,12 +271,6 @@ void S3Uploader::onTestDeleteFinished()
     // user just has one stray object to know about.
     emit testFinished(true, tr("Connected, but the test object %1 could not be removed. "
                                "Delete it manually.").arg(m_probeKey));
-}
-
-void S3Uploader::cancel()
-{
-    if (m_reply)
-        m_reply->abort();   // -> onFinished() with OperationCanceledError
 }
 
 } // namespace Upload

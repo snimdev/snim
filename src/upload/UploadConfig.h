@@ -16,30 +16,10 @@ namespace Upload {
  * in QSettings. No streaming operator is defined on purpose - the secret must never end
  * up in a log.
  */
-struct UploadConfig {
+struct UploadConfig : UploadProfile {
     bool enabled = false;
-    ProviderType type = ProviderType::S3;
     QString secretKey;       // from keychain: S3 secret / SFTP password or key passphrase
                              // / FTP password; empty if absent
-
-    // S3
-    QString endpoint;        // host only, e.g. "s3.amazonaws.com"
-    QString region;          // "us-east-1", "auto" (R2), ...
-    QString bucket;
-    QString accessKeyId;
-    QString keyPrefix;       // e.g. "screenshots/"
-    bool forcePathStyle = false;
-
-    // SFTP / FTP
-    QString host;
-    int port = 0;            // 0 = the protocol default (22 / 21 / 990)
-    QString username;        // FTP: empty = anonymous
-    QString remoteDir;
-    SftpAuthMode sftpAuth = SftpAuthMode::Password;
-    QString privateKeyPath;
-    FtpEncryption ftpEncryption = FtpEncryption::Explicit;
-
-    QString publicBaseUrl;   // override for the returned link (required for R2)
 
     // Pure config check, per type - "is this destination filled in", never "is its
     // backend compiled in" (that is UploaderFactory::isStrategyAvailable). So a
@@ -67,27 +47,11 @@ struct UploadConfig {
     // Snapshot the given profile (empty id = the default profile). enabled comes from
     // the global toggle; the secret from the keychain under the profile's id.
     [[nodiscard]] static UploadConfig forProfile(const QString &profileId) {
-        const UploadProfile p = profileId.isEmpty() ? UploadProfiles::defaultProfile()
-                                                    : UploadProfiles::byId(profileId);
-        UploadConfig c;
+        UploadConfig c{profileId.isEmpty() ? UploadProfiles::defaultProfile()
+                                           : UploadProfiles::byId(profileId)};
         c.enabled = Core::Settings::uploadEnabled();
-        c.type = p.type;
-        c.endpoint = p.endpoint;
-        c.region = p.region;
-        c.bucket = p.bucket;
-        c.accessKeyId = p.accessKeyId;
-        c.keyPrefix = p.keyPrefix;
-        c.forcePathStyle = p.forcePathStyle;
-        c.host = p.host;
-        c.port = p.port;
-        c.username = p.username;
-        c.remoteDir = p.remoteDir;
-        c.sftpAuth = p.sftpAuth;
-        c.privateKeyPath = p.privateKeyPath;
-        c.ftpEncryption = p.ftpEncryption;
-        c.publicBaseUrl = p.publicBaseUrl;
-        if (!p.id.isEmpty()) {
-            const auto secret = Core::KeychainStore::retrieve(keychainServiceFor(p.type), p.id);
+        if (!c.id.isEmpty()) {
+            const auto secret = Core::KeychainStore::retrieve(keychainServiceFor(c.type), c.id);
             if (secret)
                 c.secretKey = *secret;
         }
