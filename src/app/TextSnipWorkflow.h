@@ -40,13 +40,6 @@ public:
 
 signals:
     /**
-     * @brief Emitted when text extraction is complete
-     * @param text The extracted text
-     * @param success Whether OCR was successful
-     */
-    void textExtracted(const QString &text, bool success);
-
-    /**
      * @brief Emitted when an error occurs
      * @param errorMessage Description of the error
      */

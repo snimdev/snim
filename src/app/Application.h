@@ -39,7 +39,6 @@ public:
 
 private slots:
     void captureTextSnip();
-    void onTextExtracted(const QString &text, bool success);
     void showSettings();
     void checkForUpdates();
     static void showAbout();

@@ -54,8 +54,6 @@ namespace App {
 
         // Initialize text snip capture
         m_textSnipWorkflow = std::make_unique<TextSnipWorkflow>(this);
-        connect(m_textSnipWorkflow.get(), &TextSnipWorkflow::textExtracted,
-                this, &Application::onTextExtracted);
 
         m_recordingWorkflow = std::make_unique<RecordingWorkflow>(*m_tray, *m_captureWorkflow,
                                                                   *m_uploadWorkflow, *m_tray, this);
@@ -216,11 +214,6 @@ namespace App {
 
         Core::Perf::markCaptureStart("textsnip");
         m_textSnipWorkflow->startTextSnip();
-    }
-
-    void Application::onTextExtracted(const QString &text, bool success) {
-        qDebug() << "Text extraction" << (success ? "succeeded" : "failed");
-        qDebug() << "Extracted text:" << text;
     }
 
     void Application::quit() {

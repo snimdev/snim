@@ -130,8 +130,6 @@ void TextSnipWorkflow::performOCR(const QPixmap &selectedRegion) {
 
                 msgBox.exec();
             }
-
-            emit textExtracted(text, true);
         } else {
             emit errorOccurred(result.getErrorMessage());
             QMessageBox::warning(nullptr, "OCR Failed", result.getErrorMessage());
