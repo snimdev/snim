@@ -10,9 +10,9 @@ namespace Recording {
 
 /**
  * Abstract base for platform screen-recording backends: the seam that keeps
- * recording platform-agnostic. RecordingFactory picks one per OS (ScreenCaptureKit
- * on macOS; a portal/PipeWire backend on Linux and Windows.Graphics.Capture on
- * Windows can slot in later behind this same interface). Everything above it
+ * recording platform-agnostic. RecordingFactory picks one per OS: ScreenCaptureKit on
+ * macOS, GStreamer (ScreenCast portal or X11) on Linux, Windows.Graphics.Capture on
+ * Windows. Everything above it
  * (selection, lifecycle, settings, UI) is shared, platform-neutral code.
  *
  * start()/stop() are asynchronous: a backend emits started() once capture is

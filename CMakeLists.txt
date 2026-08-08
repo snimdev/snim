@@ -705,8 +705,8 @@ if(APPLE)
             src/editor/video/MacVideoExporter.mm
             src/core/KeychainStore_mac.mm
             PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-    # Activates the Mac branch of RecordingFactory + makes Auto pick ScreenCaptureKit,
-    # and the Carbon branch of HotkeyBackendFactory.
+    # Activates the Mac branch of RecordingFactory and the Carbon branch of
+    # HotkeyBackendFactory.
     target_compile_definitions(snim_lib PUBLIC
             SNIM_HAVE_MAC_RECORDER
             SNIM_HAVE_MAC_HOTKEYS)
@@ -858,8 +858,8 @@ if(GSTREAMER_AVAILABLE)
             src/screen/PipeWireFrames.h
             src/screen/ScreenCastPortalSession.cpp
             src/screen/ScreenCastPortalSession.h)
-    # Activates the Linux branch of RecordingFactory + makes Auto pick the GStreamer
-    # recorder. PUBLIC because the tests check the macro.
+    # Activates the Linux branch of RecordingFactory. PUBLIC because the tests check
+    # the macro.
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_LINUX_RECORDER)
 
     add_library(snim_recorder_linux MODULE
@@ -998,7 +998,7 @@ if(WIN32)
             src/recording/strategies/windows/WindowsRecordingStrategy.cpp
             src/recording/strategies/windows/WindowsRecordingStrategy.h)
     target_link_libraries(snim_lib PUBLIC windowsapp d3d11 dxgi)
-    # Activates the Windows branch of RecordingFactory and makes Auto pick it.
+    # Activates the Windows branch of RecordingFactory.
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_WIN_RECORDER)
 endif()
 

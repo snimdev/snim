@@ -10,12 +10,11 @@ namespace Upload {
 struct UploadConfig;
 
 /**
- * Picks the active Uploader from settings. Mirrors RecordingFactory: an enum with the
- * backends, an Auto that resolves to the requested profile's type, and a Stub fallback
- * so the app always has a valid (inert) uploader. The enum is never persisted, so it is
- * safe to extend; the Sftp/Ftp members exist in every build even when their optional
- * dependency (libssh2 / libcurl) isn't there - those builds just resolve to a Stub that
- * says so.
+ * Picks the active Uploader from settings: an enum with the backends, an Auto that
+ * resolves to the requested profile's type, and a Stub fallback so the app always has
+ * a valid (inert) uploader. The enum is never persisted, so it is safe to extend; the
+ * Sftp/Ftp members exist in every build even when their optional dependency (libssh2 /
+ * libcurl) isn't there - those builds just resolve to a Stub that says so.
  */
 class UploaderFactory
 {
