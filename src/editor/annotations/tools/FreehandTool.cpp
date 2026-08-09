@@ -47,25 +47,10 @@ void FreehandTool::applyStyleFrom(const ITool* other)
 
 QList<ToolProperty> FreehandTool::getProperties() const
 {
-    QList<ToolProperty> properties;
-
-    ToolProperty colorProp;
-    colorProp.id = "color";
-    colorProp.name = "Stroke Color";
-    colorProp.value = m_pen.color();
-    colorProp.controlType = "color";
-    properties.append(colorProp);
-
-    ToolProperty widthProp;
-    widthProp.id = "width";
-    widthProp.name = "Stroke Width";
-    widthProp.value = m_pen.widthF();
-    widthProp.controlType = "slider";
-    widthProp.options["min"] = 1;
-    widthProp.options["max"] = 20;
-    properties.append(widthProp);
-
-    return properties;
+    return {
+        {"color", "Stroke Color", m_pen.color(), "color"},
+        {"width", "Stroke Width", m_pen.widthF(), "slider", {{"min", 1}, {"max", 20}}},
+    };
 }
 
 void FreehandTool::setProperty(const QString& propertyId, const QVariant& value)

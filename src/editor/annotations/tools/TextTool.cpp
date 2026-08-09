@@ -17,47 +17,19 @@ TextTool::TextTool(const QString &text, QGraphicsItem *parent)
 
 QList<ToolProperty> TextTool::getProperties() const
 {
-    QList<ToolProperty> properties;
-
-    ToolProperty colorProp;
-    colorProp.id = "color";
-    colorProp.name = "Color";
-    colorProp.value = defaultTextColor();
-    colorProp.controlType = "color";
-    properties.append(colorProp);
-
     const QFont f = font();
-
-    ToolProperty familyProp;
-    familyProp.id = "fontFamily";
-    familyProp.name = "Font";
-    familyProp.controlType = "dropdown";
-    familyProp.options["items"] = QFontDatabase::families();
-    familyProp.value = f.family();
-    properties.append(familyProp);
-
-    ToolProperty sizeProp;
-    sizeProp.id = "fontSize";
-    sizeProp.name = "Size";
-    sizeProp.controlType = "slider";
-    sizeProp.options["min"] = 6;
-    sizeProp.options["max"] = 96;
     int size = f.pointSize();
     if (size <= 0)
         size = (f.pixelSize() > 0 ? f.pixelSize() : 12);
-    sizeProp.value = size;
-    properties.append(sizeProp);
-
-    ToolProperty styleProp;
-    styleProp.id = "fontStyle";
-    styleProp.name = "Style";
-    styleProp.controlType = "dropdown";
-    styleProp.options["items"] = QStringList{"Regular", "Bold", "Italic", "Bold Italic"};
-    styleProp.value = f.bold() ? (f.italic() ? "Bold Italic" : "Bold")
-                               : (f.italic() ? "Italic" : "Regular");
-    properties.append(styleProp);
-
-    return properties;
+    const QString style = f.bold() ? (f.italic() ? "Bold Italic" : "Bold")
+                                   : (f.italic() ? "Italic" : "Regular");
+    return {
+        {"color", "Color", defaultTextColor(), "color"},
+        {"fontFamily", "Font", f.family(), "dropdown", {{"items", QFontDatabase::families()}}},
+        {"fontSize", "Size", size, "slider", {{"min", 6}, {"max", 96}}},
+        {"fontStyle", "Style", style, "dropdown",
+         {{"items", QStringList{"Regular", "Bold", "Italic", "Bold Italic"}}}},
+    };
 }
 
 void TextTool::setProperty(const QString& propertyId, const QVariant& value)

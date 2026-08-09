@@ -121,34 +121,12 @@ void StepTool::applyStyleFrom(const ITool* other)
 
 QList<ToolProperty> StepTool::getProperties() const
 {
-    QList<ToolProperty> properties;
-
-    ToolProperty colorProp;
-    colorProp.id = "color";
-    colorProp.name = "Color";
-    colorProp.value = m_color;
-    colorProp.controlType = "color";
-    properties.append(colorProp);
-
-    ToolProperty sizeProp;
-    sizeProp.id = "size";
-    sizeProp.name = "Size";
-    sizeProp.value = int(m_diameter);
-    sizeProp.controlType = "slider";
-    sizeProp.options["min"] = 16;
-    sizeProp.options["max"] = 64;
-    properties.append(sizeProp);
-
-    ToolProperty numberProp;
-    numberProp.id = "number";
-    numberProp.name = m_templateMode ? "Next number" : "Number";
-    numberProp.value = m_number;
-    numberProp.controlType = "spinbox";
-    numberProp.options["min"] = 1;
-    numberProp.options["max"] = 999;
-    properties.append(numberProp);
-
-    return properties;
+    return {
+        {"color", "Color", m_color, "color"},
+        {"size", "Size", int(m_diameter), "slider", {{"min", 16}, {"max", 64}}},
+        {"number", m_templateMode ? "Next number" : "Number", m_number, "spinbox",
+         {{"min", 1}, {"max", 999}}},
+    };
 }
 
 void StepTool::setProperty(const QString& propertyId, const QVariant& value)

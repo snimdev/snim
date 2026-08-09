@@ -280,99 +280,44 @@ QList<ToolProperty> BackdropItem::getProperties() const
             names << p.name;
             previews << QVariant::fromValue(configPreview(p.config, QSize(58, 40)));
         }
-        ToolProperty preset;
-        preset.id = "preset";
-        preset.name = "Preset";
-        preset.controlType = "swatches";
-        preset.options["items"] = names;
-        preset.options["previews"] = previews;
-        preset.value = m_activePreset;
-        props << preset;
+        props << ToolProperty{"preset", "Preset", m_activePreset, "swatches",
+                              {{"items", names}, {"previews", previews}}};
     }
 
-    ToolProperty fill;
-    fill.id = "fill";
-    fill.name = "Background";
-    fill.controlType = "dropdown";
-    fill.options["items"] = QStringList{"Solid", "Gradient", "Wallpaper"};
-    fill.value = fillName(m_fill);
-    props << fill;
+    props << ToolProperty{"fill", "Background", fillName(m_fill), "dropdown",
+                          {{"items", QStringList{"Solid", "Gradient", "Wallpaper"}}}};
 
     if (m_fill == Fill::Solid) {
-        ToolProperty color;
-        color.id = "color";
-        color.name = "Color";
-        color.controlType = "color";
-        color.value = m_solidColor;
-        props << color;
+        props << ToolProperty{"color", "Color", m_solidColor, "color"};
     } else if (m_fill == Fill::Gradient) {
         const QStringList names = gradientNames();
         QVariantList previews;
         for (int i = 0; i < names.size(); ++i)
             previews << QVariant::fromValue(gradientPreview(i, QSize(58, 40)));
-        ToolProperty grad;
-        grad.id = "gradient";
-        grad.name = "Gradient";
-        grad.controlType = "swatches";
-        grad.options["items"] = names;
-        grad.options["previews"] = previews;
         // No preset highlighted while using manual colors.
-        grad.value = m_customGradient ? QString() : names.value(m_gradientIndex);
-        props << grad;
+        props << ToolProperty{"gradient", "Gradient",
+                              m_customGradient ? QString() : names.value(m_gradientIndex),
+                              "swatches", {{"items", names}, {"previews", previews}}};
 
         const GradientPreset &cur = kGradients[qBound(0, m_gradientIndex, kGradientCount - 1)];
-        ToolProperty colors;
-        colors.id = "gradColors";
-        colors.name = "Custom colors";
-        colors.controlType = "colorpair";   // two swatches side by side (Start → End)
-        colors.options["startId"] = "gradStart";
-        colors.options["startName"] = "Start";
-        colors.options["startValue"] = (m_customGradient ? m_gradStart : QColor(cur.c1));
-        colors.options["endId"] = "gradEnd";
-        colors.options["endName"] = "End";
-        colors.options["endValue"] = (m_customGradient ? m_gradEnd : QColor(cur.c2));
-        props << colors;
+        // A colorpair is two swatches side by side (Start → End).
+        props << ToolProperty{"gradColors", "Custom colors", {}, "colorpair",
+                              {{"startId", "gradStart"}, {"startName", "Start"},
+                               {"startValue", m_customGradient ? m_gradStart : QColor(cur.c1)},
+                               {"endId", "gradEnd"}, {"endName", "End"},
+                               {"endValue", m_customGradient ? m_gradEnd : QColor(cur.c2)}}};
     } else if (m_fill == Fill::Wallpaper) {
         const QStringList names = wallpaperNames();
         QVariantList previews;
         for (int i = 0; i < names.size(); ++i)
             previews << QVariant::fromValue(wallpaperPreview(i, QSize(58, 40)));
-        ToolProperty wall;
-        wall.id = "wallpaper";
-        wall.name = "Wallpaper";
-        wall.controlType = "swatches";
-        wall.options["items"] = names;
-        wall.options["previews"] = previews;
-        wall.value = names.value(m_wallpaperIndex);
-        props << wall;
+        props << ToolProperty{"wallpaper", "Wallpaper", names.value(m_wallpaperIndex), "swatches",
+                              {{"items", names}, {"previews", previews}}};
     }
 
-    ToolProperty pad;
-    pad.id = "padding";
-    pad.name = "Padding";
-    pad.controlType = "slider";
-    pad.options["min"] = 0;
-    pad.options["max"] = 256;
-    pad.value = m_padding;
-    props << pad;
-
-    ToolProperty radius;
-    radius.id = "radius";
-    radius.name = "Corner radius";
-    radius.controlType = "slider";
-    radius.options["min"] = 0;
-    radius.options["max"] = 64;
-    radius.value = m_cornerRadius;
-    props << radius;
-
-    ToolProperty shadow;
-    shadow.id = "shadow";
-    shadow.name = "Shadow";
-    shadow.controlType = "slider";
-    shadow.options["min"] = 0;
-    shadow.options["max"] = 100;
-    shadow.value = m_shadowStrength;
-    props << shadow;
+    props << ToolProperty{"padding", "Padding", m_padding, "slider", {{"min", 0}, {"max", 256}}}
+          << ToolProperty{"radius", "Corner radius", m_cornerRadius, "slider", {{"min", 0}, {"max", 64}}}
+          << ToolProperty{"shadow", "Shadow", m_shadowStrength, "slider", {{"min", 0}, {"max", 100}}};
 
     return props;
 }

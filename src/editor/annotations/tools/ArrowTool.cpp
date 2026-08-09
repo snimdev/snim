@@ -190,33 +190,12 @@ QVariant ArrowTool::itemChange(GraphicsItemChange change, const QVariant &value)
 
 QList<ToolProperty> ArrowTool::getProperties() const
 {
-    QList<ToolProperty> properties;
-
-    ToolProperty colorProp;
-    colorProp.id = "color";
-    colorProp.name = "Color";
-    colorProp.value = m_pen.color();
-    colorProp.controlType = "color";
-    properties.append(colorProp);
-
-    ToolProperty widthProp;
-    widthProp.id = "width";
-    widthProp.name = "Width";
-    widthProp.value = m_pen.widthF();
-    widthProp.controlType = "slider";
-    widthProp.options["min"] = 1;
-    widthProp.options["max"] = 20;
-    properties.append(widthProp);
-
-    ToolProperty headTypeProp;
-    headTypeProp.id = "headType";
-    headTypeProp.name = "Arrow Head";
-    headTypeProp.value = m_arrowHeadType == Filled ? "Filled" : "Outlined";
-    headTypeProp.controlType = "dropdown";
-    headTypeProp.options["items"] = QStringList{"Outlined", "Filled"};
-    properties.append(headTypeProp);
-
-    return properties;
+    return {
+        {"color", "Color", m_pen.color(), "color"},
+        {"width", "Width", m_pen.widthF(), "slider", {{"min", 1}, {"max", 20}}},
+        {"headType", "Arrow Head", m_arrowHeadType == Filled ? "Filled" : "Outlined", "dropdown",
+         {{"items", QStringList{"Outlined", "Filled"}}}},
+    };
 }
 
 QGraphicsItem* ArrowTool::clone() const

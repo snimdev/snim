@@ -239,27 +239,10 @@ QVariant BlurTool::itemChange(GraphicsItemChange change, const QVariant &value)
 
 QList<ToolProperty> BlurTool::getProperties() const
 {
-    QList<ToolProperty> properties;
-
-    ToolProperty radiusProp;
-    radiusProp.id = "blurRadius";
-    radiusProp.name = "Blur Strength";
-    radiusProp.value = m_blurRadius;
-    radiusProp.controlType = "slider";
-    radiusProp.options["min"] = 1;
-    radiusProp.options["max"] = 50;
-    properties.append(radiusProp);
-
-    ToolProperty widthProp;
-    widthProp.id = "brushWidth";
-    widthProp.name = "Brush Width";
-    widthProp.value = m_brushWidth;
-    widthProp.controlType = "slider";
-    widthProp.options["min"] = 5;
-    widthProp.options["max"] = 100;
-    properties.append(widthProp);
-
-    return properties;
+    return {
+        {"blurRadius", "Blur Strength", m_blurRadius, "slider", {{"min", 1}, {"max", 50}}},
+        {"brushWidth", "Brush Width", m_brushWidth, "slider", {{"min", 5}, {"max", 100}}},
+    };
 }
 
 void BlurTool::setProperty(const QString& propertyId, const QVariant& value)

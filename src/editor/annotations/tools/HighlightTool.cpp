@@ -60,36 +60,13 @@ void HighlightTool::applyStyleFrom(const ITool* other)
 
 QList<ToolProperty> HighlightTool::getProperties() const
 {
-    QList<ToolProperty> properties;
-
-    ToolProperty colorProp;
-    colorProp.id = "color";
-    colorProp.name = "Highlight Color";
-    colorProp.value = color(); // Get the base color without alpha
-    colorProp.controlType = "color";
-    properties.append(colorProp);
-
-    // Add size property as dropdown
-    ToolProperty sizeProp;
-    sizeProp.id = "size";
-    sizeProp.name = "Size";
-
-    // Determine current size
-    QString currentSize;
-    if (qAbs(width() - HIGHLIGHT_WIDTH_SMALL) < 0.1) {
-        currentSize = "Small";
-    } else if (qAbs(width() - HIGHLIGHT_WIDTH_LARGE) < 0.1) {
-        currentSize = "Large";
-    } else {
-        currentSize = "Medium";
-    }
-
-    sizeProp.value = currentSize;
-    sizeProp.controlType = "dropdown";
-    sizeProp.options["items"] = QStringList{"Small", "Medium", "Large"};
-    properties.append(sizeProp);
-
-    return properties;
+    const QString size = qAbs(width() - HIGHLIGHT_WIDTH_SMALL) < 0.1   ? QStringLiteral("Small")
+                         : qAbs(width() - HIGHLIGHT_WIDTH_LARGE) < 0.1 ? QStringLiteral("Large")
+                                                                       : QStringLiteral("Medium");
+    return {
+        {"color", "Highlight Color", color(), "color"},   // without the alpha
+        {"size", "Size", size, "dropdown", {{"items", QStringList{"Small", "Medium", "Large"}}}},
+    };
 }
 
 void HighlightTool::setProperty(const QString& propertyId, const QVariant& value)

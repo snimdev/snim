@@ -223,41 +223,12 @@ QVariant ShapeTool::itemChange(GraphicsItemChange change, const QVariant &value)
 
 QList<ToolProperty> ShapeTool::getProperties() const
 {
-    QList<ToolProperty> properties;
-
-    ToolProperty strokeColorProp;
-    strokeColorProp.id = "strokeColor";
-    strokeColorProp.name = "Stroke Color";
-    strokeColorProp.value = m_pen.color();
-    strokeColorProp.controlType = "color";
-    properties.append(strokeColorProp);
-
-    ToolProperty strokeWidthProp;
-    strokeWidthProp.id = "strokeWidth";
-    strokeWidthProp.name = "Stroke Width";
-    strokeWidthProp.value = m_pen.widthF();
-    strokeWidthProp.controlType = "slider";
-    strokeWidthProp.options["min"] = 0;
-    strokeWidthProp.options["max"] = 20;
-    properties.append(strokeWidthProp);
-
-    ToolProperty fillColorProp;
-    fillColorProp.id = "fillColor";
-    fillColorProp.name = "Fill Color";
-    fillColorProp.value = m_brush.color();
-    fillColorProp.controlType = "color";
-    properties.append(fillColorProp);
-
-    ToolProperty opacityProp;
-    opacityProp.id = "opacity";
-    opacityProp.name = "Opacity";
-    opacityProp.value = m_opacity * 100; // Convert to percentage for display
-    opacityProp.controlType = "slider";
-    opacityProp.options["min"] = 0;
-    opacityProp.options["max"] = 100;
-    properties.append(opacityProp);
-
-    return properties;
+    return {
+        {"strokeColor", "Stroke Color", m_pen.color(), "color"},
+        {"strokeWidth", "Stroke Width", m_pen.widthF(), "slider", {{"min", 0}, {"max", 20}}},
+        {"fillColor", "Fill Color", m_brush.color(), "color"},
+        {"opacity", "Opacity", m_opacity * 100, "slider", {{"min", 0}, {"max", 100}}},   // percent
+    };
 }
 
 void ShapeTool::applyStyleFrom(const ITool* other)
