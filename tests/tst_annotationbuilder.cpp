@@ -6,11 +6,13 @@
 #include "editor/annotations/AnnotationBuilder.h"
 #include "editor/annotations/IAnnotationSink.h"
 #include "editor/annotations/interactions/IDrawingInteraction.h"
-#include "editor/annotations/interactions/ArrowDrawingInteraction.h"
+#include "editor/annotations/interactions/DrawingInteractions.h"
 #include "editor/annotations/tools/ArrowTool.h"
 #include "editor/annotations/tools/RectangleTool.h"
 #include "editor/annotations/tools/EllipseTool.h"
+#include "editor/annotations/tools/BlurTool.h"
 #include "editor/annotations/tools/FreehandTool.h"
+#include "editor/annotations/tools/HighlightTool.h"
 #include "editor/annotations/tools/StepTool.h"
 #include "editor/annotations/tools/TextTool.h"
 
@@ -54,6 +56,17 @@ class tst_AnnotationBuilder : public QObject
         for (int k = 1; k < points.size() - 1; ++k)
             i->onMouseMove(points.at(k), scene);
         i->onMouseRelease(points.last(), scene);
+    }
+
+    // The scene holds nothing but the in-progress preview (and its children).
+    template <typename T>
+    T *preview() const
+    {
+        QList<QGraphicsItem*> topLevel;
+        for (QGraphicsItem *item : scene->items())
+            if (!item->parentItem())
+                topLevel.append(item);
+        return topLevel.size() == 1 ? dynamic_cast<T*>(topLevel.first()) : nullptr;
     }
 
     Tools::TextTool *placeText(const QPointF &at)
@@ -146,7 +159,7 @@ private slots:
         QVERIFY(sink->entries.isEmpty());
 
         // The builder's own 10 px minimum, independent of the interaction's.
-        auto *arrow = dynamic_cast<Interactions::ArrowDrawingInteraction*>(builder->interaction("arrow"));
+        auto *arrow = dynamic_cast<Interactions::ArrowInteraction*>(builder->interaction("arrow"));
         QVERIFY(arrow);
         emit arrow->arrowDrawn(QPoint(10, 10), QPoint(15, 10));
         QVERIFY(sink->entries.isEmpty());
@@ -168,6 +181,72 @@ private slots:
         QCOMPARE(stroke->pen().color(), QColor(Qt::blue));
         QCOMPARE(stroke->points().size(), 3);
         QCOMPARE(stroke->points().first(), QPointF(10, 10));
+    }
+
+    // The preview is styled from the template on every press, so edits made while the
+    // tool stays armed show up in the next stroke's preview.
+    void strokePreviews_followTheTemplate()
+    {
+        auto *freehand = dynamic_cast<Tools::FreehandTool*>(builder->templateFor("freehand"));
+        auto *highlight = dynamic_cast<Tools::HighlightTool*>(builder->templateFor("highlight"));
+        auto *blur = dynamic_cast<Tools::BlurTool*>(builder->templateFor("blur"));
+        QVERIFY(freehand && highlight && blur);
+
+        for (const QColor &color : {QColor(Qt::blue), QColor(Qt::green)}) {
+            freehand->setProperty("color", color);
+            Interactions::IDrawingInteraction *i = builder->interaction("freehand");
+            i->onMousePress(QPointF(10, 10), scene);
+            i->onMouseMove(QPointF(20, 20), scene);
+            auto *stroke = preview<Tools::FreehandTool>();
+            QVERIFY(stroke);
+            QCOMPARE(stroke->pen(), freehand->pen());
+            QCOMPARE(stroke->points().size(), 2);
+            i->onMouseRelease(QPointF(30, 30), scene);
+        }
+
+        highlight->setProperty("size", QStringLiteral("Large"));
+        builder->interaction("highlight")->onMousePress(QPointF(10, 10), scene);
+        auto *marker = preview<Tools::HighlightTool>();
+        QVERIFY(marker);
+        QCOMPARE(marker->width(), Tools::HighlightTool::HIGHLIGHT_WIDTH_LARGE);
+        builder->interaction("highlight")->cleanup(scene);
+
+        blur->setProperty("brushWidth", 60.0);
+        builder->interaction("blur")->onMousePress(QPointF(10, 10), scene);
+        auto *smudge = preview<Tools::BlurTool>();
+        QVERIFY(smudge);
+        QCOMPARE(smudge->brushWidth(), 60.0);
+        builder->interaction("blur")->cleanup(scene);
+        QVERIFY(scene->items().isEmpty());
+    }
+
+    // The arrow preview wears the template's style and is re-pointed in place, not
+    // rebuilt (with its handles) on every move.
+    void arrowPreview_isStyledAndUpdatedInPlace()
+    {
+        auto *tmpl = dynamic_cast<Tools::ArrowTool*>(builder->templateFor("arrow"));
+        QVERIFY(tmpl);
+        tmpl->setPen(QPen(Qt::green, 6));
+        tmpl->setArrowHeadType(Tools::ArrowTool::Filled);
+
+        Interactions::IDrawingInteraction *i = builder->interaction("arrow");
+        i->onMousePress(QPointF(10, 10), scene);
+        QPointer<Tools::ArrowTool> arrow = preview<Tools::ArrowTool>();
+        QVERIFY(arrow);
+        QCOMPARE(arrow->pen(), tmpl->pen());
+        QCOMPARE(arrow->arrowHeadType(), Tools::ArrowTool::Filled);
+
+        for (const QPointF &p : {QPointF(30, 20), QPointF(50, 40), QPointF(80, 60)})
+            i->onMouseMove(p, scene);
+        QVERIFY(arrow);
+        QCOMPARE(preview<Tools::ArrowTool>(), arrow.data());
+        QCOMPARE(arrow->startPoint(), QPointF(10, 10));
+        QCOMPARE(arrow->endPoint(), QPointF(80, 60));
+
+        i->onMouseRelease(QPointF(80, 60), scene);
+        QVERIFY(arrow.isNull());
+        QVERIFY(scene->items().isEmpty());
+        QCOMPARE(sink->entries.size(), 1);
     }
 
     void step_numbersComeFromProviderAndTemplateAdvances()

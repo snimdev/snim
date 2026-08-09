@@ -10,15 +10,7 @@
 #include "tools/BlurTool.h"
 #include "tools/StepTool.h"
 
-#include "interactions/PointerToolInteraction.h"
-#include "interactions/ArrowDrawingInteraction.h"
-#include "interactions/TextDrawingInteraction.h"
-#include "interactions/RectangleDrawingInteraction.h"
-#include "interactions/EllipseDrawingInteraction.h"
-#include "interactions/FreehandDrawingInteraction.h"
-#include "interactions/HighlightDrawingInteraction.h"
-#include "interactions/BlurDrawingInteraction.h"
-#include "interactions/StepDrawingInteraction.h"
+#include "interactions/DrawingInteractions.h"
 #include "core/Settings.h"
 
 #include <QPen>
@@ -54,7 +46,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Pointer";
             s.shortcut = u'V';
             s.isDrawingTool = false;
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PointerToolInteraction(p); };
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PointerInteraction(p); };
             v.push_back(s);
         }
 
@@ -69,7 +61,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Arrow";
             s.shortcut = u'A';
             s.switchToPointerAfter = true;   // select the new arrow so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ArrowDrawingInteraction(p); };
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ArrowInteraction(p); };
             s.makeTemplate = []() -> ITool* {
                 auto *t = new ArrowTool(QPointF(0, 0), QPointF(100, 100), nullptr);
                 t->setPen(QPen(foregroundColor(), 3));
@@ -89,7 +81,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Text";
             s.shortcut = u'T';
             s.switchToPointerAfter = true;
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new TextDrawingInteraction(p); };
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ClickInteraction(Qt::IBeamCursor, p); };
             s.makeTemplate = []() -> ITool* {
                 auto *t = new TextTool("Sample Text", nullptr);
                 t->setDefaultTextColor(foregroundColor());
@@ -109,7 +101,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Rectangle";
             s.shortcut = u'R';
             s.switchToPointerAfter = true;   // select the new shape so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new RectangleDrawingInteraction(p); };
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new RectDragInteraction(RectDragInteraction::Rectangle, p); };
             s.makeTemplate = []() -> ITool* {
                 auto *t = new RectangleTool(QRect(0, 0, 100, 100), nullptr);
                 t->setPen(QPen(foregroundColor(), 2));
@@ -129,7 +121,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Ellipse";
             s.shortcut = u'E';
             s.switchToPointerAfter = true;   // select the new shape so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new EllipseDrawingInteraction(p); };
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new RectDragInteraction(RectDragInteraction::Ellipse, p); };
             s.makeTemplate = []() -> ITool* {
                 auto *t = new EllipseTool(QRect(0, 0, 100, 100), nullptr);
                 t->setPen(QPen(foregroundColor(), 2));
@@ -149,16 +141,11 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Freehand";
             s.shortcut = u'P';
             s.switchToPointerAfter = true;   // select the new stroke so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new FreehandDrawingInteraction(p); };
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); };
             s.makeTemplate = []() -> ITool* {
                 auto *t = new FreehandTool(nullptr);
                 t->setPen(QPen(foregroundColor(), 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
                 return t;
-            };
-            s.syncStrategy = [](IDrawingInteraction *strategy, ITool *tmpl) {
-                auto *si = dynamic_cast<FreehandDrawingInteraction*>(strategy);
-                auto *ft = dynamic_cast<FreehandTool*>(tmpl);
-                if (si && ft) si->setPen(ft->pen());
             };
             v.push_back(s);
         }
@@ -174,17 +161,12 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Highlight";
             s.shortcut = u'H';
             s.switchToPointerAfter = true;   // select the new stroke so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new HighlightDrawingInteraction(p); };
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); };
             s.makeTemplate = []() -> ITool* {
                 auto *t = new HighlightTool(nullptr);
                 t->setColor(QColor("#b3ff61"));
                 t->setWidth(HighlightTool::HIGHLIGHT_WIDTH_MEDIUM);
                 return t;
-            };
-            s.syncStrategy = [](IDrawingInteraction *strategy, ITool *tmpl) {
-                auto *si = dynamic_cast<HighlightDrawingInteraction*>(strategy);
-                auto *ht = dynamic_cast<HighlightTool*>(tmpl);
-                if (si && ht) { si->setColor(ht->color()); si->setWidth(ht->width()); }
             };
             v.push_back(s);
         }
@@ -200,17 +182,12 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Blur";
             s.shortcut = u'B';
             s.switchToPointerAfter = true;   // select the new stroke so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new BlurDrawingInteraction(p); };
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); };
             s.makeTemplate = []() -> ITool* {
                 auto *t = new BlurTool(nullptr);
                 t->setBlurRadius(10.0);
                 t->setBrushWidth(30.0);
                 return t;
-            };
-            s.syncStrategy = [](IDrawingInteraction *strategy, ITool *tmpl) {
-                auto *si = dynamic_cast<BlurDrawingInteraction*>(strategy);
-                auto *bt = dynamic_cast<BlurTool*>(tmpl);
-                if (si && bt) { si->setBlurRadius(bt->blurRadius()); si->setBrushWidth(bt->brushWidth()); }
             };
             v.push_back(s);
         }
@@ -226,7 +203,7 @@ const QList<ToolSpec>& ToolRegistry::tools()
             s.tooltip = "Step numbers";
             s.shortcut = u'N';
             // Stays armed after a stamp: numbering several steps in a row is the point.
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new StepDrawingInteraction(p); };
+            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ClickInteraction(Qt::CrossCursor, p); };
             s.makeTemplate = []() -> ITool* {
                 auto *t = new StepTool(nullptr);
                 t->setColor(foregroundColor());

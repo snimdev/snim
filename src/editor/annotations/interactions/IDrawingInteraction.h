@@ -1,70 +1,30 @@
 #ifndef IMAGEEDITOR_IDRAWINGINTERACTION_H
 #define IMAGEEDITOR_IDRAWINGINTERACTION_H
 
-#include <QMouseEvent>
-#include <QGraphicsScene>
-#include <QGraphicsItem>
 #include <QPointF>
-#include <QRect>
-#include <QPen>
+#include <QtCore/qnamespace.h>
+
+class QGraphicsScene;
 
 namespace Editor::Interactions {
 
-/**
- * @brief Interface for tool-specific drawing behavior.
- *
- * Each tool (Arrow, Rectangle, Freehand, ...) implements this, so
- * DrawingGraphicsView can drive drawing without knowing tool details.
- */
+// Strategy: how a tool turns mouse input into an annotation. The editor view and the
+// capture overlay forward scene positions to the active tool's interaction; each hook
+// returns true when it consumed the event.
 class IDrawingInteraction
 {
 public:
     virtual ~IDrawingInteraction() = default;
 
-    /**
-     * @brief Handle mouse press event
-     * @param scenePos The position in scene coordinates
-     * @param scene The graphics scene to add preview items to
-     * @return true if the event was handled, false otherwise
-     */
     virtual bool onMousePress(const QPointF &scenePos, QGraphicsScene *scene) = 0;
+    virtual bool onMouseMove(const QPointF &, QGraphicsScene *) { return false; }
+    virtual bool onMouseRelease(const QPointF &, QGraphicsScene *) { return false; }
+    // Drops an unfinished preview, e.g. on a tool switch.
+    virtual void cleanup(QGraphicsScene *) {}
+    [[nodiscard]] virtual bool isDrawing() const { return false; }
 
-    /**
-     * @brief Handle mouse move event (for preview updates)
-     * @param scenePos The current position in scene coordinates
-     * @param scene The graphics scene
-     * @return true if the event was handled, false otherwise
-     */
-    virtual bool onMouseMove(const QPointF &scenePos, QGraphicsScene *scene) = 0;
-
-    /**
-     * @brief Handle mouse release event (finalize drawing)
-     * @param scenePos The position in scene coordinates
-     * @param scene The graphics scene
-     * @return true if a valid shape was created, false otherwise
-     */
-    virtual bool onMouseRelease(const QPointF &scenePos, QGraphicsScene *scene) = 0;
-
-    /**
-     * @brief Get the cursor to use for this tool
-     */
-    virtual Qt::CursorShape getCursor() const = 0;
-
-    /**
-     * @brief Get the cursor to use while actively drawing
-     */
-    virtual Qt::CursorShape getDrawingCursor() const { return getCursor(); }
-
-    /**
-     * @brief Clean up any preview items
-     * Called when switching tools or canceling drawing
-     */
-    virtual void cleanup(QGraphicsScene *scene) = 0;
-
-    /**
-     * @brief Check if this interaction is currently drawing
-     */
-    virtual bool isDrawing() const = 0;
+    [[nodiscard]] virtual Qt::CursorShape getCursor() const = 0;
+    [[nodiscard]] virtual Qt::CursorShape getDrawingCursor() const { return getCursor(); }
 };
 
 } // namespace Editor::Interactions

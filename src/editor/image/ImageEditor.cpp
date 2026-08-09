@@ -18,7 +18,7 @@
 #include "editor/annotations/StepNumbering.h"
 #include "editor/image/BackdropItem.h"
 #include "editor/image/BackdropPresets.h"
-#include "editor/annotations/interactions/PointerToolInteraction.h"
+#include "editor/annotations/interactions/DrawingInteractions.h"
 #include <QGraphicsPixmapItem>
 #include <QInputDialog>
 #include <QPainter>
@@ -486,8 +486,8 @@ void ImageEditor::setupStrategies()
     m_builder->setSourcePixmap(m_originalScreenshot);
     m_builder->setStepNumberProvider([this] { return nextStepNumber(m_layerManager->layers()); });
 
-    if (auto *p = dynamic_cast<PointerToolInteraction*>(m_builder->interaction("pointer")))
-        connect(p, &PointerToolInteraction::itemClicked, this, &ImageEditor::selectLayerByItem);
+    if (auto *p = dynamic_cast<PointerInteraction*>(m_builder->interaction("pointer")))
+        connect(p, &PointerInteraction::itemClicked, this, &ImageEditor::selectLayerByItem);
 
     // So the click that ends editing doesn't place another box.
     connect(m_builder, &AnnotationBuilder::textPlaced, this, [this] { activateTool("pointer"); });
@@ -579,16 +579,9 @@ void ImageEditor::activateTool(const QString &toolId)
     if (!spec)
         return;
 
-    Interactions::IDrawingInteraction *strategy = m_builder->interaction(toolId);
     Tools::ITool *tmpl = m_builder->templateFor(toolId);
-
-    // Sync the interaction's live-preview style from the template (freehand /
-    // highlight / blur) so what's drawn matches what will be committed.
-    if (spec->syncStrategy && strategy && tmpl)
-        spec->syncStrategy(strategy, tmpl);
-
     if (m_view)
-        m_view->setDrawingStrategy(strategy);
+        m_view->setDrawingStrategy(m_builder->interaction(toolId));
 
     m_layerManager->selectLayer(nullptr);
     if (spec->isDrawingTool && tmpl)

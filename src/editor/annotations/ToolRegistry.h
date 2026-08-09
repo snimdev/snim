@@ -13,12 +13,9 @@ namespace Editor {
 namespace Interactions { class IDrawingInteraction; }
 namespace Tools { class ITool; }
 
-/**
- * Declarative description of one editor tool. Bundles the objects a tool needs: its
- * drawing interaction and its property "template" (freshly-drawn items are styled
- * from it), plus the metadata the toolbar and layer-naming use. Adding a tool is one
- * ToolSpec entry.
- */
+// Declarative description of one editor tool: its drawing interaction and its style
+// template (previews and freshly drawn items are styled from it), plus the metadata
+// the toolbar and layer naming use. Adding a tool is one ToolSpec entry.
 struct ToolSpec {
     QString id;                       // stable key: "pointer", "arrow", ...
     Layer::LayerType layerType;       // Layer kind a committed item becomes
@@ -36,12 +33,6 @@ struct ToolSpec {
 
     // Build the property "template" tool (null for the pointer).
     std::function<Tools::ITool*()> makeTemplate;
-
-    // Optional: push the template's current style onto the live interaction so the
-    // in-progress preview matches what a committed item will look like (used by
-    // freehand/highlight/blur). Null when the interaction has no style of its own.
-    std::function<void(Interactions::IDrawingInteraction *strategy,
-                       Tools::ITool *templateTool)> syncStrategy;
 };
 
 /** The built-in tool set, in toolbar order (pointer first). */

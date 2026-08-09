@@ -10,15 +10,7 @@
 #include "tools/HighlightTool.h"
 #include "tools/BlurTool.h"
 #include "tools/StepTool.h"
-#include "interactions/BaseDrawingInteraction.h"
-#include "interactions/ArrowDrawingInteraction.h"
-#include "interactions/RectangleDrawingInteraction.h"
-#include "interactions/EllipseDrawingInteraction.h"
-#include "interactions/FreehandDrawingInteraction.h"
-#include "interactions/HighlightDrawingInteraction.h"
-#include "interactions/BlurDrawingInteraction.h"
-#include "interactions/StepDrawingInteraction.h"
-#include "interactions/TextDrawingInteraction.h"
+#include "interactions/DrawingInteractions.h"
 
 #include <QGraphicsScene>
 #include <QTimer>
@@ -33,13 +25,17 @@ AnnotationBuilder::AnnotationBuilder(QGraphicsScene *scene, IAnnotationSink *sin
     , m_scene(scene)
     , m_sink(sink)
 {
-    // One interaction per tool, plus one template per drawing tool, used both to drive
-    // the Properties panel and to style freshly-drawn items. Templates are never added
-    // to a scene. Each tool's default styling lives in its ToolSpec::makeTemplate closure.
+    // One interaction per tool, plus one template per drawing tool, used to drive the
+    // Properties panel and to style previews and freshly drawn items. Templates are never
+    // added to a scene. Each tool's default styling lives in its ToolSpec::makeTemplate.
     for (const ToolSpec &spec : ToolRegistry::tools()) {
-        m_interactions.insert(spec.id, spec.makeInteraction(this));
-        if (spec.makeTemplate)
-            m_templates.insert(spec.id, spec.makeTemplate());
+        Tools::ITool *tmpl = spec.makeTemplate ? spec.makeTemplate() : nullptr;
+        IDrawingInteraction *interaction = spec.makeInteraction(this);
+        if (auto *drag = dynamic_cast<DragInteraction*>(interaction))
+            drag->setTemplate(tmpl);
+        m_interactions.insert(spec.id, interaction);
+        if (tmpl)
+            m_templates.insert(spec.id, tmpl);
     }
     registerFactories();
 }
@@ -61,17 +57,14 @@ Tools::ITool *AnnotationBuilder::templateFor(const QString &id) const
 
 void AnnotationBuilder::setImageBounds(const QRect &bounds)
 {
-    // All gesture tools derive BaseDrawingInteraction and clamp to these bounds.
     for (IDrawingInteraction *i : std::as_const(m_interactions))
-        if (auto *b = dynamic_cast<BaseDrawingInteraction*>(i))
-            b->setImageBounds(bounds);
+        if (auto *drag = dynamic_cast<DragInteraction*>(i))
+            drag->setImageBounds(bounds);
 }
 
 void AnnotationBuilder::setSourcePixmap(const QPixmap &pixmap)
 {
     m_sourcePixmap = pixmap;
-    if (auto *blur = dynamic_cast<BlurDrawingInteraction*>(interaction("blur")))
-        blur->setSourcePixmap(pixmap);
 }
 
 void AnnotationBuilder::setStepNumberProvider(std::function<int()> provider)
@@ -136,24 +129,26 @@ void AnnotationBuilder::registerFactories()
 {
     using namespace Tools;
 
-    // Each interaction's (type-specific) completion signal funnels into the sink. The
-    // freshly-drawn item is styled from the tool template first.
+    // Each interaction's completion signal funnels into the sink. The freshly drawn
+    // item is styled from the tool template first.
 
-    connectFactory("arrow", &ArrowDrawingInteraction::arrowDrawn,
+    connectFactory("arrow", &ArrowInteraction::arrowDrawn,
                    [](ITool *tmpl, const QPoint &s, const QPoint &e) -> QGraphicsItem* {
+        // The interaction checked the unrounded drag; rounding to whole pixels can still
+        // leave it under the minimum.
         const double dx = e.x() - s.x(), dy = e.y() - s.y();
-        if (std::sqrt(dx * dx + dy * dy) < 10.0) return nullptr;   // too short to be meaningful
+        if (std::sqrt(dx * dx + dy * dy) < 10.0) return nullptr;
         auto *it = new ArrowTool(s, e);
         it->applyStyleFrom(tmpl);
         return it;
     });
 
-    if (auto *t = dynamic_cast<TextDrawingInteraction*>(interaction("text")))
-        connect(t, &TextDrawingInteraction::textRequested, this, [this](const QPoint &position) {
+    if (auto *t = dynamic_cast<ClickInteraction*>(interaction("text")))
+        connect(t, &ClickInteraction::clicked, this, [this](const QPointF &position) {
             // Inline creation: drop an empty text box and edit it live (no popup).
             commitPendingText();   // a second box must not orphan the first
             auto *item = new TextTool("");
-            item->setPos(position);
+            item->setPos(position.toPoint());
             item->applyStyleFrom(templateFor("text"));
             m_scene->addItem(item);          // must be in the scene to take edit focus
             m_pendingTextItem = item;
@@ -168,49 +163,43 @@ void AnnotationBuilder::registerFactories()
             item->startEditing();            // caret appears at the click point; type directly
         });
 
-    connectFactory("rectangle", &RectangleDrawingInteraction::rectangleDrawn,
+    connectFactory("rectangle", &RectDragInteraction::rectDrawn,
                    [](ITool *tmpl, const QRect &rect) -> QGraphicsItem* {
         auto *it = new RectangleTool(rect);
         it->applyStyleFrom(tmpl);
         return it;
     });
 
-    connectFactory("ellipse", &EllipseDrawingInteraction::ellipseDrawn,
+    connectFactory("ellipse", &RectDragInteraction::rectDrawn,
                    [](ITool *tmpl, const QRect &rect) -> QGraphicsItem* {
         auto *it = new EllipseTool(rect);
         it->applyStyleFrom(tmpl);
         return it;
     });
 
-    connectFactory("freehand", &FreehandDrawingInteraction::freehandDrawn,
-                   [](ITool *tmpl, const QList<QPointF> &pts) -> QGraphicsItem* {
-        if (pts.isEmpty()) return nullptr;
-        auto *it = new FreehandTool();
+    // The stroke tools share one recipe: the template's style, then the points (never
+    // empty: the drag interaction drops a stroke without any).
+    const auto stroke = [](PathTool *it, ITool *tmpl, const QList<QPointF> &pts) -> QGraphicsItem* {
         it->applyStyleFrom(tmpl);
         it->addPoints(pts);
         return it;
+    };
+    connectFactory("freehand", &PathDragInteraction::pathDrawn,
+                   [stroke](ITool *tmpl, const QList<QPointF> &pts) {
+        return stroke(new FreehandTool(), tmpl, pts);
     });
-
-    connectFactory("highlight", &HighlightDrawingInteraction::highlightDrawn,
-                   [](ITool *tmpl, const QList<QPointF> &pts, const QColor &, qreal) -> QGraphicsItem* {
-        if (pts.isEmpty()) return nullptr;
-        auto *it = new HighlightTool();
-        it->applyStyleFrom(tmpl);   // color/width carried by the template
-        it->addPoints(pts);
-        return it;
+    connectFactory("highlight", &PathDragInteraction::pathDrawn,
+                   [stroke](ITool *tmpl, const QList<QPointF> &pts) {
+        return stroke(new HighlightTool(), tmpl, pts);
     });
-
-    connectFactory("blur", &BlurDrawingInteraction::blurDrawn,
-                   [this](ITool *tmpl, const QList<QPointF> &pts) -> QGraphicsItem* {
-        if (pts.isEmpty()) return nullptr;
+    connectFactory("blur", &PathDragInteraction::pathDrawn,
+                   [this, stroke](ITool *tmpl, const QList<QPointF> &pts) {
         auto *it = new BlurTool();
         it->setSourcePixmap(m_sourcePixmap);
-        it->applyStyleFrom(tmpl);
-        it->addPoints(pts);
-        return it;
+        return stroke(it, tmpl, pts);
     });
 
-    connectFactory("step", &StepDrawingInteraction::stepRequested,
+    connectFactory("step", &ClickInteraction::clicked,
                    [this](ITool *t, const QPointF &pos) -> QGraphicsItem* {
         auto *tmpl = dynamic_cast<StepTool*>(t);
         auto *it = new StepTool();

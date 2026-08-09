@@ -540,26 +540,8 @@ add_library(snim_lib STATIC
         src/editor/annotations/LayerProperties.h
         # Drawing Interactions
         src/editor/annotations/interactions/IDrawingInteraction.h
-        src/editor/annotations/interactions/BaseDrawingInteraction.cpp
-        src/editor/annotations/interactions/BaseDrawingInteraction.h
-        src/editor/annotations/interactions/PointerToolInteraction.cpp
-        src/editor/annotations/interactions/PointerToolInteraction.h
-        src/editor/annotations/interactions/ArrowDrawingInteraction.cpp
-        src/editor/annotations/interactions/ArrowDrawingInteraction.h
-        src/editor/annotations/interactions/TextDrawingInteraction.cpp
-        src/editor/annotations/interactions/TextDrawingInteraction.h
-        src/editor/annotations/interactions/RectangleDrawingInteraction.cpp
-        src/editor/annotations/interactions/RectangleDrawingInteraction.h
-        src/editor/annotations/interactions/EllipseDrawingInteraction.cpp
-        src/editor/annotations/interactions/EllipseDrawingInteraction.h
-        src/editor/annotations/interactions/FreehandDrawingInteraction.cpp
-        src/editor/annotations/interactions/FreehandDrawingInteraction.h
-        src/editor/annotations/interactions/HighlightDrawingInteraction.cpp
-        src/editor/annotations/interactions/HighlightDrawingInteraction.h
-        src/editor/annotations/interactions/BlurDrawingInteraction.cpp
-        src/editor/annotations/interactions/BlurDrawingInteraction.h
-        src/editor/annotations/interactions/StepDrawingInteraction.cpp
-        src/editor/annotations/interactions/StepDrawingInteraction.h
+        src/editor/annotations/interactions/DrawingInteractions.cpp
+        src/editor/annotations/interactions/DrawingInteractions.h
 
         # Editor::Image: screenshot-specific (image editor window + beautify backdrop)
         src/editor/image/ImageEditor.cpp

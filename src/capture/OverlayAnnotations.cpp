@@ -125,14 +125,8 @@ void OverlayAnnotations::setActiveTool(const QString &id)
 
     const QString previousId = m_activeTool;
     const Editor::ToolSpec *spec = Editor::ToolRegistry::find(id);
-    if (!spec || !spec->isDrawingTool || !m_builder->interaction(id)) {
-        m_activeTool.clear();
-    } else {
-        m_activeTool = id;
-        Editor::Tools::ITool *tmpl = m_builder->templateFor(id);
-        if (spec->syncStrategy && tmpl)
-            spec->syncStrategy(m_builder->interaction(id), tmpl);
-    }
+    const bool drawable = spec && spec->isDrawingTool && m_builder->interaction(id);
+    m_activeTool = drawable ? id : QString();
     // Every overlay shows the armed tool, so they all repaint.
     if (m_activeTool != previousId)
         emit changed();
