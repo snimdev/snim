@@ -33,188 +33,149 @@ QColor foregroundColor()
 
 const QList<ToolSpec>& ToolRegistry::tools()
 {
-    static const QList<ToolSpec> specs = [] {
-        QList<ToolSpec> v;
-
-        // --- Pointer (selection only; not a drawing tool) ---
+    // Tools that switch to the pointer leave the new item selected, so it can be moved
+    // at once; with the drawing tool still armed, a click would draw another.
+    static const QList<ToolSpec> specs = {
         {
-            ToolSpec s;
-            s.id = "pointer";
-            s.layerType = Layer::Background;   // unused (never commits)
-            s.displayName = "Pointer";
-            s.iconPath = ":/icons/icons/pointer.svg";
-            s.tooltip = "Pointer";
-            s.shortcut = u'V';
-            s.isDrawingTool = false;
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PointerInteraction(p); };
-            v.push_back(s);
-        }
-
-        // --- Arrow ---
+            .id = "pointer",
+            .displayName = "Pointer",
+            .tooltip = "Pointer",
+            .shortcut = u'V',
+            .isDrawingTool = false,
+            .makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PointerInteraction(p); },
+        },
         {
-            ToolSpec s;
-            s.id = "arrow";
-            s.layerType = Layer::Arrow;
-            s.displayName = "Arrow Tool";
-            s.namePrefix = "Arrow";
-            s.iconPath = ":/icons/icons/arrow.svg";
-            s.tooltip = "Arrow";
-            s.shortcut = u'A';
-            s.switchToPointerAfter = true;   // select the new arrow so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ArrowInteraction(p); };
-            s.makeTemplate = []() -> ITool* {
+            .id = "arrow",
+            .layerType = Layer::Arrow,
+            .displayName = "Arrow Tool",
+            .namePrefix = "Arrow",
+            .tooltip = "Arrow",
+            .shortcut = u'A',
+            .switchToPointerAfter = true,
+            .makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ArrowInteraction(p); },
+            .makeTemplate = []() -> ITool* {
                 auto *t = new ArrowTool(QPointF(0, 0), QPointF(100, 100), nullptr);
                 t->setPen(QPen(foregroundColor(), 3));
                 return t;
-            };
-            v.push_back(s);
-        }
-
-        // --- Text (one-shot click placement) ---
+            },
+        },
         {
-            ToolSpec s;
-            s.id = "text";
-            s.layerType = Layer::Text;
-            s.displayName = "Text Tool";
-            s.namePrefix = "Text";
-            s.iconPath = ":/icons/icons/text.svg";
-            s.tooltip = "Text";
-            s.shortcut = u'T';
-            s.switchToPointerAfter = true;
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ClickInteraction(Qt::IBeamCursor, p); };
-            s.makeTemplate = []() -> ITool* {
+            .id = "text",
+            .layerType = Layer::Text,
+            .displayName = "Text Tool",
+            .namePrefix = "Text",
+            .tooltip = "Text",
+            .shortcut = u'T',
+            .switchToPointerAfter = true,
+            .makeInteraction = [](QObject *p) -> IDrawingInteraction* {
+                return new ClickInteraction(Qt::IBeamCursor, p);
+            },
+            .makeTemplate = []() -> ITool* {
                 auto *t = new TextTool("Sample Text", nullptr);
                 t->setDefaultTextColor(foregroundColor());
                 return t;
-            };
-            v.push_back(s);
-        }
-
-        // --- Rectangle ---
+            },
+        },
         {
-            ToolSpec s;
-            s.id = "rectangle";
-            s.layerType = Layer::Rectangle;
-            s.displayName = "Rectangle Tool";
-            s.namePrefix = "Rectangle";
-            s.iconPath = ":/icons/icons/rectangle.svg";
-            s.tooltip = "Rectangle";
-            s.shortcut = u'R';
-            s.switchToPointerAfter = true;   // select the new shape so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new RectDragInteraction(RectDragInteraction::Rectangle, p); };
-            s.makeTemplate = []() -> ITool* {
+            .id = "rectangle",
+            .layerType = Layer::Rectangle,
+            .displayName = "Rectangle Tool",
+            .namePrefix = "Rectangle",
+            .tooltip = "Rectangle",
+            .shortcut = u'R',
+            .switchToPointerAfter = true,
+            .makeInteraction = [](QObject *p) -> IDrawingInteraction* {
+                return new RectDragInteraction(RectDragInteraction::Rectangle, p);
+            },
+            .makeTemplate = []() -> ITool* {
                 auto *t = new RectangleTool(QRect(0, 0, 100, 100), nullptr);
                 t->setPen(QPen(foregroundColor(), 2));
                 return t;
-            };
-            v.push_back(s);
-        }
-
-        // --- Ellipse ---
+            },
+        },
         {
-            ToolSpec s;
-            s.id = "ellipse";
-            s.layerType = Layer::Ellipse;
-            s.displayName = "Ellipse Tool";
-            s.namePrefix = "Ellipse";
-            s.iconPath = ":/icons/icons/ellipse.svg";
-            s.tooltip = "Ellipse";
-            s.shortcut = u'E';
-            s.switchToPointerAfter = true;   // select the new shape so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new RectDragInteraction(RectDragInteraction::Ellipse, p); };
-            s.makeTemplate = []() -> ITool* {
+            .id = "ellipse",
+            .layerType = Layer::Ellipse,
+            .displayName = "Ellipse Tool",
+            .namePrefix = "Ellipse",
+            .tooltip = "Ellipse",
+            .shortcut = u'E',
+            .switchToPointerAfter = true,
+            .makeInteraction = [](QObject *p) -> IDrawingInteraction* {
+                return new RectDragInteraction(RectDragInteraction::Ellipse, p);
+            },
+            .makeTemplate = []() -> ITool* {
                 auto *t = new EllipseTool(QRect(0, 0, 100, 100), nullptr);
                 t->setPen(QPen(foregroundColor(), 2));
                 return t;
-            };
-            v.push_back(s);
-        }
-
-        // --- Freehand ---
+            },
+        },
         {
-            ToolSpec s;
-            s.id = "freehand";
-            s.layerType = Layer::Freehand;
-            s.displayName = "Freehand Tool";
-            s.namePrefix = "Freehand";
-            s.iconPath = ":/icons/icons/freehand.svg";
-            s.tooltip = "Freehand";
-            s.shortcut = u'P';
-            s.switchToPointerAfter = true;   // select the new stroke so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); };
-            s.makeTemplate = []() -> ITool* {
+            .id = "freehand",
+            .layerType = Layer::Freehand,
+            .displayName = "Freehand Tool",
+            .namePrefix = "Freehand",
+            .tooltip = "Freehand",
+            .shortcut = u'P',
+            .switchToPointerAfter = true,
+            .makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); },
+            .makeTemplate = []() -> ITool* {
                 auto *t = new FreehandTool(nullptr);
                 t->setPen(QPen(foregroundColor(), 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
                 return t;
-            };
-            v.push_back(s);
-        }
-
-        // --- Highlight ---
+            },
+        },
         {
-            ToolSpec s;
-            s.id = "highlight";
-            s.layerType = Layer::Highlight;
-            s.displayName = "Highlight Tool";
-            s.namePrefix = "Highlight";
-            s.iconPath = ":/icons/icons/highlight.svg";
-            s.tooltip = "Highlight";
-            s.shortcut = u'H';
-            s.switchToPointerAfter = true;   // select the new stroke so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); };
-            s.makeTemplate = []() -> ITool* {
+            .id = "highlight",
+            .layerType = Layer::Highlight,
+            .displayName = "Highlight Tool",
+            .namePrefix = "Highlight",
+            .tooltip = "Highlight",
+            .shortcut = u'H',
+            .switchToPointerAfter = true,
+            .makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); },
+            .makeTemplate = []() -> ITool* {
                 auto *t = new HighlightTool(nullptr);
                 t->setColor(QColor("#b3ff61"));
                 t->setWidth(HighlightTool::HIGHLIGHT_WIDTH_MEDIUM);
                 return t;
-            };
-            v.push_back(s);
-        }
-
-        // --- Blur ---
+            },
+        },
         {
-            ToolSpec s;
-            s.id = "blur";
-            s.layerType = Layer::Blur;
-            s.displayName = "Blur Tool";
-            s.namePrefix = "Blur";
-            s.iconPath = ":/icons/icons/blur.svg";
-            s.tooltip = "Blur";
-            s.shortcut = u'B';
-            s.switchToPointerAfter = true;   // select the new stroke so it's movable immediately
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); };
-            s.makeTemplate = []() -> ITool* {
+            .id = "blur",
+            .layerType = Layer::Blur,
+            .displayName = "Blur Tool",
+            .namePrefix = "Blur",
+            .tooltip = "Blur",
+            .shortcut = u'B',
+            .switchToPointerAfter = true,
+            .makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); },
+            .makeTemplate = []() -> ITool* {
                 auto *t = new BlurTool(nullptr);
                 t->setBlurRadius(10.0);
                 t->setBrushWidth(30.0);
                 return t;
-            };
-            v.push_back(s);
-        }
-
-        // --- Step numbers (one badge per click) ---
+            },
+        },
         {
-            ToolSpec s;
-            s.id = "step";
-            s.layerType = Layer::Step;
-            s.displayName = "Step Numbers";
-            s.namePrefix = "Step";
-            s.iconPath = ":/icons/icons/step.svg";
-            s.tooltip = "Step numbers";
-            s.shortcut = u'N';
             // Stays armed after a stamp: numbering several steps in a row is the point.
-            s.makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ClickInteraction(Qt::CrossCursor, p); };
-            s.makeTemplate = []() -> ITool* {
+            .id = "step",
+            .layerType = Layer::Step,
+            .displayName = "Step Numbers",
+            .namePrefix = "Step",
+            .tooltip = "Step numbers",
+            .shortcut = u'N',
+            .makeInteraction = [](QObject *p) -> IDrawingInteraction* {
+                return new ClickInteraction(Qt::CrossCursor, p);
+            },
+            .makeTemplate = []() -> ITool* {
                 auto *t = new StepTool(nullptr);
                 t->setColor(foregroundColor());
                 t->setTemplateMode(true);   // its "number" field is a one-shot override
                 return t;
-            };
-            v.push_back(s);
-        }
-
-        return v;
-    }();
+            },
+        },
+    };
     return specs;
 }
 

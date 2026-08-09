@@ -18,24 +18,25 @@ namespace Tools { class ITool; }
 // the toolbar and layer naming use. Adding a tool is one ToolSpec entry.
 struct ToolSpec {
     QString id;                       // stable key: "pointer", "arrow", ...
-    Layer::LayerType layerType;       // Layer kind a committed item becomes
+    Layer::LayerType layerType = Layer::Background;   // what a committed item becomes
     QString displayName;              // Properties-panel title, e.g. "Arrow Tool"
     QString namePrefix;               // Layer name prefix, e.g. "Arrow"
-    QString iconPath;                 // ":/icons/icons/arrow.svg"
     QString tooltip;                  // toolbar tooltip, without the key
     QChar shortcut;                   // single-key shortcut, upper case
 
     bool isDrawingTool = true;        // false for the pointer (no template/commit)
-    bool switchToPointerAfter = false;// true for Text (one-shot placement)
+    bool switchToPointerAfter = false;// select the committed item with the pointer
 
     // Build this tool's interaction (owned by the QObject parent).
     std::function<Interactions::IDrawingInteraction*(QObject *parent)> makeInteraction;
 
     // Build the property "template" tool (null for the pointer).
     std::function<Tools::ITool*()> makeTemplate;
+
+    [[nodiscard]] QString iconPath() const { return QStringLiteral(":/icons/icons/%1.svg").arg(id); }
 };
 
-/** The built-in tool set, in toolbar order (pointer first). */
+// The built-in tool set, in toolbar order (pointer first).
 class ToolRegistry {
 public:
     static const QList<ToolSpec>& tools();

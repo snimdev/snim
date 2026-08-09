@@ -435,7 +435,7 @@ void ImageEditor::setupToolbar()
         const QString tip = spec.tooltip.isEmpty() ? spec.displayName : spec.tooltip;
         act->setToolTip(spec.shortcut.isNull() ? tip
                                                : QStringLiteral("%1 (%2)").arg(tip, QString(spec.shortcut)));
-        act->setIcon(createThemedIcon(spec.iconPath));
+        act->setIcon(createThemedIcon(spec.iconPath()));
         act->setCheckable(true);
         m_toolGroup->addAction(act);
         m_toolbar->addAction(act);

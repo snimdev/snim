@@ -324,7 +324,7 @@ QVector<Screen::SelectionLayer::ToolbarSlot> OverlayAnnotations::toolbarSlots() 
         ToolbarSlot slot;
         slot.id = QString(id);
         if (const Editor::ToolSpec *spec = Editor::ToolRegistry::find(slot.id)) {
-            slot.iconPath = spec->iconPath;
+            slot.iconPath = spec->iconPath();
             slot.glyph = QString(spec->shortcut);
             slot.tooltip = QStringLiteral("%1 (%2)").arg(spec->tooltip, QString(spec->shortcut));
         }
