@@ -2,6 +2,7 @@
 #include "HandleItem.h"
 #include <QPainter>
 #include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QStyleOptionGraphicsItem>
 
 namespace Editor::Tools {
@@ -147,7 +148,21 @@ QRectF ShapeTool::boundingRect() const
 
 QPainterPath ShapeTool::shape() const
 {
-    return createShapePath();
+    // The filled interior counts too, so an unfilled shape is grabbable anywhere,
+    // and the edge is widened (min 5 px) so it is easy to click.
+    const QPainterPath path = outline();
+    if (m_pen.widthF() <= 0)
+        return path;
+    QPainterPathStroker stroker;
+    stroker.setCapStyle(m_pen.capStyle());
+    stroker.setJoinStyle(m_pen.joinStyle());
+    stroker.setWidth(qMax(m_pen.widthF(), 5.0));
+    return stroker.createStroke(path).united(path);
+}
+
+void ShapeTool::paintShape(QPainter *painter)
+{
+    painter->drawPath(outline());
 }
 
 void ShapeTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
@@ -163,7 +178,6 @@ void ShapeTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
     painter->setPen(m_pen);
     painter->setBrush(m_brush);
 
-    // Let derived class paint the specific shape
     paintShape(painter);
 
     // Draw selection indicator (always full opacity)

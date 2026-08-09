@@ -1,7 +1,6 @@
 #include "RectangleTool.h"
 #include <QPainter>
 #include <QPainterPath>
-#include <QPainterPathStroker>
 
 namespace Editor::Tools {
 
@@ -17,29 +16,16 @@ QGraphicsItem* RectangleTool::clone() const
     return copy;
 }
 
-void RectangleTool::paintShape(QPainter *painter)
+QPainterPath RectangleTool::outline() const
 {
-    // Draw the rectangle
-    painter->drawRect(m_shapeRect);
-}
-
-QPainterPath RectangleTool::createShapePath() const
-{
-    // Always include the filled interior so the whole shape is grabbable, not just
-    // its outline (an unfilled rectangle would otherwise only respond on its border).
     QPainterPath path;
     path.addRect(m_shapeRect);
-
-    if (m_pen.widthF() > 0) {
-        // Widen the outline a little (min 5px) so the edge is easy to click too.
-        QPainterPathStroker stroker;
-        stroker.setCapStyle(m_pen.capStyle());
-        stroker.setJoinStyle(m_pen.joinStyle());
-        stroker.setWidth(qMax(m_pen.widthF(), 5.0));
-        return stroker.createStroke(path).united(path);
-    }
-
     return path;
+}
+
+void RectangleTool::paintShape(QPainter *painter)
+{
+    painter->drawRect(m_shapeRect);
 }
 
 } // namespace Editor::Tools

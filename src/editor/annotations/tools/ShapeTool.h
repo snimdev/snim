@@ -58,11 +58,9 @@ protected:
     void updateGeometry();
     void updateHandles();
 
-    // Virtual method for derived classes to implement specific shape painting
-    virtual void paintShape(QPainter *painter) = 0;
-
-    // Virtual method for derived classes to provide shape-specific interaction path
-    virtual QPainterPath createShapePath() const = 0;
+    // The outline within m_shapeRect; shape() fills and widens it for hit testing.
+    [[nodiscard]] virtual QPainterPath outline() const = 0;
+    virtual void paintShape(QPainter *painter);
 
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
 

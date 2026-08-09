@@ -11,13 +11,13 @@ class RectangleTool : public ShapeTool
 
 public:
     explicit RectangleTool(const QRectF &rect, QGraphicsItem *parent = nullptr);
-    ~RectangleTool() override = default;
 
     [[nodiscard]] QGraphicsItem* clone() const override;
 
 protected:
+    [[nodiscard]] QPainterPath outline() const override;
+    // drawRect, as drawPath(outline()) antialiases a rectangle differently.
     void paintShape(QPainter *painter) override;
-    QPainterPath createShapePath() const override;
 };
 
 } // namespace Editor::Tools
