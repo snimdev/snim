@@ -518,6 +518,8 @@ add_library(snim_lib STATIC
         src/editor/annotations/tools/RectangleTool.h
         src/editor/annotations/tools/EllipseTool.cpp
         src/editor/annotations/tools/EllipseTool.h
+        src/editor/annotations/tools/PathTool.cpp
+        src/editor/annotations/tools/PathTool.h
         src/editor/annotations/tools/FreehandTool.cpp
         src/editor/annotations/tools/FreehandTool.h
         src/editor/annotations/tools/HighlightTool.cpp

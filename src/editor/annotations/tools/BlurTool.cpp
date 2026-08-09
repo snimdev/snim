@@ -1,36 +1,23 @@
 #include "BlurTool.h"
-#include <QPainter>
-#include <QPainterPath>
-#include <QPainterPathStroker>
-#include <QStyleOptionGraphicsItem>
-#include <QGraphicsScene>
-#include <QGraphicsBlurEffect>
 #include <QImage>
+#include <QPainter>
 
 namespace Editor::Tools {
 
 BlurTool::BlurTool(QGraphicsItem *parent)
-    : QGraphicsObject(parent)
+    : PathTool(parent)
     , m_blurRadius(10.0)
     , m_brushWidth(30.0)
     , m_needsUpdate(true)
 {
-    setFlags(QGraphicsItem::ItemIsSelectable |
-             QGraphicsItem::ItemIsMovable |   // draggable like the other tools; it
-             QGraphicsItem::ItemSendsGeometryChanges |  // re-blurs on move (see itemChange)
-             QGraphicsItem::ItemIsFocusable);
-
-    setAcceptHoverEvents(true);
-    setCursor(Qt::SizeAllCursor);
-
-    // When the item is dragged/nudged it must re-blur the pixels it now covers. The box
-    // blur is expensive, so coalesce: restart this one-shot timer on every position change
-    // and only regenerate once movement has settled (~50 ms idle).
+    // Movable like the other tools: it re-blurs on move (see itemChange). The box
+    // blur is expensive, so coalesce: restart this one-shot timer on every position
+    // change and only regenerate once movement has settled (~50 ms idle).
     m_regenTimer = new QTimer(this);
     m_regenTimer->setSingleShot(true);
     m_regenTimer->setInterval(50);
     connect(m_regenTimer, &QTimer::timeout, this, [this] {
-        if (!m_points.isEmpty() && !m_sourcePixmap.isNull()) {
+        if (!isEmpty() && !m_sourcePixmap.isNull()) {
             generateBlurredPixmap();
             update();
         }
@@ -45,57 +32,20 @@ void BlurTool::scheduleRegeneration()
 
 void BlurTool::addPoint(const QPointF &point)
 {
-    m_points.append(point);
-
-    if (m_points.size() == 1) {
-        m_path.moveTo(point);
-    } else {
-        m_path.lineTo(point);
-    }
-
     m_needsUpdate = true;
-    updateGeometry();
+    PathTool::addPoint(point);
 }
 
 void BlurTool::finishPath()
 {
-    // Path is complete, generate final blurred pixmap
-    if (!m_points.isEmpty()) {
+    if (!isEmpty())
         generateBlurredPixmap();
-    }
     updateGeometry();
 }
 
-void BlurTool::updateGeometry()
+QPen BlurTool::strokePen() const
 {
-    prepareGeometryChange();
-
-    // Create stroke path for interaction
-    m_strokePath = createStrokePath();
-
-    // Calculate bounding rect
-    QRectF bounds = m_strokePath.boundingRect();
-
-    // Add padding for blur effect
-    qreal padding = m_blurRadius + 10.0;
-    bounds.adjust(-padding, -padding, padding, padding);
-    m_boundingRect = bounds;
-
-    update();
-}
-
-QPainterPath BlurTool::createStrokePath() const
-{
-    if (m_path.isEmpty()) {
-        return QPainterPath();
-    }
-
-    QPainterPathStroker stroker;
-    stroker.setCapStyle(Qt::RoundCap);
-    stroker.setJoinStyle(Qt::RoundJoin);
-    stroker.setWidth(qMax(m_brushWidth, 5.0));
-
-    return stroker.createStroke(m_path);
+    return QPen(Qt::black, qMax(m_brushWidth, 5.0), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 }
 
 void BlurTool::generateBlurredPixmap()
@@ -220,43 +170,16 @@ QImage BlurTool::applyBoxBlur(const QImage& source, int radius)
     return result;
 }
 
-QRectF BlurTool::boundingRect() const
+void BlurTool::paintPath(QPainter *painter)
 {
-    return m_boundingRect;
-}
-
-QPainterPath BlurTool::shape() const
-{
-    return m_strokePath;
-}
-
-void BlurTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
-{
-    Q_UNUSED(widget)
-
-    if (m_path.isEmpty()) {
-        return;
-    }
-
-    painter->setRenderHint(QPainter::Antialiasing);
-
-    // If we have a blurred pixmap, draw it
     if (!m_blurredPixmap.isNull() && !m_needsUpdate) {
         painter->save();
         painter->setClipPath(m_strokePath);
         painter->drawPixmap(m_blurPatchOffset, m_blurredPixmap);
         painter->restore();
     } else {
-        // During drawing, show a semi-transparent overlay to indicate blur area
+        // Not blurred yet (still drawing): a translucent overlay marks the area.
         painter->fillPath(m_strokePath, QColor(128, 128, 128, 100));
-    }
-
-    // Draw selection indicator
-    if (option->state & QStyle::State_Selected) {
-        QPen selectionPen(Qt::blue, 1.0, Qt::DashLine);
-        painter->setPen(selectionPen);
-        painter->setBrush(Qt::NoBrush);
-        painter->drawRect(m_path.boundingRect());
     }
 }
 
@@ -265,7 +188,7 @@ void BlurTool::setBlurRadius(qreal radius)
     if (m_blurRadius != radius) {
         m_blurRadius = qBound(1.0, radius, 50.0);
         m_needsUpdate = true;
-        if (!m_points.isEmpty()) {
+        if (!isEmpty()) {
             generateBlurredPixmap();
         }
         updateGeometry();
@@ -291,9 +214,7 @@ QGraphicsItem* BlurTool::clone() const
     auto* copy = new BlurTool();
     copy->applyStyleFrom(this);
     copy->setSourcePixmap(m_sourcePixmap);
-    for (const QPointF &p : m_points)
-        copy->addPoint(p);
-    copy->finishPath();
+    copy->addPoints(points());
     return copy;
 }
 

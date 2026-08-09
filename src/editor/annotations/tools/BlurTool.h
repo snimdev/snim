@@ -1,34 +1,19 @@
 #ifndef IMAGEEDITOR_BLURTOOL_H
 #define IMAGEEDITOR_BLURTOOL_H
 
-#include "ITool.h"
-#include <QGraphicsObject>
-#include <QPainterPath>
-#include <QList>
-#include <QPointF>
+#include "PathTool.h"
 #include <QPixmap>
 #include <QTimer>
 
 namespace Editor::Tools {
 
-/**
- * @brief A tool for applying blur effects along a painted path
- *
- * Similar to FreehandTool, but applies blur to the underlying image
- * instead of drawing a stroke. The blur radius is configurable.
- */
-class BlurTool : public QGraphicsObject, public ITool
+// Blurs the screenshot under a painted stroke instead of drawing one.
+class BlurTool : public PathTool
 {
     Q_OBJECT
 
 public:
     explicit BlurTool(QGraphicsItem *parent = nullptr);
-    ~BlurTool() override = default;
-
-    // QGraphicsItem interface
-    QRectF boundingRect() const override;
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
-    QPainterPath shape() const override;
 
     // ITool interface for dynamic properties
     [[nodiscard]] QList<ToolProperty> getProperties() const override;
@@ -36,11 +21,8 @@ public:
     [[nodiscard]] QGraphicsItem* clone() const override;
     void applyStyleFrom(const ITool* other) override;   // copies blur radius + brush width
 
-    // Path manipulation
-    void addPoint(const QPointF &point);
-    void finishPath();
-    [[nodiscard]] bool isEmpty() const { return m_points.isEmpty(); }
-    [[nodiscard]] QList<QPointF> points() const { return m_points; }
+    void addPoint(const QPointF &point) override;
+    void finishPath() override;   // blurs the pixels under the stroke
 
     // Blur configuration
     void setBlurRadius(qreal radius);
@@ -54,18 +36,14 @@ public:
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
+    [[nodiscard]] QPen strokePen() const override;
+    [[nodiscard]] qreal boundsPadding() const override { return m_blurRadius + 10.0; }
+    void paintPath(QPainter *painter) override;
 
 private:
-    void updateGeometry();
     void generateBlurredPixmap();
     void scheduleRegeneration();   // coalesced re-blur after the item is moved
-    QPainterPath createStrokePath() const;
     QImage applyBoxBlur(const QImage& source, int radius);
-
-    QList<QPointF> m_points;
-    QPainterPath m_path;
-    QPainterPath m_strokePath;
-    QRectF m_boundingRect;
 
     qreal m_blurRadius;     // Blur strength
     qreal m_brushWidth;     // Width of the blur brush

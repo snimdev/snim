@@ -1,27 +1,16 @@
 #ifndef IMAGEEDITOR_FREEHANDTOOL_H
 #define IMAGEEDITOR_FREEHANDTOOL_H
 
-#include "ITool.h"
-#include <QGraphicsObject>
-#include <QPen>
-#include <QPainterPath>
-#include <QList>
-#include <QPointF>
+#include "PathTool.h"
 
 namespace Editor::Tools {
 
-class FreehandTool : public QGraphicsObject, public ITool
+class FreehandTool : public PathTool
 {
     Q_OBJECT
 
 public:
     explicit FreehandTool(QGraphicsItem *parent = nullptr);
-    ~FreehandTool() override = default;
-
-    // QGraphicsItem interface
-    QRectF boundingRect() const override;
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
-    QPainterPath shape() const override;
 
     // ITool interface for dynamic properties
     [[nodiscard]] QList<ToolProperty> getProperties() const override;
@@ -29,25 +18,15 @@ public:
     [[nodiscard]] QGraphicsItem* clone() const override;
     void applyStyleFrom(const ITool* other) override;   // copies pen
 
-    // Path manipulation
-    void addPoint(const QPointF &point);
-    void finishPath();
-    [[nodiscard]] bool isEmpty() const { return m_points.isEmpty(); }
-    [[nodiscard]] QList<QPointF> points() const { return m_points; }
-
-    // Styling
     void setPen(const QPen &pen);
     [[nodiscard]] QPen pen() const { return m_pen; }
 
-private:
-    void updateGeometry();
-    QPainterPath createStrokePath() const;
+protected:
+    [[nodiscard]] QPen strokePen() const override;
+    void paintPath(QPainter *painter) override;
 
-    QList<QPointF> m_points;
-    QPainterPath m_path;
-    QPainterPath m_strokePath;
+private:
     QPen m_pen;
-    QRectF m_boundingRect;
 };
 
 } // namespace Editor::Tools

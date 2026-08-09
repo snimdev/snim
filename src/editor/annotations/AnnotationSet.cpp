@@ -16,9 +16,7 @@ QGraphicsItem *makePrototype(const Tools::ITool &tool)
     if (const auto *blur = dynamic_cast<const Tools::BlurTool*>(&tool)) {
         auto *copy = new Tools::BlurTool();
         copy->applyStyleFrom(blur);
-        for (const QPointF &p : blur->points())
-            copy->addPoint(p);
-        copy->finishPath();
+        copy->addPoints(blur->points());
         return copy;
     }
     return tool.clone();

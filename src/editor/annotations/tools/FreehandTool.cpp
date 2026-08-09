@@ -1,107 +1,26 @@
 #include "FreehandTool.h"
 #include <QPainter>
-#include <QPainterPath>
-#include <QPainterPathStroker>
-#include <QStyleOptionGraphicsItem>
 
 namespace Editor::Tools {
 
 FreehandTool::FreehandTool(QGraphicsItem *parent)
-    : QGraphicsObject(parent)
+    : PathTool(parent)
     , m_pen(Qt::red, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin)
 {
-    setFlags(QGraphicsItem::ItemIsSelectable |
-             QGraphicsItem::ItemIsMovable |
-             QGraphicsItem::ItemSendsGeometryChanges |
-             QGraphicsItem::ItemIsFocusable);
-
-    setAcceptHoverEvents(true);
-    setCursor(Qt::SizeAllCursor);
 }
 
-void FreehandTool::addPoint(const QPointF &point)
+QPen FreehandTool::strokePen() const
 {
-    m_points.append(point);
-
-    if (m_points.size() == 1) {
-        m_path.moveTo(point);
-    } else {
-        m_path.lineTo(point);
-    }
-
-    updateGeometry();
+    QPen pen = m_pen;
+    pen.setWidthF(qMax(m_pen.widthF(), 5.0));   // thin strokes stay easy to click
+    return pen;
 }
 
-void FreehandTool::finishPath()
+void FreehandTool::paintPath(QPainter *painter)
 {
-    // Path is already complete, just update final geometry
-    updateGeometry();
-}
-
-void FreehandTool::updateGeometry()
-{
-    prepareGeometryChange();
-
-    // Create stroke path for interaction
-    m_strokePath = createStrokePath();
-
-    // Calculate bounding rect
-    QRectF bounds = m_strokePath.boundingRect();
-
-    // Add some padding
-    qreal padding = 10.0;
-    bounds.adjust(-padding, -padding, padding, padding);
-    m_boundingRect = bounds;
-
-    update();
-}
-
-QPainterPath FreehandTool::createStrokePath() const
-{
-    if (m_path.isEmpty()) {
-        return QPainterPath();
-    }
-
-    QPainterPathStroker stroker;
-    stroker.setCapStyle(m_pen.capStyle());
-    stroker.setJoinStyle(m_pen.joinStyle());
-    stroker.setWidth(qMax(m_pen.widthF(), 5.0)); // Minimum 5px for easier clicking
-
-    return stroker.createStroke(m_path);
-}
-
-QRectF FreehandTool::boundingRect() const
-{
-    return m_boundingRect;
-}
-
-QPainterPath FreehandTool::shape() const
-{
-    return m_strokePath;
-}
-
-void FreehandTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
-{
-    Q_UNUSED(widget)
-
-    if (m_path.isEmpty()) {
-        return;
-    }
-
-    painter->setRenderHint(QPainter::Antialiasing);
-
-    // Draw the path
     painter->setPen(m_pen);
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(m_path);
-
-    // Draw selection indicator
-    if (option->state & QStyle::State_Selected) {
-        QPen selectionPen(Qt::blue, 1.0, Qt::DashLine);
-        painter->setPen(selectionPen);
-        painter->setBrush(Qt::NoBrush);
-        painter->drawRect(m_path.boundingRect());
-    }
 }
 
 void FreehandTool::setPen(const QPen &pen)
@@ -116,9 +35,7 @@ QGraphicsItem* FreehandTool::clone() const
 {
     auto* copy = new FreehandTool();
     copy->applyStyleFrom(this);
-    for (const QPointF &p : m_points)
-        copy->addPoint(p);
-    copy->finishPath();
+    copy->addPoints(points());
     return copy;
 }
 

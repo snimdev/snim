@@ -187,8 +187,7 @@ void AnnotationBuilder::registerFactories()
         if (pts.isEmpty()) return nullptr;
         auto *it = new FreehandTool();
         it->applyStyleFrom(tmpl);
-        for (const QPointF &p : pts) it->addPoint(p);
-        it->finishPath();
+        it->addPoints(pts);
         return it;
     });
 
@@ -197,8 +196,7 @@ void AnnotationBuilder::registerFactories()
         if (pts.isEmpty()) return nullptr;
         auto *it = new HighlightTool();
         it->applyStyleFrom(tmpl);   // color/width carried by the template
-        for (const QPointF &p : pts) it->addPoint(p);
-        it->finishPath();
+        it->addPoints(pts);
         return it;
     });
 
@@ -208,8 +206,7 @@ void AnnotationBuilder::registerFactories()
         auto *it = new BlurTool();
         it->setSourcePixmap(m_sourcePixmap);
         it->applyStyleFrom(tmpl);
-        for (const QPointF &p : pts) it->addPoint(p);
-        it->finishPath();
+        it->addPoints(pts);
         return it;
     });
 

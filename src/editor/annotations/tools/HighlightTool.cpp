@@ -1,123 +1,28 @@
 #include "HighlightTool.h"
 #include <QPainter>
-#include <QPainterPath>
-#include <QPainterPathStroker>
-#include <QStyleOptionGraphicsItem>
 
 namespace Editor::Tools {
 
 HighlightTool::HighlightTool(QGraphicsItem *parent)
-    : QGraphicsObject(parent)
-    , m_width(HIGHLIGHT_WIDTH_MEDIUM) // Default to medium width
+    : PathTool(parent)
 {
-    // Initialize with default highlight color at 30% opacity
     QColor highlightColor(Qt::yellow);
     highlightColor.setAlphaF(HIGHLIGHT_OPACITY);
-
-    m_pen = QPen(highlightColor, m_width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-
-    setFlags(QGraphicsItem::ItemIsSelectable |
-             QGraphicsItem::ItemIsMovable |
-             QGraphicsItem::ItemSendsGeometryChanges |
-             QGraphicsItem::ItemIsFocusable);
-
-    setAcceptHoverEvents(true);
-    setCursor(Qt::SizeAllCursor);
+    m_pen = QPen(highlightColor, HIGHLIGHT_WIDTH_MEDIUM, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 }
 
-void HighlightTool::addPoint(const QPointF &point)
+void HighlightTool::paintPath(QPainter *painter)
 {
-    m_points.append(point);
-
-    if (m_points.size() == 1) {
-        m_path.moveTo(point);
-    } else {
-        m_path.lineTo(point);
-    }
-
-    updateGeometry();
-}
-
-void HighlightTool::finishPath()
-{
-    // Path is already complete, just update final geometry
-    updateGeometry();
-}
-
-void HighlightTool::updateGeometry()
-{
-    prepareGeometryChange();
-
-    // Create stroke path for interaction
-    m_strokePath = createStrokePath();
-
-    // Calculate bounding rect
-    QRectF bounds = m_strokePath.boundingRect();
-
-    // Add some padding
-    qreal padding = 10.0;
-    bounds.adjust(-padding, -padding, padding, padding);
-    m_boundingRect = bounds;
-
-    update();
-}
-
-QPainterPath HighlightTool::createStrokePath() const
-{
-    if (m_path.isEmpty()) {
-        return QPainterPath();
-    }
-
-    QPainterPathStroker stroker;
-    stroker.setCapStyle(m_pen.capStyle());
-    stroker.setJoinStyle(m_pen.joinStyle());
-    stroker.setWidth(m_width);
-
-    return stroker.createStroke(m_path);
-}
-
-QRectF HighlightTool::boundingRect() const
-{
-    return m_boundingRect;
-}
-
-QPainterPath HighlightTool::shape() const
-{
-    return m_strokePath;
-}
-
-void HighlightTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
-{
-    Q_UNUSED(widget)
-
-    if (m_path.isEmpty()) {
-        return;
-    }
-
-    painter->setRenderHint(QPainter::Antialiasing);
-
-    // Draw the highlight path
     painter->setPen(m_pen);
     painter->setBrush(Qt::NoBrush);
     painter->drawPath(m_path);
-
-    // Draw selection indicator
-    if (option->state & QStyle::State_Selected) {
-        QPen selectionPen(Qt::blue, 1.0, Qt::DashLine);
-        painter->setPen(selectionPen);
-        painter->setBrush(Qt::NoBrush);
-        painter->drawRect(m_path.boundingRect());
-    }
 }
 
 void HighlightTool::setColor(const QColor &color)
 {
     QColor highlightColor = color;
     highlightColor.setAlphaF(HIGHLIGHT_OPACITY);
-
-    QPen newPen = m_pen;
-    newPen.setColor(highlightColor);
-    m_pen = newPen;
+    m_pen.setColor(highlightColor);
     updateGeometry();
 }
 
@@ -131,11 +36,8 @@ QColor HighlightTool::color() const
 
 void HighlightTool::setWidth(qreal width)
 {
-    if (m_width != width) {
-        m_width = width;
-        QPen newPen = m_pen;
-        newPen.setWidthF(width);
-        m_pen = newPen;
+    if (m_pen.widthF() != width) {
+        m_pen.setWidthF(width);
         updateGeometry();
     }
 }
@@ -144,9 +46,7 @@ QGraphicsItem* HighlightTool::clone() const
 {
     auto* copy = new HighlightTool();
     copy->applyStyleFrom(this);
-    for (const QPointF &p : m_points)
-        copy->addPoint(p);
-    copy->finishPath();
+    copy->addPoints(points());
     return copy;
 }
 
@@ -176,9 +76,9 @@ QList<ToolProperty> HighlightTool::getProperties() const
 
     // Determine current size
     QString currentSize;
-    if (qAbs(m_width - HIGHLIGHT_WIDTH_SMALL) < 0.1) {
+    if (qAbs(width() - HIGHLIGHT_WIDTH_SMALL) < 0.1) {
         currentSize = "Small";
-    } else if (qAbs(m_width - HIGHLIGHT_WIDTH_LARGE) < 0.1) {
+    } else if (qAbs(width() - HIGHLIGHT_WIDTH_LARGE) < 0.1) {
         currentSize = "Large";
     } else {
         currentSize = "Medium";
