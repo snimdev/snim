@@ -1,8 +1,7 @@
 #ifndef IMAGEEDITOR_ARROWTOOL_H
 #define IMAGEEDITOR_ARROWTOOL_H
 
-#include "ITool.h"
-#include <QGraphicsObject>
+#include "ToolItem.h"
 #include <QPen>
 #include <QPointF>
 
@@ -10,7 +9,7 @@ namespace Editor::Tools {
 
 class HandleItem;
 
-class ArrowTool : public QGraphicsObject, public ITool
+class ArrowTool : public ToolItem
 {
     Q_OBJECT
 

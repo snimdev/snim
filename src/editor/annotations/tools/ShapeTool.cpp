@@ -8,21 +8,12 @@
 namespace Editor::Tools {
 
 ShapeTool::ShapeTool(const QRectF &rect, QGraphicsItem *parent)
-    : QGraphicsObject(parent)
+    : ToolItem(parent)
     , m_shapeRect(rect)
     , m_pen(Qt::black, 2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin)
     , m_brush(Qt::NoBrush)
     , m_opacity(1.0)
 {
-    setFlags(QGraphicsItem::ItemIsSelectable |
-             QGraphicsItem::ItemIsMovable |
-             QGraphicsItem::ItemSendsGeometryChanges |
-             QGraphicsItem::ItemIsFocusable);
-
-    setAcceptHoverEvents(true);
-    setCursor(Qt::SizeAllCursor);
-
-    // Create resize handles
     createHandles();
 
     updateGeometry();
@@ -180,14 +171,9 @@ void ShapeTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
 
     paintShape(painter);
 
-    // Draw selection indicator (always full opacity)
-    if (option->state & QStyle::State_Selected) {
-        painter->setOpacity(1.0);
-        QPen selectionPen(Qt::blue, 1.0, Qt::DashLine);
-        painter->setPen(selectionPen);
-        painter->setBrush(Qt::NoBrush);
-        painter->drawRect(m_shapeRect);
-    }
+    if (option->state & QStyle::State_Selected)
+        painter->setOpacity(1.0);   // the outline ignores the shape's opacity
+    paintSelection(painter, option, m_shapeRect);
 }
 
 void ShapeTool::setShapeRect(const QRectF &rect)

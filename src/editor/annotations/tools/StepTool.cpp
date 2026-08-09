@@ -2,20 +2,12 @@
 #include <QPainter>
 #include <QFont>
 #include <QFontMetricsF>
-#include <QStyleOptionGraphicsItem>
 
 namespace Editor::Tools {
 
 StepTool::StepTool(QGraphicsItem *parent)
-    : QGraphicsObject(parent)
+    : ToolItem(parent)
 {
-    setFlags(QGraphicsItem::ItemIsSelectable |
-             QGraphicsItem::ItemIsMovable |
-             QGraphicsItem::ItemSendsGeometryChanges |
-             QGraphicsItem::ItemIsFocusable);
-
-    setAcceptHoverEvents(true);
-    setCursor(Qt::SizeAllCursor);
 }
 
 QRectF StepTool::discRect() const
@@ -65,12 +57,7 @@ void StepTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, 
     painter->setPen(textColor);
     painter->drawText(disc, Qt::AlignCenter, text);
 
-    if (option->state & QStyle::State_Selected) {
-        QPen selectionPen(Qt::blue, 1.0, Qt::DashLine);
-        painter->setPen(selectionPen);
-        painter->setBrush(Qt::NoBrush);
-        painter->drawRect(disc);
-    }
+    paintSelection(painter, option, disc);
 }
 
 void StepTool::setNumber(int number)

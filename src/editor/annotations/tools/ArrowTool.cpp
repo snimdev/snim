@@ -3,26 +3,17 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPainterPathStroker>
-#include <QStyleOptionGraphicsItem>
 #include <cmath>
 
 namespace Editor::Tools {
 
 ArrowTool::ArrowTool(const QPointF &start, const QPointF &end, QGraphicsItem *parent)
-    : QGraphicsObject(parent)
+    : ToolItem(parent)
     , m_startPoint(start)
     , m_endPoint(end)
     , m_pen(Qt::red, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin)
     , m_arrowHeadType(Outlined)
 {
-    setFlags(QGraphicsItem::ItemIsSelectable |
-             QGraphicsItem::ItemIsMovable |  // Make the arrow movable
-             QGraphicsItem::ItemSendsGeometryChanges |
-             QGraphicsItem::ItemIsFocusable);
-
-    setAcceptHoverEvents(true);
-    setCursor(Qt::SizeAllCursor);  // Show move cursor when hovering
-
     m_startHandle = new HandleItem(Qt::PointingHandCursor,
                                    [this](const QPointF &p) { setStartPoint(mapFromScene(p)); }, this);
     m_endHandle = new HandleItem(Qt::PointingHandCursor,
@@ -151,12 +142,7 @@ void ArrowTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
         }
     }
 
-    if (option->state & QStyle::State_Selected) {
-        QPen selectionPen(Qt::blue, 1.0, Qt::DashLine);
-        painter->setPen(selectionPen);
-        painter->setBrush(Qt::NoBrush);
-        painter->drawRect(m_strokePath.boundingRect());
-    }
+    paintSelection(painter, option, m_strokePath.boundingRect());
 }
 
 void ArrowTool::setStartPoint(const QPointF &point)

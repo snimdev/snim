@@ -1,8 +1,7 @@
 #ifndef IMAGEEDITOR_STEPTOOL_H
 #define IMAGEEDITOR_STEPTOOL_H
 
-#include "ITool.h"
-#include <QGraphicsObject>
+#include "ToolItem.h"
 #include <QColor>
 #include <QPainterPath>
 #include <QRectF>
@@ -13,7 +12,7 @@ namespace Editor::Tools {
  * A numbered badge: a filled disc with a numeral, stamped one per click for
  * step-by-step annotations. The item position is the badge centre.
  */
-class StepTool : public QGraphicsObject, public ITool
+class StepTool : public ToolItem
 {
     Q_OBJECT
 

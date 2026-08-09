@@ -1,8 +1,7 @@
 #ifndef IMAGEEDITOR_SHAPETOOL_H
 #define IMAGEEDITOR_SHAPETOOL_H
 
-#include "ITool.h"
-#include <QGraphicsObject>
+#include "ToolItem.h"
 #include <QPen>
 #include <QBrush>
 #include <QRectF>
@@ -11,7 +10,7 @@ namespace Editor::Tools {
 
 class HandleItem;
 
-class ShapeTool : public QGraphicsObject, public ITool
+class ShapeTool : public ToolItem
 {
     Q_OBJECT
 

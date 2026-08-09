@@ -1,20 +1,12 @@
 #include "PathTool.h"
 #include <QPainter>
 #include <QPainterPathStroker>
-#include <QStyleOptionGraphicsItem>
 
 namespace Editor::Tools {
 
 PathTool::PathTool(QGraphicsItem *parent)
-    : QGraphicsObject(parent)
+    : ToolItem(parent)
 {
-    setFlags(QGraphicsItem::ItemIsSelectable |
-             QGraphicsItem::ItemIsMovable |
-             QGraphicsItem::ItemSendsGeometryChanges |
-             QGraphicsItem::ItemIsFocusable);
-
-    setAcceptHoverEvents(true);
-    setCursor(Qt::SizeAllCursor);
 }
 
 void PathTool::addPoint(const QPointF &point)
@@ -61,12 +53,7 @@ void PathTool::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, 
 
     painter->setRenderHint(QPainter::Antialiasing);
     paintPath(painter);
-
-    if (option->state & QStyle::State_Selected) {
-        painter->setPen(QPen(Qt::blue, 1.0, Qt::DashLine));
-        painter->setBrush(Qt::NoBrush);
-        painter->drawRect(m_path.boundingRect());
-    }
+    paintSelection(painter, option, m_path.boundingRect());
 }
 
 } // namespace Editor::Tools

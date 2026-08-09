@@ -1,8 +1,7 @@
 #ifndef IMAGEEDITOR_PATHTOOL_H
 #define IMAGEEDITOR_PATHTOOL_H
 
-#include "ITool.h"
-#include <QGraphicsObject>
+#include "ToolItem.h"
 #include <QList>
 #include <QPainterPath>
 #include <QPen>
@@ -12,7 +11,7 @@ namespace Editor::Tools {
 
 // A stroke painted point by point (freehand, highlight, blur): the points, their path
 // and its widened hit area. A sibling base, so a FreehandTool cast never matches the others.
-class PathTool : public QGraphicsObject, public ITool
+class PathTool : public ToolItem
 {
     Q_OBJECT
 
