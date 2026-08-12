@@ -641,14 +641,8 @@ void ImageEditor::commitDrawnItem(QGraphicsItem *item, const QString &toolId)
     // Push as an undoable command; its redo() adds the item to the scene + manager.
     const QString label = spec->namePrefix.isEmpty() ? QStringLiteral("Add Layer")
                                                       : QStringLiteral("Add %1").arg(spec->namePrefix);
+    // The tool stays active, as in the capture overlay, so several shapes go in a row.
     m_undoStack->push(new Commands::AddLayerCommand(m_scene, m_layerManager, layer, label));
-
-    if (spec->switchToPointerAfter) {
-        // Switch to the pointer and select the new item so it can be moved/resized
-        // immediately; otherwise clicking it with the drawing tool creates another.
-        activateTool("pointer");
-        m_layerManager->selectLayer(layer);
-    }
 }
 
 void ImageEditor::importAnnotations(const AnnotationSet &set)

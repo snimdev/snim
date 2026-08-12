@@ -25,7 +25,6 @@ struct ToolSpec {
     QChar shortcut;                   // single-key shortcut, upper case
 
     bool isDrawingTool = true;        // false for the pointer (no template/commit)
-    bool switchToPointerAfter = false;// select the committed item with the pointer
 
     // Build this tool's interaction (owned by the QObject parent).
     std::function<Interactions::IDrawingInteraction*(QObject *parent)> makeInteraction;

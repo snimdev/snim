@@ -51,7 +51,6 @@ const QList<ToolSpec>& ToolRegistry::tools()
             .namePrefix = "Arrow",
             .tooltip = "Arrow",
             .shortcut = u'A',
-            .switchToPointerAfter = true,
             .makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new ArrowInteraction(p); },
             .makeTemplate = []() -> ITool* {
                 auto *t = new ArrowTool(QPointF(0, 0), QPointF(100, 100), nullptr);
@@ -66,7 +65,6 @@ const QList<ToolSpec>& ToolRegistry::tools()
             .namePrefix = "Text",
             .tooltip = "Text",
             .shortcut = u'T',
-            .switchToPointerAfter = true,
             .makeInteraction = [](QObject *p) -> IDrawingInteraction* {
                 return new ClickInteraction(Qt::IBeamCursor, p);
             },
@@ -83,7 +81,6 @@ const QList<ToolSpec>& ToolRegistry::tools()
             .namePrefix = "Rectangle",
             .tooltip = "Rectangle",
             .shortcut = u'R',
-            .switchToPointerAfter = true,
             .makeInteraction = [](QObject *p) -> IDrawingInteraction* {
                 return new RectDragInteraction(RectDragInteraction::Rectangle, p);
             },
@@ -100,7 +97,6 @@ const QList<ToolSpec>& ToolRegistry::tools()
             .namePrefix = "Ellipse",
             .tooltip = "Ellipse",
             .shortcut = u'E',
-            .switchToPointerAfter = true,
             .makeInteraction = [](QObject *p) -> IDrawingInteraction* {
                 return new RectDragInteraction(RectDragInteraction::Ellipse, p);
             },
@@ -117,7 +113,6 @@ const QList<ToolSpec>& ToolRegistry::tools()
             .namePrefix = "Freehand",
             .tooltip = "Freehand",
             .shortcut = u'P',
-            .switchToPointerAfter = true,
             .makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); },
             .makeTemplate = []() -> ITool* {
                 auto *t = new FreehandTool(nullptr);
@@ -132,7 +127,6 @@ const QList<ToolSpec>& ToolRegistry::tools()
             .namePrefix = "Highlight",
             .tooltip = "Highlight",
             .shortcut = u'H',
-            .switchToPointerAfter = true,
             .makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); },
             .makeTemplate = []() -> ITool* {
                 auto *t = new HighlightTool(nullptr);
@@ -148,7 +142,6 @@ const QList<ToolSpec>& ToolRegistry::tools()
             .namePrefix = "Blur",
             .tooltip = "Blur",
             .shortcut = u'B',
-            .switchToPointerAfter = true,
             .makeInteraction = [](QObject *p) -> IDrawingInteraction* { return new PathDragInteraction(p); },
             .makeTemplate = []() -> ITool* {
                 auto *t = new BlurTool(nullptr);
