@@ -48,6 +48,20 @@ void DrawingGraphicsView::zoomActual()
         centerOn(scene()->sceneRect().center());
 }
 
+void DrawingGraphicsView::setDarkTheme(bool dark)
+{
+    m_canvasShadow.setDark(dark);
+    viewport()->update();
+}
+
+void DrawingGraphicsView::drawBackground(QPainter *painter, const QRectF &rect)
+{
+    QGraphicsView::drawBackground(painter, rect);
+    // The scene rect is the canvas: the screenshot, or the backdrop around it.
+    if (scene())
+        m_canvasShadow.paint(painter, scene()->sceneRect(), rect);
+}
+
 void DrawingGraphicsView::setDrawingStrategy(Interactions::IDrawingInteraction *strategy)
 {
     // Clean up previous strategy if it was drawing

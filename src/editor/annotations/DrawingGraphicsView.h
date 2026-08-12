@@ -6,6 +6,7 @@
 #include <QWheelEvent>
 #include <QGraphicsItem>
 #include <QRect>
+#include "CanvasShadow.h"
 
 namespace Editor::Interactions { class IDrawingInteraction; }
 namespace Editor::Tools { class ITool; }
@@ -27,6 +28,9 @@ public:
 
     void setImageBounds(const QRect &bounds) { m_imageBounds = bounds; }
 
+    /// Match the canvas shadow to a dark or light editor background.
+    void setDarkTheme(bool dark);
+
     /// Fit the whole scene in the view, but never zoom past 100% (small captures
     /// stay crisp and centered rather than being upscaled).
     void fitContent();
@@ -46,6 +50,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void drawBackground(QPainter *painter, const QRectF &rect) override;
 
 private:
     bool isWithinImageBounds(const QPointF &point) const;
@@ -53,6 +58,7 @@ private:
 
     Interactions::IDrawingInteraction *m_currentStrategy; // Not owned
     QRect m_imageBounds;
+    CanvasShadow m_canvasShadow;
 };
 
 } // namespace Editor

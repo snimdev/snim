@@ -8,6 +8,7 @@ set(SNIM_TESTS
         tst_settings
         tst_filenames
         tst_layer
+        tst_canvasshadow
         tst_toolregistry
         tst_tools
         tst_annotationbuilder

@@ -264,6 +264,7 @@ void ImageEditor::setupUI()
     const bool dark = QApplication::palette().color(QPalette::Window).lightness() < 128;
     m_scene->setBackgroundBrush(QColor(dark ? QStringLiteral("#202124")
                                             : QStringLiteral("#ececec")));
+    m_view->setDarkTheme(dark);
 
     // Add the screenshot to the scene. The capture carries a devicePixelRatio
     // (2x/3x on Retina), so the pixmap item is laid out at its device-independent

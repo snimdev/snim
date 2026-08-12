@@ -4,6 +4,7 @@
 #include <QStatusBar>
 #include <QToolBar>
 #include <QUndoStack>
+#include <QClipboard>
 
 #include "editor/image/ImageEditor.h"
 #include "editor/annotations/DrawingGraphicsView.h"
@@ -65,6 +66,29 @@ private slots:
         QVERIFY(QApplication::activeModalWidget() == nullptr);
         QVERIFY(editor.statusBar() != nullptr);
         QVERIFY(!editor.statusBar()->currentMessage().isEmpty());
+    }
+
+    // The canvas shadow is view chrome: on screen around the capture, never in an export.
+    void exportOmitsCanvasShadow()
+    {
+        QPixmap shot(400, 300);
+        shot.fill(Qt::white);
+
+        ImageEditorWindow editor(shot);
+        editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));
+        QTest::qWait(50);   // the deferred 100% zoom
+        auto *view = editor.findChild<Editor::DrawingGraphicsView*>();
+        QVERIFY(view);
+
+        const QImage onScreen = view->viewport()->grab().toImage();
+        const QPoint bottom = view->mapFromScene(QPointF(200, 300));
+        QVERIFY(qGray(onScreen.pixel(bottom + QPoint(0, 3)))
+                < qGray(onScreen.pixel(bottom + QPoint(0, 60))));
+
+        editor.copyToClipboard();   // save and upload render the same scene image
+        QCOMPARE(QApplication::clipboard()->image().convertToFormat(QImage::Format_ARGB32),
+                 shot.toImage().convertToFormat(QImage::Format_ARGB32));
     }
 
     // A drag with the Rectangle tool goes view -> interaction -> builder -> layer sink.

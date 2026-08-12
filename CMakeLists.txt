@@ -510,6 +510,8 @@ add_library(snim_lib STATIC
         src/editor/annotations/DrawingGraphicsView.h
         src/editor/annotations/tools/ToolItem.cpp
         src/editor/annotations/tools/ToolItem.h
+        src/editor/annotations/CanvasShadow.cpp
+        src/editor/annotations/CanvasShadow.h
         src/editor/annotations/tools/ArrowTool.cpp
         src/editor/annotations/tools/ArrowTool.h
         src/editor/annotations/tools/ShapeTool.cpp
