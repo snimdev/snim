@@ -31,8 +31,8 @@ public:
     /// Match the canvas shadow to a dark or light editor background.
     void setDarkTheme(bool dark);
 
-    /// Fit the whole scene in the view, but never zoom past 100% (small captures
-    /// stay crisp and centered rather than being upscaled).
+    /// Fit the whole scene in the view with room for its shadow, but never zoom past
+    /// 100% (small captures stay crisp and centered rather than being upscaled).
     void fitContent();
     /// Reset to 100% zoom, centered on the content.
     void zoomActual();

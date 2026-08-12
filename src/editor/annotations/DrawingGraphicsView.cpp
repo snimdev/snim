@@ -31,12 +31,14 @@ void DrawingGraphicsView::fitContent()
     if (r.isEmpty())
         return;
 
-    fitInView(r, Qt::KeepAspectRatio);
-    // Never upscale past 100%; small captures should stay crisp and centered.
-    if (transform().m11() > 1.0) {
-        resetTransform();
-        centerOn(r.center());
-    }
+    // Leave room for the canvas shadow; never upscale, so small captures stay crisp.
+    constexpr qreal pad = 24;
+    const qreal s = qMin(qMin((viewport()->width() - 2 * pad) / r.width(),
+                              (viewport()->height() - 2 * pad) / r.height()), 1.0);
+    if (s <= 0)
+        return;
+    setTransform(QTransform::fromScale(s, s));
+    centerOn(r.center());
 }
 
 void DrawingGraphicsView::zoomActual()
