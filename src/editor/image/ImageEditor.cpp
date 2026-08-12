@@ -730,8 +730,7 @@ void ImageEditor::keyPressEvent(QKeyEvent *event)
 void ImageEditor::duplicateSelectedLayer()
 {
     Layer *sel = m_layerManager->selectedLayer();
-    if (!sel || sel->isGroup()
-        || sel->type() == Layer::Background || sel->type() == Layer::Backdrop)
+    if (!sel || !sel->isEditable())
         return;
     auto *tool = dynamic_cast<Tools::ITool*>(sel->item());
     if (!tool)
@@ -756,8 +755,7 @@ void ImageEditor::duplicateSelectedLayer()
 void ImageEditor::nudgeSelectedLayer(qreal dx, qreal dy)
 {
     Layer *sel = m_layerManager->selectedLayer();
-    if (!sel || sel->isGroup()
-        || sel->type() == Layer::Background || sel->type() == Layer::Backdrop)
+    if (!sel || !sel->isEditable())
         return;
     if (QGraphicsItem *it = sel->item())
         m_undoStack->push(new Commands::MoveLayerCommand(it, QPointF(dx, dy),
@@ -1178,9 +1176,8 @@ void ImageEditor::onLayerVisibilityChanged(Layer *layer, bool visible)
 
 void ImageEditor::onDeleteLayerRequested(Layer *layer)
 {
-    if (!layer || layer->type() == Layer::Background || layer->type() == Layer::Backdrop) {
-        return;   // backdrop has its own teardown (setBackdropEnabled(false))
-    }
+    if (!layer || !layer->isEditable())
+        return;   // the backdrop has its own teardown (setBackdropEnabled(false))
 
     // Undoable removal: the command pulls the item from the scene/manager and,
     // while it sits off-scene, owns it (freeing it only if the command is dropped).

@@ -118,23 +118,17 @@ void LayerManager::onItemSelectionChanged() {
     Layer *current = selectedLayer();
     const QList<Layer*> selected = selectedLayers();
 
-    // Group: ≥2 selected, all top-level deletable leaves (not groups/background/backdrop).
-    auto isGroupableLeaf = [this](Layer *l) {
-        return l && !l->isGroup() && m_layers.contains(l)
-               && l->type() != Layer::Background && l->type() != Layer::Backdrop;
-    };
+    // Group: two or more selected, all of them top-level editable layers.
     int groupable = 0;
     for (Layer *l : selected)
-        if (isGroupableLeaf(l)) ++groupable;
+        if (l && l->isEditable() && m_layers.contains(l)) ++groupable;
     m_groupButton->setEnabled(groupable >= 2 && groupable == selected.size());
 
     // Ungroup: exactly one group selected.
     m_ungroupButton->setEnabled(selected.size() == 1 && current && current->isGroup());
 
-    // Delete: a single deletable leaf (groups are removed via Ungroup).
-    m_deleteButton->setEnabled(current && !current->isGroup()
-                               && current->type() != Layer::Background
-                               && current->type() != Layer::Backdrop);
+    // Delete: a single editable layer (groups are removed via Ungroup).
+    m_deleteButton->setEnabled(current && current->isEditable());
 
     if (current)
         emit layerSelected(current);
@@ -146,8 +140,7 @@ void LayerManager::onDeleteButtonClicked() {
 
 void LayerManager::deleteCurrentLayer() {
     Layer *selected = selectedLayer();
-    if (!selected || selected->isGroup()
-        || selected->type() == Layer::Background || selected->type() == Layer::Backdrop)
+    if (!selected || !selected->isEditable())
         return;
 
     // Pick a neighbour in the visible tree order to select after the deletion.
@@ -165,8 +158,7 @@ void LayerManager::deleteCurrentLayer() {
 void LayerManager::onGroupButtonClicked() {
     QList<Layer*> members;
     for (Layer *l : selectedLayers())
-        if (l && !l->isGroup() && m_layers.contains(l)
-            && l->type() != Layer::Background && l->type() != Layer::Backdrop)
+        if (l && l->isEditable() && m_layers.contains(l))
             members.append(l);
     if (members.size() >= 2)
         emit groupRequested(members);

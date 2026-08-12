@@ -50,6 +50,15 @@ private slots:
         QVERIFY(!a.isGroup());   // a leaf is not a group
     }
 
+    void isEditable_onlyForDrawnLeaves()
+    {
+        for (Layer::LayerType type : {Layer::Arrow, Layer::Text, Layer::Rectangle, Layer::Ellipse,
+                                      Layer::Freehand, Layer::Highlight, Layer::Blur, Layer::Step})
+            QVERIFY(Layer("drawn", type).isEditable());
+        for (Layer::LayerType type : {Layer::Background, Layer::Backdrop, Layer::Group})
+            QVERIFY(!Layer("fixed", type).isEditable());
+    }
+
     void group_visibility_cascadesToChildren()
     {
         Layer group("G", Layer::Group);

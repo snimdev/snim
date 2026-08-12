@@ -42,6 +42,12 @@ public:
 
     LayerType type() const { return m_type; }
     [[nodiscard]] bool isGroup() const { return m_type == Group; }
+    // A drawn leaf, not a group, the background or the backdrop: the layers the user
+    // can delete, duplicate, nudge and group.
+    [[nodiscard]] bool isEditable() const
+    {
+        return m_type != Group && m_type != Background && m_type != Backdrop;
+    }
 
     QGraphicsItem* item() const { return m_item; }
     void setItem(QGraphicsItem *item);
