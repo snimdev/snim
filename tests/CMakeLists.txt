@@ -32,6 +32,7 @@ set(SNIM_TESTS
         tst_x11windowfilter
         tst_mixeddpicapture
         tst_frozenframegrabber
+        tst_framesourcechain
         tst_ocrservice
         tst_integration_scene
         tst_recordtarget
