@@ -1,6 +1,8 @@
 #ifndef SCREEN_X11SCREENMAP_H
 #define SCREEN_X11SCREENMAP_H
 
+#include "screen/ScreenMap.h"
+
 #include <QGuiApplication>
 #include <QPoint>
 #include <QRect>
@@ -29,25 +31,6 @@ inline QRect nativeRect(const Screen &screen)
                                              qRound(screen.geometry.height() * screen.dpr))};
 }
 
-namespace detail {
-
-inline int screenAt(const QPoint &p, const QVector<Screen> &screens)
-{
-    for (int i = 0; i < screens.size(); ++i)
-        if (nativeRect(screens.at(i)).contains(p))
-            return i;
-    return -1;
-}
-
-inline QPoint mapEdge(int x, int y, const Screen &s)
-{
-    const QPoint origin = s.geometry.topLeft();
-    return {origin.x() + qRound((x - origin.x()) / s.dpr),
-            origin.y() + qRound((y - origin.y()) / s.dpr)};
-}
-
-} // namespace detail
-
 /**
  * The logical rect for a root-window one, or an empty rect when it touches no screen.
  * Each corner maps through the screen it lies on; a corner off every screen uses the
@@ -55,38 +38,11 @@ inline QPoint mapEdge(int x, int y, const Screen &s)
  */
 inline QRect toLogical(const QRect &rootPx, const QVector<Screen> &screens)
 {
-    if (rootPx.isEmpty() || screens.isEmpty())
-        return {};
-
-    int dominant = -1;
-    qint64 bestArea = 0;
-    for (int i = 0; i < screens.size(); ++i) {
-        if (screens.at(i).dpr <= 0.0)
-            continue;
-        const QRect overlap = nativeRect(screens.at(i)).intersected(rootPx);
-        const qint64 area = qint64(overlap.width()) * overlap.height();
-        if (area > bestArea) {
-            bestArea = area;
-            dominant = i;
-        }
-    }
-    if (dominant < 0)
-        return {};
-
-    // QRect::bottomRight() is inclusive: look up the last pixel, map the exclusive edge.
-    int first = detail::screenAt(rootPx.topLeft(), screens);
-    int last = detail::screenAt(rootPx.bottomRight(), screens);
-    if (first < 0 || screens.at(first).dpr <= 0.0)
-        first = dominant;
-    if (last < 0 || screens.at(last).dpr <= 0.0)
-        last = dominant;
-
-    const QPoint topLeft = detail::mapEdge(rootPx.x(), rootPx.y(), screens.at(first));
-    const QPoint bottomRight = detail::mapEdge(rootPx.x() + rootPx.width(),
-                                               rootPx.y() + rootPx.height(), screens.at(last));
-    if (bottomRight.x() <= topLeft.x() || bottomRight.y() <= topLeft.y())
-        return {};
-    return {topLeft, QSize(bottomRight.x() - topLeft.x(), bottomRight.y() - topLeft.y())};
+    QVector<ScreenMap::Screen> mapped;
+    mapped.reserve(screens.size());
+    for (const Screen &screen : screens)
+        mapped.append({nativeRect(screen), screen.geometry.topLeft(), screen.dpr});
+    return ScreenMap::toLogical(rootPx, mapped, ScreenMap::Rounding::Nearest);
 }
 
 // Every screen Qt knows, as the mapping takes them. GUI thread only.

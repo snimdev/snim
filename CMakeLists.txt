@@ -461,6 +461,7 @@ add_library(snim_lib STATIC
         src/screen/AreaSelectorInput.cpp
         src/screen/AreaSelectorInput.h
         src/screen/SelectionLayer.h
+        src/screen/ScreenMap.h
         src/screen/WinScreenMap.h
         src/screen/X11ScreenMap.h
         src/screen/WinWindowFilter.h
