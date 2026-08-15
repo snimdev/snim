@@ -1,6 +1,7 @@
 #include "screen/AreaSelector.h"
 #include "screen/AreaSelectorInput.h"
 #include "screen/DesktopStitch.h"
+#include "screen/OverlayStyle.h"
 #include "core/IconUtil.h"
 #include "core/Perf.h"
 #include <QPainter>
@@ -20,8 +21,8 @@
 namespace Screen {
 
 namespace {
-    constexpr int kDimAlpha = 120;            // darkening of the un-selected area
-    const QColor  kAccent(0, 150, 255);       // selection / handle accent color
+    using OverlayStyle::kAccent;
+    using OverlayStyle::kDimAlpha;
     constexpr int kBtnSize = 38;              // action toolbar button size
     constexpr int kBtnPad  = 6;               // padding around toolbar buttons
     constexpr int kSepGap  = 9;               // extra gap holding a group separator

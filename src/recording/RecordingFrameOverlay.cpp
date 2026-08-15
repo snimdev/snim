@@ -1,6 +1,7 @@
 #include "recording/RecordingFrameOverlay.h"
 #include "recording/RecordingGeometry.h"
 #include "screen/LayerShellSupport.h"
+#include "screen/OverlayStyle.h"
 
 #include <QGuiApplication>
 #include <QPainter>
@@ -13,10 +14,8 @@
 namespace Recording {
 
 namespace {
-// Match the selection overlay's look (AreaSelector) so the frame reads as "this is
-// the area you picked": same dim strength, same accent for the border.
-constexpr int kDimAlpha = 120;
-const QColor  kAccent(0, 150, 255);
+using Screen::OverlayStyle::kAccent;
+using Screen::OverlayStyle::kDimAlpha;
 constexpr int kBorderWidth = 2;
 } // namespace
 

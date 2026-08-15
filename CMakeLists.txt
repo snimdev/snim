@@ -460,6 +460,7 @@ add_library(snim_lib STATIC
         src/screen/AreaSelector.h
         src/screen/AreaSelectorInput.cpp
         src/screen/AreaSelectorInput.h
+        src/screen/OverlayStyle.h
         src/screen/SelectionLayer.h
         src/screen/SelectorGroup.cpp
         src/screen/SelectorGroup.h
