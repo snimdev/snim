@@ -5,10 +5,78 @@
 
 #include "recording/RecordingController.h"
 #include "recording/RecordingJournal.h"
+#include "recording/RecordingOptionsBar.h"
 #include "recording/RecordingStrategy.h"
 #include "recording/RecordTarget.h"
+#include "screen/AreaSelector.h"
 
 using namespace Recording;
+
+namespace {
+
+// Off Wayland the frozen frame is Qt's own synchronous grab, whatever session runs the tests.
+class OutsideWayland
+{
+public:
+    OutsideWayland()
+        : m_display(qgetenv("WAYLAND_DISPLAY")), m_session(qgetenv("XDG_SESSION_TYPE"))
+    {
+        qunsetenv("WAYLAND_DISPLAY");
+        qputenv("XDG_SESSION_TYPE", "x11");
+    }
+    ~OutsideWayland()
+    {
+        if (!m_display.isNull())
+            qputenv("WAYLAND_DISPLAY", m_display);
+        if (m_session.isNull())
+            qunsetenv("XDG_SESSION_TYPE");
+        else
+            qputenv("XDG_SESSION_TYPE", m_session);
+    }
+    Q_DISABLE_COPY_MOVE(OutsideWayland)
+
+private:
+    QByteArray m_display;
+    QByteArray m_session;
+};
+
+QList<Screen::AreaSelector *> visibleSelectors()
+{
+    QList<Screen::AreaSelector *> selectors;
+    for (QWidget *widget : QApplication::topLevelWidgets()) {
+        if (auto *selector = qobject_cast<Screen::AreaSelector *>(widget); selector && selector->isVisible())
+            selectors.append(selector);
+    }
+    return selectors;
+}
+
+// The first overlay, once it is on screen.
+Screen::AreaSelector *firstOverlay()
+{
+    const QList<Screen::AreaSelector *> selectors = visibleSelectors();
+    if (selectors.size() != QGuiApplication::screens().size())
+        return nullptr;
+    return QTest::qWaitForWindowExposed(selectors.first()) ? selectors.first() : nullptr;
+}
+
+// The options bar: a child of an overlay, or a window of its own on macOS.
+RecordingOptionsBar *optionsBar()
+{
+    for (QWidget *widget : QApplication::allWidgets()) {
+        if (auto *bar = qobject_cast<RecordingOptionsBar *>(widget); bar && bar->isVisible())
+            return bar;
+    }
+    return nullptr;
+}
+
+void drag(Screen::AreaSelector *selector, const QPoint &from, const QPoint &to)
+{
+    QTest::mousePress(selector, Qt::LeftButton, Qt::NoModifier, from);
+    QTest::mouseMove(selector, to);
+    QTest::mouseRelease(selector, Qt::LeftButton, Qt::NoModifier, to);
+}
+
+} // namespace
 
 // A fake backend so the controller's state machine is testable headlessly, with no
 // ScreenCaptureKit and no real screen grab.
@@ -160,6 +228,83 @@ private slots:
             QVERIFY(!widget->isVisible());
         f->emitFinished(f->lastPath);
         QVERIFY(!ctrl.isActive());
+    }
+
+    void anAreaSelectionRecordsTheRegion()
+    {
+        const OutsideWayland session;
+        auto fake = std::make_unique<FakeRecordingStrategy>();
+        FakeRecordingStrategy *f = fake.get();
+        RecordingController ctrl(std::move(fake));
+
+        ctrl.recordArea();
+        Screen::AreaSelector *overlay = firstOverlay();
+        QVERIFY(overlay);
+        QVERIFY(optionsBar());
+        drag(overlay, QPoint(40, 40), QPoint(240, 180));
+        QTest::keyClick(overlay, Qt::Key_Return);
+
+        QVERIFY(f->startCalled);
+        QCOMPARE(f->lastTarget.kind, RecordTarget::Kind::Region);
+        QCOMPARE(f->lastTarget.regionVirtual,
+                 QRect(QPoint(40, 40), QPoint(240, 180)).translated(overlay->geometry().topLeft()));
+        QVERIFY(visibleSelectors().isEmpty());
+        QVERIFY(!optionsBar());
+        f->emitCancelled();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+
+    void theOptionsBarRecordsAndCancels()
+    {
+        const OutsideWayland session;
+        auto fake = std::make_unique<FakeRecordingStrategy>();
+        FakeRecordingStrategy *f = fake.get();
+        RecordingController ctrl(std::move(fake));
+
+        // Its cancel mirrors Esc: nothing starts, and the next attempt opens afresh.
+        ctrl.recordArea();
+        Screen::AreaSelector *overlay = firstOverlay();
+        QVERIFY(overlay);
+        QVERIFY(optionsBar());
+        emit optionsBar()->cancelRequested();
+        QVERIFY(visibleSelectors().isEmpty());
+        QVERIFY(!f->startCalled);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+
+        ctrl.recordArea();
+        overlay = firstOverlay();
+        QVERIFY(overlay);
+        drag(overlay, QPoint(10, 20), QPoint(110, 220));
+        QVERIFY(optionsBar());
+        emit optionsBar()->recordRequested();
+        QVERIFY(f->startCalled);
+        QCOMPARE(f->lastTarget.regionVirtual.size(), QRect(QPoint(10, 20), QPoint(110, 220)).size());
+        QVERIFY(visibleSelectors().isEmpty());
+        QVERIFY(!optionsBar());
+        f->emitCancelled();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+
+    void aWindowPickRecordsTheWindow()
+    {
+        const OutsideWayland session;
+        auto fake = std::make_unique<FakeRecordingStrategy>();
+        FakeRecordingStrategy *f = fake.get();
+        RecordingController ctrl(std::move(fake));
+
+        ctrl.recordWindow();
+        Screen::AreaSelector *overlay = firstOverlay();
+        QVERIFY(overlay);
+        // Offscreen lists no windows, so the pick is the screen under the pointer.
+        QTest::mouseMove(overlay, QPoint(100, 100));
+        QTest::mouseClick(overlay, Qt::LeftButton, Qt::NoModifier, QPoint(100, 100));
+        QVERIFY(f->startCalled);
+        QCOMPARE(f->lastTarget.kind, RecordTarget::Kind::Window);
+        QCOMPARE(f->lastTarget.regionVirtual, overlay->geometry());
+        QVERIFY(visibleSelectors().isEmpty());
+        QVERIFY(!optionsBar());
+        f->emitCancelled();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     }
 
     void failureReportsTheFootageThatSurvived()
