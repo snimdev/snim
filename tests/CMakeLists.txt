@@ -57,6 +57,7 @@ set(SNIM_TESTS
         tst_videoexportercontract
         tst_sigv4
         tst_uploaderfactory
+        tst_blockinguploader
         tst_uploadprofiles
         tst_uploadconfig
         tst_uploadworkflow

@@ -4,20 +4,15 @@
 #include "upload/UploadConfig.h"
 #include "upload/Util.h"
 
-#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
-#include <QMetaObject>
-#include <QPointer>
 #include <QUrl>
-#include <QtConcurrentRun>
 
 #include <libssh2.h>
 #include <libssh2_sftp.h>
 
 #include <mutex>
 #include <optional>
-#include <utility>
 
 namespace Upload {
 
@@ -28,33 +23,6 @@ namespace {
 // initialized for the process lifetime - tearing it down while another upload is in
 // flight would be far worse than leaking a one-time allocation.
 std::once_flag g_ssh2Init;
-
-// Every worker -> GUI hop goes through here. qApp is the context object, so the lambda
-// runs on the GUI thread, where the QPointer check is race-free (the uploader is created
-// and destroyed there and nowhere else). During shutdown qApp can already be gone - a
-// still-running worker then has nobody to talk to, and dropping the post is correct.
-template <typename F>
-void postToGui(F &&fn)
-{
-    if (QCoreApplication *app = QCoreApplication::instance())
-        QMetaObject::invokeMethod(app, std::forward<F>(fn), Qt::QueuedConnection);
-}
-
-void postFailed(const QPointer<SftpUploader> &self, const QString &message)
-{
-    postToGui([self, message] {
-        if (self)
-            emit self->failed(message);
-    });
-}
-
-void postTestResult(const QPointer<SftpUploader> &self, bool ok, const QString &message)
-{
-    postToGui([self, ok, message] {
-        if (self)
-            emit self->testFinished(ok, message);
-    });
-}
 
 // libssh2's own description of the last failure - far more useful than the numeric code.
 // The buffer belongs to the session (want_buf = 0), so it is copied, never freed here.
@@ -202,7 +170,7 @@ struct SessionResult {
     QString fingerprint;
 };
 
-// Steps 1-5, shared verbatim by upload() and testConnection(): TCP connect, SSH
+// Steps 1-5, shared by the upload and the connection test: TCP connect, SSH
 // handshake, the three-tier host-key policy (BEFORE any credential leaves this machine),
 // authentication, and starting the SFTP subsystem. Deliberately the ONLY implementation
 // of the host-key check - a second copy is how a security policy silently drifts.
@@ -285,8 +253,8 @@ SessionResult establishSession(SshResources &res, const SessionParams &p)
     }
     if (!trusted) {
         // Unknown everywhere: trust on first use. The pin is only written once the
-        // whole exchange has succeeded (see the terminal posts below), so a server that
-        // fails auth or the transfer never gets remembered.
+        // whole exchange has succeeded (Outcome::onDone in transfer()), so a server
+        // that fails auth or the transfer never gets remembered.
         out.needsPin = true;
     }
 
@@ -376,100 +344,59 @@ void ensureRemoteDir(LIBSSH2_SFTP *sftp, const QString &remotePath)
 } // namespace
 
 SftpUploader::SftpUploader(const UploadConfig &config, QObject *parent)
-    : Uploader(parent), m_config(config),
-      m_cancel(std::make_shared<std::atomic_bool>(false))
+    : BlockingUploader(config, parent)
 {
     std::call_once(g_ssh2Init, [] { libssh2_init(0); });
 }
 
-SftpUploader::~SftpUploader()
+QUrl SftpUploader::fallbackUrl(const QString &remotePath) const
 {
-    m_cancel->store(true);   // a worker still running stops at its next chunk
+    // The user name is part of the public identity of the path and stays; the password
+    // of course never appears.
+    QUrl url;
+    url.setScheme(QStringLiteral("sftp"));
+    if (!m_config.username.isEmpty())
+        url.setUserName(m_config.username);
+    url.setHost(m_config.host);
+    if (m_config.port > 0)
+        url.setPort(m_config.port);
+    // QUrl encodes the path for us; one leading slash, never two.
+    url.setPath(remotePath.startsWith(QLatin1Char('/')) ? remotePath
+                                                        : QLatin1Char('/') + remotePath);
+    return url;
 }
 
-void SftpUploader::upload(const QString &localPath, const QString &keyHint)
+BlockingUploader::Transfer SftpUploader::transfer() const
 {
-    if (m_started)
-        return;                 // one uploader, one transfer, one terminal signal
-    m_started = true;
-
-    const UploadConfig &cfg = m_config;
-    {
-        QFile probe(localPath);
-        if (!probe.open(QIODevice::ReadOnly)) {
-            QMetaObject::invokeMethod(this, [this] {
-                emit failed(tr("Could not open the file to upload."));
-            }, Qt::QueuedConnection);
-            return;
-        }
-    }
-
-    const QString remoteName = Util::uniqueRemoteName(keyHint);
-    const QString remotePath = Util::buildRemotePath(cfg.remoteDir, remoteName);
     // One resolved port for the connect, the known_hosts lookup and the pin store alike -
     // pinning "host:0" and "host:22" separately would trust the same server twice. The
-    // pin lookup is QSettings I/O, so it too happens here and travels by value.
-    const SessionParams params = sessionParamsFor(cfg);
-
-    // Public URL: an explicit base maps the whole remote tree, so it joins the full
-    // remote path - minus the absolute marker, which would double the separator. Without
-    // a base, fall back to a credential-free sftp:// pseudo-URL (mirrors S3Uploader's
-    // request-URL fallback), so isComplete() never has to require publicBaseUrl. The
-    // user name is part of the public identity of the path and stays; the password of
-    // course never appears.
-    QUrl publicUrl;
-    if (cfg.publicBaseUrl.isEmpty()) {
-        publicUrl.setScheme(QStringLiteral("sftp"));
-        if (!cfg.username.isEmpty())
-            publicUrl.setUserName(cfg.username);
-        publicUrl.setHost(cfg.host);
-        if (cfg.port > 0)
-            publicUrl.setPort(cfg.port);
-        // QUrl encodes the path for us; one leading slash, never two.
-        publicUrl.setPath(remotePath.startsWith(QLatin1Char('/'))
-                              ? remotePath
-                              : QLatin1Char('/') + remotePath);
-    } else {
-        publicUrl = QUrl(Util::joinPublicUrl(cfg.publicBaseUrl,
-                                             remotePath.startsWith(QLatin1Char('/'))
-                                                 ? remotePath.mid(1)
-                                                 : remotePath));
-    }
-
-    // The worker captures value copies only - never `this`. tr() below is the static
-    // SftpUploader::tr(), so it needs no capture either. Fire and forget: the worker
-    // reports back through the marshaled signals, so nobody holds the QFuture.
-    (void) QtConcurrent::run([self = QPointer<SftpUploader>(this), cancel = m_cancel,
-                              localPath, publicUrl, remotePath, params] {
-        QFile file(localPath);
-        if (!file.open(QIODevice::ReadOnly)) {
-            postFailed(self, tr("Could not open the file to upload."));
-            return;
-        }
-
-        // 1-5: TCP, handshake, host-key policy, auth, SFTP subsystem - shared verbatim
-        // with testConnection(), so neither path can drift from the host-key rules.
+    // pin lookup is QSettings I/O, so it happens here and travels by value. tr() below is
+    // the static SftpUploader::tr(), so the worker captures values only.
+    return [params = sessionParamsFor(m_config)](QIODevice &body, const Job &job,
+                                                 const std::atomic_bool &cancel) {
+        Outcome out;
+        // 1-5: TCP, handshake, host-key policy, auth, SFTP subsystem - the one place the
+        // host-key rules live, for the upload and the test alike.
         SshResources res;
         const SessionResult session = establishSession(res, params);
         if (!session.ok) {
-            postFailed(self, session.error);
-            return;
+            out.error = session.error;
+            return out;
         }
-        ensureRemoteDir(res.sftp, remotePath);
+        ensureRemoteDir(res.sftp, job.remotePath);
 
         // 6. Create the remote file and stream into it.
-        const QByteArray remoteUtf8 = remotePath.toUtf8();
+        const QByteArray remoteUtf8 = job.remotePath.toUtf8();
         res.handle = libssh2_sftp_open(res.sftp, remoteUtf8.constData(),
                                        LIBSSH2_FXF_WRITE | LIBSSH2_FXF_CREAT | LIBSSH2_FXF_TRUNC,
                                        LIBSSH2_SFTP_S_IRUSR | LIBSSH2_SFTP_S_IWUSR
                                            | LIBSSH2_SFTP_S_IRGRP | LIBSSH2_SFTP_S_IROTH);
         if (!res.handle) {
             const QString why = sessionError(res.session);
-            postFailed(self, why.isEmpty()
-                                 ? tr("Could not create %1 on the server.").arg(remotePath)
-                                 : tr("Could not create %1 on the server: %2.")
-                                       .arg(remotePath, why));
-            return;
+            out.error = why.isEmpty()
+                            ? tr("Could not create %1 on the server.").arg(job.remotePath)
+                            : tr("Could not create %1 on the server: %2.").arg(job.remotePath, why);
+            return out;
         }
 
         // Give up on the remote file: close the handle first (the unlink can race an
@@ -486,15 +413,16 @@ void SftpUploader::upload(const QString &localPath, const QString &keyHint)
         char buffer[32 * 1024];
 
         while (true) {
-            if (cancel->load()) {
+            if (cancel.load()) {
                 discardPartial();
-                return;   // the uploader is gone, nobody to tell
+                out.status = Outcome::Status::Cancelled;
+                return out;
             }
-            const qint64 n = file.read(buffer, sizeof(buffer));
+            const qint64 n = body.read(buffer, sizeof(buffer));
             if (n < 0) {
                 discardPartial();
-                postFailed(self, tr("Upload failed: could not read the local file."));
-                return;
+                out.error = tr("Upload failed: could not read the local file.");
+                return out;
             }
             if (n == 0)
                 break;                          // EOF
@@ -503,20 +431,25 @@ void SftpUploader::upload(const QString &localPath, const QString &keyHint)
             // so a chunk may need several passes. 0 or negative means the transfer died.
             qint64 offset = 0;
             while (offset < n) {
-                if (cancel->load()) {
+                if (cancel.load()) {
                     discardPartial();
-                    return;
+                    out.status = Outcome::Status::Cancelled;
+                    return out;
                 }
                 const ssize_t written = libssh2_sftp_write(res.handle, buffer + offset,
                                                            static_cast<size_t>(n - offset));
                 if (written <= 0) {
                     const QString why = sessionError(res.session);
                     discardPartial();
-                    postFailed(self, why.isEmpty()
-                                         ? tr("Upload failed while writing to the server.")
-                                         : tr("Upload failed while writing to the server: %1.")
-                                               .arg(why));
-                    return;
+                    if (why.isEmpty())
+                        out.error = job.testing ? tr("Test failed while writing to the server.")
+                                                : tr("Upload failed while writing to the server.");
+                    else
+                        out.error = (job.testing
+                                         ? tr("Test failed while writing to the server: %1.")
+                                         : tr("Upload failed while writing to the server: %1."))
+                                        .arg(why);
+                    return out;
                 }
                 offset += written;
             }
@@ -529,122 +462,30 @@ void SftpUploader::upload(const QString &localPath, const QString &keyHint)
         if (closeRc != 0) {
             const QString why = sessionError(res.session);
             (void) libssh2_sftp_unlink(res.sftp, remoteUtf8.constData());
-            postFailed(self, why.isEmpty()
-                                 ? tr("Upload failed while finishing the remote file.")
-                                 : tr("Upload failed while finishing the remote file: %1.")
-                                       .arg(why));
-            return;
+            if (why.isEmpty())
+                out.error = job.testing ? tr("Test failed while finishing the remote file.")
+                                        : tr("Upload failed while finishing the remote file.");
+            else
+                out.error = (job.testing
+                                 ? tr("Test failed while finishing the remote file: %1.")
+                                 : tr("Upload failed while finishing the remote file: %1."))
+                                .arg(why);
+            return out;
         }
 
-        postToGui([self, publicUrl, needsPin = session.needsPin, host = params.host,
-                   port = params.port, fingerprint = session.fingerprint] {
-            // Trust-on-first-use is only recorded once the whole exchange worked, and on
-            // the GUI thread because KnownHosts is QSettings I/O. Pin first, then hand
-            // back the link - the pin belongs to the app, not to this uploader, so it is
-            // written even if the uploader is already gone.
-            if (needsPin)
-                KnownHosts::remember(host, port, fingerprint);
-            if (self)
-                emit self->uploaded(publicUrl);
-        });
-    });
-}
-
-// Write a tiny probe file and unlink it again: the only check that proves the host key,
-// the credentials, the remote directory (created on demand, exactly as an upload would)
-// and write permission all work. A successful test IS a successful exchange, so it pins
-// an unknown host key on first use just like an upload does.
-void SftpUploader::testConnection()
-{
-    if (m_started)
-        return;                 // one uploader, one transfer, one terminal signal
-    m_started = true;
-
-    const UploadConfig &cfg = m_config;
-
-    const QString remotePath = Util::buildRemotePath(
-        cfg.remoteDir, Util::uniqueRemoteName(QStringLiteral("snim-connection-test.txt")));
-    const SessionParams params = sessionParamsFor(cfg);
-
-    // The worker captures value copies only - never `this`.
-    (void) QtConcurrent::run([self = QPointer<SftpUploader>(this), cancel = m_cancel,
-                              remotePath, params] {
-        // 1-5: the same session establishment an upload uses, host-key policy included.
-        SshResources res;
-        const SessionResult session = establishSession(res, params);
-        if (!session.ok) {
-            postTestResult(self, false, session.error);
-            return;
+        // The probe goes again; a failed cleanup is a note, not a failure.
+        if (job.testing)
+            out.probeLeft = libssh2_sftp_unlink(res.sftp, remoteUtf8.constData()) != 0;
+        out.status = Outcome::Status::Done;
+        // Trust-on-first-use is only recorded once the whole exchange worked, and on the
+        // GUI thread because KnownHosts is QSettings I/O.
+        if (session.needsPin) {
+            out.onDone = [host = params.host, port = params.port, pin = session.fingerprint] {
+                KnownHosts::remember(host, port, pin);
+            };
         }
-        if (cancel->load())
-            return;   // the tester is gone, nobody to tell
-        ensureRemoteDir(res.sftp, remotePath);
-
-        const QByteArray probe = QByteArrayLiteral("Snim connection test");
-        const QByteArray remoteUtf8 = remotePath.toUtf8();
-        res.handle = libssh2_sftp_open(res.sftp, remoteUtf8.constData(),
-                                       LIBSSH2_FXF_WRITE | LIBSSH2_FXF_CREAT | LIBSSH2_FXF_TRUNC,
-                                       LIBSSH2_SFTP_S_IRUSR | LIBSSH2_SFTP_S_IWUSR
-                                           | LIBSSH2_SFTP_S_IRGRP | LIBSSH2_SFTP_S_IROTH);
-        if (!res.handle) {
-            const QString why = sessionError(res.session);
-            postTestResult(self, false,
-                           why.isEmpty()
-                               ? tr("Could not create %1 on the server.").arg(remotePath)
-                               : tr("Could not create %1 on the server: %2.").arg(remotePath, why));
-            return;
-        }
-
-        // Partial writes are normal even for a payload this small.
-        qint64 offset = 0;
-        while (offset < probe.size()) {
-            const ssize_t written = libssh2_sftp_write(res.handle, probe.constData() + offset,
-                                                       static_cast<size_t>(probe.size() - offset));
-            if (written <= 0) {
-                const QString why = sessionError(res.session);
-                libssh2_sftp_close(res.handle);
-                res.handle = nullptr;
-                (void) libssh2_sftp_unlink(res.sftp, remoteUtf8.constData());
-                postTestResult(self, false,
-                               why.isEmpty()
-                                   ? tr("Test failed while writing to the server.")
-                                   : tr("Test failed while writing to the server: %1.").arg(why));
-                return;
-            }
-            offset += written;
-        }
-
-        // Close before judging: a write error can still surface here.
-        const int closeRc = libssh2_sftp_close(res.handle);
-        res.handle = nullptr;
-        if (closeRc != 0) {
-            const QString why = sessionError(res.session);
-            (void) libssh2_sftp_unlink(res.sftp, remoteUtf8.constData());
-            postTestResult(self, false,
-                           why.isEmpty()
-                               ? tr("Test failed while finishing the remote file.")
-                               : tr("Test failed while finishing the remote file: %1.").arg(why));
-            return;
-        }
-
-        // The write - the thing being tested - worked; a failed cleanup is a note, not a
-        // failure, but the user has to hear about the file left behind.
-        const bool removed = libssh2_sftp_unlink(res.sftp, remoteUtf8.constData()) == 0;
-        const QString message =
-            removed ? tr("Connected: uploaded and removed a test file.")
-                    : tr("Connected, but the test file %1 could not be removed. "
-                         "Delete it manually.").arg(remotePath);
-
-        postToGui([self, needsPin = session.needsPin, host = params.host, port = params.port,
-                   fingerprint = session.fingerprint, message] {
-            // Same rule as an upload: trust-on-first-use is recorded only after the whole
-            // exchange worked, and on the GUI thread (KnownHosts is QSettings I/O).
-            if (needsPin)
-                KnownHosts::remember(host, port, fingerprint);
-            if (self)
-                emit self->testFinished(true, message);
-        });
-    });
+        return out;
+    };
 }
 
 } // namespace Upload

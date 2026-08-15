@@ -1,19 +1,11 @@
 #include "upload/strategies/FtpUploader.h"
-#include "upload/UploadConfig.h"
 #include "upload/Util.h"
 
-#include <QBuffer>
-#include <QCoreApplication>
-#include <QFile>
-#include <QMetaObject>
-#include <QPointer>
-#include <QStringList>
-#include <QtConcurrentRun>
+#include <QIODevice>
 
 #include <curl/curl.h>
 
 #include <mutex>
-#include <utility>
 
 namespace Upload {
 
@@ -25,37 +17,10 @@ namespace {
 // upload is in flight would be far worse than leaking a one-time allocation.
 std::once_flag g_curlInit;
 
-// Every worker -> GUI hop goes through here. qApp is the context object, so the lambda
-// runs on the GUI thread, where the QPointer check is race-free (the uploader is created
-// and destroyed there and nowhere else). During shutdown qApp can already be gone - a
-// still-running worker then has nobody to talk to, and dropping the post is correct.
-template <typename F>
-void postToGui(F &&fn)
-{
-    if (QCoreApplication *app = QCoreApplication::instance())
-        QMetaObject::invokeMethod(app, std::forward<F>(fn), Qt::QueuedConnection);
-}
-
-void postFailed(const QPointer<FtpUploader> &self, const QString &message)
-{
-    postToGui([self, message] {
-        if (self)
-            emit self->failed(message);
-    });
-}
-
-void postTestResult(const QPointer<FtpUploader> &self, bool ok, const QString &message)
-{
-    postToGui([self, ok, message] {
-        if (self)
-            emit self->testFinished(ok, message);
-    });
-}
-
 struct ReadCtx {
     // A QFile for a real upload, an in-memory QBuffer for the connection-test probe.
     QIODevice *body = nullptr;
-    std::shared_ptr<std::atomic_bool> cancel;
+    const std::atomic_bool *cancel = nullptr;
     bool readError = false;   // a local read failure, told apart from a cancel abort
 };
 
@@ -76,34 +41,26 @@ size_t readCallback(char *buffer, size_t size, size_t nitems, void *userdata)
 // Polled every transfer loop, so a cancel lands between reads too (1 = abort).
 int xferInfoCallback(void *userdata, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
 {
-    return static_cast<std::atomic_bool *>(userdata)->load() ? 1 : 0;
+    return static_cast<const std::atomic_bool *>(userdata)->load() ? 1 : 0;
 }
 
-// One store-and-forward transfer, described by value so upload() and testConnection()
-// drive the same option block instead of two copies that can drift apart.
-struct Transfer {
-    QString url;                 // credential-free ftp(s):// URL, path already encoded
-    QString username;            // empty = curl's built-in anonymous login
-    QString password;
-    FtpEncryption encryption = FtpEncryption::Explicit;
-    qint64 size = 0;
-    QByteArray postQuote;        // raw command sent after the transfer (test: "DELE <path>")
-};
-
-// Runs the transfer on the calling (worker) thread. CURLE_FAILED_INIT means curl itself
+// One store of readCtx's body to url, run on the calling (worker) thread; postQuote is a
+// raw command sent after it (test: "DELE <name>"). CURLE_FAILED_INIT means curl itself
 // could not be set up; *responseCode gets the FTP reply code when the server sent one.
-CURLcode performTransfer(const Transfer &t, ReadCtx *readCtx, long *responseCode)
+CURLcode performTransfer(const UploadConfig &cfg, const QString &url, ReadCtx *readCtx,
+                         const QByteArray &postQuote, long *responseCode)
 {
     CURL *curl = curl_easy_init();
     if (!curl)
         return CURLE_FAILED_INIT;
 
-    const QByteArray urlUtf8 = t.url.toUtf8();
+    const QByteArray urlUtf8 = url.toUtf8();
     curl_easy_setopt(curl, CURLOPT_URL, urlUtf8.constData());
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, &readCallback);
     curl_easy_setopt(curl, CURLOPT_READDATA, readCtx);
-    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, static_cast<curl_off_t>(t.size));
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
+                     static_cast<curl_off_t>(readCtx->body->size()));
     // Remote mkdir -p, but only after a CWD actually fails.
     curl_easy_setopt(curl, CURLOPT_FTP_CREATE_MISSING_DIRS,
                      static_cast<long>(CURLFTP_CREATE_DIR_RETRY));
@@ -115,12 +72,12 @@ CURLcode performTransfer(const Transfer &t, ReadCtx *readCtx, long *responseCode
     curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &xferInfoCallback);
-    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, readCtx->cancel.get());
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, readCtx->cancel);
 
     // Only when named - an empty username means curl's built-in anonymous login.
-    const QByteArray user = t.username.toUtf8();
-    const QByteArray pass = t.password.toUtf8();
-    if (!t.username.isEmpty()) {
+    const QByteArray user = cfg.username.toUtf8();
+    const QByteArray pass = cfg.secretKey.toUtf8();
+    if (!cfg.username.isEmpty()) {
         curl_easy_setopt(curl, CURLOPT_USERNAME, user.constData());
         curl_easy_setopt(curl, CURLOPT_PASSWORD, pass.constData());
     }
@@ -129,15 +86,15 @@ CURLcode performTransfer(const Transfer &t, ReadCtx *readCtx, long *responseCode
     // AND data (never CURLUSESSL_TRY) so a misconfigured server can't silently
     // downgrade the transfer to plaintext. Implicit TLS already rides the ftps://
     // scheme; asking for ALL there is redundant but states the same intent.
-    if (t.encryption != FtpEncryption::None)
+    if (cfg.ftpEncryption != FtpEncryption::None)
         curl_easy_setopt(curl, CURLOPT_USE_SSL, static_cast<long>(CURLUSESSL_ALL));
 
     // POSTQUOTE runs on the same control connection once the data transfer is done, so
     // the connection test writes and removes its probe in a single session. A failing
     // command surfaces as CURLE_QUOTE_ERROR.
     curl_slist *quote = nullptr;
-    if (!t.postQuote.isEmpty()) {
-        quote = curl_slist_append(nullptr, t.postQuote.constData());
+    if (!postQuote.isEmpty()) {
+        quote = curl_slist_append(nullptr, postQuote.constData());
         curl_easy_setopt(curl, CURLOPT_POSTQUOTE, quote);
     }
 
@@ -177,127 +134,21 @@ QString failureMessage(bool testing, CURLcode rc, long response, const QString &
 } // namespace
 
 FtpUploader::FtpUploader(const UploadConfig &config, QObject *parent)
-    : Uploader(parent), m_config(config),
-      m_cancel(std::make_shared<std::atomic_bool>(false))
+    : BlockingUploader(config, parent)
 {
     std::call_once(g_curlInit, [] { curl_global_init(CURL_GLOBAL_DEFAULT); });
 }
 
-FtpUploader::~FtpUploader()
+QUrl FtpUploader::fallbackUrl(const QString &remotePath) const
 {
-    m_cancel->store(true);   // a worker still running stops at its next callback
+    return QUrl(Util::buildFtpUrl(m_config, remotePath));
 }
 
-void FtpUploader::upload(const QString &localPath, const QString &keyHint)
+BlockingUploader::Transfer FtpUploader::transfer() const
 {
-    if (m_started)
-        return;                 // one uploader, one transfer, one terminal signal
-    m_started = true;
-
-    const UploadConfig &cfg = m_config;
-    {
-        QFile probe(localPath);
-        if (!probe.open(QIODevice::ReadOnly)) {
-            QMetaObject::invokeMethod(this, [this] {
-                emit failed(tr("Could not open the file to upload."));
-            }, Qt::QueuedConnection);
-            return;
-        }
-    }
-
-    const QString remoteName = Util::uniqueRemoteName(keyHint);
-    const QString remotePath = Util::buildRemotePath(cfg.remoteDir, remoteName);
-    const QString requestUrl = Util::buildFtpUrl(cfg, remotePath);
-    // Public URL: an explicit base maps the whole remote tree, so it joins the full
-    // remote path - minus the absolute marker, which would double the separator. Without
-    // a base, fall back to the credential-free ftp(s):// URL (mirrors S3Uploader), so
-    // isComplete() never has to require publicBaseUrl.
-    const QUrl publicUrl =
-        cfg.publicBaseUrl.isEmpty()
-            ? QUrl(requestUrl)
-            : QUrl(Util::joinPublicUrl(cfg.publicBaseUrl,
-                                       remotePath.startsWith(QLatin1Char('/'))
-                                           ? remotePath.mid(1)
-                                           : remotePath));
-
-    // The worker captures value copies only - never `this`. tr() below is the static
-    // FtpUploader::tr(), so it needs no capture either. Fire and forget: the worker
-    // reports back through the marshaled signals, so nobody holds the QFuture.
-    (void) QtConcurrent::run([self = QPointer<FtpUploader>(this), cancel = m_cancel,
-                              localPath, publicUrl, url = requestUrl,
-                              username = cfg.username, password = cfg.secretKey,
-                              encryption = cfg.ftpEncryption] {
-        QFile file(localPath);
-        if (!file.open(QIODevice::ReadOnly)) {
-            postFailed(self, tr("Could not open the file to upload."));
-            return;
-        }
-
-        ReadCtx readCtx{&file, cancel, false};
-
-        Transfer t;
-        t.url = url;
-        t.username = username;
-        t.password = password;
-        t.encryption = encryption;
-        t.size = file.size();
-
-        long response = 0;
-        const CURLcode rc = performTransfer(t, &readCtx, &response);
-
-        if (rc == CURLE_OK) {
-            postToGui([self, publicUrl] {
-                if (self)
-                    emit self->uploaded(publicUrl);
-            });
-            return;
-        }
-        if (readCtx.readError) {
-            postFailed(self, tr("Upload failed: could not read the local file."));
-            return;
-        }
-        if (rc == CURLE_ABORTED_BY_CALLBACK || cancel->load())
-            return;   // the uploader is gone, nobody to tell
-        if (rc == CURLE_FAILED_INIT) {
-            postFailed(self, tr("Upload failed: could not initialize the FTP transport."));
-            return;
-        }
-        postFailed(self, failureMessage(/*testing=*/false, rc, response, username));
-    });
-}
-
-// Upload a tiny probe file and have the server delete it again in the same session: the
-// only check that proves the login, the remote directory (created on demand, exactly as
-// an upload would) and write permission all work.
-void FtpUploader::testConnection()
-{
-    if (m_started)
-        return;                 // one uploader, one transfer, one terminal signal
-    m_started = true;
-
-    const UploadConfig &cfg = m_config;
-
-    const QString remoteName = Util::uniqueRemoteName(QStringLiteral("snim-connection-test.txt"));
-    const QString remotePath = Util::buildRemotePath(cfg.remoteDir, remoteName);
-    const QString requestUrl = Util::buildFtpUrl(cfg, remotePath);
-
-    // The worker captures value copies only - never `this`.
-    (void) QtConcurrent::run([self = QPointer<FtpUploader>(this), cancel = m_cancel,
-                              url = requestUrl, remotePath, remoteName,
-                              username = cfg.username, password = cfg.secretKey,
-                              encryption = cfg.ftpEncryption] {
-        QBuffer body;
-        body.setData(QByteArrayLiteral("Snim connection test"));
-        body.open(QIODevice::ReadOnly);
-
-        ReadCtx readCtx{&body, cancel, false};
-
-        Transfer t;
-        t.url = url;
-        t.username = username;
-        t.password = password;
-        t.encryption = encryption;
-        t.size = body.size();
+    // tr() below is the static FtpUploader::tr(), so the worker captures values only.
+    return [cfg = m_config](QIODevice &body, const Job &job, const std::atomic_bool &cancel) {
+        ReadCtx readCtx{&body, &cancel, false};
         // DELE is a raw FTP command, so its argument is the DECODED path - never the
         // "%2F"-escaped form the URL needs - resolved against the server's CURRENT
         // directory. curl's default file method is MULTICWD: it CWDs into each directory
@@ -305,31 +156,29 @@ void FtpUploader::testConnection()
         // already sits in the probe's own directory. The bare name is therefore the right
         // argument for an absolute and a login-relative remoteDir alike (the full
         // relative path would resolve one directory tree too deep).
-        t.postQuote = QByteArrayLiteral("DELE ") + remoteName.toUtf8();
-
+        const QByteArray postQuote =
+            job.testing ? QByteArrayLiteral("DELE ") + job.remoteName.toUtf8() : QByteArray();
         long response = 0;
-        const CURLcode rc = performTransfer(t, &readCtx, &response);
+        const CURLcode rc = performTransfer(cfg, Util::buildFtpUrl(cfg, job.remotePath),
+                                            &readCtx, postQuote, &response);
 
-        if (rc == CURLE_OK) {
-            postTestResult(self, true, tr("Connected: uploaded and removed a test file."));
-            return;
+        Outcome out;
+        if (rc == CURLE_OK || rc == CURLE_QUOTE_ERROR) {
+            // A quote error is the probe's cleanup alone: the transfer itself worked.
+            out.status = Outcome::Status::Done;
+            out.probeLeft = rc == CURLE_QUOTE_ERROR;
+        } else if (readCtx.readError) {
+            out.error = tr("Upload failed: could not read the local file.");
+        } else if (rc == CURLE_ABORTED_BY_CALLBACK || cancel.load()) {
+            out.status = Outcome::Status::Cancelled;
+        } else if (rc == CURLE_FAILED_INIT) {
+            out.error = job.testing ? tr("Test failed: could not initialize the FTP transport.")
+                                    : tr("Upload failed: could not initialize the FTP transport.");
+        } else {
+            out.error = failureMessage(job.testing, rc, response, cfg.username);
         }
-        // The transfer itself - the thing being tested - worked and only the cleanup
-        // command failed, so this is still a pass with a stray file to mention.
-        if (rc == CURLE_QUOTE_ERROR) {
-            postTestResult(self, true,
-                           tr("Connected, but the test file %1 could not be removed. "
-                              "Delete it manually.").arg(remotePath));
-            return;
-        }
-        if (rc == CURLE_ABORTED_BY_CALLBACK || cancel->load())
-            return;   // the tester is gone, nobody to tell
-        if (rc == CURLE_FAILED_INIT) {
-            postTestResult(self, false, tr("Test failed: could not initialize the FTP transport."));
-            return;
-        }
-        postTestResult(self, false, failureMessage(/*testing=*/true, rc, response, username));
-    });
+        return out;
+    };
 }
 
 } // namespace Upload

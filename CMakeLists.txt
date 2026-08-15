@@ -410,6 +410,7 @@ add_library(snim_lib STATIC
         src/core/Perf.cpp
         src/core/Perf.h
         src/core/FileNames.h
+        src/core/PostToGui.h
         src/core/KeychainStore.h
         # GitHub releases lookup behind the tray's "Check for updates" action.
         src/core/UpdateCheck.cpp
@@ -450,6 +451,8 @@ add_library(snim_lib STATIC
         src/upload/SocketShim.h
         src/upload/SigV4.cpp
         src/upload/SigV4.h
+        src/upload/strategies/BlockingUploader.cpp
+        src/upload/strategies/BlockingUploader.h
         src/upload/strategies/S3Uploader.cpp
         src/upload/strategies/S3Uploader.h
         src/upload/strategies/StubUploader.cpp

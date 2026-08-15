@@ -1,12 +1,11 @@
 #include "OCRService.h"
 #include "core/BundledPaths.h"
 #include "core/Perf.h"
+#include "core/PostToGui.h"
 #include <QElapsedTimer>
-#include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
-#include <QMetaObject>
 #include <QPointer>
 #include <QtConcurrentRun>
 #include <utility>
@@ -19,14 +18,6 @@
 namespace OCR {
 
 namespace {
-
-// Every worker -> GUI hop goes through here; qApp is gone during shutdown, so dropping the post is correct.
-template <typename F>
-void postToGui(F &&fn)
-{
-    if (QCoreApplication *app = QCoreApplication::instance())
-        QMetaObject::invokeMethod(app, std::forward<F>(fn), Qt::QueuedConnection);
-}
 
 #ifdef HAVE_TESSERACT
 // A bundle ships its own language packs, which Tesseract's built-in search path never
@@ -193,7 +184,7 @@ void OCRService::performOCRAsync(const QImage& image, const QString& language,
                              onDone = std::move(onDone)] {
         OCRService svc;
         const OCRResult r = svc.performOCR(image, language);
-        postToGui([self, r, onDone] {
+        Core::postToGui([self, r, onDone] {
             if (self)
                 onDone(r);
         });

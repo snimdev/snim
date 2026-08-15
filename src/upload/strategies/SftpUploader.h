@@ -1,11 +1,7 @@
 #ifndef UPLOAD_SFTPUPLOADER_H
 #define UPLOAD_SFTPUPLOADER_H
 
-#include "upload/Uploader.h"
-#include "upload/UploadConfig.h"
-
-#include <atomic>
-#include <memory>
+#include "upload/strategies/BlockingUploader.h"
 
 namespace Upload {
 
@@ -15,37 +11,23 @@ namespace Upload {
  * which a detached QTcpSocket cannot promise. Compiled only where libssh2 was found
  * (see CMakeLists); elsewhere the factory hands back a Stub that says so.
  *
- * upload() stays on the GUI thread just long enough to read the known-host pin (QSettings
- * must not leave the main thread) and pre-compute the remote path/URL, then runs the
- * transfer on a QtConcurrent thread. The worker never
- * touches this object: it holds value copies plus a shared cancel flag, and every signal
- * is marshaled back through qApp with a QPointer null-check, so the uploader may be
- * destroyed mid-transfer - which is exactly what the owner does (deleteLater() from the
- * terminal-signal handler). Single-shot: one uploader, one upload(), exactly one
- * uploaded()/failed().
- *
  * Host keys are verified before authentication, in three tiers: ~/.ssh/known_hosts, then
  * Snim's own pin store (Upload::KnownHosts), then trust-on-first-use - and a key that
- * *contradicts* either store is a hard failure, never a prompt-free overwrite.
+ * *contradicts* either store is a hard failure, never a prompt-free overwrite. A test is
+ * a whole exchange too, so it pins an unknown key on first use just like an upload.
  */
-class SftpUploader : public Uploader
+class SftpUploader : public BlockingUploader
 {
     Q_OBJECT
 
 public:
     // A complete config, secret included (see UploaderFactory).
     explicit SftpUploader(const UploadConfig &config, QObject *parent = nullptr);
-    ~SftpUploader() override;
 
-    void upload(const QString &localPath, const QString &keyHint) override;
-    void testConnection() override;
-
-private:
-    const UploadConfig m_config;
-    // Shared with the worker (which may outlive us): set by the destructor, polled once
-    // per written chunk.
-    std::shared_ptr<std::atomic_bool> m_cancel;
-    bool m_started = false;                       // single-shot guard
+protected:
+    [[nodiscard]] Transfer transfer() const override;
+    // A credential-free sftp:// pseudo-URL of the remote file.
+    [[nodiscard]] QUrl fallbackUrl(const QString &remotePath) const override;
 };
 
 } // namespace Upload
