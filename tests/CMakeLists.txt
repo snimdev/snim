@@ -200,16 +200,21 @@ if(GSTREAMER_AVAILABLE)
     endforeach()
 endif()
 
-# Manual frozen frame check for the recording selector on a live Linux desktop.
+# Manual checks on a live Linux desktop: the recording selector's frozen frame, and one
+# screenshot through the app's capture strategy with the selector driven like a user.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_executable(snim_frozenframe_probe manual/frozenframe_probe.cpp)
+    add_executable(snim_capture_probe manual/capture_probe.cpp)
     target_link_libraries(snim_frozenframe_probe PRIVATE snim_lib)
-    set_target_properties(snim_frozenframe_probe PROPERTIES ENABLE_EXPORTS ON)
-    if(GSTREAMER_AVAILABLE)
-        add_dependencies(snim_frozenframe_probe snim_recorder_linux)
-        target_compile_definitions(snim_frozenframe_probe PRIVATE
-                SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
-    endif()
+    target_link_libraries(snim_capture_probe PRIVATE snim_lib Qt6::Test)
+    foreach(probe snim_frozenframe_probe snim_capture_probe)
+        set_target_properties(${probe} PROPERTIES ENABLE_EXPORTS ON)
+        if(GSTREAMER_AVAILABLE)
+            add_dependencies(${probe} snim_recorder_linux)
+            target_compile_definitions(${probe} PRIVATE
+                    SNIM_RECORDER_MODULE_PATH="$<TARGET_FILE:snim_recorder_linux>")
+        endif()
+    endforeach()
 endif()
 
 # Manual probe for a live wlroots-family compositor; built, never registered with ctest.
