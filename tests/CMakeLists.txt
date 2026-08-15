@@ -19,6 +19,7 @@ set(SNIM_TESTS
         tst_backdrop_memento
         tst_layermanager
         tst_areaselector
+        tst_selectorgroup
         tst_selectionlayer
         tst_overlayannotations
         tst_annotationhandoff

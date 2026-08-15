@@ -1,5 +1,6 @@
 #include "CaptureStrategy.h"
 #include "screen/AreaSelector.h"
+#include "screen/SelectorGroup.h"
 #include "capture/CaptureGeometry.h"
 #include "capture/OverlayAnnotations.h"
 #include "core/FileNames.h"
@@ -12,8 +13,6 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QGuiApplication>
-#include <QScreen>
-#include <QWindow>
 
 namespace Capture {
 
@@ -60,54 +59,29 @@ void CaptureStrategy::showAreaSelector(const QPixmap &frame, const QRect &virtua
     qDebug() << "Showing area selector, virtual geometry:" << virtualGeometry
              << "frame:" << frame.size() << "DPR:" << frame.devicePixelRatio();
 
-    auto *selectors = new QList<Screen::AreaSelector*>();
-    for (QScreen *screen : QGuiApplication::screens()) {
-        const QRect screenGeometry = screen->geometry();
-        auto *selector = new Screen::AreaSelector();
-        selector->setScreenshot(frame);
-        selector->setVirtualGeometry(virtualGeometry);
-        selector->setScreenOffset(screenGeometry.topLeft());
-        selector->setActionsEnabled(quickActionsEnabled());
+    Screen::SelectorGroup::Options options;
+    options.actions = quickActionsEnabled();
+    auto *group = new Screen::SelectorGroup(frame, virtualGeometry, options, this);
+    const auto annotations = attachAnnotations(group->selectors(), frame, virtualGeometry);
 
-        selector->setGeometry(screenGeometry);
-        selector->setWindowState(Qt::WindowFullScreen);
-        selector->winId(); // ensure the native window exists before placing it
-        if (QWindow *window = selector->windowHandle())
-            window->setScreen(screen);
-        selector->showFullScreen();
-
-        selectors->append(selector);
-    }
-
-    const auto annotations = attachAnnotations(*selectors, frame, virtualGeometry);
-
-    for (auto *selector : *selectors) {
-        // Each handler copies the session first: teardown disconnects its own lambda.
-        connect(selector, &Screen::AreaSelector::areaSelected,
-                this, [this, selectors, frame, virtualGeometry, annotations](const QRect &area) {
-            const auto session = annotations;
-            tearDownSelectors(selectors);
-            if (area.isEmpty()) {
-                qDebug() << "Area selection cancelled";
-                emit screenshotCancelled();
-                return;
-            }
-            emitSelection(frame, virtualGeometry, area, session);
-        });
-        connect(selector, &Screen::AreaSelector::copyRequested,
-                this, [this, selectors, frame, virtualGeometry, annotations](const QRect &area) {
-            const auto session = annotations;
-            tearDownSelectors(selectors);
-            copyAreaToClipboard(frame, virtualGeometry, area, session);
-        });
-        connect(selector, &Screen::AreaSelector::saveRequested,
-                this, [this, selectors, frame, virtualGeometry, annotations](const QRect &area) {
-            const auto session = annotations;
-            // Teardown first, or the save dialog opens behind the overlay.
-            tearDownSelectors(selectors);
-            saveAreaToFile(frame, virtualGeometry, area, session);
-        });
-    }
+    // The group closes every overlay before it signals, so the save dialog is never covered.
+    connect(group, &Screen::SelectorGroup::areaSelected, this,
+            [this, frame, virtualGeometry, annotations](const QRect &area) {
+        if (area.isEmpty()) {
+            qDebug() << "Area selection cancelled";
+            emit screenshotCancelled();
+            return;
+        }
+        emitSelection(frame, virtualGeometry, area, annotations);
+    });
+    connect(group, &Screen::SelectorGroup::copyRequested, this,
+            [this, frame, virtualGeometry, annotations](const QRect &area) {
+        copyAreaToClipboard(frame, virtualGeometry, area, annotations);
+    });
+    connect(group, &Screen::SelectorGroup::saveRequested, this,
+            [this, frame, virtualGeometry, annotations](const QRect &area) {
+        saveAreaToFile(frame, virtualGeometry, area, annotations);
+    });
 }
 
 void CaptureStrategy::deliverFrame(const QPixmap &frame, const QRect &virtualGeometry,

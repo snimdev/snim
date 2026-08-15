@@ -50,8 +50,8 @@ signals:
 protected:
     // Terminal actions for the selection toolbar, shared by every strategy: crop
     // the frozen frame to the selection, then copy it or save it. Callers own the
-    // frame, so they pass it in; they must also tear the overlays down BEFORE
-    // saveAreaToFile, or the file dialog opens behind a fullscreen overlay.
+    // frame, so they pass it in; the overlays must be closed BEFORE saveAreaToFile,
+    // or the file dialog opens behind a fullscreen overlay.
     void copyAreaToClipboard(const QPixmap &shot, const QRect &virtualGeometry, const QRect &area,
                              const QSharedPointer<OverlayAnnotations> &annotations = {});
     void saveAreaToFile(const QPixmap &shot, const QRect &virtualGeometry, const QRect &area,
@@ -72,8 +72,7 @@ protected:
                                                          const QPixmap &frame,
                                                          const QRect &virtualGeometry);
 
-    // One fullscreen selector per screen over the frozen frame; the pick is emitted like
-    // any capture.
+    // One selector per screen over the frozen frame; the pick is emitted like any capture.
     void showAreaSelector(const QPixmap &frame, const QRect &virtualGeometry);
 
     // A frame source's desktop: the selector over it, or straight out. A partial pick
