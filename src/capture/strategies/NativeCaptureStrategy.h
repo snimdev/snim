@@ -2,24 +2,13 @@
 #define CAPTURE_NATIVECAPTURESTRATEGY_H
 
 #include "CaptureStrategy.h"
-#include "capture/CaptureGeometry.h"
-#include "screen/WindowEnumerator.h"
-#include <QScreen>
-#include <QApplication>
-#include <QTimer>
-#include <QVector>
-#include <QRect>
-#include <QList>
-#include <utility>
-
-namespace Screen {
-class AreaSelector;
-} // namespace Screen
+#include <QPixmap>
 
 namespace Capture {
 
 /**
- * Native Qt capture strategy using QScreen for X11/traditional systems
+ * Native Qt capture through QScreen: macOS, Windows and X11. The area and window pickers
+ * draw over every screen grabbed at once.
  */
 class NativeCaptureStrategy : public CaptureStrategy
 {
@@ -36,21 +25,9 @@ public:
     QString name() const override { return "Native Qt Capture"; }
 
 private:
-    void onAreaSelected(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
     QPixmap captureScreen();
-    QPixmap captureAllScreens();
-    void showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry,
-                          bool windowPick = false,
-                          const QVector<Screen::WindowInfo> &windows = {});
-    void onCopyRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
-    void onSaveRequested(const QRect &area, const QSharedPointer<OverlayAnnotations> &annotations);
-    // The frame and its geometry to crop area from: one screen's own grab when it holds area.
-    [[nodiscard]] std::pair<QPixmap, QRect> cropSource(const QRect &area) const;
-    void clearFrames();
-
-    QPixmap m_fullScreenshot; // Store for area selection
-    QRect m_virtualGeometry;  // Store virtual desktop geometry
-    QList<ScreenGrab> m_screenGrabs; // Windows only: each screen's own grab
+    // Freezes every screen, then opens the selector on the next tick.
+    void grabAndSelect(bool windowPick);
 };
 
 } // namespace Capture

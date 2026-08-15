@@ -6,7 +6,10 @@
 #include <QPixmap>
 #include <QRect>
 #include <QSharedPointer>
+#include <QVector>
 #include "editor/annotations/AnnotationSet.h"
+#include "screen/DesktopStitch.h"
+#include "screen/WindowEnumerator.h"
 
 namespace Screen {
 class AreaSelector;
@@ -15,6 +18,14 @@ class AreaSelector;
 namespace Capture {
 
 class OverlayAnnotations;
+
+// How the selector opens: an area selection unless a strategy asks for more.
+struct SelectorOptions {
+    bool windowPick = false;               // pick a window instead, no toolbar or annotations
+    QVector<Screen::WindowInfo> windows;   // its candidates, front to back
+    // Each screen's own grab, so an area on one screen crops at that screen's DPR (Windows).
+    QList<Screen::ScreenGrab> screenGrabs;
+};
 
 /**
  * Abstract base class for different screenshot capture strategies
@@ -73,15 +84,12 @@ protected:
                                                          const QRect &virtualGeometry);
 
     // One selector per screen over the frozen frame; the pick is emitted like any capture.
-    void showAreaSelector(const QPixmap &frame, const QRect &virtualGeometry);
+    void showAreaSelector(const QPixmap &frame, const QRect &virtualGeometry,
+                          const SelectorOptions &options = {});
 
     // A frame source's desktop: the selector over it, or straight out. A partial pick
     // made in a system dialog (a region, one monitor) goes out as it is, never stretched.
     void deliverFrame(const QPixmap &frame, const QRect &virtualGeometry, bool showSelector);
-
-    // Every terminal action closes ALL the per-screen overlays first, so nothing is left
-    // covering the screen or the save dialog.
-    static void tearDownSelectors(QList<Screen::AreaSelector*> *selectors);
 
     bool m_quickActionsEnabled = true;
 };

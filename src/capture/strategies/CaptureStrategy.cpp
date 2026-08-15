@@ -14,6 +14,8 @@
 #include <QFileDialog>
 #include <QGuiApplication>
 
+#include <utility>
+
 namespace Capture {
 
 // This file provides the implementation for the CaptureStrategy base class
@@ -54,33 +56,55 @@ QSharedPointer<OverlayAnnotations> CaptureStrategy::attachAnnotations(
     return session;
 }
 
-void CaptureStrategy::showAreaSelector(const QPixmap &frame, const QRect &virtualGeometry)
+void CaptureStrategy::showAreaSelector(const QPixmap &frame, const QRect &virtualGeometry,
+                                       const SelectorOptions &options)
 {
     qDebug() << "Showing area selector, virtual geometry:" << virtualGeometry
              << "frame:" << frame.size() << "DPR:" << frame.devicePixelRatio();
 
-    Screen::SelectorGroup::Options options;
-    options.actions = quickActionsEnabled();
-    auto *group = new Screen::SelectorGroup(frame, virtualGeometry, options, this);
-    const auto annotations = attachAnnotations(group->selectors(), frame, virtualGeometry);
+    Screen::SelectorGroup::Options groupOptions;
+    if (options.windowPick) {
+        groupOptions.mode = Screen::AreaSelector::Mode::WindowPick;
+        groupOptions.windows = options.windows;
+    }
+    groupOptions.actions = quickActionsEnabled() && !options.windowPick;
+    auto *group = new Screen::SelectorGroup(frame, virtualGeometry, groupOptions, this);
 
-    // The group closes every overlay before it signals, so the save dialog is never covered.
-    connect(group, &Screen::SelectorGroup::areaSelected, this,
-            [this, frame, virtualGeometry, annotations](const QRect &area) {
+    QSharedPointer<OverlayAnnotations> annotations;
+    if (!options.windowPick)
+        annotations = attachAnnotations(group->selectors(), frame, virtualGeometry);
+    if (annotations)
+        annotations->setScreenGrabs(options.screenGrabs);
+
+    // The frame to crop an area from: one screen's own grab when that screen holds it.
+    const auto source = [frame, virtualGeometry, grabs = options.screenGrabs](const QRect &area) {
+        if (const ScreenGrab *grab = screenGrabFor(grabs, area))
+            return std::pair{grab->pixmap, grab->geometry};
+        return std::pair{frame, virtualGeometry};
+    };
+    const auto select = [this, source, annotations](const QRect &area) {
         if (area.isEmpty()) {
             qDebug() << "Area selection cancelled";
             emit screenshotCancelled();
             return;
         }
-        emitSelection(frame, virtualGeometry, area, annotations);
-    });
+        const auto [shot, geometry] = source(area);
+        emitSelection(shot, geometry, area, annotations);
+    };
+
+    // The group closes every overlay before it signals, so the save dialog is never covered.
+    connect(group, &Screen::SelectorGroup::areaSelected, this, select);
+    connect(group, &Screen::SelectorGroup::windowPicked, this,
+            [select](const QRect &area) { select(area); });
     connect(group, &Screen::SelectorGroup::copyRequested, this,
-            [this, frame, virtualGeometry, annotations](const QRect &area) {
-        copyAreaToClipboard(frame, virtualGeometry, area, annotations);
+            [this, source, annotations](const QRect &area) {
+        const auto [shot, geometry] = source(area);
+        copyAreaToClipboard(shot, geometry, area, annotations);
     });
     connect(group, &Screen::SelectorGroup::saveRequested, this,
-            [this, frame, virtualGeometry, annotations](const QRect &area) {
-        saveAreaToFile(frame, virtualGeometry, area, annotations);
+            [this, source, annotations](const QRect &area) {
+        const auto [shot, geometry] = source(area);
+        saveAreaToFile(shot, geometry, area, annotations);
     });
 }
 
@@ -97,17 +121,6 @@ void CaptureStrategy::deliverFrame(const QPixmap &frame, const QRect &virtualGeo
         showAreaSelector(frame, virtualGeometry);
     else
         emit screenshotReady(frame);
-}
-
-void CaptureStrategy::tearDownSelectors(QList<Screen::AreaSelector*> *selectors)
-{
-    for (auto *selector : *selectors) {
-        selector->blockSignals(true);
-        selector->disconnect();
-        selector->close();
-        selector->deleteLater();
-    }
-    delete selectors;
 }
 
 void CaptureStrategy::copyAreaToClipboard(const QPixmap &shot, const QRect &virtualGeometry,

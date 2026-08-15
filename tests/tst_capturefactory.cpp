@@ -53,6 +53,7 @@ class DeliveringStrategy : public CaptureStrategy
 public:
     using CaptureStrategy::CaptureStrategy;
     using CaptureStrategy::deliverFrame;
+    using CaptureStrategy::showAreaSelector;
     void captureFullScreen() override {}
     void captureArea() override {}
     void captureWindow() override {}
@@ -334,6 +335,51 @@ private slots:
         QCOMPARE(failed.count(), 0);
         QCOMPARE(ready.count(), 0);
         QVERIFY(openSelectors().isEmpty());
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+
+    void aWindowPickCropsThePickedWindow()
+    {
+        DeliveringStrategy strategy;
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        const QRect desktop = Screen::qtVirtualDesktop();
+        SelectorOptions options;
+        options.windowPick = true;
+        options.windows = {{QRect(100, 80, 300, 200), 7}};
+        strategy.showAreaSelector(frameOf(desktop.width(), desktop.height(), 1.0), desktop, options);
+        const QList<Screen::AreaSelector *> selectors = openSelectors();
+        QCOMPARE(selectors.size(), QGuiApplication::screens().size());
+        Screen::AreaSelector *selector = selectors.first();
+        QVERIFY(QTest::qWaitForWindowExposed(selector));
+        const QPoint inside = QPoint(150, 100) - selector->geometry().topLeft();
+        QTest::mouseMove(selector, inside);
+        QTest::mouseClick(selector, Qt::LeftButton, Qt::NoModifier, inside);
+        QCOMPARE(ready.count(), 1);
+        QCOMPARE(ready.first().first().value<QPixmap>().size(), QSize(300, 200));
+        QVERIFY(openSelectors().isEmpty());
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+
+    void anAreaOnOneScreenCropsThatScreensOwnGrab()
+    {
+        // Windows hands each screen's own grab along, so the crop keeps that screen's DPR.
+        DeliveringStrategy strategy;
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        const QRect desktop = Screen::qtVirtualDesktop();
+        SelectorOptions options;
+        options.screenGrabs = {{desktop, frameOf(desktop.width() * 2, desktop.height() * 2, 2.0)}};
+        strategy.showAreaSelector(frameOf(desktop.width(), desktop.height(), 1.0), desktop, options);
+        Screen::AreaSelector *selector = openSelectors().value(0);
+        QVERIFY(selector);
+        QVERIFY(QTest::qWaitForWindowExposed(selector));
+        QTest::mousePress(selector, Qt::LeftButton, Qt::NoModifier, QPoint(40, 40));
+        QTest::mouseMove(selector, QPoint(240, 180));
+        QTest::mouseRelease(selector, Qt::LeftButton, Qt::NoModifier, QPoint(240, 180));
+        QTest::keyClick(selector, Qt::Key_Return);
+        QCOMPARE(ready.count(), 1);
+        const QPixmap shot = ready.first().first().value<QPixmap>();
+        QCOMPARE(shot.devicePixelRatio(), 2.0);
+        QCOMPARE(shot.deviceIndependentSize(), QSizeF(QRect(QPoint(40, 40), QPoint(240, 180)).size()));
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     }
 

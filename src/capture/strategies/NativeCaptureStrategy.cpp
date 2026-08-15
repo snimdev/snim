@@ -1,16 +1,11 @@
 #include "NativeCaptureStrategy.h"
-#include "screen/AreaSelector.h"
 #include "screen/WindowEnumerator.h"
-#include "capture/OverlayAnnotations.h"
-#include "screen/OverlayWindows.h"
 #include "screen/sources/QtScreensFrameSource.h"
-#include <QScreen>
 #include <QApplication>
 #include <QCursor>
 #include <QDebug>
+#include <QScreen>
 #include <QTimer>
-#include <QWindow>
-#include <QGuiApplication>
 
 namespace Capture {
 
@@ -31,83 +26,39 @@ void NativeCaptureStrategy::captureFullScreen()
 
 void NativeCaptureStrategy::captureArea()
 {
-    // Capture all screens
-    m_fullScreenshot = captureAllScreens();
-    if (m_fullScreenshot.isNull()) {
-        emit screenshotFailed("Failed to capture screens for area selection");
-        return;
-    }
-
-    // The frame is already grabbed above; present the overlay on the next event
-    // loop tick (so the tray menu's dismissal finishes) with no perceptible delay.
-    QTimer::singleShot(0, [this]() {
-        showAreaSelector(m_fullScreenshot, m_virtualGeometry);
-    });
+    grabAndSelect(false);
 }
 
 void NativeCaptureStrategy::captureWindow()
 {
-    // Freeze all screens, then present an interactive window picker: hovering
-    // highlights the window under the cursor and a click captures it. Falls back
-    // to highlighting the screen under the cursor where window enumeration is
-    // unavailable (see WindowEnumerator).
-    m_fullScreenshot = captureAllScreens();
-    if (m_fullScreenshot.isNull()) {
-        emit screenshotFailed("Failed to capture screens for window selection");
+    // Hover highlights the window under the cursor, a click takes it (see WindowEnumerator).
+    grabAndSelect(true);
+}
+
+void NativeCaptureStrategy::grabAndSelect(bool windowPick)
+{
+    SelectorOptions options;
+    QRect virtualGeometry;
+#ifdef Q_OS_WIN
+    // Mixed DPIs are common on Windows: a single-screen area crops its own screen's grab.
+    const QPixmap frame = Screen::QtScreensFrameSource::grabNow(&virtualGeometry, &options.screenGrabs);
+#else
+    const QPixmap frame = Screen::QtScreensFrameSource::grabNow(&virtualGeometry);
+#endif
+    if (frame.isNull()) {
+        emit screenshotFailed(windowPick ? "Failed to capture screens for window selection"
+                                         : "Failed to capture screens for area selection");
         return;
     }
-
-    const QVector<Screen::WindowInfo> windows = Screen::enumerateWindowInfos();
-    QTimer::singleShot(0, [this, windows]() {
-        showAreaSelector(m_fullScreenshot, m_virtualGeometry, /*windowPick=*/true, windows);
-    });
-}
-
-void NativeCaptureStrategy::onAreaSelected(const QRect &area,
-                                           const QSharedPointer<OverlayAnnotations> &annotations)
-{
-    if (area.isEmpty()) {
-        // User cancelled (pressed Escape)
-        qDebug() << "Area selection cancelled";
-        emit screenshotCancelled();
-    } else {
-        const auto [shot, geometry] = cropSource(area);
-        emitSelection(shot, geometry, area, annotations);
+    if (windowPick) {
+        options.windowPick = true;
+        options.windows = Screen::enumerateWindowInfos();
     }
 
-    // Clear the stored screenshot
-    clearFrames();
-}
-
-void NativeCaptureStrategy::onCopyRequested(const QRect &area,
-                                            const QSharedPointer<OverlayAnnotations> &annotations)
-{
-    const auto [shot, geometry] = cropSource(area);
-    copyAreaToClipboard(shot, geometry, area, annotations);
-    clearFrames();
-}
-
-void NativeCaptureStrategy::onSaveRequested(const QRect &area,
-                                            const QSharedPointer<OverlayAnnotations> &annotations)
-{
-    // Drop the stored frame before the modal dialog runs, as the old inline save did.
-    const auto [shot, virtualGeometry] = cropSource(area);
-    clearFrames();
-    saveAreaToFile(shot, virtualGeometry, area, annotations);
-}
-
-std::pair<QPixmap, QRect> NativeCaptureStrategy::cropSource(const QRect &area) const
-{
-    if (const ScreenGrab *grab = screenGrabFor(m_screenGrabs, area))
-        return { grab->pixmap, grab->geometry };
-    return { m_fullScreenshot, m_virtualGeometry };
-}
-
-void NativeCaptureStrategy::clearFrames()
-{
-    m_fullScreenshot = QPixmap();
-    m_virtualGeometry = QRect();
-    m_screenGrabs.clear();
+    // The frame is already grabbed; the next tick lets the tray menu's dismissal finish.
+    QTimer::singleShot(0, this, [this, frame, virtualGeometry, options] {
+        showAreaSelector(frame, virtualGeometry, options);
+    });
 }
 
 QPixmap NativeCaptureStrategy::captureScreen()
@@ -143,101 +94,6 @@ QPixmap NativeCaptureStrategy::captureScreen()
     }
 
     return QPixmap();
-}
-
-QPixmap NativeCaptureStrategy::captureAllScreens()
-{
-#ifdef Q_OS_WIN
-    // Mixed DPIs are common on Windows: a single-screen area crops its own screen's grab.
-    return Screen::QtScreensFrameSource::grabNow(&m_virtualGeometry, &m_screenGrabs);
-#else
-    return Screen::QtScreensFrameSource::grabNow(&m_virtualGeometry);
-#endif
-}
-
-void NativeCaptureStrategy::showAreaSelector(const QPixmap &screenshot, const QRect &virtualGeometry,
-                                             bool windowPick,
-                                             const QVector<Screen::WindowInfo> &windows)
-{
-    qDebug() << "Virtual desktop geometry:" << virtualGeometry;
-    qDebug() << "Screenshot size:" << screenshot.size() << "DPR:" << screenshot.devicePixelRatio();
-    qDebug() << "All screens:";
-
-    QList<QScreen*> screens = QGuiApplication::screens();
-    QList<Screen::AreaSelector*> *selectors = new QList<Screen::AreaSelector*>();
-
-    // Create one AreaSelector widget per screen
-    for (QScreen *screen : screens) {
-        QRect screenGeometry = screen->geometry();
-        qDebug() << "  - Creating selector for" << screen->name() << screenGeometry;
-
-        auto *selector = new Screen::AreaSelector();
-        selector->setScreenshot(screenshot);
-        selector->setVirtualGeometry(virtualGeometry);
-        selector->setScreenOffset(screenGeometry.topLeft());
-        if (windowPick) {
-            selector->setMode(Screen::AreaSelector::Mode::WindowPick);
-            selector->setWindowInfos(windows);
-        }
-        // Action toolbar only for normal area capture (not window-pick, not OCR).
-        selector->setActionsEnabled(quickActionsEnabled() && !windowPick);
-
-        // Present as a borderless overlay covering the screen. We deliberately
-        // avoid showFullScreen()/Qt::WindowFullScreen: on macOS that triggers the
-        // native fullscreen transition (Spaces zoom + menu-bar slide), which is
-        // the distracting animation we want gone. A plain sized window appears
-        // instantly; configureOverlayWindow() then raises it above the menu bar.
-        selector->setGeometry(screenGeometry);
-        selector->winId(); // ensure the native window exists before placing it
-        if (QWindow *wh = selector->windowHandle())
-            wh->setScreen(screen);
-        selector->show();
-        selector->raise();
-        selector->activateWindow();
-        Screen::configureOverlayWindow(selector);
-
-        selectors->append(selector);
-    }
-
-    QSharedPointer<OverlayAnnotations> annotations;
-    if (!windowPick)
-        annotations = attachAnnotations(*selectors, screenshot, virtualGeometry);
-    if (annotations)
-        annotations->setScreenGrabs(m_screenGrabs);
-
-    // Each terminal action tears down ALL per-screen selectors, then routes:
-    //  - areaSelected -> crop & open editor (or empty = cancel)
-    //  - copyRequested -> crop & copy to clipboard
-    //  - saveRequested -> crop & save to file (after teardown, so no overlay covers the dialog)
-    for (auto *selector : *selectors) {
-        // Each handler copies the session first: teardown disconnects its own lambda.
-        connect(selector, &Screen::AreaSelector::areaSelected,
-                this, [this, selectors, annotations](const QRect &area) {
-                    const auto session = annotations;
-                    tearDownSelectors(selectors);
-                    onAreaSelected(area, session);
-                });
-        connect(selector, &Screen::AreaSelector::copyRequested,
-                this, [this, selectors, annotations](const QRect &area) {
-                    const auto session = annotations;
-                    tearDownSelectors(selectors);
-                    onCopyRequested(area, session);
-                });
-        connect(selector, &Screen::AreaSelector::saveRequested,
-                this, [this, selectors, annotations](const QRect &area) {
-                    const auto session = annotations;
-                    tearDownSelectors(selectors);
-                    onSaveRequested(area, session);
-                });
-        // Multi-monitor: mirror the live selection to every other overlay so a
-        // selection spanning screens is drawn on all of them.
-        connect(selector, &Screen::AreaSelector::liveStateChanged, this,
-                [selectors, selector](const QRect &sel, int phase, int mode, const QPoint &cursor) {
-                    for (auto *other : *selectors)
-                        if (other != selector)
-                            other->applyPeerState(sel, phase, mode, cursor);
-                });
-    }
 }
 
 } // namespace Capture
