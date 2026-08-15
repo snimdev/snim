@@ -50,32 +50,18 @@ QString failureMessage(bool testing, int http, const QByteArray &body)
 }
 } // namespace
 
-S3Uploader::S3Uploader(const QString &profileId, QObject *parent)
-    : Uploader(parent), m_profileId(profileId), m_nam(new QNetworkAccessManager(this))
-{
-}
-
 S3Uploader::S3Uploader(const UploadConfig &config, QObject *parent)
-    : Uploader(parent), m_configOverride(config), m_nam(new QNetworkAccessManager(this))
+    : Uploader(parent), m_config(config), m_nam(new QNetworkAccessManager(this))
 {
 }
 
 S3Uploader::~S3Uploader() = default;
 
-UploadConfig S3Uploader::activeConfig() const
-{
-    return m_configOverride ? *m_configOverride : UploadConfig::forProfile(m_profileId);
-}
-
-bool S3Uploader::isConfigured() const
-{
-    return activeConfig().isComplete();
-}
-
-QNetworkRequest S3Uploader::signedRequest(const UploadConfig &cfg, const QString &method,
-                                          const QString &objectKey, const QString &contentType,
+QNetworkRequest S3Uploader::signedRequest(const QString &method, const QString &objectKey,
+                                          const QString &contentType,
                                           const QString &payloadHash, QUrl *urlOut) const
 {
+    const UploadConfig &cfg = m_config;
     // Host + path differ by URL style; both feed the signer AND the request URL so the
     // wire path matches the signed path exactly.
     QString host, rawPath;
@@ -122,13 +108,6 @@ QNetworkRequest S3Uploader::signedRequest(const UploadConfig &cfg, const QString
 void S3Uploader::upload(const QString &localPath, const QString &keyHint)
 {
     m_finished = false;
-    const UploadConfig cfg = activeConfig();
-    if (!cfg.isComplete()) {
-        m_finished = true;
-        emit failed(tr("Upload is not configured."));
-        return;
-    }
-
     auto *file = new QFile(localPath);
     if (!file->open(QIODevice::ReadOnly)) {
         delete file;
@@ -138,17 +117,17 @@ void S3Uploader::upload(const QString &localPath, const QString &keyHint)
     }
 
     // Object key: prefix + a short uuid (avoids collisions / overwrites) + safe name.
-    const QString objectKey = cfg.keyPrefix + Util::uniqueRemoteName(keyHint);
+    const QString objectKey = m_config.keyPrefix + Util::uniqueRemoteName(keyHint);
 
     QUrl url;
-    QNetworkRequest req = signedRequest(cfg, QStringLiteral("PUT"), objectKey,
+    QNetworkRequest req = signedRequest(QStringLiteral("PUT"), objectKey,
                                         contentTypeFor(keyHint), SigV4::unsignedPayload(), &url);
     req.setHeader(QNetworkRequest::ContentLengthHeader, file->size());
 
     // Public URL: explicit base (required for R2's separate public host) else the
     // request URL (works for AWS/MinIO when the object is publicly readable).
-    if (!cfg.publicBaseUrl.isEmpty()) {
-        m_publicUrl = QUrl(Util::joinPublicUrl(cfg.publicBaseUrl, objectKey));
+    if (!m_config.publicBaseUrl.isEmpty()) {
+        m_publicUrl = QUrl(Util::joinPublicUrl(m_config.publicBaseUrl, objectKey));
     } else {
         m_publicUrl = url;
     }
@@ -190,22 +169,13 @@ void S3Uploader::testConnection()
         return;
     m_tested = true;
 
-    const UploadConfig cfg = activeConfig();
-    if (!cfg.isComplete()) {
-        // Deferred, like StubUploader - callers connect their handlers after the call.
-        QMetaObject::invokeMethod(this, [this] {
-            emit testFinished(false, tr("Upload is not configured."));
-        }, Qt::QueuedConnection);
-        return;
-    }
-
     // Same prefix + unique-name rules as a real upload, so this also proves the key
     // prefix is writable rather than just the bucket root.
-    m_probeKey = cfg.keyPrefix
+    m_probeKey = m_config.keyPrefix
                  + Util::uniqueRemoteName(QStringLiteral("snim-connection-test.txt"));
     const QByteArray body = QByteArrayLiteral("Snim connection test");
 
-    QNetworkRequest req = signedRequest(cfg, QStringLiteral("PUT"), m_probeKey,
+    QNetworkRequest req = signedRequest(QStringLiteral("PUT"), m_probeKey,
                                         QStringLiteral("text/plain"), SigV4::unsignedPayload());
     req.setHeader(QNetworkRequest::ContentLengthHeader, body.size());
 
@@ -247,8 +217,7 @@ void S3Uploader::onTestPutFinished()
     }
 
     // The write worked; clean up after ourselves with a signed DELETE (empty payload).
-    const UploadConfig cfg = activeConfig();
-    const QNetworkRequest req = signedRequest(cfg, QStringLiteral("DELETE"), m_probeKey,
+    const QNetworkRequest req = signedRequest(QStringLiteral("DELETE"), m_probeKey,
                                               QStringLiteral("text/plain"),
                                               SigV4::sha256Hex(QByteArray()));
     m_reply = m_nam->deleteResource(req);

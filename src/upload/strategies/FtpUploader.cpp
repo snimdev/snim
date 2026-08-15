@@ -176,15 +176,8 @@ QString failureMessage(bool testing, CURLcode rc, long response, const QString &
 
 } // namespace
 
-FtpUploader::FtpUploader(const QString &profileId, QObject *parent)
-    : Uploader(parent), m_profileId(profileId),
-      m_cancel(std::make_shared<std::atomic_bool>(false))
-{
-    std::call_once(g_curlInit, [] { curl_global_init(CURL_GLOBAL_DEFAULT); });
-}
-
 FtpUploader::FtpUploader(const UploadConfig &config, QObject *parent)
-    : Uploader(parent), m_configOverride(config),
+    : Uploader(parent), m_config(config),
       m_cancel(std::make_shared<std::atomic_bool>(false))
 {
     std::call_once(g_curlInit, [] { curl_global_init(CURL_GLOBAL_DEFAULT); });
@@ -195,32 +188,13 @@ FtpUploader::~FtpUploader()
     m_cancel->store(true);   // a worker still running stops at its next callback
 }
 
-UploadConfig FtpUploader::activeConfig() const
-{
-    return m_configOverride ? *m_configOverride : UploadConfig::forProfile(m_profileId);
-}
-
-bool FtpUploader::isConfigured() const
-{
-    return activeConfig().isComplete();
-}
-
 void FtpUploader::upload(const QString &localPath, const QString &keyHint)
 {
     if (m_started)
         return;                 // one uploader, one transfer, one terminal signal
     m_started = true;
 
-    // Snapshot now, on the GUI thread: forProfile() reads the keychain, which must not
-    // happen off the main thread, and the worker only ever gets value copies.
-    const UploadConfig cfg = activeConfig();
-    if (!cfg.isComplete()) {
-        // Deferred, like StubUploader - callers connect their handlers after upload().
-        QMetaObject::invokeMethod(this, [this] {
-            emit failed(tr("Upload is not configured."));
-        }, Qt::QueuedConnection);
-        return;
-    }
+    const UploadConfig &cfg = m_config;
     {
         QFile probe(localPath);
         if (!probe.open(QIODevice::ReadOnly)) {
@@ -301,16 +275,7 @@ void FtpUploader::testConnection()
         return;                 // one uploader, one transfer, one terminal signal
     m_started = true;
 
-    // Snapshot now, on the GUI thread: forProfile() reads the keychain, which must not
-    // happen off the main thread, and the worker only ever gets value copies.
-    const UploadConfig cfg = activeConfig();
-    if (!cfg.isComplete()) {
-        // Deferred, like StubUploader - callers connect their handlers after the call.
-        QMetaObject::invokeMethod(this, [this] {
-            emit testFinished(false, tr("Upload is not configured."));
-        }, Qt::QueuedConnection);
-        return;
-    }
+    const UploadConfig &cfg = m_config;
 
     const QString remoteName = Util::uniqueRemoteName(QStringLiteral("snim-connection-test.txt"));
     const QString remotePath = Util::buildRemotePath(cfg.remoteDir, remoteName);

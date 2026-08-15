@@ -12,8 +12,8 @@ namespace Upload {
 /**
  * A snapshot of one upload destination: a profile's non-secret fields plus the secret
  * pulled from the OS keychain (keyed by the profile id, in its type's service). Built
- * just-in-time via forProfile() so the secret is read at sign time and never persisted
- * in QSettings. No streaming operator is defined on purpose - the secret must never end
+ * just-in-time via forProfile() so the secret is read right before use and never
+ * persisted in QSettings. No streaming operator is defined on purpose - the secret must never end
  * up in a log.
  */
 struct UploadConfig : UploadProfile {
@@ -22,7 +22,7 @@ struct UploadConfig : UploadProfile {
                              // / FTP password; empty if absent
 
     // Pure config check, per type - "is this destination filled in", never "is its
-    // backend compiled in" (that is UploaderFactory::isStrategyAvailable). So a
+    // backend compiled in" (that is UploaderFactory::isAvailable). So a
     // configured SFTP profile in a build without libssh2 still passes here and gets a
     // precise "not included in this build" failure instead of a vague "not configured".
     [[nodiscard]] bool isComplete() const {

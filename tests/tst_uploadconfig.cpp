@@ -9,7 +9,7 @@ using namespace Upload;
 
 // UploadConfig::isComplete() is the per-type "is this destination filled in" gate the
 // editors call before starting an upload. It is PURE CONFIG: it never asks whether the
-// backend was compiled in (that is UploaderFactory::isStrategyAvailable), so every
+// backend was compiled in (that is UploaderFactory::isAvailable), so every
 // assertion here holds with or without HAVE_LIBCURL / HAVE_LIBSSH2.
 //
 // The matrix builds UploadConfig structs by hand - no keychain, no profile store, no

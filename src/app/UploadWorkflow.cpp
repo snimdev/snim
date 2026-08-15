@@ -27,10 +27,8 @@ namespace App {
                 QFile::remove(localPath);
             return;
         }
-        // Factory yields the configured S3 uploader for the chosen profile (empty =
-        // default), or the stub if that profile isn't fully configured.
-        m_uploader = Upload::UploaderFactory::create(
-                         Upload::UploaderFactory::StrategyType::Auto, this, profileId).release();
+        // The chosen profile's backend (empty = default), or a stub that says why not.
+        m_uploader = Upload::UploaderFactory::create(profileId, this).release();
         m_notifier.notify(tr("Uploading…"), QFileInfo(suggestedName).fileName(),
                           QSystemTrayIcon::Information, 2000);
 

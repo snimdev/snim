@@ -232,17 +232,6 @@ int pageForType(Upload::ProviderType t)
     return kS3Page;
 }
 
-// Which factory backend a profile type needs, for the compile-time availability check.
-Upload::UploaderFactory::StrategyType strategyForType(Upload::ProviderType t)
-{
-    switch (t) {
-    case Upload::ProviderType::Sftp: return Upload::UploaderFactory::StrategyType::Sftp;
-    case Upload::ProviderType::Ftp:  return Upload::UploaderFactory::StrategyType::Ftp;
-    case Upload::ProviderType::S3:   break;
-    }
-    return Upload::UploaderFactory::StrategyType::S3;
-}
-
 // Combo index <-> enum maps. Written out rather than cast, so reordering a combo can
 // never silently rewrite stored profiles.
 constexpr int kSftpAuthPassword = 0;
@@ -348,8 +337,7 @@ void SettingsDialog::setupUploadTab()
     };
     for (const AddEntry &entry : addEntries) {
         QAction *action = m_uploadAddMenu->addAction(entry.text);
-        const bool available =
-            Upload::UploaderFactory::isStrategyAvailable(strategyForType(entry.type));
+        const bool available = Upload::UploaderFactory::isAvailable(entry.type);
         action->setEnabled(available);
         if (!available)
             action->setToolTip(entry.missingDep);
@@ -653,9 +641,8 @@ void SettingsDialog::bindUploadForm(int row)
     // No selection = no type to show; a visible "Type:" with an empty value reads broken.
     m_uploadTopForm->setRowVisible(m_uploadTypeLabel, valid);
     m_uploadPublicUrlEdit->setText(p.publicBaseUrl);
-    m_uploadTopForm->setRowVisible(
-        m_uploadWarningRow,
-        valid && !Upload::UploaderFactory::isStrategyAvailable(strategyForType(p.type)));
+    m_uploadTopForm->setRowVisible(m_uploadWarningRow,
+                                   valid && !Upload::UploaderFactory::isAvailable(p.type));
 
     // Only the current page is ever read back, but blanking the others keeps a previous
     // profile's values from lingering behind the stack (and clears the row when invalid).
@@ -829,7 +816,7 @@ void SettingsDialog::onUploadTestConnection()
 
     // A destination whose transport was never compiled in can't be tested at all; say so
     // here rather than spinning up the stub just to hear the same sentence back.
-    if (!Upload::UploaderFactory::isStrategyAvailable(strategyForType(p.type))) {
+    if (!Upload::UploaderFactory::isAvailable(p.type)) {
         setStatus(tr("%1 support is not included in this build.")
                       .arg(Upload::providerDisplayName(p.type)), "#c62828");
         return;

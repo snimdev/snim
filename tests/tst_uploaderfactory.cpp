@@ -10,17 +10,56 @@
 
 using namespace Upload;
 
-// Factory surface only - never calls a live upload() (same rule as the capture/record
-// factory tests). With no configured destination, Auto/S3 resolve to the inert stub,
-// whose upload() fails deferred rather than hitting the network.
+Q_DECLARE_METATYPE(Upload::ProviderType)
+
+// Factory surface only - never a live upload() on a real backend, so no network. Every
+// destination here is complete without a keychain secret (S3 is built by hand), so the
+// profile-store cases stay keychain-free and work on the stub-keychain platforms too.
 class tst_UploaderFactory : public QObject
 {
     Q_OBJECT
 
-    // Which backend the factory handed back.
-    static QString backend(const Uploader *up)
+    static QString backend(const std::unique_ptr<Uploader> &up)
     {
         return QString::fromLatin1(up->metaObject()->className());
+    }
+
+    // SFTP with key auth and anonymous FTP need no stored secret.
+    static UploadConfig complete(ProviderType type)
+    {
+        UploadConfig c;
+        c.id = UploadProfiles::newId();
+        c.name = QStringLiteral("B");
+        c.enabled = true;
+        c.type = type;
+        c.host = QStringLiteral("files.example.com");
+        c.username = type == ProviderType::Sftp ? QStringLiteral("darko") : QString();
+        c.sftpAuth = SftpAuthMode::PrivateKey;
+        c.privateKeyPath = QStringLiteral("/home/darko/.ssh/id_ed25519");
+        c.endpoint = QStringLiteral("s3.example.com");
+        c.region = QStringLiteral("us-east-1");
+        c.bucket = QStringLiteral("shots");
+        c.accessKeyId = QStringLiteral("AKIA");
+        c.secretKey = QStringLiteral("sekrit");
+        return c;
+    }
+
+    static void backendRows(bool withS3)
+    {
+        QTest::addColumn<ProviderType>("type");
+        QTest::addColumn<QString>("expected");
+        if (withS3)
+            QTest::newRow("s3") << ProviderType::S3 << "Upload::S3Uploader";
+#ifdef HAVE_LIBSSH2
+        QTest::newRow("sftp") << ProviderType::Sftp << "Upload::SftpUploader";
+#else
+        QTest::newRow("sftp") << ProviderType::Sftp << "Upload::StubUploader";
+#endif
+#ifdef HAVE_LIBCURL
+        QTest::newRow("ftp") << ProviderType::Ftp << "Upload::FtpUploader";
+#else
+        QTest::newRow("ftp") << ProviderType::Ftp << "Upload::StubUploader";
+#endif
     }
 
 private slots:
@@ -28,232 +67,72 @@ private slots:
     {
         QCoreApplication::setOrganizationName("SnimTest");
         QCoreApplication::setApplicationName("tst_uploaderfactory");
-        QStandardPaths::setTestModeEnabled(true);   // isolated, empty settings -> not configured
+        QStandardPaths::setTestModeEnabled(true);
     }
 
     void init()
     {
-        // Start every test from an empty store, independent of what a previous test (or
-        // a previous run of this binary) left behind.
         Core::Settings::setUploadEnabled(false);
         Core::Settings::setUploadProfilesJson(QString());
         Core::Settings::setUploadDefaultProfileId(QString());
     }
 
-    void availabilityIsCompileTime()
+    // Availability is compile time only; a compiled-out backend explains itself instead
+    // of claiming "not configured".
+    void picksTheBackendPerType_data() { backendRows(true); }
+    void picksTheBackendPerType()
     {
-        // Availability answers "was this backend built in", NOT "is it configured" - the
-        // settings UI greys out types it could never run. S3/Stub/Auto are pure Qt, so
-        // they are available even with nothing configured.
-        QVERIFY(UploaderFactory::isStrategyAvailable(UploaderFactory::StrategyType::S3));
-        QVERIFY(UploaderFactory::isStrategyAvailable(UploaderFactory::StrategyType::Stub));
-        QVERIFY(UploaderFactory::isStrategyAvailable(UploaderFactory::StrategyType::Auto));
-#ifdef HAVE_LIBSSH2
-        QVERIFY(UploaderFactory::isStrategyAvailable(UploaderFactory::StrategyType::Sftp));
-#else
-        QVERIFY(!UploaderFactory::isStrategyAvailable(UploaderFactory::StrategyType::Sftp));
-#endif
-#ifdef HAVE_LIBCURL
-        QVERIFY(UploaderFactory::isStrategyAvailable(UploaderFactory::StrategyType::Ftp));
-#else
-        QVERIFY(!UploaderFactory::isStrategyAvailable(UploaderFactory::StrategyType::Ftp));
-#endif
+        QFETCH(ProviderType, type);
+        QFETCH(QString, expected);
+        const bool stub = expected == QStringLiteral("Upload::StubUploader");
+        QCOMPARE(UploaderFactory::isAvailable(type), !stub);
+
+        auto up = UploaderFactory::createForConfig(complete(type));
+        QCOMPARE(backend(up), expected);
+        if (stub) {
+            QSignalSpy failedSpy(up.get(), &Uploader::failed);
+            up->upload(QStringLiteral("/tmp/whatever.png"), QStringLiteral("whatever.png"));
+            QVERIFY(failedSpy.wait(1000));
+            QVERIFY(failedSpy.first().first().toString().contains("not included in this build"));
+        }
     }
 
-    void unconfiguredResolvesToStub()
+    // Nothing usable, saved or typed: the inert stub, whose upload and test both fail
+    // deferred (a caller may connect after the call) and never reach the network.
+    void incompleteYieldsTheStub()
     {
-        QCOMPARE(UploaderFactory::getDefaultStrategyType(), UploaderFactory::StrategyType::Stub);
-
-        auto up = UploaderFactory::create(UploaderFactory::StrategyType::Auto);
-        QVERIFY(up != nullptr);
-        QVERIFY(!up->isConfigured());
-        QCOMPARE(backend(up.get()), QStringLiteral("Upload::StubUploader"));
+        auto saved = UploaderFactory::create();   // empty store
+        auto typed = UploaderFactory::createForConfig(UploadConfig{});
+        for (Uploader *up : {saved.get(), typed.get()}) {
+            QCOMPARE(QString::fromLatin1(up->metaObject()->className()),
+                     QStringLiteral("Upload::StubUploader"));
+            QSignalSpy failedSpy(up, &Uploader::failed);
+            QSignalSpy testSpy(up, &Uploader::testFinished);
+            up->upload(QStringLiteral("/tmp/whatever.png"), QStringLiteral("whatever.png"));
+            up->testConnection();
+            QCOMPARE(failedSpy.count() + testSpy.count(), 0);
+            QTRY_COMPARE(failedSpy.count(), 1);
+            QTRY_COMPARE(testSpy.count(), 1);
+            QCOMPARE(failedSpy.first().first().toString(), QStringLiteral("Upload is not configured."));
+            QCOMPARE(testSpy.first().first().toBool(), false);
+        }
     }
 
-    void stubUploadFailsDeferred()
+    // Regression: the backend comes from the REQUESTED profile, not the default one (the
+    // ▾ menu uploads to a non-default destination). The default here is incomplete.
+    void createUsesTheRequestedProfile_data() { backendRows(false); }
+    void createUsesTheRequestedProfile()
     {
-        auto up = UploaderFactory::create(UploaderFactory::StrategyType::Stub);
-        QSignalSpy failedSpy(up.get(), &Uploader::failed);
-        QSignalSpy uploadedSpy(up.get(), &Uploader::uploaded);
-        up->upload("/tmp/whatever.png", "whatever.png");
-        QVERIFY(failedSpy.wait(1000));
-        QCOMPARE(failedSpy.count(), 1);
-        QCOMPARE(uploadedSpy.count(), 0);
-    }
-
-    // Nothing configured = nothing to test: exactly one testFinished(false, ...), and
-    // deferred like every other terminal signal, so a caller may connect after the call.
-    void stubTestConnectionFailsDeferred()
-    {
-        auto up = UploaderFactory::create(UploaderFactory::StrategyType::Stub);
-        QSignalSpy testSpy(up.get(), &Uploader::testFinished);
-        up->testConnection();
-        QCOMPARE(testSpy.count(), 0);            // nothing emitted synchronously
-        QVERIFY(testSpy.wait(1000));
-        QCOMPARE(testSpy.count(), 1);
-        QCOMPARE(testSpy.first().at(0).toBool(), false);
-        QVERIFY(!testSpy.first().at(1).toString().isEmpty());
-    }
-
-    // createForConfig resolves on the config's type + compile-time availability alone -
-    // no profile store, no keychain, no isComplete() gate (an incomplete destination is
-    // meant to reach the real backend and hear precisely what is missing). Every config
-    // here is built by hand, so this test never touches persisted state.
-    void createForConfigPicksBackendPerType()
-    {
-        UploadConfig s3;
-        s3.enabled = true;
-        s3.type = ProviderType::S3;
-        s3.endpoint = "s3.example.com";
-        s3.region = "us-east-1";
-        s3.bucket = "shots";
-        s3.accessKeyId = "AKIA";
-        s3.secretKey = "sekrit";
-        QVERIFY(s3.isComplete());
-        auto s3Up = UploaderFactory::createForConfig(s3);
-        QVERIFY(s3Up != nullptr);
-        QCOMPARE(backend(s3Up.get()), QStringLiteral("Upload::S3Uploader"));
-        QVERIFY(s3Up->isConfigured());           // reads the override, not the empty store
-
-        UploadConfig ftp;
-        ftp.enabled = true;
-        ftp.type = ProviderType::Ftp;
-        ftp.host = "ftp.example.com";            // anonymous: no secret needed
-        ftp.remoteDir = "/pub/incoming";
-        QVERIFY(ftp.isComplete());
-        auto ftpUp = UploaderFactory::createForConfig(ftp);
-        QVERIFY(ftpUp != nullptr);
-#ifdef HAVE_LIBCURL
-        QCOMPARE(backend(ftpUp.get()), QStringLiteral("Upload::FtpUploader"));
-        QVERIFY(ftpUp->isConfigured());
-#else
-        QCOMPARE(backend(ftpUp.get()), QStringLiteral("Upload::StubUploader"));
-#endif
-
-        UploadConfig sftp;
-        sftp.enabled = true;
-        sftp.type = ProviderType::Sftp;
-        sftp.host = "sftp.example.com";
-        sftp.username = "darko";
-        sftp.sftpAuth = SftpAuthMode::PrivateKey;   // key auth needs no keychain secret
-        sftp.privateKeyPath = "/home/darko/.ssh/id_ed25519";
-        QVERIFY(sftp.isComplete());
-        auto sftpUp = UploaderFactory::createForConfig(sftp);
-        QVERIFY(sftpUp != nullptr);
-#ifdef HAVE_LIBSSH2
-        QCOMPARE(backend(sftpUp.get()), QStringLiteral("Upload::SftpUploader"));
-        QVERIFY(sftpUp->isConfigured());
-#else
-        QCOMPARE(backend(sftpUp.get()), QStringLiteral("Upload::StubUploader"));
-#endif
-    }
-
-    // An empty config still yields the real S3 backend (no isComplete() gate), and its
-    // testConnection() is the one that says so - deferred, and without any network I/O.
-    void createForConfigKeepsIncompleteBackend()
-    {
-        UploadConfig empty;
-        empty.type = ProviderType::S3;
-        QVERIFY(!empty.isComplete());
-        auto up = UploaderFactory::createForConfig(empty);
-        QVERIFY(up != nullptr);
-        QCOMPARE(backend(up.get()), QStringLiteral("Upload::S3Uploader"));
-        QVERIFY(!up->isConfigured());
-
-        QSignalSpy testSpy(up.get(), &Uploader::testFinished);
-        up->testConnection();
-        QVERIFY(testSpy.wait(1000));
-        QCOMPARE(testSpy.count(), 1);
-        QCOMPARE(testSpy.first().at(0).toBool(), false);
-    }
-
-    void explicitS3WithoutConfigFallsToStub()
-    {
-        // Asking for S3 while unconfigured must not crash or hit the network - it
-        // degrades to the stub.
-        auto up = UploaderFactory::create(UploaderFactory::StrategyType::S3);
-        QVERIFY(up != nullptr);
-        QVERIFY(!up->isConfigured());
-    }
-
-    // Regression: Auto used to resolve from the DEFAULT profile even when a specific
-    // profileId was passed, so uploading to a non-default destination via the ▾ menu
-    // silently used the default's backend. Default here is an incomplete S3 profile;
-    // profile B is a complete SFTP key-auth destination (key auth needs no keychain
-    // secret, so this stays keychain-free and works on the stub-keychain platforms).
-    void autoResolvesFromRequestedProfile()
-    {
+        QFETCH(ProviderType, type);
+        QFETCH(QString, expected);
         Core::Settings::setUploadEnabled(true);
+        UploadProfile incomplete;
+        incomplete.id = UploadProfiles::newId();
+        const UploadConfig requested = complete(type);
+        UploadProfiles::setAll({incomplete, requested}, incomplete.id);
 
-        UploadProfile a;
-        a.id = UploadProfiles::newId();
-        a.name = "Incomplete S3";               // no bucket/accessKeyId/secret
-        UploadProfile b;
-        b.id = UploadProfiles::newId();
-        b.name = "Key-auth SFTP";
-        b.type = ProviderType::Sftp;
-        b.host = "sftp.example.com";
-        b.username = "darko";
-        b.sftpAuth = SftpAuthMode::PrivateKey;
-        b.privateKeyPath = "/home/darko/.ssh/id_ed25519";
-        UploadProfiles::setAll({a, b}, a.id);
-
-        // The resolution itself: the default is incomplete, yet B is complete and SFTP.
-        QVERIFY(!UploadConfig::forProfile(a.id).isComplete());
-        QVERIFY(UploadConfig::forProfile(b.id).isComplete());
-        QCOMPARE(UploaderFactory::getDefaultStrategyType(), UploaderFactory::StrategyType::Stub);
-
-        auto up = UploaderFactory::create(UploaderFactory::StrategyType::Auto, nullptr, b.id);
-        QVERIFY(up != nullptr);
-#ifdef HAVE_LIBSSH2
-        QCOMPARE(backend(up.get()), QStringLiteral("Upload::SftpUploader"));
-        QVERIFY(up->isConfigured());
-#else
-        // A compiled-out backend explains itself instead of claiming "not configured".
-        QCOMPARE(backend(up.get()), QStringLiteral("Upload::StubUploader"));
-        QSignalSpy failedSpy(up.get(), &Uploader::failed);
-        up->upload("/tmp/whatever.png", "whatever.png");
-        QVERIFY(failedSpy.wait(1000));
-        QVERIFY(failedSpy.first().first().toString().contains("not included in this build"));
-#endif
-    }
-
-    // Same regression for the FTP backend, which a libcurl build resolves to a real
-    // FtpUploader. An anonymous FTP destination (empty username) is complete without a
-    // stored secret, so this too stays keychain-free. upload() is never called on the
-    // real backend - no network from the test suite.
-    void autoResolvesFtpFromRequestedProfile()
-    {
-        Core::Settings::setUploadEnabled(true);
-
-        UploadProfile a;
-        a.id = UploadProfiles::newId();
-        a.name = "Incomplete S3";               // no bucket/accessKeyId/secret
-        UploadProfile b;
-        b.id = UploadProfiles::newId();
-        b.name = "Anonymous FTP";
-        b.type = ProviderType::Ftp;
-        b.host = "ftp.example.com";
-        b.remoteDir = "/pub/incoming";
-        UploadProfiles::setAll({a, b}, a.id);
-
-        QVERIFY(!UploadConfig::forProfile(a.id).isComplete());
-        QVERIFY(UploadConfig::forProfile(b.id).isComplete());
-        QCOMPARE(UploaderFactory::getDefaultStrategyType(), UploaderFactory::StrategyType::Stub);
-
-        auto up = UploaderFactory::create(UploaderFactory::StrategyType::Auto, nullptr, b.id);
-        QVERIFY(up != nullptr);
-#ifdef HAVE_LIBCURL
-        QCOMPARE(backend(up.get()), QStringLiteral("Upload::FtpUploader"));
-        QVERIFY(up->isConfigured());
-#else
-        // A compiled-out backend explains itself instead of claiming "not configured".
-        QCOMPARE(backend(up.get()), QStringLiteral("Upload::StubUploader"));
-        QSignalSpy failedSpy(up.get(), &Uploader::failed);
-        up->upload("/tmp/whatever.png", "whatever.png");
-        QVERIFY(failedSpy.wait(1000));
-        QVERIFY(failedSpy.first().first().toString().contains("not included in this build"));
-#endif
+        QCOMPARE(backend(UploaderFactory::create()), QStringLiteral("Upload::StubUploader"));
+        QCOMPARE(backend(UploaderFactory::create(requested.id)), expected);
     }
 };
 
