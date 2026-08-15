@@ -38,7 +38,6 @@ public:
     void captureArea() override;
     void captureWindow() override;
 
-    [[nodiscard]] bool isAvailable() const override;
     [[nodiscard]] QString name() const override { return "KWin ScreenShot2"; }
 
     /// Called by the gate once it has an answer: true retries the same capture, false

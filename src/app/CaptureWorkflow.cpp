@@ -3,14 +3,12 @@
 #include "app/UploadWorkflow.h"
 #include "capture/CaptureFactory.h"
 #include "capture/strategies/CaptureStrategy.h"
+#include "capture/strategies/FrameSourceCaptureStrategy.h"
 #include "core/Perf.h"
 #include "core/Settings.h"
 #include "editor/image/ImageEditor.h"
 #ifdef Q_OS_LINUX
 #include "capture/strategies/KWinCaptureStrategy.h"
-#endif
-#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
-#include "capture/strategies/ScreencastCaptureStrategy.h"
 #endif
 
 #include <QAction>
@@ -38,18 +36,8 @@ namespace App {
         connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotCancelled, this, [] {
             qDebug() << "Screenshot cancelled";
         });
-
-#ifdef Q_OS_LINUX
-        // The strategy launches no fallback while this gate is installed: the answer
-        // decides, so the prompt never competes with the portal's fullscreen picker.
-        if (auto *kwin = qobject_cast<Capture::KWinCaptureStrategy *>(m_captureStrategy.get()))
-            kwin->setAuthorizationGate([this](const std::function<void(bool)> &resume) {
-                askForKWinAuthorization(resume);
-            });
-
-#ifdef SNIM_HAVE_LINUX_RECORDER
-        if (auto *screencast = qobject_cast<Capture::ScreencastCaptureStrategy *>(m_captureStrategy.get()))
-            connect(screencast, &Capture::ScreencastCaptureStrategy::sourcePickerExpected, this,
+        if (auto *sources = qobject_cast<Capture::FrameSourceCaptureStrategy *>(m_captureStrategy.get()))
+            connect(sources, &Capture::FrameSourceCaptureStrategy::sourcePickerExpected, this,
                     [&tray](bool lastPickMissedScreens) {
                 if (lastPickMissedScreens)
                     tray.notify(tr("Choose every screen"),
@@ -60,7 +48,14 @@ namespace App {
                                 tr("Pick every screen Snim may capture; later screenshots will "
                                    "not ask again."));
             });
-#endif
+
+#ifdef Q_OS_LINUX
+        // The strategy launches no fallback while this gate is installed: the answer
+        // decides, so the prompt never competes with the portal's fullscreen picker.
+        if (auto *kwin = qobject_cast<Capture::KWinCaptureStrategy *>(m_captureStrategy.get()))
+            kwin->setAuthorizationGate([this](const std::function<void(bool)> &resume) {
+                askForKWinAuthorization(resume);
+            });
 
         connect(m_desktopIntegrationAction, &QAction::triggered,
                 this, &CaptureWorkflow::runDesktopIntegrationSetup);

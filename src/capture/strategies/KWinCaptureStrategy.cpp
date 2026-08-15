@@ -8,7 +8,7 @@
 
 namespace Capture {
 
-// --- Construction & availability ---
+// --- Construction ---
 
 KWinCaptureStrategy::KWinCaptureStrategy(QObject *parent)
     : CaptureStrategy(parent)
@@ -24,11 +24,6 @@ KWinCaptureStrategy::KWinCaptureStrategy(QObject *parent)
                 m_workspaceBusy = false;
                 workspaceFailed(reason, cancelled);
             });
-}
-
-bool KWinCaptureStrategy::isAvailable() const
-{
-    return Screen::KWinFrameSource::isServiceRegistered() && m_workspace->apiVersion() > 0;
 }
 
 // --- Authorization gate ---

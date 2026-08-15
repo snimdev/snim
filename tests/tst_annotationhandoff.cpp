@@ -28,7 +28,6 @@ public:
     void captureFullScreen() override {}
     void captureArea() override {}
     void captureWindow() override {}
-    bool isAvailable() const override { return true; }
     QString name() const override { return QStringLiteral("probe"); }
 };
 

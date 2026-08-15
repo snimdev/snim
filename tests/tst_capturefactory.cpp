@@ -1,8 +1,10 @@
 #include <QtTest>
 #include <memory>
 
+#include "FakeFrameSources.h"
 #include "capture/CaptureFactory.h"
 #include "capture/strategies/CaptureStrategy.h"
+#include "capture/strategies/FrameSourceCaptureStrategy.h"
 #include "screen/AreaSelector.h"
 #include "screen/sources/DesktopFrameSource.h"
 #include "screen/sources/FrameSourceFactory.h"
@@ -54,7 +56,6 @@ public:
     void captureFullScreen() override {}
     void captureArea() override {}
     void captureWindow() override {}
-    bool isAvailable() const override { return true; }
     QString name() const override { return QStringLiteral("Delivering"); }
 };
 
@@ -74,6 +75,15 @@ QList<Screen::AreaSelector *> openSelectors()
             selectors.append(selector);
     }
     return selectors;
+}
+
+using Type = Screen::SourceType;
+
+// A 1x frame of the whole offscreen desktop.
+FakeFrames::Script wholeDesktop()
+{
+    const QRect desktop = Screen::qtVirtualDesktop();
+    return FakeFrames::delivering(desktop.size(), 1.0, desktop);
 }
 
 // Offscreen and outside a Wayland session, whatever session runs the tests.
@@ -97,7 +107,6 @@ private slots:
         auto s = CaptureFactory::createStrategy(CaptureFactory::StrategyType::Native, nullptr);
         QVERIFY(s);
         QCOMPARE(s->name(), QStringLiteral("Native Qt Capture"));
-        QVERIFY(s->isAvailable());
     }
 
     void autoSelectionProducesNonNull()
@@ -158,11 +167,11 @@ private slots:
 
     void anUnavailableScreencastStillYieldsAStrategy()
     {
-        // Offscreen is no Wayland session, so this must land on a fallback, never null.
+        // Outside a Wayland session neither ScreenCast nor the portal behind it is offered.
         const ScopedEnv session = outsideWayland();
         auto s = CaptureFactory::createStrategy(CaptureFactory::StrategyType::Screencast);
         QVERIFY(s);
-        QVERIFY(s->name() != QStringLiteral("ScreenCast Portal Capture"));
+        QCOMPARE(s->name(), QStringLiteral("Native Qt Capture"));
     }
 
     void screencopyIsPreferredOffKdeAndGnome()
@@ -237,7 +246,7 @@ private slots:
         // No Wayland connection here: the factory must fall back, never hand out a dead strategy.
         auto s = CaptureFactory::createStrategy(CaptureFactory::StrategyType::Screencopy);
         QVERIFY(s);
-        QVERIFY(s->name() != QStringLiteral("Wayland Screencopy"));
+        QVERIFY(!s->name().contains(QStringLiteral("screencopy"), Qt::CaseInsensitive));
         QVERIFY(FrameSourceFactory::defaultType() != CaptureFactory::StrategyType::Screencopy);
     }
 
@@ -326,6 +335,164 @@ private slots:
         QCOMPARE(ready.count(), 0);
         QVERIFY(openSelectors().isEmpty());
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+
+    // The frame-source strategy over scripted sources: what each capture kind delivers.
+    void aFullScreenShotGoesOutWithoutASelector()
+    {
+        FakeFrames::Desktop fake;
+        fake.offered.insert(Type::Screencopy, wholeDesktop());
+        FrameSourceCaptureStrategy strategy({Type::Screencopy, Type::Portal}, fake.factory());
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        strategy.captureFullScreen();
+        QCOMPARE(ready.count(), 1);
+        QCOMPARE(ready.first().first().value<QPixmap>().deviceIndependentSize(),
+                 QSizeF(Screen::qtVirtualDesktop().size()));
+        QVERIFY(openSelectors().isEmpty());
+        QCOMPARE(fake.asked, QList<Type>{Type::Screencopy});
+    }
+
+    void anAreaShotOpensTheSelector()
+    {
+        FakeFrames::Desktop fake;
+        fake.offered.insert(Type::Screencopy, wholeDesktop());
+        FrameSourceCaptureStrategy strategy({Type::Screencopy, Type::Portal}, fake.factory());
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        QSignalSpy cancelled(&strategy, &CaptureStrategy::screenshotCancelled);
+        strategy.captureArea();
+        QCOMPARE(ready.count(), 0);
+        const QList<Screen::AreaSelector *> selectors = openSelectors();
+        QCOMPARE(selectors.size(), QGuiApplication::screens().size());
+        selectors.first()->cancelSelection();
+        QCOMPARE(cancelled.count(), 1);
+        QVERIFY(openSelectors().isEmpty());
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+
+    void aWindowShotDrawsAnArea()
+    {
+        // Wayland lists no windows: a drag and Enter pick the area, as for an area shot.
+        FakeFrames::Desktop fake;
+        fake.offered.insert(Type::Portal, wholeDesktop());
+        FrameSourceCaptureStrategy strategy({Type::Portal}, fake.factory());
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        strategy.captureWindow();
+        const QList<Screen::AreaSelector *> selectors = openSelectors();
+        QCOMPARE(selectors.size(), QGuiApplication::screens().size());
+        Screen::AreaSelector *selector = selectors.first();
+        QVERIFY(QTest::qWaitForWindowExposed(selector));
+        QTest::mousePress(selector, Qt::LeftButton, Qt::NoModifier, QPoint(40, 40));
+        QTest::mouseMove(selector, QPoint(240, 180));
+        QTest::mouseRelease(selector, Qt::LeftButton, Qt::NoModifier, QPoint(240, 180));
+        QTest::keyClick(selector, Qt::Key_Return);
+        QCOMPARE(ready.count(), 1);
+        QCOMPARE(ready.first().first().value<QPixmap>().deviceIndependentSize(),
+                 QSizeF(QRect(QPoint(40, 40), QPoint(240, 180)).size()));
+        QVERIFY(openSelectors().isEmpty());
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+
+    void aPartialPickSkipsTheSelector()
+    {
+        // One monitor of two, picked in the ScreenCast dialog, for an area shot.
+        FakeFrames::Desktop fake;
+        fake.offered.insert(Type::Screencast,
+                            FakeFrames::delivering({1920, 1080}, 1.0, QRect(0, 0, 3840, 1080)));
+        FrameSourceCaptureStrategy strategy({Type::Screencast, Type::Portal}, fake.factory());
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        strategy.captureArea();
+        QCOMPARE(ready.count(), 1);
+        QCOMPARE(ready.first().first().value<QPixmap>().size(), QSize(1920, 1080));
+        QVERIFY(openSelectors().isEmpty());
+    }
+
+    void aCancelInASystemDialogIsQuiet()
+    {
+        FakeFrames::Desktop fake;
+        fake.offered.insert(Type::Screencast, FakeFrames::cancelling());
+        fake.offered.insert(Type::Portal, wholeDesktop());
+        FrameSourceCaptureStrategy strategy({Type::Screencast, Type::Portal}, fake.factory());
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        QSignalSpy failed(&strategy, &CaptureStrategy::screenshotFailed);
+        QSignalSpy cancelled(&strategy, &CaptureStrategy::screenshotCancelled);
+        strategy.captureFullScreen();
+        QCOMPARE(cancelled.count(), 1);
+        QCOMPARE(failed.count(), 0);
+        QCOMPARE(ready.count(), 0);
+        QCOMPARE(fake.asked, QList<Type>{Type::Screencast});
+    }
+
+    void aFailedSourceHandsOverToThePortal()
+    {
+        FakeFrames::Desktop fake;
+        fake.offered.insert(Type::Screencopy, FakeFrames::failing());
+        fake.offered.insert(Type::Portal, wholeDesktop());
+        FrameSourceCaptureStrategy strategy({Type::Screencopy, Type::Portal}, fake.factory());
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        strategy.captureFullScreen();
+        QCOMPARE(ready.count(), 1);
+        QCOMPARE(fake.asked, (QList<Type>{Type::Screencopy, Type::Portal}));
+    }
+
+    void aFailedScreencastIsSkippedForTheRun()
+    {
+        FakeFrames::Desktop fake;
+        fake.offered.insert(Type::Screencast, FakeFrames::failing());
+        fake.offered.insert(Type::Portal, wholeDesktop());
+        fake.withdrawOnFailure.append(Type::Screencast);
+        FrameSourceCaptureStrategy strategy({Type::Screencast, Type::Portal}, fake.factory());
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        strategy.captureFullScreen();
+        strategy.captureFullScreen();
+        QCOMPARE(ready.count(), 2);
+        QCOMPARE(fake.asked, (QList<Type>{Type::Screencast, Type::Portal, Type::Portal}));
+    }
+
+    void failuresNameWhatWasMissing()
+    {
+        FakeFrames::Desktop fake;
+        fake.offered.insert(Type::Screencopy, FakeFrames::failing());
+        FrameSourceCaptureStrategy strategy({Type::Screencopy, Type::Portal}, fake.factory());
+        QSignalSpy failed(&strategy, &CaptureStrategy::screenshotFailed);
+        strategy.captureFullScreen();
+        QCOMPARE(failed.count(), 1);
+        QCOMPARE(failed.first().first().toString(),
+                 QStringLiteral("No screenshot method available: the Screenshot portal needs "
+                                "xdg-desktop-portal and a backend for this desktop."));
+
+        fake.offered.insert(Type::Portal, FakeFrames::failing());
+        strategy.captureFullScreen();
+        QCOMPARE(failed.count(), 2);
+        QCOMPARE(failed.last().first().toString(), QStringLiteral("Portal screenshot failed: broken"));
+    }
+
+    void aCaptureInFlightIgnoresAnother()
+    {
+        FakeFrames::Desktop fake;
+        FakeFrames::Script slow = wholeDesktop();
+        slow.async = true;
+        fake.offered.insert(Type::Portal, slow);
+        FrameSourceCaptureStrategy strategy({Type::Portal}, fake.factory());
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        strategy.captureFullScreen();
+        strategy.captureArea();
+        QVERIFY(ready.wait(1000));
+        QCOMPARE(ready.count(), 1);
+        QCOMPARE(fake.asked, QList<Type>{Type::Portal});
+        QVERIFY(openSelectors().isEmpty());
+    }
+
+    void theScreenPickerHintReachesTheTray()
+    {
+        FakeFrames::Desktop fake;
+        FakeFrames::Script firstPick = wholeDesktop();
+        firstPick.picker = true;
+        fake.offered.insert(Type::Screencast, firstPick);
+        FrameSourceCaptureStrategy strategy({Type::Screencast, Type::Portal}, fake.factory());
+        QSignalSpy picker(&strategy, &FrameSourceCaptureStrategy::sourcePickerExpected);
+        strategy.captureFullScreen();
+        QCOMPARE(picker.count(), 1);
+        QCOMPARE(picker.first().first().toBool(), true);
     }
 
     void quickActionsToggle()

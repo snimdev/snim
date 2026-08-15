@@ -48,13 +48,10 @@ bool KWinFrameSource::isServiceRegistered()
     return s_serviceRegistered;
 }
 
-KWinFrameSource::KWinFrameSource(QObject *parent)
-    : DesktopFrameSource(parent)
+quint32 KWinFrameSource::apiVersion()
 {
-    if (s_apiVersion > 0) {
-        m_apiVersion = s_apiVersion;
-        return;
-    }
+    if (s_apiVersion > 0)
+        return s_apiVersion;
     auto msg = QDBusMessage::createMethodCall(kServiceName, kObjectPath,
                                               QStringLiteral("org.freedesktop.DBus.Properties"),
                                               QStringLiteral("Get"));
@@ -62,10 +59,10 @@ KWinFrameSource::KWinFrameSource(QObject *parent)
 
     const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
     if (reply.type() == QDBusMessage::ReplyMessage) {
-        m_apiVersion = reply.arguments().constFirst().value<QDBusVariant>().variant().toUInt();
-        s_apiVersion = m_apiVersion;
-        qDebug() << "KWin ScreenShot2 API version:" << m_apiVersion;
+        s_apiVersion = reply.arguments().constFirst().value<QDBusVariant>().variant().toUInt();
+        qDebug() << "KWin ScreenShot2 API version:" << s_apiVersion;
     }
+    return s_apiVersion;
 }
 
 QVariantMap KWinFrameSource::buildOptions(bool includeCursor)
@@ -100,7 +97,7 @@ void KWinFrameSource::grab()
     const QVariant options = QVariant::fromValue(buildOptions(m_includeCursor));
     if (screens.size() == 1) {
         const QRect logical = screens.first()->geometry();
-        if (m_apiVersion >= 2)
+        if (apiVersion() >= 2)
             captureScreen(QStringLiteral("CaptureActiveScreen"), {options}, logical);
         else
             captureScreen(QStringLiteral("CaptureScreen"), {screens.first()->name(), options}, logical);

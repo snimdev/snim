@@ -23,35 +23,67 @@ std::unique_ptr<DesktopFrameSource> FrameSourceFactory::create(SourceType type, 
         break;
     case SourceType::KWin:
 #ifdef Q_OS_LINUX
-        if (KWinFrameSource::isServiceRegistered()) {
-            auto source = std::make_unique<KWinFrameSource>(parent);
-            if (source->apiVersion() > 0)
-                return source;
-        }
+        if (isAvailable(type))
+            return std::make_unique<KWinFrameSource>(parent);
 #endif
-        return nullptr;
+        break;
     case SourceType::Screencast:
 #if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
-        if (ScreencastFrameSource::isSupported())
+        if (isAvailable(type))
             return std::make_unique<ScreencastFrameSource>(parent);
 #endif
-        return nullptr;
+        break;
     case SourceType::Screencopy:
 #ifdef SNIM_HAVE_SCREENCOPY
-        if (ScreencopyFrameSource::isAvailable())
+        if (isAvailable(type))
             return std::make_unique<ScreencopyFrameSource>(parent);
 #endif
-        return nullptr;
+        break;
     case SourceType::Portal:
 #ifdef Q_OS_LINUX
         return std::make_unique<PortalFrameSource>(parent);
 #else
-        return nullptr;
+        break;
 #endif
     case SourceType::Native:
         return std::make_unique<QtScreensFrameSource>(parent);
     }
     return nullptr;
+}
+
+bool FrameSourceFactory::isAvailable(SourceType type)
+{
+    switch (type) {
+    case SourceType::Auto:
+        break;
+    case SourceType::KWin:
+#ifdef Q_OS_LINUX
+        return KWinFrameSource::isServiceRegistered() && KWinFrameSource::apiVersion() > 0;
+#else
+        break;
+#endif
+    case SourceType::Screencast:
+#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
+        return ScreencastFrameSource::isSupported();
+#else
+        break;
+#endif
+    case SourceType::Screencopy:
+#ifdef SNIM_HAVE_SCREENCOPY
+        return ScreencopyFrameSource::isAvailable();
+#else
+        break;
+#endif
+    case SourceType::Portal:
+#ifdef Q_OS_LINUX
+        return isWaylandSession() && PortalFrameSource::isPortalReachable();
+#else
+        break;
+#endif
+    case SourceType::Native:
+        return true;
+    }
+    return false;
 }
 
 SourceType FrameSourceFactory::defaultType()
@@ -60,19 +92,13 @@ SourceType FrameSourceFactory::defaultType()
     if (const auto forced = StrategySelection::parseOverride(qEnvironmentVariable("SNIM_CAPTURE_STRATEGY")))
         return *forced;
 
-    // Each probe keeps its yes for the run, so a later pick asks D-Bus nothing.
+    // Without these sources (macOS, Windows) this is always the native Qt capture.
+    const auto offered = [](SourceType type) { return [type] { return isAvailable(type); }; };
     StrategySelection::Probes probes;
-#ifdef Q_OS_LINUX
-    probes.kwin = [] { return KWinFrameSource::isServiceRegistered(); };
-    probes.portal = [] { return isWaylandSession() && PortalFrameSource::isPortalReachable(); };
-#endif
-#ifdef SNIM_HAVE_SCREENCOPY
-    probes.screencopy = [] { return ScreencopyFrameSource::isAvailable(); };
-#endif
-#if defined(Q_OS_LINUX) && defined(SNIM_HAVE_LINUX_RECORDER)
-    probes.screencast = [] { return ScreencastFrameSource::isSupported(); };
-#endif
-    // Without probes (macOS, Windows) this is always the native Qt capture.
+    probes.kwin = offered(SourceType::KWin);
+    probes.screencopy = offered(SourceType::Screencopy);
+    probes.screencast = offered(SourceType::Screencast);
+    probes.portal = offered(SourceType::Portal);
     return StrategySelection::choose(qEnvironmentVariable("XDG_CURRENT_DESKTOP"),
                                      Core::Sandbox::isFlatpak(), probes);
 }

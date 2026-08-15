@@ -3,27 +3,15 @@
 #include <QTimer>
 #include <cstdio>
 
-#include "capture/strategies/ScreencastCaptureStrategy.h"
 #include "screen/sources/ScreencastFrameSource.h"
 
-// Manual check, not a ctest: one full-screen ScreenCast capture saved to argv[1].
-// The first run shows the portal's picker; a human approves it once, later runs are silent.
-static QtMessageHandler s_previous = nullptr;
-
-static void failOnFallback(QtMsgType type, const QMessageLogContext &context, const QString &message)
-{
-    s_previous(type, context, message);
-    if (message.contains(QStringLiteral("ScreenCast capture failed"))) {
-        std::fprintf(stderr, "probe: the ScreenCast path failed, not testing the fallback\n");
-        std::_Exit(2);
-    }
-}
-
+// Manual check, not a ctest: one full-desktop frame from the ScreenCast source, saved to
+// argv[1], with no fallback behind it. The first run shows the portal's picker; a human
+// approves it once, later runs are silent.
 int main(int argc, char *argv[])
 {
     if (qEnvironmentVariableIsEmpty("SNIM_RECORDER_MODULE"))
         qputenv("SNIM_RECORDER_MODULE", SNIM_RECORDER_MODULE_PATH);
-    s_previous = qInstallMessageHandler(failOnFallback);
 
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("Snim"));
@@ -37,9 +25,9 @@ int main(int argc, char *argv[])
     std::fprintf(stderr, "probe: restore token stored: %s\n",
                  Screen::ScreencastFrameSource::hasRestoreToken() ? "yes" : "no");
 
-    Capture::ScreencastCaptureStrategy strategy;
+    Screen::ScreencastFrameSource source;
     QElapsedTimer clock;
-    QObject::connect(&strategy, &Capture::CaptureStrategy::screenshotReady, &app,
+    QObject::connect(&source, &Screen::DesktopFrameSource::frameReady, &app,
                      [&](const QPixmap &pixmap) {
                          const bool saved = pixmap.save(out);
                          std::fprintf(stderr, "probe: %dx%d in %lld ms, saved=%d to %s\n",
@@ -48,10 +36,11 @@ int main(int argc, char *argv[])
                          // Let the session's Close call leave before the process does.
                          QTimer::singleShot(200, &app, [&app, saved] { app.exit(saved ? 0 : 1); });
                      });
-    QObject::connect(&strategy, &Capture::CaptureStrategy::screenshotFailed, &app,
-                     [&](const QString &error) {
-                         std::fprintf(stderr, "probe: failed: %s\n", qPrintable(error));
-                         app.exit(1);
+    QObject::connect(&source, &Screen::DesktopFrameSource::frameFailed, &app,
+                     [&](const QString &error, bool cancelled) {
+                         std::fprintf(stderr, "probe: %s: %s\n", cancelled ? "cancelled" : "failed",
+                                      qPrintable(error));
+                         app.exit(cancelled ? 5 : 1);
                      });
     QTimer::singleShot(90000, &app, [&app] {
         std::fprintf(stderr, "probe: gave up waiting\n");
@@ -59,6 +48,6 @@ int main(int argc, char *argv[])
     });
 
     clock.start();
-    strategy.captureFullScreen();
+    source.grab();
     return app.exec();
 }

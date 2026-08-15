@@ -32,9 +32,6 @@ public:
     virtual void captureArea() = 0;
     virtual void captureWindow() = 0;
 
-    // Check if this strategy is available on the current system
-    virtual bool isAvailable() const = 0;
-
     // Get strategy name for debugging/logging
     virtual QString name() const = 0;
 

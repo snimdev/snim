@@ -493,6 +493,8 @@ add_library(snim_lib STATIC
         src/capture/OverlayAnnotations.h
         src/capture/strategies/CaptureStrategy.cpp
         src/capture/strategies/CaptureStrategy.h
+        src/capture/strategies/FrameSourceCaptureStrategy.cpp
+        src/capture/strategies/FrameSourceCaptureStrategy.h
         src/capture/strategies/NativeCaptureStrategy.cpp
         src/capture/strategies/NativeCaptureStrategy.h
 
@@ -762,15 +764,12 @@ elseif(NOT APPLE AND NOT WIN32)
     target_sources(snim_lib PRIVATE src/core/KeychainStore_stub.cpp)
 endif()
 
-# Linux-only capture strategies. These rely on Linux desktop APIs that don't
-# exist elsewhere: KWin uses the org.kde.KWin.ScreenShot2 D-Bus interface plus
-# pipe2() for pixel streaming, and Wayland uses the xdg-desktop-portal D-Bus
-# interface. On other platforms (e.g. macOS) the cross-platform Qt-based
-# NativeCaptureStrategy is used instead.
+# Linux-only capture sources. These rely on Linux desktop APIs that don't exist
+# elsewhere: KWin uses the org.kde.KWin.ScreenShot2 D-Bus interface plus pipe2() for
+# pixel streaming, and the portal source the xdg-desktop-portal D-Bus interface. On
+# other platforms (e.g. macOS) the cross-platform Qt-based NativeCaptureStrategy is used.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(snim_lib PRIVATE
-            src/capture/strategies/WaylandCaptureStrategy.cpp
-            src/capture/strategies/WaylandCaptureStrategy.h
             src/capture/strategies/KWinCaptureStrategy.cpp
             src/capture/strategies/KWinCaptureStrategy.h
             src/screen/sources/KWinFrameSource.cpp
@@ -818,12 +817,10 @@ endif()
 
 if(SCREENCOPY_AVAILABLE)
     target_sources(snim_lib PRIVATE
-            src/capture/strategies/ScreencopyCaptureStrategy.cpp
-            src/capture/strategies/ScreencopyCaptureStrategy.h
             src/screen/sources/ScreencopyFrameSource.cpp
             src/screen/sources/ScreencopyFrameSource.h)
     target_link_libraries(snim_lib PUBLIC snim_screencopy)
-    # Activates the screencopy branch of CaptureFactory. PUBLIC because the tests check it.
+    # Activates the screencopy source in FrameSourceFactory. PUBLIC because the tests check it.
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_SCREENCOPY)
 endif()
 
@@ -838,8 +835,6 @@ if(GSTREAMER_AVAILABLE)
             src/recording/strategies/LinuxRecorderModule.cpp
             src/recording/strategies/LinuxRecorderModule.h
             # Screenshots from a ScreenCast session; the module grabs the frames.
-            src/capture/strategies/ScreencastCaptureStrategy.cpp
-            src/capture/strategies/ScreencastCaptureStrategy.h
             src/screen/sources/ScreencastFrameSource.cpp
             src/screen/sources/ScreencastFrameSource.h
             src/screen/PipeWireFrames.cpp
@@ -859,7 +854,7 @@ if(GSTREAMER_AVAILABLE)
             # when something else already pulled it into the binary doing the loading.
             src/screen/ScreenCastPortalSession.cpp
             src/screen/ScreenCastPortalSession.h
-            # One-frame grabs for the ScreenCast capture strategy.
+            # One-frame grabs for the ScreenCast frame source.
             src/recording/strategies/PipeWireFrameGrabber.cpp
             src/media/gst/GstSupport.cpp
             src/media/gst/GstSupport.h)

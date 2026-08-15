@@ -33,11 +33,8 @@ public:
     void grab() override;
 
     // Wayland, a ScreenCast portal that persists consent, the module's frame grabber, and
-    // no failed grab yet in this run.
+    // no failed grab yet in this run (a cancel aside), so the rest of the run skips it.
     [[nodiscard]] static bool isSupported();
-
-    // Whether a grab failed (a cancel aside), so the rest of the run skips this source.
-    [[nodiscard]] static bool hasFailedThisRun();
 
     // Whether an earlier pick was remembered, so the next grab should be silent.
     [[nodiscard]] static bool hasRestoreToken();
@@ -46,11 +43,6 @@ public:
     [[nodiscard]] static bool remembersScreenPick();
     // Forgets the screenshot pick.
     static void forgetScreenPicks();
-
-signals:
-    // No consent stored yet: the portal is about to show its screen picker.
-    // lastPickMissedScreens: the pick it remembered left a screen out, so it was forgotten.
-    void sourcePickerExpected(bool lastPickMissedScreens);
 
 private:
     void handleReady(int pipewireFd);

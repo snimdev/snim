@@ -63,12 +63,6 @@ void NativeCaptureStrategy::captureWindow()
     });
 }
 
-bool NativeCaptureStrategy::isAvailable() const
-{
-    // Native Qt capture is always available
-    return true;
-}
-
 void NativeCaptureStrategy::onAreaSelected(const QRect &area,
                                            const QSharedPointer<OverlayAnnotations> &annotations)
 {

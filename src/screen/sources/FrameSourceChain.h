@@ -44,6 +44,7 @@ public:
 
     // Ends in one frameReady or failed, maybe before it returns; ignored while one is in flight.
     void grab(const QList<SourceType> &types);
+    [[nodiscard]] bool isBusy() const { return m_busy; }
 
     // Whether the walk that just failed ended on a type the factory did not offer.
     [[nodiscard]] bool endedOnMissingSource() const { return m_endedOnMissing; }
@@ -52,6 +53,8 @@ signals:
     void frameReady(const QPixmap &frame, const QRect &virtualGeometry);
     // reason: the last source's, or what was missing when none could be asked.
     void failed(const QString &reason, bool cancelled);
+    // A source is about to have the system ask which screens to share.
+    void sourcePickerExpected(bool lastPickMissedScreens);
 
 private:
     void tryNext();

@@ -23,15 +23,15 @@ class KWinFrameSource : public DesktopFrameSource
     Q_OBJECT
 
 public:
-    explicit KWinFrameSource(QObject *parent = nullptr);
+    using DesktopFrameSource::DesktopFrameSource;
 
     void grab() override;
 
     // Whether KWin's ScreenShot2 service is on the session bus.
     [[nodiscard]] static bool isServiceRegistered();
 
-    // 0 when KWin did not answer the Version property.
-    [[nodiscard]] quint32 apiVersion() const { return m_apiVersion; }
+    // 0 when KWin did not answer the Version property; a yes is kept for the run.
+    [[nodiscard]] static quint32 apiVersion();
 
     // Whether the last failure was KWin refusing this app.
     [[nodiscard]] bool wasDenied() const { return m_denied; }
@@ -64,7 +64,6 @@ private:
     void captureScreen(const QString &method, const QVariantList &args, const QRect &logical);
     void screenDone();
 
-    quint32 m_apiVersion = 0;
     QList<PlacedFrame> m_frames;
     QString m_lastError;
     int m_pending = 0;

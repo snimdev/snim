@@ -1,102 +1,10 @@
 #include <QtTest>
 
-#include <QMap>
-#include <QPixmap>
-#include <QTimer>
-#include <memory>
-
-#include "screen/sources/DesktopFrameSource.h"
-#include "screen/sources/FrameSourceChain.h"
+#include "FakeFrameSources.h"
 #include "screen/sources/StrategySelection.h"
 
 using namespace Screen;
-using Type = SourceType;
-
-namespace {
-
-// What a fake source answers when grabbed.
-struct Script {
-    enum Kind { Frame, Fail, Cancel } kind = Frame;
-    QSize pixels{200, 100};
-    qreal dpr = 2.0;
-    QRect geometry{0, 0, 100, 50};
-    bool async = false;
-};
-
-class FakeSource : public DesktopFrameSource
-{
-public:
-    FakeSource(const Script &script, QObject *parent) : DesktopFrameSource(parent), m_script(script) {}
-
-    void grab() override
-    {
-        if (m_script.async)
-            QTimer::singleShot(0, this, [this] { answer(); });
-        else
-            answer();
-    }
-
-private:
-    void answer()
-    {
-        switch (m_script.kind) {
-        case Script::Frame: {
-            QPixmap frame(m_script.pixels);
-            frame.fill(Qt::red);
-            frame.setDevicePixelRatio(m_script.dpr);
-            emit frameReady(frame, m_script.geometry);
-            return;
-        }
-        case Script::Fail:
-            emit frameFailed(QStringLiteral("broken"), false);
-            return;
-        case Script::Cancel:
-            emit frameFailed(QStringLiteral("dismissed"), true);
-            return;
-        }
-    }
-
-    Script m_script;
-};
-
-// The sources one desktop offers, by type, and which of them the walk asked.
-struct FakeDesktop {
-    QMap<Type, Script> offered;
-    QList<Type> asked;
-    // Like the ScreenCast source: once it fails (a cancel aside), it stops offering itself.
-    QList<Type> withdrawOnFailure;
-
-    FrameSourceChain::Factory factory()
-    {
-        return [this](Type type, QObject *parent) -> std::unique_ptr<DesktopFrameSource> {
-            if (!offered.contains(type))
-                return nullptr;
-            asked.append(type);
-            auto source = std::make_unique<FakeSource>(offered.value(type), parent);
-            if (withdrawOnFailure.contains(type))
-                QObject::connect(source.get(), &DesktopFrameSource::frameFailed,
-                                 [this, type](const QString &, bool cancelled) {
-                                     if (!cancelled)
-                                         offered.remove(type);
-                                 });
-            return source;
-        };
-    }
-};
-
-Script failing()
-{
-    return {Script::Fail};
-}
-
-Script delivering(QSize pixels = {200, 100})
-{
-    Script script;
-    script.pixels = pixels;
-    return script;
-}
-
-} // namespace
+using namespace FakeFrames;
 
 // The one walk behind screenshots and the frozen frame, over fake sources.
 class tst_FrameSourceChain : public QObject
@@ -131,7 +39,7 @@ private slots:
         probes.portal = [wayland] { return wayland; };
         const Type chosen = StrategySelection::choose(desktop, flatpak, probes);
 
-        FakeDesktop fake;
+        Desktop fake;
         for (const Type type : {Type::KWin, Type::Screencast, Type::Screencopy, Type::Portal,
                                 Type::Native})
             fake.offered.insert(type, failing());
@@ -149,8 +57,8 @@ private slots:
 
     void aCancelStopsTheWalk()
     {
-        FakeDesktop fake;
-        fake.offered.insert(Type::Screencast, {Script::Cancel});
+        Desktop fake;
+        fake.offered.insert(Type::Screencast, cancelling());
         fake.offered.insert(Type::Portal, delivering());
         FrameSourceChain chain(QStringLiteral("Test"), fake.factory());
         QSignalSpy ready(&chain, &FrameSourceChain::frameReady);
@@ -166,7 +74,7 @@ private slots:
 
     void aFailurePassesOnToTheNextSource()
     {
-        FakeDesktop fake;
+        Desktop fake;
         fake.offered.insert(Type::Screencopy, failing());
         fake.offered.insert(Type::Portal, delivering({300, 150}));
         FrameSourceChain chain(QStringLiteral("Test"), fake.factory());
@@ -182,7 +90,7 @@ private slots:
 
     void aMissingSourceIsSkipped()
     {
-        FakeDesktop fake;
+        Desktop fake;
         fake.offered.insert(Type::Portal, delivering());
         FrameSourceChain chain(QStringLiteral("Test"), fake.factory());
         QSignalSpy ready(&chain, &FrameSourceChain::frameReady);
@@ -194,7 +102,7 @@ private slots:
 
     void aWalkEndingOnAMissingSourceSaysSo()
     {
-        FakeDesktop fake;
+        Desktop fake;
         fake.offered.insert(Type::Screencopy, failing());
         FrameSourceChain chain(QStringLiteral("Test"), fake.factory());
         QSignalSpy failed(&chain, &FrameSourceChain::failed);
@@ -219,7 +127,7 @@ private slots:
 
     void aSourceThatWithdrawsAfterFailingIsSkippedForTheRun()
     {
-        FakeDesktop fake;
+        Desktop fake;
         fake.offered.insert(Type::Screencast, failing());
         fake.offered.insert(Type::Portal, delivering());
         fake.withdrawOnFailure.append(Type::Screencast);
@@ -237,8 +145,8 @@ private slots:
 
     void aCancelDoesNotWithdrawTheSource()
     {
-        FakeDesktop fake;
-        fake.offered.insert(Type::Screencast, {Script::Cancel});
+        Desktop fake;
+        fake.offered.insert(Type::Screencast, cancelling());
         fake.withdrawOnFailure.append(Type::Screencast);
         FrameSourceChain chain(QStringLiteral("Test"), fake.factory());
         chain.grab({Type::Screencast, Type::Portal});
@@ -248,7 +156,7 @@ private slots:
 
     void anAsynchronousWalkIgnoresAGrabInFlight()
     {
-        FakeDesktop fake;
+        Desktop fake;
         Script slowFailure = failing();
         slowFailure.async = true;
         Script slowFrame = delivering();
@@ -271,10 +179,8 @@ private slots:
     void aPartialFrameGoesOutUnchecked()
     {
         // One monitor of two, picked in a system dialog.
-        FakeDesktop fake;
-        Script onePick = delivering({100, 50});
-        onePick.dpr = 1.0;
-        onePick.geometry = QRect(0, 0, 200, 50);
+        Desktop fake;
+        const Script onePick = delivering({100, 50}, 1.0, QRect(0, 0, 200, 50));
         fake.offered.insert(Type::Portal, onePick);
         FrameSourceChain chain(QStringLiteral("Test"), fake.factory());
         QSignalSpy ready(&chain, &FrameSourceChain::frameReady);
@@ -284,12 +190,23 @@ private slots:
         QCOMPARE(ready.first().at(1).toRect(), QRect(0, 0, 200, 50));
     }
 
+    void aScreenPickerIsAnnounced()
+    {
+        Desktop fake;
+        Script firstPick = delivering();
+        firstPick.picker = true;
+        fake.offered.insert(Type::Screencast, firstPick);
+        FrameSourceChain chain(QStringLiteral("Test"), fake.factory());
+        QSignalSpy picker(&chain, &FrameSourceChain::sourcePickerExpected);
+        chain.grab({Type::Screencast});
+        QCOMPARE(picker.count(), 1);
+        QCOMPARE(picker.first().at(0).toBool(), true);
+    }
+
     void aTurnedDownFrameCountsAsAFailure()
     {
-        FakeDesktop fake;
-        Script onePick = delivering({100, 50});
-        onePick.dpr = 1.0;
-        onePick.geometry = QRect(0, 0, 200, 50);
+        Desktop fake;
+        const Script onePick = delivering({100, 50}, 1.0, QRect(0, 0, 200, 50));
         fake.offered.insert(Type::Screencast, onePick);
         fake.offered.insert(Type::Portal, delivering());
         FrameSourceChain chain(QStringLiteral("Test"), fake.factory());

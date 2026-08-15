@@ -38,6 +38,9 @@ signals:
     void frameReady(const QPixmap &pixmap, const QRect &virtualGeometry);
     // cancelled: the user dismissed a system prompt, so nothing else should ask again.
     void frameFailed(const QString &reason, bool cancelled);
+    // No consent stored yet: the system is about to ask which screens to share.
+    // lastPickMissedScreens: the pick it remembered left a screen out, so it was forgotten.
+    void sourcePickerExpected(bool lastPickMissedScreens);
 };
 
 // Whether Snim runs in a Wayland session, by the environment it was started with.

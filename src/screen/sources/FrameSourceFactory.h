@@ -32,6 +32,9 @@ public:
     [[nodiscard]] static std::unique_ptr<DesktopFrameSource> create(SourceType type,
                                                                     QObject *parent = nullptr);
 
+    // Whether this session offers the type; each probe keeps its yes for the run.
+    [[nodiscard]] static bool isAvailable(SourceType type);
+
     // StrategySelection over this desktop; SNIM_CAPTURE_STRATEGY forces a type, for testing.
     [[nodiscard]] static SourceType defaultType();
 

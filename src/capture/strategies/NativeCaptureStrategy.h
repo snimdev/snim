@@ -33,7 +33,6 @@ public:
     void captureArea() override;
     void captureWindow() override;
 
-    bool isAvailable() const override;
     QString name() const override { return "Native Qt Capture"; }
 
 private:

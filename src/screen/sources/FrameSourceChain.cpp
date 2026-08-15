@@ -54,6 +54,8 @@ void FrameSourceChain::tryNext()
         m_source = source.release();
         connect(m_source, &DesktopFrameSource::frameReady, this, &FrameSourceChain::sourceReady);
         connect(m_source, &DesktopFrameSource::frameFailed, this, &FrameSourceChain::sourceFailed);
+        connect(m_source, &DesktopFrameSource::sourcePickerExpected,
+                this, &FrameSourceChain::sourcePickerExpected);
         qInfo().noquote() << m_label << "asking" << FrameSourceFactory::typeName(type);
         m_source->grab();
         return;

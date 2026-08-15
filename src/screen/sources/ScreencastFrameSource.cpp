@@ -85,11 +85,6 @@ bool ScreencastFrameSource::isSupported()
     return isWaylandSession() && !s_failedThisRun && portalPersists() && PipeWireFrames::canGrab();
 }
 
-bool ScreencastFrameSource::hasFailedThisRun()
-{
-    return s_failedThisRun;
-}
-
 bool ScreencastFrameSource::hasRestoreToken()
 {
     return !Session::restoreToken(QString::fromLatin1(kRestoreTokenKey)).isEmpty();

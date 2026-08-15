@@ -13,7 +13,7 @@ namespace Capture {
 class CaptureFactory
 {
 public:
-    // One strategy per frame source, so they share the type and its selection.
+    // Strategies follow the frame source types, so they share the type and its selection.
     using StrategyType = Screen::SourceType;
 
     /**
