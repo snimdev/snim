@@ -63,37 +63,18 @@ void NativeCaptureStrategy::grabAndSelect(bool windowPick)
 
 QPixmap NativeCaptureStrategy::captureScreen()
 {
-    // Get the screen where the cursor is currently located
-    QPoint cursorPos = QCursor::pos();
-    QScreen *currentScreen = QApplication::screenAt(cursorPos);
+    // The screen under the pointer, else the primary one.
+    QScreen *screen = QApplication::screenAt(QCursor::pos());
+    if (!screen)
+        screen = QApplication::primaryScreen();
+    if (!screen)
+        return {};
 
-    // Fall back to primary screen if cursor screen detection fails
-    if (!currentScreen) {
-        currentScreen = QApplication::primaryScreen();
-    }
-
-    if (currentScreen) {
-        QPixmap screenshot = currentScreen->grabWindow(0);
-
-        // If the screenshot is larger than the screen, crop it to the screen size
-        QRect screenGeometry = currentScreen->geometry();
-        if (screenshot.size() != screenGeometry.size()) {
-            qDebug() << "Screenshot size" << screenshot.size()
-                     << "doesn't match screen size" << screenGeometry.size();
-
-            QPoint screenOffset = screenGeometry.topLeft();
-            QRect cropRect(screenOffset, screenGeometry.size());
-            screenshot = screenshot.copy(cropRect);
-        }
-
-        qDebug() << "Native capture - Screen:" << currentScreen->name()
-                 << "Geometry:" << screenGeometry
-                 << "Final screenshot size:" << screenshot.size();
-
-        return screenshot;
-    }
-
-    return QPixmap();
+    // Window 0 is exactly this screen at its own DPR, so no logical crop applies.
+    const QPixmap screenshot = screen->grabWindow(0);
+    qDebug() << "Native capture - Screen:" << screen->name() << "Geometry:" << screen->geometry()
+             << "Final screenshot size:" << screenshot.size() << "DPR:" << screenshot.devicePixelRatio();
+    return screenshot;
 }
 
 } // namespace Capture

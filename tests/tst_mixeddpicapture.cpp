@@ -4,6 +4,7 @@
 #include <QTemporaryDir>
 
 #include "capture/CaptureGeometry.h"
+#include "capture/strategies/NativeCaptureStrategy.h"
 #include "screen/FrozenFrameGrabber.h"
 
 using namespace Capture;
@@ -104,6 +105,33 @@ private slots:
         const QPixmap out = cropVirtualArea(m_frame, m_virtual, area);
         QCOMPARE(out.devicePixelRatio(), 1.5);
         QCOMPARE(out.deviceIndependentSize(), QSizeF(area.size()));
+    }
+
+    void aFullScreenShotKeepsTheWholeScreen_data()
+    {
+        QTest::addColumn<QPoint>("cursor");
+        QTest::addColumn<QSize>("pixels");
+        QTest::addColumn<qreal>("dpr");
+        QTest::newRow("primary") << QPoint(100, 100) << QSize(800, 600) << 1.0;
+        QTest::newRow("right") << QPoint(900, 100) << QSize(1200, 900) << 1.5;
+        QTest::newRow("left") << QPoint(-1100, 100) << QSize(1200, 900) << 1.5;
+    }
+
+    void aFullScreenShotKeepsTheWholeScreen()
+    {
+        // The screen under the pointer, every pixel at its own scale.
+        QFETCH(QPoint, cursor);
+        QFETCH(QSize, pixels);
+        QFETCH(qreal, dpr);
+        QCursor::setPos(cursor);
+        NativeCaptureStrategy strategy;
+        QSignalSpy ready(&strategy, &CaptureStrategy::screenshotReady);
+        strategy.captureFullScreen();
+        QCOMPARE(ready.count(), 1);
+        const QPixmap shot = ready.first().first().value<QPixmap>();
+        QCOMPARE(shot.size(), pixels);
+        QCOMPARE(shot.devicePixelRatio(), dpr);
+        QCOMPARE(shot.deviceIndependentSize(), QSizeF(800, 600));
     }
 
     void cropsAnAreaSpanningTheGap()
