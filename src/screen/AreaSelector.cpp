@@ -1,5 +1,6 @@
 #include "screen/AreaSelector.h"
 #include "screen/AreaSelectorInput.h"
+#include "screen/DesktopStitch.h"
 #include "core/IconUtil.h"
 #include "core/Perf.h"
 #include <QPainter>
@@ -87,11 +88,7 @@ QRect AreaSelector::localSelection() const
 
 QRect AreaSelector::virtToSource(const QRect &virt) const
 {
-    QRect src(int((virt.x() - m_virtualGeometry.x()) * m_dpr),
-              int((virt.y() - m_virtualGeometry.y()) * m_dpr),
-              int(virt.width()  * m_dpr),
-              int(virt.height() * m_dpr));
-    return src.intersected(m_screenshot.rect());
+    return physicalCropRect(virt, m_virtualGeometry, m_dpr, m_screenshot.size());
 }
 
 // ---- handle hit-testing / geometry ----------------------------------------
@@ -614,16 +611,10 @@ void AreaSelector::rebuildBackgroundCache()
 
 void AreaSelector::paintBackground(QPainter &p)
 {
+    // Null only for an empty widget, where there is nothing to paint.
     if (m_dimmedBg.isNull())
         rebuildBackgroundCache();
-
-    if (!m_dimmedBg.isNull()) {
-        p.drawPixmap(0, 0, m_dimmedBg);
-    } else {
-        const QRect src = virtToSource(QRect(toVirt(QPoint(0, 0)), size()));
-        p.drawPixmap(rect(), m_screenshot, src);
-        p.fillRect(rect(), QColor(0, 0, 0, kDimAlpha));
-    }
+    p.drawPixmap(0, 0, m_dimmedBg);
 }
 
 void AreaSelector::paintSelection(QPainter &p)

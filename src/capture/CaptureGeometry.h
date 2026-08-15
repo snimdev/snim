@@ -19,20 +19,7 @@ namespace Capture {
  * pixmap whose origin is the virtual desktop's top-left.
  */
 
-// Pure: the physical pixmap rect for a virtual-desktop logical selection.
-inline QRect physicalCropRect(const QRect &area, const QRect &virtualGeometry,
-                              qreal dpr, const QSize &pixmapSize)
-{
-    if (area.isEmpty())
-        return QRect();
-
-    QRect physicalArea(
-        (area.x() - virtualGeometry.x()) * dpr,
-        (area.y() - virtualGeometry.y()) * dpr,
-        area.width()  * dpr,
-        area.height() * dpr);
-    return physicalArea.intersected(QRect(QPoint(0, 0), pixmapSize));
-}
+using Screen::physicalCropRect;
 
 // Crops and restores the DPR on the result.
 inline QPixmap cropVirtualArea(const QPixmap &shot, const QRect &virtualGeometry,

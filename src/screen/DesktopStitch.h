@@ -29,6 +29,21 @@ struct ScreenGrab {
     QPixmap pixmap;
 };
 
+// Pure: the physical pixmap rect for a virtual-desktop logical selection.
+inline QRect physicalCropRect(const QRect &area, const QRect &virtualGeometry,
+                              qreal dpr, const QSize &pixmapSize)
+{
+    if (area.isEmpty())
+        return QRect();
+
+    QRect physicalArea(
+        (area.x() - virtualGeometry.x()) * dpr,
+        (area.y() - virtualGeometry.y()) * dpr,
+        area.width()  * dpr,
+        area.height() * dpr);
+    return physicalArea.intersected(QRect(QPoint(0, 0), pixmapSize));
+}
+
 // Frames a source sent without geometry: a lone one is taken to be the whole desktop,
 // several are laid out left to right at DPR 1 after the known ones.
 inline QList<PlacedFrame> placeFramesWithoutGeometry(QList<PlacedFrame> frames,
