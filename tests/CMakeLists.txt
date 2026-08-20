@@ -160,22 +160,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "DBUS_SESSION_BUS_ADDRESS=unix:path=${CMAKE_CURRENT_BINARY_DIR}/no-session-bus")
 endif()
 
-# The Linux keychain against a fake and a real Secret Service, on a private session bus
-# where nothing is activatable, so it can never reach the desktop's own keyring.
+# The Linux keychain against a fake and a real Secret Service, and the portal plumbing
+# against a fake portal, on a private session bus where nothing is activatable, so they
+# can never reach the desktop's own keyring or portal.
 set(SNIM_BUS_TESTS)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_program(SNIM_DBUS_RUN_SESSION dbus-run-session)
 endif()
 if(SNIM_DBUS_RUN_SESSION)
-    add_executable(tst_keychainstore_linux tst_keychainstore_linux.cpp)
-    target_link_libraries(tst_keychainstore_linux PRIVATE snim_lib Qt6::Test)
-    add_test(NAME tst_keychainstore_linux
-            COMMAND ${SNIM_DBUS_RUN_SESSION}
-                    --config-file=${CMAKE_CURRENT_SOURCE_DIR}/data/private-session-bus.conf
-                    -- $<TARGET_FILE:tst_keychainstore_linux>)
-    set_tests_properties(tst_keychainstore_linux PROPERTIES
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SNIM_TEST_PRIVATE_BUS=1")
-    list(APPEND SNIM_BUS_TESTS tst_keychainstore_linux)
+    foreach(test_name tst_keychainstore_linux tst_portal)
+        add_executable(${test_name} ${test_name}.cpp)
+        target_link_libraries(${test_name} PRIVATE snim_lib Qt6::Test)
+        add_test(NAME ${test_name}
+                COMMAND ${SNIM_DBUS_RUN_SESSION}
+                        --config-file=${CMAKE_CURRENT_SOURCE_DIR}/data/private-session-bus.conf
+                        -- $<TARGET_FILE:${test_name}>)
+        set_tests_properties(${test_name} PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;SNIM_TEST_PRIVATE_BUS=1")
+        list(APPEND SNIM_BUS_TESTS ${test_name})
+    endforeach()
 endif()
 
 # Convenience aggregate: build every test, then run the whole suite.

@@ -2,6 +2,7 @@
 #define SCREEN_PORTALFRAMESOURCE_H
 
 #include "DesktopFrameSource.h"
+#include "core/Portal.h"
 
 #include <QVariantMap>
 
@@ -32,11 +33,10 @@ private slots:
 
 private:
     bool request(bool interactive, QString *error);
-    void disconnectResponse();
     void finishFailed(const QString &reason, bool cancelled);
 
     QTimer *m_timeout = nullptr;
-    QString m_requestPath;   // the Request object we are subscribed to
+    Core::Portal::Request m_request;   // the one we are subscribed to
     bool m_interactive = false;
     bool m_busy = false;
 };

@@ -4,14 +4,12 @@
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusObjectPath>
-#include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QDBusUnixFileDescriptor>
 #include <QDBusVariant>
 #include <QDebug>
 #include <QSettings>
-#include <QUuid>
 
 #include <unistd.h>
 
@@ -19,12 +17,10 @@ namespace Screen {
 
 namespace {
 
-const QString kService = QStringLiteral("org.freedesktop.portal.Desktop");
-const QString kPath = QStringLiteral("/org/freedesktop/portal/desktop");
+namespace Portal = Core::Portal;
+
 const QString kScreenCast = QStringLiteral("org.freedesktop.portal.ScreenCast");
-const QString kRequest = QStringLiteral("org.freedesktop.portal.Request");
 const QString kSession = QStringLiteral("org.freedesktop.portal.Session");
-const QString kProperties = QStringLiteral("org.freedesktop.DBus.Properties");
 const QString kClosed = QStringLiteral("Closed");
 
 const char *const kCreateSlot = SLOT(handleCreateSessionResponse(uint,QVariantMap));
@@ -39,6 +35,12 @@ constexpr uint kSourceWindow = 2;
 constexpr uint kCursorHidden = 1;
 constexpr uint kCursorEmbedded = 2;
 constexpr uint kPersistUntilRevoked = 2;
+
+// One ScreenCast property; 0 when the portal does not say.
+uint screenCastProperty(const char *name)
+{
+    return Portal::property(kScreenCast, QLatin1String(name)).toUInt();
+}
 
 uint sourceType(ScreenCastPortalSession::Source source)
 {
@@ -87,7 +89,7 @@ ScreenCastPortalSession::~ScreenCastPortalSession()
 
 uint ScreenCastPortalSession::portalVersion()
 {
-    return readUintProperty(QStringLiteral("version"));
+    return screenCastProperty("version");
 }
 
 QVariantMap ScreenCastPortalSession::sourceSelection(const Options &options,
@@ -147,65 +149,38 @@ void ScreenCastPortalSession::close()
 
 void ScreenCastPortalSession::createSession()
 {
-    const QString handleToken = newToken();
-    m_createRequestPath = requestPath(handleToken);
-
     // Connected before the call: the portal may answer before the method reply arrives.
-    if (!connectResponse(m_createRequestPath, kCreateSlot)) {
-        m_createRequestPath.clear();
+    if (!m_createRequest.listen(this, kCreateSlot)) {
         fail(tr("The screen sharing portal could not be listened to."));
         return;
     }
 
     QVariantMap options;
-    options.insert(QStringLiteral("handle_token"), handleToken);
-    options.insert(QStringLiteral("session_handle_token"), newToken());
-
-    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kScreenCast,
-                                                      QStringLiteral("CreateSession"));
-    msg.setArguments({QVariant::fromValue(options)});
-
-    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
-        w->deleteLater();
-        // The method reply only acknowledges the request; the answer is the Response signal.
-        const QDBusPendingReply<QDBusObjectPath> reply = *w;
-        if (!reply.isError())
-            return;
-
-        qWarning() << "ScreenCast CreateSession failed:" << reply.error().message();
-        fail(tr("The screen sharing portal is not available: %1").arg(reply.error().message()));
+    options.insert(QStringLiteral("handle_token"), m_createRequest.token());
+    options.insert(QStringLiteral("session_handle_token"), Portal::newToken());
+    Portal::sendRequest(kScreenCast, QStringLiteral("CreateSession"),
+                        {QVariant::fromValue(options)}, this, [this](const QString &error) {
+        fail(tr("The screen sharing portal is not available: %1").arg(error));
     });
 }
 
 void ScreenCastPortalSession::handleCreateSessionResponse(uint response,
                                                           const QVariantMap &results)
 {
-    disconnectResponse(m_createRequestPath, kCreateSlot);
-    m_createRequestPath.clear();
+    m_createRequest.stop();
 
     if (response != 0) {
         failResponse("CreateSession", response);
         return;
     }
 
-    // Spec types session_handle as a string; some backends send an object path.
-    const QVariant handle = results.value(QStringLiteral("session_handle"));
-    m_sessionPath = handle.toString();
-    if (m_sessionPath.isEmpty() && handle.canConvert<QDBusObjectPath>())
-        m_sessionPath = handle.value<QDBusObjectPath>().path();
-
+    m_sessionPath = Portal::sessionHandle(results);
     if (m_sessionPath.isEmpty()) {
         fail(tr("The screen sharing portal returned no session handle."));
         return;
     }
 
-    // Closed grew an a{sv} argument along the way, so listen for both spellings; the
-    // handler ignores everything after the first one.
-    QDBusConnection::sessionBus().connect(kService, m_sessionPath, kSession, kClosed, this,
-                                          kClosedSlot);
-    QDBusConnection::sessionBus().connect(kService, m_sessionPath, kSession, kClosed, this,
-                                          kClosedDetailsSlot);
+    watchClosed(true);
 
     selectSources();
 }
@@ -214,44 +189,30 @@ void ScreenCastPortalSession::selectSources()
 {
     // Each property is a blocking read, so only those that decide something.
     Capabilities portal;
-    portal.cursorModes = readUintProperty(QStringLiteral("AvailableCursorModes"));
+    portal.cursorModes = screenCastProperty("AvailableCursorModes");
     if (!m_options.restoreTokenKey.isEmpty())
         portal.version = portalVersion();
     if (m_options.source != Source::Monitor)
-        portal.sourceTypes = readUintProperty(QStringLiteral("AvailableSourceTypes"));
+        portal.sourceTypes = screenCastProperty("AvailableSourceTypes");
     if (!offers(m_options.source, portal)) {
         fail(tr("This desktop's screen sharing cannot share a single window. "
                 "Record an area instead."));
         return;
     }
 
-    const QString handleToken = newToken();
-    m_selectRequestPath = requestPath(handleToken);
-
-    if (!connectResponse(m_selectRequestPath, kSelectSlot)) {
-        m_selectRequestPath.clear();
+    if (!m_selectRequest.listen(this, kSelectSlot)) {
         fail(tr("The screen sharing portal could not be listened to."));
         return;
     }
 
     QVariantMap options = sourceSelection(m_options, portal,
                                           restoreToken(m_options.restoreTokenKey));
-    options.insert(QStringLiteral("handle_token"), handleToken);
-
-    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kScreenCast,
-                                                      QStringLiteral("SelectSources"));
-    msg.setArguments({QVariant::fromValue(QDBusObjectPath(m_sessionPath)),
-                      QVariant::fromValue(options)});
-
-    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
-        w->deleteLater();
-        const QDBusPendingReply<QDBusObjectPath> reply = *w;
-        if (!reply.isError())
-            return;
-
-        qWarning() << "ScreenCast SelectSources failed:" << reply.error().message();
-        fail(tr("The screen to record could not be selected: %1").arg(reply.error().message()));
+    options.insert(QStringLiteral("handle_token"), m_selectRequest.token());
+    Portal::sendRequest(kScreenCast, QStringLiteral("SelectSources"),
+                        {QVariant::fromValue(QDBusObjectPath(m_sessionPath)),
+                         QVariant::fromValue(options)},
+                        this, [this](const QString &error) {
+        fail(tr("The screen to record could not be selected: %1").arg(error));
     });
 }
 
@@ -260,8 +221,7 @@ void ScreenCastPortalSession::handleSelectSourcesResponse(uint response,
 {
     Q_UNUSED(results)
 
-    disconnectResponse(m_selectRequestPath, kSelectSlot);
-    m_selectRequestPath.clear();
+    m_selectRequest.stop();
 
     if (response != 0) {
         failResponse("SelectSources", response);
@@ -273,41 +233,25 @@ void ScreenCastPortalSession::handleSelectSourcesResponse(uint response,
 
 void ScreenCastPortalSession::start()
 {
-    const QString handleToken = newToken();
-    m_startRequestPath = requestPath(handleToken);
-
-    if (!connectResponse(m_startRequestPath, kStartSlot)) {
-        m_startRequestPath.clear();
+    if (!m_startRequest.listen(this, kStartSlot)) {
         fail(tr("The screen sharing portal could not be listened to."));
         return;
     }
 
     QVariantMap options;
-    options.insert(QStringLiteral("handle_token"), handleToken);
-
-    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kScreenCast,
-                                                      QStringLiteral("Start"));
+    options.insert(QStringLiteral("handle_token"), m_startRequest.token());
     // Empty parent_window: a tray app has no window to parent the desktop's dialog to.
-    msg.setArguments({QVariant::fromValue(QDBusObjectPath(m_sessionPath)),
-                      QString(),
-                      QVariant::fromValue(options)});
-
-    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
-        w->deleteLater();
-        const QDBusPendingReply<QDBusObjectPath> reply = *w;
-        if (!reply.isError())
-            return;
-
-        qWarning() << "ScreenCast Start failed:" << reply.error().message();
-        fail(tr("Screen sharing could not be started: %1").arg(reply.error().message()));
+    Portal::sendRequest(kScreenCast, QStringLiteral("Start"),
+                        {QVariant::fromValue(QDBusObjectPath(m_sessionPath)), QString(),
+                         QVariant::fromValue(options)},
+                        this, [this](const QString &error) {
+        fail(tr("Screen sharing could not be started: %1").arg(error));
     });
 }
 
 void ScreenCastPortalSession::handleStartResponse(uint response, const QVariantMap &results)
 {
-    disconnectResponse(m_startRequestPath, kStartSlot);
-    m_startRequestPath.clear();
+    m_startRequest.stop();
 
     if (response != 0) {
         failResponse("Start", response);
@@ -358,7 +302,7 @@ void ScreenCastPortalSession::handleStartResponse(uint response, const QVariantM
 
 void ScreenCastPortalSession::openPipeWireRemote()
 {
-    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kScreenCast,
+    QDBusMessage msg = QDBusMessage::createMethodCall(Portal::kService, Portal::kPath, kScreenCast,
                                                       QStringLiteral("OpenPipeWireRemote"));
     // Not a Request: the reply itself carries the PipeWire socket.
     msg.setArguments({QVariant::fromValue(QDBusObjectPath(m_sessionPath)),
@@ -400,10 +344,7 @@ void ScreenCastPortalSession::handleSessionClosed()
 
     // The portal already tore the session down, so drop the path before cleaning up and
     // no Close call goes to a dead object.
-    QDBusConnection::sessionBus().disconnect(kService, m_sessionPath, kSession, kClosed, this,
-                                             kClosedSlot);
-    QDBusConnection::sessionBus().disconnect(kService, m_sessionPath, kSession, kClosed, this,
-                                             kClosedDetailsSlot);
+    watchClosed(false);
     m_sessionPath.clear();
 
     close();
@@ -414,6 +355,19 @@ void ScreenCastPortalSession::handleSessionClosedWithDetails(const QVariantMap &
 {
     Q_UNUSED(details)
     handleSessionClosed();
+}
+
+void ScreenCastPortalSession::watchClosed(bool watch)
+{
+    // Closed grew an a{sv} argument along the way, so both spellings are followed; the
+    // handler ignores everything after the first one.
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    for (const char *slot : {kClosedSlot, kClosedDetailsSlot}) {
+        if (watch)
+            bus.connect(Portal::kService, m_sessionPath, kSession, kClosed, this, slot);
+        else
+            bus.disconnect(Portal::kService, m_sessionPath, kSession, kClosed, this, slot);
+    }
 }
 
 void ScreenCastPortalSession::fail(const QString &error)
@@ -434,73 +388,17 @@ void ScreenCastPortalSession::failResponse(const char *step, uint response)
 
 void ScreenCastPortalSession::reset()
 {
-    disconnectResponse(m_createRequestPath, kCreateSlot);
-    m_createRequestPath.clear();
-    disconnectResponse(m_selectRequestPath, kSelectSlot);
-    m_selectRequestPath.clear();
-    disconnectResponse(m_startRequestPath, kStartSlot);
-    m_startRequestPath.clear();
+    m_createRequest.stop();
+    m_selectRequest.stop();
+    m_startRequest.stop();
 
     if (!m_sessionPath.isEmpty()) {
-        QDBusConnection::sessionBus().disconnect(kService, m_sessionPath, kSession, kClosed, this,
-                                                 kClosedSlot);
-        QDBusConnection::sessionBus().disconnect(kService, m_sessionPath, kSession, kClosed, this,
-                                                 kClosedDetailsSlot);
-        QDBusConnection::sessionBus().asyncCall(
-            QDBusMessage::createMethodCall(kService, m_sessionPath, kSession,
-                                           QStringLiteral("Close")));
+        watchClosed(false);
+        Portal::closeSession(m_sessionPath);
         m_sessionPath.clear();
     }
 
     m_streams.clear();
-}
-
-bool ScreenCastPortalSession::connectResponse(const QString &path, const char *slot)
-{
-    const bool ok = QDBusConnection::sessionBus().connect(kService, path, kRequest,
-                                                          QStringLiteral("Response"), this, slot);
-    if (!ok)
-        qWarning() << "Failed to connect portal Response signal on path:" << path;
-    return ok;
-}
-
-void ScreenCastPortalSession::disconnectResponse(const QString &path, const char *slot)
-{
-    if (path.isEmpty())
-        return;
-    QDBusConnection::sessionBus().disconnect(kService, path, kRequest,
-                                             QStringLiteral("Response"), this, slot);
-}
-
-QString ScreenCastPortalSession::newToken()
-{
-    // The token becomes an object-path element, which allows no braces or dashes.
-    return QUuid::createUuid().toString().remove('-').remove('{').remove('}');
-}
-
-QString ScreenCastPortalSession::requestPath(const QString &token)
-{
-    // The portal derives this path from our unique name and the token, so it is known
-    // before the call is sent.
-    const QString sender =
-        QDBusConnection::sessionBus().baseService().remove(':').replace('.', '_');
-    return QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2").arg(sender, token);
-}
-
-uint ScreenCastPortalSession::readUintProperty(const QString &name)
-{
-    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kProperties,
-                                                      QStringLiteral("Get"));
-    msg.setArguments({kScreenCast, name});
-
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 2000);
-    if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().isEmpty())
-        return 0;
-
-    const QVariant value = reply.arguments().constFirst().value<QDBusVariant>().variant();
-    bool ok = false;
-    const uint number = value.toUInt(&ok);
-    return ok ? number : 0;
 }
 
 } // namespace Screen

@@ -1,6 +1,7 @@
 #ifndef HOTKEYS_PORTALHOTKEYBACKEND_H
 #define HOTKEYS_PORTALHOTKEYBACKEND_H
 
+#include "core/Portal.h"
 #include "hotkeys/HotkeyBackend.h"
 
 #include <QDBusObjectPath>
@@ -48,17 +49,11 @@ private:
     void createSession();
     void bindShortcuts(const QList<HotkeyBinding> &bindings);
     void failAll(const QList<HotkeyBinding> &bindings, const QString &reason);
-    bool connectResponse(const QString &path, const char *slot);
-    void disconnectResponse(const QString &path, const char *slot);
-
-    // Token and the Request path the portal will derive from it.
-    [[nodiscard]] static QString newToken();
-    [[nodiscard]] static QString requestPath(const QString &token);
 
     SessionState m_state = SessionState::NoSession;
     QString m_sessionPath;
-    QString m_createRequestPath;
-    QString m_bindRequestPath;
+    Core::Portal::Request m_createRequest;
+    Core::Portal::Request m_bindRequest;
     QList<HotkeyBinding> m_pendingBindings;   // queued while the session is being created
     QList<HotkeyBinding> m_boundBindings;     // what the in-flight BindShortcuts asked for
     QDBusServiceWatcher *m_serviceWatcher = nullptr;

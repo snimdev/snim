@@ -1,20 +1,17 @@
 #include "hotkeys/backends/PortalHotkeyBackend.h"
 
+#include "core/Portal.h"
 #include "hotkeys/PortalKeyMapping.h"
 
 #include <QDBusArgument>
 #include <QDBusConnection>
-#include <QDBusMessage>
 #include <QDBusMetaType>
-#include <QDBusPendingCall>
-#include <QDBusPendingCallWatcher>
-#include <QDBusPendingReply>
 #include <QDBusServiceWatcher>
 #include <QDebug>
 #include <QPair>
-#include <QUuid>
 
 #include <optional>
+#include <utility>
 
 // BindShortcuts takes a(sa{sv}); QtDBus marshals the pairs once registered. Global scope is
 // required: Q_DECLARE_METATYPE cannot sit in a namespace.
@@ -28,20 +25,12 @@ namespace Hotkeys {
 
 namespace {
 
-const QString kService = QStringLiteral("org.freedesktop.portal.Desktop");
-const QString kPath = QStringLiteral("/org/freedesktop/portal/desktop");
+namespace Portal = Core::Portal;
+
 const QString kShortcuts = QStringLiteral("org.freedesktop.portal.GlobalShortcuts");
-const QString kRequest = QStringLiteral("org.freedesktop.portal.Request");
-const QString kSession = QStringLiteral("org.freedesktop.portal.Session");
-const QString kProperties = QStringLiteral("org.freedesktop.DBus.Properties");
 
 const char *const kCreateSlot = SLOT(handleCreateSessionResponse(uint,QVariantMap));
 const char *const kBindSlot = SLOT(handleBindShortcutsResponse(uint,QVariantMap));
-
-// Probes run on the GUI thread, so a stuck portal may only hold it this long.
-constexpr int kProbeTimeoutMs = 2000;
-// A yes is kept for the run; a no is asked again, the portal may still be starting.
-bool s_portalAvailable = false;
 
 } // namespace
 
@@ -53,12 +42,12 @@ PortalHotkeyBackend::PortalHotkeyBackend(QObject *parent) : HotkeyBackend(parent
     // Connected once for the object's life: Activated carries the session handle, so one
     // slot serves every session this backend creates.
     QDBusConnection::sessionBus().connect(
-        kService, kPath, kShortcuts, QStringLiteral("Activated"), this,
+        Portal::kService, Portal::kPath, kShortcuts, QStringLiteral("Activated"), this,
         SLOT(handleActivated(QDBusObjectPath,QString,qulonglong,QVariantMap)));
 
     // A portal restart kills the session silently, so drop it and let the next
     // registerAll() build a fresh one.
-    m_serviceWatcher = new QDBusServiceWatcher(kService, QDBusConnection::sessionBus(),
+    m_serviceWatcher = new QDBusServiceWatcher(Portal::kService, QDBusConnection::sessionBus(),
                                                QDBusServiceWatcher::WatchForUnregistration, this);
     connect(m_serviceWatcher, &QDBusServiceWatcher::serviceUnregistered, this,
             [this](const QString &) {
@@ -74,14 +63,7 @@ PortalHotkeyBackend::~PortalHotkeyBackend()
 
 bool PortalHotkeyBackend::isPortalAvailable()
 {
-    if (s_portalAvailable)
-        return true;
-    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kProperties,
-                                                      QStringLiteral("Get"));
-    msg.setArguments({kShortcuts, QStringLiteral("version")});
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, kProbeTimeoutMs);
-    s_portalAvailable = reply.type() == QDBusMessage::ReplyMessage;
-    return s_portalAvailable;
+    return Portal::hasInterface(kShortcuts);
 }
 
 bool PortalHotkeyBackend::isAvailable() const
@@ -115,21 +97,13 @@ void PortalHotkeyBackend::unregisterAll()
     m_pendingBindings.clear();
     m_boundBindings.clear();
 
-    if (!m_createRequestPath.isEmpty()) {
-        disconnectResponse(m_createRequestPath, kCreateSlot);
-        m_createRequestPath.clear();
-    }
-    if (!m_bindRequestPath.isEmpty()) {
-        disconnectResponse(m_bindRequestPath, kBindSlot);
-        m_bindRequestPath.clear();
-    }
+    m_createRequest.stop();
+    m_bindRequest.stop();
 
     if (!m_sessionPath.isEmpty()) {
         // Closing drops every shortcut in the session; the portal keeps the user's keys
         // under the shortcut ids, so the next session gets them back.
-        QDBusConnection::sessionBus().asyncCall(
-            QDBusMessage::createMethodCall(kService, m_sessionPath, kSession,
-                                           QStringLiteral("Close")));
+        Portal::closeSession(m_sessionPath);
         m_sessionPath.clear();
     }
 
@@ -138,48 +112,30 @@ void PortalHotkeyBackend::unregisterAll()
 
 void PortalHotkeyBackend::createSession()
 {
-    const QString handleToken = newToken();
-    m_createRequestPath = requestPath(handleToken);
-
     // Connected before the call: the portal may answer before the method reply arrives.
-    if (!connectResponse(m_createRequestPath, kCreateSlot)) {
-        m_createRequestPath.clear();
+    if (!m_createRequest.listen(this, kCreateSlot)) {
         failAll(m_pendingBindings, tr("the portal reply could not be listened for"));
         m_pendingBindings.clear();
         return;
     }
 
     QVariantMap options;
-    options.insert(QStringLiteral("handle_token"), handleToken);
-    options.insert(QStringLiteral("session_handle_token"), newToken());
-
-    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kShortcuts,
-                                                      QStringLiteral("CreateSession"));
-    msg.setArguments({QVariant::fromValue(options)});
+    options.insert(QStringLiteral("handle_token"), m_createRequest.token());
+    options.insert(QStringLiteral("session_handle_token"), Portal::newToken());
 
     m_state = SessionState::CreatingSession;
-
-    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
-        w->deleteLater();
-        // The method reply only acknowledges the request; the answer is the Response signal.
-        const QDBusPendingReply<QDBusObjectPath> reply = *w;
-        if (!reply.isError())
-            return;
-
-        qWarning() << "GlobalShortcuts CreateSession failed:" << reply.error().message();
-        disconnectResponse(m_createRequestPath, kCreateSlot);
-        m_createRequestPath.clear();
+    Portal::sendRequest(kShortcuts, QStringLiteral("CreateSession"),
+                        {QVariant::fromValue(options)}, this, [this](const QString &error) {
+        m_createRequest.stop();
         m_state = SessionState::NoSession;
-        failAll(m_pendingBindings, reply.error().message());
+        failAll(m_pendingBindings, error);
         m_pendingBindings.clear();
     });
 }
 
 void PortalHotkeyBackend::handleCreateSessionResponse(uint response, const QVariantMap &results)
 {
-    disconnectResponse(m_createRequestPath, kCreateSlot);
-    m_createRequestPath.clear();
+    m_createRequest.stop();
 
     if (response != 0) {
         m_state = SessionState::NoSession;
@@ -190,12 +146,7 @@ void PortalHotkeyBackend::handleCreateSessionResponse(uint response, const QVari
         return;
     }
 
-    // Spec types session_handle as a string; some backends send an object path.
-    const QVariant handle = results.value(QStringLiteral("session_handle"));
-    m_sessionPath = handle.toString();
-    if (m_sessionPath.isEmpty() && handle.canConvert<QDBusObjectPath>())
-        m_sessionPath = handle.value<QDBusObjectPath>().path();
-
+    m_sessionPath = Portal::sessionHandle(results);
     if (m_sessionPath.isEmpty()) {
         m_state = SessionState::NoSession;
         failAll(m_pendingBindings, tr("the portal returned no session handle"));
@@ -234,39 +185,21 @@ void PortalHotkeyBackend::bindShortcuts(const QList<HotkeyBinding> &bindings)
     if (shortcuts.isEmpty())
         return;
 
-    const QString handleToken = newToken();
-    m_bindRequestPath = requestPath(handleToken);
-    if (!connectResponse(m_bindRequestPath, kBindSlot)) {
-        m_bindRequestPath.clear();
+    if (!m_bindRequest.listen(this, kBindSlot)) {
         failAll(requested, tr("the portal reply could not be listened for"));
         return;
     }
     m_boundBindings = requested;
 
     QVariantMap options;
-    options.insert(QStringLiteral("handle_token"), handleToken);
-
-    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kShortcuts,
-                                                      QStringLiteral("BindShortcuts"));
+    options.insert(QStringLiteral("handle_token"), m_bindRequest.token());
     // Empty parent_window: a tray app has no window to parent the desktop's dialog to.
-    msg.setArguments({QVariant::fromValue(QDBusObjectPath(m_sessionPath)),
-                      QVariant::fromValue(shortcuts),
-                      QString(),
-                      QVariant::fromValue(options)});
-
-    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
-        w->deleteLater();
-        const QDBusPendingReply<QDBusObjectPath> reply = *w;
-        if (!reply.isError())
-            return;
-
-        qWarning() << "GlobalShortcuts BindShortcuts failed:" << reply.error().message();
-        disconnectResponse(m_bindRequestPath, kBindSlot);
-        m_bindRequestPath.clear();
-        const QList<HotkeyBinding> requestedNow = m_boundBindings;
-        m_boundBindings.clear();
-        failAll(requestedNow, reply.error().message());
+    Portal::sendRequest(kShortcuts, QStringLiteral("BindShortcuts"),
+                        {QVariant::fromValue(QDBusObjectPath(m_sessionPath)),
+                         QVariant::fromValue(shortcuts), QString(), QVariant::fromValue(options)},
+                        this, [this](const QString &error) {
+        m_bindRequest.stop();
+        failAll(std::exchange(m_boundBindings, {}), error);
     });
 }
 
@@ -274,8 +207,7 @@ void PortalHotkeyBackend::handleBindShortcutsResponse(uint response, const QVari
 {
     Q_UNUSED(results)
 
-    disconnectResponse(m_bindRequestPath, kBindSlot);
-    m_bindRequestPath.clear();
+    m_bindRequest.stop();
 
     const QList<HotkeyBinding> requested = m_boundBindings;
     m_boundBindings.clear();
@@ -316,38 +248,6 @@ void PortalHotkeyBackend::failAll(const QList<HotkeyBinding> &bindings, const QS
 {
     for (const HotkeyBinding &binding : bindings)
         emit registrationFailed(binding.action, reason);
-}
-
-bool PortalHotkeyBackend::connectResponse(const QString &path, const char *slot)
-{
-    const bool ok = QDBusConnection::sessionBus().connect(kService, path, kRequest,
-                                                          QStringLiteral("Response"), this, slot);
-    if (!ok)
-        qWarning() << "Failed to connect portal Response signal on path:" << path;
-    return ok;
-}
-
-void PortalHotkeyBackend::disconnectResponse(const QString &path, const char *slot)
-{
-    if (path.isEmpty())
-        return;
-    QDBusConnection::sessionBus().disconnect(kService, path, kRequest,
-                                             QStringLiteral("Response"), this, slot);
-}
-
-QString PortalHotkeyBackend::newToken()
-{
-    // The token becomes an object-path element, which allows no braces or dashes.
-    return QUuid::createUuid().toString().remove('-').remove('{').remove('}');
-}
-
-QString PortalHotkeyBackend::requestPath(const QString &token)
-{
-    // The portal derives this path from our unique name and the token, so it is known
-    // before the call is sent.
-    const QString sender =
-        QDBusConnection::sessionBus().baseService().remove(':').replace('.', '_');
-    return QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2").arg(sender, token);
 }
 
 } // namespace Hotkeys

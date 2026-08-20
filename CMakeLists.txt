@@ -776,6 +776,9 @@ endif()
 # other platforms (e.g. macOS) the cross-platform Qt-based NativeCaptureStrategy is used.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(snim_lib PRIVATE
+            # Request paths, Response subscriptions and probes every portal client shares
+            src/core/Portal.cpp
+            src/core/Portal.h
             src/capture/strategies/KWinCaptureStrategy.cpp
             src/capture/strategies/KWinCaptureStrategy.h
             src/screen/sources/KWinFrameSource.cpp
@@ -860,6 +863,8 @@ if(GSTREAMER_AVAILABLE)
             # when something else already pulled it into the binary doing the loading.
             src/screen/ScreenCastPortalSession.cpp
             src/screen/ScreenCastPortalSession.h
+            src/core/Portal.cpp
+            src/core/Portal.h
             # One-frame grabs for the ScreenCast frame source.
             src/recording/strategies/PipeWireFrameGrabber.cpp
             src/media/gst/GstSupport.cpp

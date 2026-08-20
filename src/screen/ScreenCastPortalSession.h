@@ -1,6 +1,8 @@
 #ifndef SCREEN_SCREENCASTPORTALSESSION_H
 #define SCREEN_SCREENCASTPORTALSESSION_H
 
+#include "core/Portal.h"
+
 #include <QList>
 #include <QObject>
 #include <QRect>
@@ -95,21 +97,12 @@ private:
     void fail(const QString &error);
     void failResponse(const char *step, uint response);
     void reset();
-
-    bool connectResponse(const QString &path, const char *slot);
-    void disconnectResponse(const QString &path, const char *slot);
-
-    // Token and the Request path the portal will derive from it.
-    [[nodiscard]] static QString newToken();
-    [[nodiscard]] static QString requestPath(const QString &token);
-
-    // 0 when the property cannot be read.
-    [[nodiscard]] static uint readUintProperty(const QString &name);
+    void watchClosed(bool watch);   // the session's Closed signal
 
     QString m_sessionPath;
-    QString m_createRequestPath;
-    QString m_selectRequestPath;
-    QString m_startRequestPath;
+    Core::Portal::Request m_createRequest;
+    Core::Portal::Request m_selectRequest;
+    Core::Portal::Request m_startRequest;
     Options m_options;
     QList<Stream> m_streams;
     bool m_cancelled = false;
