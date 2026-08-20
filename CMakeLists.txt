@@ -642,7 +642,6 @@ add_library(snim_lib STATIC
         src/hotkeys/WinKeyMapping.h
         src/hotkeys/PortalKeyMapping.cpp
         src/hotkeys/PortalKeyMapping.h
-        src/hotkeys/backends/StubHotkeyBackend.cpp
         src/hotkeys/backends/StubHotkeyBackend.h
 
 )

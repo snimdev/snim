@@ -27,15 +27,13 @@ class GlobalHotkeyManager : public QObject
 
 public:
     explicit GlobalHotkeyManager(QObject *parent = nullptr);
-    // Test seam: inject a backend (e.g. a fake) instead of the platform default.
+    // Test seam: inject a backend (e.g. a fake, never null) instead of the platform default.
     explicit GlobalHotkeyManager(std::unique_ptr<HotkeyBackend> backend,
                                  QObject *parent = nullptr);
 
     // Make the persisted bindings the live set. Safe to call again after a settings
     // change: the old registrations are dropped first.
     void applyBindings();
-
-    [[nodiscard]] bool isAvailable() const;
 
 signals:
     void actionTriggered(Hotkeys::HotkeyAction action);

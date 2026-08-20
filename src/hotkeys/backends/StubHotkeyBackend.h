@@ -7,9 +7,9 @@ namespace Hotkeys {
 
 /**
  * Universal fallback for systems with no global-hotkey backend (and for a Linux
- * desktop whose portal has no GlobalShortcuts interface). isAvailable() is false and
- * registration is a no-op, so the app builds everywhere and the hotkey settings
- * simply report that this platform is unsupported.
+ * desktop whose portal has no GlobalShortcuts interface). Registration is a no-op, so
+ * the app builds everywhere and the hotkey settings simply report that this platform
+ * is unsupported (HotkeyBackendFactory::isAvailable()).
  */
 class StubHotkeyBackend : public HotkeyBackend
 {
@@ -18,9 +18,9 @@ class StubHotkeyBackend : public HotkeyBackend
 public:
     explicit StubHotkeyBackend(QObject *parent = nullptr) : HotkeyBackend(parent) {}
 
-    void registerAll(const QList<HotkeyBinding> &bindings) override;
+    // Silent: an unsupported platform is a property of the build, not a per-binding failure.
+    void registerAll(const QList<HotkeyBinding> &) override {}
     void unregisterAll() override {}
-    [[nodiscard]] bool isAvailable() const override { return false; }
 };
 
 } // namespace Hotkeys

@@ -12,6 +12,7 @@
 #include <QThread>
 
 #include "core/Portal.h"
+#include "hotkeys/HotkeyBackendFactory.h"
 #include "hotkeys/backends/PortalHotkeyBackend.h"
 
 using namespace Hotkeys;
@@ -140,12 +141,16 @@ private slots:
         QCOMPARE(Core::Portal::sessionHandle({}), QString());
     }
 
-    // A no is asked again (the portal may still be starting); a yes holds for the run.
+    // A no is asked again (the portal may still be starting); a yes holds for the run. The
+    // hotkeys keep their first answer either way: it picked the backend the app holds.
     void aYesIsKeptForTheRun()
     {
         QVERIFY(!Core::Portal::hasInterface(kShortcuts));
+        QVERIFY(!HotkeyBackendFactory::isAvailable());
         startFake();
         QVERIFY(Core::Portal::hasInterface(kShortcuts));
+        QVERIFY(!HotkeyBackendFactory::isAvailable());
+        QCOMPARE(HotkeyBackendFactory::create()->metaObject()->className(), "Hotkeys::StubHotkeyBackend");
         QCOMPARE(Core::Portal::property(kShortcuts, QStringLiteral("version")).toUInt(), 1u);
         cleanup();
         QVERIFY(Core::Portal::hasInterface(kShortcuts));

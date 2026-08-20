@@ -34,14 +34,12 @@ public:
         }
     }
     void unregisterAll() override { ++unregisterCount; }
-    [[nodiscard]] bool isAvailable() const override { return available; }
 
     void simulateActivation(HotkeyAction action) { emit activated(action); }
 
     QList<HotkeyBinding> lastRegistered;
     int registerCount = 0;
     int unregisterCount = 0;
-    bool available = true;
     bool failNext = false;
     bool failEvery = false;
 };
@@ -73,8 +71,6 @@ private slots:
         auto fake = std::make_unique<FakeHotkeyBackend>();
         FakeHotkeyBackend *f = fake.get();
         GlobalHotkeyManager mgr(std::move(fake));
-
-        QVERIFY(mgr.isAvailable());
 
         mgr.applyBindings();
         QCOMPARE(f->registerCount, 1);
@@ -153,19 +149,6 @@ private slots:
         QVERIFY(msg.contains(QStringLiteral("application menu")));
         // The per-binding wording is gone: it said nothing the user could act on.
         QVERIFY(!msg.contains(QStringLiteral("no app id")));
-    }
-
-    void unavailableBackendRegistersNothing()
-    {
-        auto fake = std::make_unique<FakeHotkeyBackend>();
-        FakeHotkeyBackend *f = fake.get();
-        f->available = false;
-        GlobalHotkeyManager mgr(std::move(fake));
-
-        QVERIFY(!mgr.isAvailable());
-        mgr.applyBindings();
-        QCOMPARE(f->registerCount, 0);
-        QCOMPARE(f->unregisterCount, 0);
     }
 };
 

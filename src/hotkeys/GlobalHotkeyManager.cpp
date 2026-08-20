@@ -22,9 +22,6 @@ GlobalHotkeyManager::GlobalHotkeyManager(std::unique_ptr<HotkeyBackend> backend,
 
 void GlobalHotkeyManager::wireBackend()
 {
-    if (!m_backend)
-        return;
-
     connect(m_backend.get(), &HotkeyBackend::activated,
             this, &GlobalHotkeyManager::actionTriggered);
 
@@ -42,10 +39,6 @@ void GlobalHotkeyManager::wireBackend()
 
 void GlobalHotkeyManager::applyBindings()
 {
-    // Nothing to unregister either: an unavailable backend never registered anything.
-    if (!isAvailable())
-        return;
-
     const QList<HotkeyBinding> bindings = HotkeyBindings::activeBindings();
     m_requestedBindings = bindings.size();
     m_pendingFailures.clear();
@@ -81,11 +74,6 @@ void GlobalHotkeyManager::flushFailures()
 
     for (const QString &message : failures)
         emit registrationFailed(message);
-}
-
-bool GlobalHotkeyManager::isAvailable() const
-{
-    return m_backend && m_backend->isAvailable();
 }
 
 } // namespace Hotkeys

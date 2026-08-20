@@ -30,8 +30,6 @@ public:
     void registerAll(const QList<HotkeyBinding> &bindings) override;
     void unregisterAll() override;
 
-    [[nodiscard]] bool isAvailable() const override;
-
     // Factory probe: reads the interface version, creating no session. A yes is cached.
     [[nodiscard]] static bool isPortalAvailable();
 

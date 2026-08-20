@@ -20,9 +20,6 @@ public:
     void registerAll(const QList<HotkeyBinding> &bindings) override;
     void unregisterAll() override;
 
-    // Carbon is always there; only individual sequences can fail.
-    [[nodiscard]] bool isAvailable() const override { return true; }
-
     // Backend hook: called by the Carbon handler after it hops onto this thread.
     void reportActivated(HotkeyAction action);
 

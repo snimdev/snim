@@ -912,8 +912,7 @@ void SettingsDialog::setupHotkeysTab()
         info->setStyleSheet("color: gray;");
         layout->addWidget(info);
         group->setEnabled(false);
-    } else if (!Hotkeys::HotkeyBackendFactory::capabilities()
-                    .testFlag(Hotkeys::HotkeyBackend::Capability::UserConfiguresKeys)) {
+    } else if (!Hotkeys::HotkeyBackendFactory::userConfiguresKeys()) {
         auto *info = new QLabel(tr("Your desktop manages global shortcut keys. The combinations "
                                    "below are suggestions; the system's own shortcut dialog "
                                    "decides the final bindings."), m_hotkeysTab);

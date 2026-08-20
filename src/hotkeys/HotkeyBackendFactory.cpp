@@ -20,8 +20,7 @@ std::unique_ptr<HotkeyBackend> HotkeyBackendFactory::create(QObject *parent)
 #elif defined(SNIM_HAVE_WIN_HOTKEYS)
     return std::make_unique<WindowsHotkeyBackend>(parent);
 #elif defined(Q_OS_LINUX)
-    // Side-effect-free D-Bus probe; no session is created.
-    if (PortalHotkeyBackend::isPortalAvailable())
+    if (isAvailable())
         return std::make_unique<PortalHotkeyBackend>(parent);
     return std::make_unique<StubHotkeyBackend>(parent);
 #else
@@ -36,19 +35,21 @@ bool HotkeyBackendFactory::isAvailable()
 #elif defined(SNIM_HAVE_WIN_HOTKEYS)
     return true;
 #elif defined(Q_OS_LINUX)
-    return PortalHotkeyBackend::isPortalAvailable();
+    // Side-effect-free D-Bus probe; no session is created. Asked once: the app picks its
+    // backend at startup and keeps it, even if the portal only comes up later.
+    static const bool portal = PortalHotkeyBackend::isPortalAvailable();
+    return portal;
 #else
     return false;
 #endif
 }
 
-HotkeyBackend::Capabilities HotkeyBackendFactory::capabilities()
+bool HotkeyBackendFactory::userConfiguresKeys()
 {
 #if defined(SNIM_HAVE_MAC_HOTKEYS) || defined(SNIM_HAVE_WIN_HOTKEYS)
-    return HotkeyBackend::Capability::UserConfiguresKeys;
+    return true;
 #else
-    // Linux included: the desktop owns the portal keys, ours are only suggestions.
-    return HotkeyBackend::Capability::None;
+    return false;
 #endif
 }
 

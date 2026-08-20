@@ -109,11 +109,6 @@ void WindowsHotkeyBackend::unregisterAll()
     m_registered.clear();
 }
 
-bool WindowsHotkeyBackend::isAvailable() const
-{
-    return true;
-}
-
 bool WindowsHotkeyBackend::nativeEventFilter(const QByteArray &eventType, void *message,
                                              qintptr *result)
 {

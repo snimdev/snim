@@ -66,12 +66,6 @@ bool PortalHotkeyBackend::isPortalAvailable()
     return Portal::hasInterface(kShortcuts);
 }
 
-bool PortalHotkeyBackend::isAvailable() const
-{
-    // The factory built this backend after a yes, so applyBindings never waits on D-Bus.
-    return isPortalAvailable();
-}
-
 void PortalHotkeyBackend::registerAll(const QList<HotkeyBinding> &bindings)
 {
     m_pendingBindings = bindings;

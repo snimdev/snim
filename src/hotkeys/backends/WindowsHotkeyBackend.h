@@ -25,8 +25,6 @@ public:
     void registerAll(const QList<HotkeyBinding> &bindings) override;
     void unregisterAll() override;
 
-    [[nodiscard]] bool isAvailable() const override;
-
     bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) override;
 
 private:
