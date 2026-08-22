@@ -146,6 +146,10 @@ if(WIN32)
                     -P "${CMAKE_SOURCE_DIR}/cmake/CheckNoSharedFfmpeg.cmake")
 endif()
 
+# core/, media/ and upload/ stay free of Qt GUI headers, on every platform.
+add_test(NAME snim_layers COMMAND "${CMAKE_COMMAND}" -DSRC=${CMAKE_SOURCE_DIR}/src
+        -P "${CMAKE_SOURCE_DIR}/cmake/CheckLayers.cmake")
+
 # These load :/ icons, styles or the app icon at construction, so the qrc is compiled in.
 foreach(test_name tst_desktopintegration tst_recordingoptionsbar tst_annotationhandoff
         tst_imageeditor_smoke tst_videoeditor_smoke)
