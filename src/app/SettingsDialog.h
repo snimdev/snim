@@ -42,9 +42,6 @@ signals:
     void settingsApplied();
 
 private slots:
-    void browseScreenshotFolder();
-    void chooseForegroundColor();
-    void chooseBackgroundColor();
     void applySettings();
     void resetSettings();
     void validateHotkeys();
@@ -75,13 +72,12 @@ private:
     // Test the destination as currently typed (saved or not) by uploading a probe file
     // and deleting it again. Never writes to the keychain - only Apply does.
     void onUploadTestConnection();
-    void browseSftpKeyFile();
     // Auth-mode combo -> secret row label + private-key row visibility. Pure UI: it never
     // touches m_uploadWorking (the working copy is flushed on selection change / Apply).
     void updateSftpAuthMode();
     [[nodiscard]] QLineEdit *secretEditFor(Upload::ProviderType type) const;
-    void updateForegroundButtonStyle();
-    void updateBackgroundButtonStyle();
+    void pickColor(QColor &color, const QString &title, QColorDialog::ColorDialogOptions options);
+    void updateColorButtons();                 // paint both swatches from the two colors
 
     // UI Components
     QTabWidget *m_tabWidget = nullptr;

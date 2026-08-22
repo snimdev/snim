@@ -73,9 +73,6 @@ void SettingsDialog::setupUI()
     connect(m_applyButton, &QPushButton::clicked, this, &SettingsDialog::applySettings);
     connect(m_cancelButton, &QPushButton::clicked, this, &QDialog::reject);
     connect(m_resetButton, &QPushButton::clicked, this, &SettingsDialog::resetSettings);
-    connect(m_browseButton, &QPushButton::clicked, this, &SettingsDialog::browseScreenshotFolder);
-    connect(m_foregroundColorButton, &QPushButton::clicked, this, &SettingsDialog::chooseForegroundColor);
-    connect(m_backgroundColorButton, &QPushButton::clicked, this, &SettingsDialog::chooseBackgroundColor);
 }
 
 void SettingsDialog::setupGeneralTab()
@@ -96,6 +93,16 @@ void SettingsDialog::setupGeneralTab()
 
     folderLayout->addWidget(m_screenshotFolderEdit);
     folderLayout->addWidget(m_browseButton);
+    connect(m_browseButton, &QPushButton::clicked, this, [this] {
+        const QString current = m_screenshotFolderEdit->text();
+        const QString folder = QFileDialog::getExistingDirectory(
+            this, "Select Screenshot Folder",
+            current.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
+                              : current,
+            QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+        if (!folder.isEmpty())
+            m_screenshotFolderEdit->setText(folder);
+    });
 
     screenshotLayout->addRow("Screenshot Folder:", folderLayout);
 
@@ -126,21 +133,24 @@ void SettingsDialog::setupGeneralTab()
     auto *editorGroup = new QGroupBox("Editor Settings", m_generalTab);
     auto *editorLayout = new QFormLayout(editorGroup);
 
-    // Foreground color (stroke/text color)
-    m_foregroundColorButton = new QPushButton(editorGroup);
-    m_foregroundColorButton->setMaximumWidth(100);
-    m_foregroundColorButton->setMinimumHeight(30);
-    updateForegroundButtonStyle();
-
+    // Swatch buttons for the stroke/text color and the fill color (which may be
+    // transparent); loadSettings() paints them.
+    const auto swatch = [editorGroup] {
+        auto *button = new QPushButton(editorGroup);
+        button->setMaximumWidth(100);
+        button->setMinimumHeight(30);
+        return button;
+    };
+    m_foregroundColorButton = swatch();
     editorLayout->addRow("Foreground Color:", m_foregroundColorButton);
-
-    // Background color (fill color)
-    m_backgroundColorButton = new QPushButton(editorGroup);
-    m_backgroundColorButton->setMaximumWidth(100);
-    m_backgroundColorButton->setMinimumHeight(30);
-    updateBackgroundButtonStyle();
-
+    m_backgroundColorButton = swatch();
     editorLayout->addRow("Background Color:", m_backgroundColorButton);
+    connect(m_foregroundColorButton, &QPushButton::clicked, this, [this] {
+        pickColor(m_foregroundColor, "Choose Foreground Color", {});
+    });
+    connect(m_backgroundColorButton, &QPushButton::clicked, this, [this] {
+        pickColor(m_backgroundColor, "Choose Background Color", QColorDialog::ShowAlphaChannel);
+    });
 
     layout->addWidget(editorGroup);
     layout->addStretch();
@@ -150,6 +160,14 @@ void SettingsDialog::setupGeneralTab()
 
 void SettingsDialog::setupRecordingTab()
 {
+    // One entry per device, or a placeholder holding no id.
+    const auto fillDevices = [](QComboBox *combo, const auto &devices, const char *none) {
+        for (const auto &device : devices)
+            combo->addItem(device.description(), device.id());
+        if (combo->count() == 0)
+            combo->addItem(none, QByteArray());
+    };
+
     m_recordingTab = new QWidget();
     auto *layout = new QVBoxLayout(m_recordingTab);
 
@@ -158,10 +176,7 @@ void SettingsDialog::setupRecordingTab()
     auto *camLayout = new QFormLayout(camGroup);
     m_cameraEnabledCheck = new QCheckBox("Show webcam circle in recordings", camGroup);
     m_cameraCombo = new QComboBox(camGroup);
-    for (const QCameraDevice &cam : QMediaDevices::videoInputs())
-        m_cameraCombo->addItem(cam.description(), cam.id());
-    if (m_cameraCombo->count() == 0)
-        m_cameraCombo->addItem("No camera found", QByteArray());
+    fillDevices(m_cameraCombo, QMediaDevices::videoInputs(), "No camera found");
     camLayout->addRow(m_cameraEnabledCheck);
     camLayout->addRow("Camera:", m_cameraCombo);
     layout->addWidget(camGroup);
@@ -171,10 +186,7 @@ void SettingsDialog::setupRecordingTab()
     auto *audioLayout = new QFormLayout(audioGroup);
     m_micEnabledCheck = new QCheckBox("Record microphone", audioGroup);
     m_micCombo = new QComboBox(audioGroup);
-    for (const QAudioDevice &mic : QMediaDevices::audioInputs())
-        m_micCombo->addItem(mic.description(), mic.id());
-    if (m_micCombo->count() == 0)
-        m_micCombo->addItem("No microphone found", QByteArray());
+    fillDevices(m_micCombo, QMediaDevices::audioInputs(), "No microphone found");
     m_systemAudioCheck = new QCheckBox("Record system audio", audioGroup);
     audioLayout->addRow(m_micEnabledCheck);
     audioLayout->addRow("Microphone:", m_micCombo);
@@ -191,30 +203,39 @@ void SettingsDialog::setupRecordingTab()
     layout->addStretch();
     m_tabWidget->addTab(m_recordingTab, "Recording");
 
-    // Device dropdowns are only relevant when their input is enabled.
-    connect(m_cameraEnabledCheck, &QCheckBox::toggled, m_cameraCombo, &QWidget::setEnabled);
-    connect(m_micEnabledCheck, &QCheckBox::toggled, m_micCombo, &QWidget::setEnabled);
-
-    // Ask for the TCC permission the moment an input is enabled, while a normal
-    // dialog has focus - at recording time the full-screen selection overlays sit
-    // above system dialogs and would hide the prompt.
-    connect(m_cameraEnabledCheck, &QCheckBox::toggled, this, [this](bool on) {
-        if (!on)
-            return;
-        QCameraPermission permission;
-        if (qApp->checkPermission(permission) == Qt::PermissionStatus::Undetermined)
-            qApp->requestPermission(permission, this, [](const QPermission &) {});
-    });
-    connect(m_micEnabledCheck, &QCheckBox::toggled, this, [this](bool on) {
-        if (!on)
-            return;
-        QMicrophonePermission permission;
-        if (qApp->checkPermission(permission) == Qt::PermissionStatus::Undetermined)
-            qApp->requestPermission(permission, this, [](const QPermission &) {});
-    });
+    // A device dropdown is only relevant when its input is enabled. The TCC permission is
+    // asked for the moment an input is enabled, while a normal dialog has focus - at
+    // recording time the full-screen selection overlays sit above system dialogs and
+    // would hide the prompt.
+    const auto wireInput = [this](QCheckBox *check, QComboBox *combo, const auto &permission) {
+        connect(check, &QCheckBox::toggled, combo, &QWidget::setEnabled);
+        connect(check, &QCheckBox::toggled, this, [this, permission](bool on) {
+            if (on && qApp->checkPermission(permission) == Qt::PermissionStatus::Undetermined)
+                qApp->requestPermission(permission, this, [](const QPermission &) {});
+        });
+    };
+    wireInput(m_cameraEnabledCheck, m_cameraCombo, QCameraPermission());
+    wireInput(m_micEnabledCheck, m_micCombo, QMicrophonePermission());
 }
 
 namespace {
+
+// Selects the entry holding data; leaves the combo alone when there is none.
+void selectData(QComboBox *combo, const QVariant &data)
+{
+    if (const int index = combo->findData(data); index != -1)
+        combo->setCurrentIndex(index);
+}
+
+// The secret edit's placeholder while nothing is stored.
+QString secretHint(Upload::ProviderType type, Upload::SftpAuthMode auth)
+{
+    if (type == Upload::ProviderType::S3)
+        return SettingsDialog::tr("Secret access key");
+    return type == Upload::ProviderType::Sftp && auth == Upload::SftpAuthMode::PrivateKey
+               ? SettingsDialog::tr("Key passphrase")
+               : SettingsDialog::tr("Password");
+}
 
 // Provider pages inside m_uploadStack. Fixed, explicit indices - nothing relies on the
 // numeric value of ProviderType.
@@ -504,7 +525,14 @@ QWidget *SettingsDialog::createUploadSftpPage()
 
     connect(m_sftpAuthCombo, &QComboBox::currentIndexChanged,
             this, &SettingsDialog::updateSftpAuthMode);
-    connect(m_sftpKeyBrowseButton, &QPushButton::clicked, this, &SettingsDialog::browseSftpKeyFile);
+    connect(m_sftpKeyBrowseButton, &QPushButton::clicked, this, [this] {
+        const QString current = m_sftpKeyPathEdit->text().trimmed();
+        const QString path = QFileDialog::getOpenFileName(
+            this, tr("Select private key file"),
+            current.isEmpty() ? QDir::homePath() + QStringLiteral("/.ssh") : current);
+        if (!path.isEmpty())
+            m_sftpKeyPathEdit->setText(path);
+    });
     updateSftpAuthMode();
 
     return page;
@@ -558,23 +586,13 @@ QLineEdit *SettingsDialog::secretEditFor(Upload::ProviderType type) const
 
 void SettingsDialog::updateSftpAuthMode()
 {
-    const bool keyAuth =
-        sftpAuthForIndex(m_sftpAuthCombo->currentIndex()) == Upload::SftpAuthMode::PrivateKey;
+    const Upload::SftpAuthMode mode = sftpAuthForIndex(m_sftpAuthCombo->currentIndex());
+    const bool keyAuth = mode == Upload::SftpAuthMode::PrivateKey;
     m_sftpSecretLabel->setText(keyAuth ? tr("Key passphrase (optional):") : tr("Password:"));
     m_sftpForm->setRowVisible(m_sftpKeyPathRow, keyAuth);
     // Keep the hint in step with the mode - but never clobber the "stored" marker.
     if (m_sftpSecretEdit->placeholderText() != tr("•••••••• (stored)"))
-        m_sftpSecretEdit->setPlaceholderText(keyAuth ? tr("Key passphrase") : tr("Password"));
-}
-
-void SettingsDialog::browseSftpKeyFile()
-{
-    QString start = m_sftpKeyPathEdit->text().trimmed();
-    if (start.isEmpty())
-        start = QDir::homePath() + QStringLiteral("/.ssh");
-    const QString path = QFileDialog::getOpenFileName(this, tr("Select private key file"), start);
-    if (!path.isEmpty())
-        m_sftpKeyPathEdit->setText(path);
+        m_sftpSecretEdit->setPlaceholderText(secretHint(Upload::ProviderType::Sftp, mode));
 }
 
 void SettingsDialog::refreshUploadList()
@@ -686,19 +704,7 @@ void SettingsDialog::bindUploadForm(int row)
     QLineEdit *secret = secretEditFor(p.type);
     const bool hasSecret = m_uploadNewSecrets.contains(p.id) ||
         Core::KeychainStore::retrieve(Upload::keychainServiceFor(p.type), p.id).has_value();
-    QString hint;
-    switch (p.type) {
-    case Upload::ProviderType::S3:
-        hint = tr("Secret access key");
-        break;
-    case Upload::ProviderType::Sftp:
-        hint = p.sftpAuth == Upload::SftpAuthMode::PrivateKey ? tr("Key passphrase") : tr("Password");
-        break;
-    case Upload::ProviderType::Ftp:
-        hint = tr("Password");
-        break;
-    }
-    secret->setPlaceholderText(hasSecret ? tr("•••••••• (stored)") : hint);
+    secret->setPlaceholderText(hasSecret ? tr("•••••••• (stored)") : secretHint(p.type, p.sftpAuth));
 }
 
 void SettingsDialog::flushUploadForm(int row)
@@ -906,16 +912,16 @@ void SettingsDialog::setupHotkeysTab()
 
     // The factory answers for the platform without creating a backend, so no Carbon
     // handler is installed and no portal session is opened by opening Settings.
+    QString note;
     if (!Hotkeys::HotkeyBackendFactory::isAvailable()) {
-        auto *info = new QLabel(tr("Global hotkeys are not supported on this system."), m_hotkeysTab);
-        info->setWordWrap(true);
-        info->setStyleSheet("color: gray;");
-        layout->addWidget(info);
+        note = tr("Global hotkeys are not supported on this system.");
         group->setEnabled(false);
     } else if (!Hotkeys::HotkeyBackendFactory::userConfiguresKeys()) {
-        auto *info = new QLabel(tr("Your desktop manages global shortcut keys. The combinations "
-                                   "below are suggestions; the system's own shortcut dialog "
-                                   "decides the final bindings."), m_hotkeysTab);
+        note = tr("Your desktop manages global shortcut keys. The combinations below are "
+                  "suggestions; the system's own shortcut dialog decides the final bindings.");
+    }
+    if (!note.isEmpty()) {
+        auto *info = new QLabel(note, m_hotkeysTab);
         info->setWordWrap(true);
         info->setStyleSheet("color: gray;");
         layout->addWidget(info);
@@ -960,114 +966,50 @@ void SettingsDialog::validateHotkeys()
     m_hotkeyConflictLabel->setVisible(!messages.isEmpty());
 }
 
-void SettingsDialog::browseScreenshotFolder()
+void SettingsDialog::pickColor(QColor &color, const QString &title,
+                               QColorDialog::ColorDialogOptions options)
 {
-    QString currentPath = m_screenshotFolderEdit->text();
-    if (currentPath.isEmpty()) {
-        currentPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
-    }
-
-    QString folderPath = QFileDialog::getExistingDirectory(
-        this,
-        "Select Screenshot Folder",
-        currentPath,
-        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
-    );
-
-    if (!folderPath.isEmpty()) {
-        m_screenshotFolderEdit->setText(folderPath);
+    const QColor picked = QColorDialog::getColor(color, this, title, options);
+    if (picked.isValid()) {
+        color = picked;
+        updateColorButtons();
     }
 }
 
-void SettingsDialog::chooseForegroundColor()
+void SettingsDialog::updateColorButtons()
 {
-    QColor color = QColorDialog::getColor(m_foregroundColor, this, "Choose Foreground Color");
-    if (color.isValid()) {
-        m_foregroundColor = color;
-        updateForegroundButtonStyle();
-    }
-}
-
-void SettingsDialog::chooseBackgroundColor()
-{
-    QColor color = QColorDialog::getColor(
-        m_backgroundColor,
-        this,
-        "Choose Background Color",
-        QColorDialog::ShowAlphaChannel  // Allow transparency
-    );
-    if (color.isValid()) {
-        m_backgroundColor = color;
-        updateBackgroundButtonStyle();
-    }
-}
-
-void SettingsDialog::updateForegroundButtonStyle()
-{
-    QString styleSheet = QString(
-        "QPushButton {"
-        "  background-color: %1;"
-        "  border: 2px solid #555;"
-        "  border-radius: 4px;"
-        "}"
-        "QPushButton:hover {"
-        "  border: 2px solid #777;"
-        "}"
-    ).arg(m_foregroundColor.name());
-
-    m_foregroundColorButton->setStyleSheet(styleSheet);
-}
-
-void SettingsDialog::updateBackgroundButtonStyle()
-{
-    // Create a checkerboard pattern for transparent backgrounds
-    QString bgColor = m_backgroundColor.name(QColor::HexArgb);
-
-    QString styleSheet = QString(
-        "QPushButton {"
-        "  background-color: %1;"
-        "  border: 2px solid #555;"
-        "  border-radius: 4px;"
-        "}"
-        "QPushButton:hover {"
-        "  border: 2px solid #777;"
-        "}"
-    ).arg(bgColor);
-
-    m_backgroundColorButton->setStyleSheet(styleSheet);
-
-    // Update button text to show "Transparent" if fully transparent
-    if (m_backgroundColor.alpha() == 0) {
-        m_backgroundColorButton->setText("Transparent");
-    } else {
-        m_backgroundColorButton->setText("");
-    }
+    const auto paint = [](QPushButton *button, const QString &color) {
+        button->setStyleSheet(QString("QPushButton {"
+                                      "  background-color: %1;"
+                                      "  border: 2px solid #555;"
+                                      "  border-radius: 4px;"
+                                      "}"
+                                      "QPushButton:hover {"
+                                      "  border: 2px solid #777;"
+                                      "}").arg(color));
+    };
+    paint(m_foregroundColorButton, m_foregroundColor.name());
+    paint(m_backgroundColorButton, m_backgroundColor.name(QColor::HexArgb));
+    // A fully transparent fill shows no swatch, so say it in words.
+    m_backgroundColorButton->setText(m_backgroundColor.alpha() == 0 ? "Transparent" : "");
 }
 
 void SettingsDialog::loadSettings()
 {
     m_screenshotFolderEdit->setText(Core::Settings::screenshotFolder());
 
-    int formatIndex = m_imageFormatCombo->findData(Core::Settings::imageFormat());
-    if (formatIndex != -1) {
-        m_imageFormatCombo->setCurrentIndex(formatIndex);
-    }
+    selectData(m_imageFormatCombo, Core::Settings::imageFormat());
 
     m_foregroundColor = Core::Settings::editorForeground();
     m_backgroundColor = Core::Settings::editorBackground();
-    updateForegroundButtonStyle();
-    updateBackgroundButtonStyle();
+    updateColorButtons();
 
     m_cameraEnabledCheck->setChecked(Core::Settings::cameraEnabled());
-    int camIdx = m_cameraCombo->findData(Core::Settings::cameraDeviceId());
-    if (camIdx != -1)
-        m_cameraCombo->setCurrentIndex(camIdx);
+    selectData(m_cameraCombo, Core::Settings::cameraDeviceId());
     m_cameraCombo->setEnabled(m_cameraEnabledCheck->isChecked());
 
     m_micEnabledCheck->setChecked(Core::Settings::micEnabled());
-    int micIdx = m_micCombo->findData(Core::Settings::micDeviceId());
-    if (micIdx != -1)
-        m_micCombo->setCurrentIndex(micIdx);
+    selectData(m_micCombo, Core::Settings::micDeviceId());
     m_micCombo->setEnabled(m_micEnabledCheck->isChecked());
 
     m_systemAudioCheck->setChecked(Core::Settings::systemAudioEnabled());
@@ -1170,14 +1112,9 @@ void SettingsDialog::applySettings()
         return;
     }
 
-    // Create screenshot folder if it doesn't exist
-    QString folderPath = m_screenshotFolderEdit->text();
-    if (!folderPath.isEmpty()) {
-        QDir dir;
-        if (!dir.exists(folderPath)) {
-            dir.mkpath(folderPath);
-        }
-    }
+    // Create the screenshot folder if it doesn't exist (mkpath leaves an existing one be).
+    if (const QString folder = m_screenshotFolderEdit->text(); !folder.isEmpty())
+        QDir().mkpath(folder);
 
     const QString secretsError = saveSettings();
     emit settingsApplied();
@@ -1199,18 +1136,14 @@ void SettingsDialog::resetSettings()
     m_imageFormatCombo->setCurrentIndex(0); // PNG
     m_foregroundColor = Qt::red;
     m_backgroundColor = Qt::transparent;
-    updateForegroundButtonStyle();
-    updateBackgroundButtonStyle();
+    updateColorButtons();
 
+    // Unchecking disables the device combos (toggled), which always hold an entry.
     m_cameraEnabledCheck->setChecked(false);
     m_micEnabledCheck->setChecked(false);
     m_systemAudioCheck->setChecked(true);
-    if (m_cameraCombo->count() > 0)
-        m_cameraCombo->setCurrentIndex(0);
-    if (m_micCombo->count() > 0)
-        m_micCombo->setCurrentIndex(0);
-    m_cameraCombo->setEnabled(false);
-    m_micCombo->setEnabled(false);
+    m_cameraCombo->setCurrentIndex(0);
+    m_micCombo->setCurrentIndex(0);
 
     // Form-level only, like the rest of this slot: committed on Apply.
     for (const HotkeyRow &row : m_hotkeyRows)
