@@ -152,6 +152,8 @@ jobs:
           libwebp-dev
           libgif-dev
           libimagequant-dev
+          libcurl4-openssl-dev
+          libssh2-1-dev
           libavcodec-dev
           libavformat-dev
           libswscale-dev
