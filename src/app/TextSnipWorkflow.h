@@ -32,15 +32,6 @@ public:
      */
     void startTextSnip();
 
-    /**
-     * @brief Check if OCR is available
-     * @return true if Tesseract is available, false otherwise
-     */
-    [[nodiscard]] static bool isOCRAvailable();
-
-private slots:
-    void onScreenCaptured(const QPixmap &screenshot);
-
 private:
     void performOCR(const QPixmap &selectedRegion);
     std::unique_ptr<Capture::CaptureStrategy> m_captureStrategy;

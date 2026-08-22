@@ -19,6 +19,7 @@
 #endif
 #include "hotkeys/GlobalHotkeyManager.h"
 #include "hotkeys/HotkeyBindings.h"
+#include "ocr/OCRService.h"
 #ifdef SNIM_HAVE_LINUX_RECORDER
 #include "recording/strategies/LinuxRecorderModule.h"
 #endif
@@ -141,7 +142,7 @@ namespace App {
 
         bool anyBound = false;
         for (const Hotkeys::HotkeyAction action : Hotkeys::allHotkeyActions()) {
-            if (action == Hotkeys::HotkeyAction::OcrTextSnip && !TextSnipWorkflow::isOCRAvailable())
+            if (action == Hotkeys::HotkeyAction::OcrTextSnip && !OCR::OCRService::isAvailable())
                 continue;
             const QKeySequence seq = Hotkeys::HotkeyBindings::sequence(action);
             if (seq.isEmpty())

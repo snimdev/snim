@@ -1,8 +1,8 @@
 #include "app/TrayMenu.h"
-#include "app/TextSnipWorkflow.h"
 #include "core/IconUtil.h"
 #include "core/Sandbox.h"
 #include "hotkeys/HotkeyBindings.h"
+#include "ocr/OCRService.h"
 #ifdef Q_OS_MACOS
 #include "core/MacTrayWorkaround.h"
 #endif
@@ -30,7 +30,7 @@ namespace App {
         m_textSnipAction = new QAction("Extract Text (OCR)", this);
 
         // Disable text snip if OCR is not available
-        if (!TextSnipWorkflow::isOCRAvailable()) {
+        if (!OCR::OCRService::isAvailable()) {
             m_textSnipAction->setEnabled(false);
             m_textSnipAction->setText("Extract Text (OCR not available)");
             m_textSnipAction->setToolTip("Install tesseract-ocr to enable this feature");

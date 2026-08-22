@@ -40,8 +40,8 @@ private slots:
         // No Tesseract: performOCR must fail cleanly with a message.
         OCRService svc;
         const OCRResult r = svc.performOCR(QImage(10, 10, QImage::Format_RGB32));
-        QVERIFY(!r.isSuccess());
-        QVERIFY(!r.getErrorMessage().isEmpty());
+        QVERIFY(!r.success);
+        QVERIFY(!r.errorMessage.isEmpty());
     }
 
     void recognizesRenderedText()
@@ -51,9 +51,9 @@ private slots:
 
         OCRService svc;
         const OCRResult r = svc.performOCR(hello(), "eng");
-        if (!r.isSuccess())
+        if (!r.success)
             QSKIP("Tesseract present but init/recognition unavailable on this host (e.g. no tessdata)");
-        QVERIFY(r.getText().toUpper().contains("HELLO"));
+        QVERIFY(r.text.toUpper().contains("HELLO"));
     }
 
     void asyncDeliversOnCallerThread()
@@ -73,13 +73,13 @@ private slots:
 
         if (!OCRService::isAvailable()) {
             // No Tesseract: the async path must still report a clean failure.
-            QVERIFY(!res.isSuccess());
-            QVERIFY(!res.getErrorMessage().isEmpty());
+            QVERIFY(!res.success);
+            QVERIFY(!res.errorMessage.isEmpty());
             return;
         }
-        if (!res.isSuccess())
+        if (!res.success)
             QSKIP("Tesseract present but init/recognition unavailable on this host (e.g. no tessdata)");
-        QVERIFY(res.getText().toUpper().contains("HELLO"));
+        QVERIFY(res.text.toUpper().contains("HELLO"));
     }
 
     void asyncDroppedWhenContextDies()

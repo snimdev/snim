@@ -21,8 +21,9 @@ TextSnipWorkflow::TextSnipWorkflow(QObject *parent)
     // OCR only needs the selected region, so no Edit/Copy/Save action toolbar.
     m_captureStrategy->setQuickActionsEnabled(false);
 
+    // The capture strategy hands over the selected area, which is all OCR needs.
     connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotReady,
-            this, &TextSnipWorkflow::onScreenCaptured);
+            this, &TextSnipWorkflow::performOCR);
     connect(m_captureStrategy.get(), &Capture::CaptureStrategy::screenshotFailed,
             this, [](const QString &error) {
                 QMessageBox::warning(nullptr, "Screenshot Failed", error);
@@ -38,17 +39,13 @@ TextSnipWorkflow::~TextSnipWorkflow() {
     }
 }
 
-bool TextSnipWorkflow::isOCRAvailable() {
-    return OCR::OCRService::isAvailable();
-}
-
 void TextSnipWorkflow::startTextSnip() {
     // One snip at a time now that OCR is async
     if (m_ocrInFlight) {
         return;
     }
 
-    if (!isOCRAvailable()) {
+    if (!OCR::OCRService::isAvailable()) {
         QMessageBox::warning(nullptr, "OCR Not Available",
                            "Tesseract OCR is not installed or not available.\n\n"
                            "Please install it using:\n"
@@ -63,14 +60,6 @@ void TextSnipWorkflow::startTextSnip() {
     // Use the capture strategy to capture the screen
     // This will properly handle both Wayland and X11
     m_captureStrategy->captureArea();
-}
-
-void TextSnipWorkflow::onScreenCaptured(const QPixmap &screenshot) {
-    qDebug() << "Screen captured for text snip, size:" << screenshot.size();
-
-    // The screenshot from capture strategy is already the selected area
-    // Perform OCR directly on it
-    performOCR(screenshot);
 }
 
 void TextSnipWorkflow::performOCR(const QPixmap &selectedRegion) {
@@ -93,8 +82,8 @@ void TextSnipWorkflow::performOCR(const QPixmap &selectedRegion) {
         QGuiApplication::restoreOverrideCursor();
         m_ocrInFlight = false;
 
-        if (result.isSuccess()) {
-            QString text = result.getText().trimmed();
+        if (result.success) {
+            QString text = result.text.trimmed();
 
             if (text.isEmpty()) {
                 QMessageBox::information(nullptr, "No Text Found",
@@ -116,10 +105,10 @@ void TextSnipWorkflow::performOCR(const QPixmap &selectedRegion) {
                 msgBox.setIcon(QMessageBox::Information);
 
                 // Show confidence if available
-                if (result.getOverallConfidence() > 0) {
+                if (result.overallConfidence > 0) {
                     msgBox.setInformativeText(
                         QString("Confidence: %1%").arg(
-                            static_cast<int>(result.getOverallConfidence() * 100)
+                            static_cast<int>(result.overallConfidence * 100)
                         )
                     );
                 }
@@ -127,7 +116,7 @@ void TextSnipWorkflow::performOCR(const QPixmap &selectedRegion) {
                 msgBox.exec();
             }
         } else {
-            QMessageBox::warning(nullptr, "OCR Failed", result.getErrorMessage());
+            QMessageBox::warning(nullptr, "OCR Failed", result.errorMessage);
         }
     });
 }

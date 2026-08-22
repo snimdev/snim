@@ -20,6 +20,17 @@ namespace OCR {
 namespace {
 
 #ifdef HAVE_TESSERACT
+// Tesseract works best when the text x-height is at least 20 px, roughly a third of a
+// line, so a short image is scaled up to at least 100 px tall.
+QImage preprocessImage(const QImage& image) {
+    const int minHeight = 100;
+    if (image.height() >= minHeight)
+        return image;
+    const float scaleFactor = static_cast<float>(minHeight) / image.height();
+    return image.scaled(image.width() * scaleFactor, image.height() * scaleFactor,
+                        Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
+
 // A bundle ships its own language packs, which Tesseract's built-in search path never
 // finds: macOS keeps them in the .app, a relocatable Linux install and Windows beside
 // the binary.
@@ -90,19 +101,14 @@ private:
 };
 #endif
 
-OCRService::OCRService(QObject* parent)
-    : QObject(parent)
+OCRService::OCRService()
 #ifdef HAVE_TESSERACT
-    , m_impl(new Impl())
+    : m_impl(std::make_unique<Impl>())
 #endif
 {
 }
 
-OCRService::~OCRService() {
-#ifdef HAVE_TESSERACT
-    delete m_impl;
-#endif
-}
+OCRService::~OCRService() = default;
 
 bool OCRService::isAvailable() {
 #ifdef HAVE_TESSERACT
@@ -117,8 +123,7 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
 
 #ifdef HAVE_TESSERACT
     if (!m_impl || !m_impl->api()) {
-        result.setSuccess(false);
-        result.setErrorMessage("Tesseract API not initialized");
+        result.errorMessage = "Tesseract API not initialized";
         return result;
     }
 
@@ -126,14 +131,11 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
     QElapsedTimer perfTimer;
     perfTimer.start();
 
-    // Preprocess the image
-    QImage processedImage = preprocessImage(image);
-    processedImage = convertToRGB888(processedImage);
+    const QImage processedImage = preprocessImage(image).convertToFormat(QImage::Format_RGB888);
 
     // Set language if different from current
     if (!m_impl->ensureLanguage(language)) {
-        result.setSuccess(false);
-        result.setErrorMessage("Failed to initialize Tesseract for language: " + language);
+        result.errorMessage = "Failed to initialize Tesseract for language: " + language;
         return result;
     }
 
@@ -152,26 +154,19 @@ OCRResult OCRService::performOCR(const QImage& image, const QString& language) {
     // Perform OCR
     char* outText = m_impl->api()->GetUTF8Text();
     if (outText) {
-        QString text = QString::fromUtf8(outText);
-        result.setText(text);
-        result.setSuccess(true);
-
-        // Get confidence
-        int confidence = m_impl->api()->MeanTextConf();
-        result.setOverallConfidence(confidence / 100.0f);
-
+        result.text = QString::fromUtf8(outText);
+        result.success = true;
+        result.overallConfidence = m_impl->api()->MeanTextConf() / 100.0f;
         delete[] outText;
     } else {
-        result.setSuccess(false);
-        result.setErrorMessage("Failed to extract text from image");
+        result.errorMessage = "Failed to extract text from image";
     }
 
     Core::Perf::reportElapsed("ocr", perfTimer.elapsed(), Core::Perf::kBudgetOcrMs,
                               QStringLiteral("%1x%2 px").arg(image.width()).arg(image.height()));
 
 #else
-    result.setSuccess(false);
-    result.setErrorMessage("Tesseract OCR is not available. Please install tesseract-ocr and rebuild the application.");
+    result.errorMessage = "Tesseract OCR is not available. Please install tesseract-ocr and rebuild the application.";
 #endif
 
     return result;
@@ -189,34 +184,6 @@ void OCRService::performOCRAsync(const QImage& image, const QString& language,
                 onDone(r);
         });
     });
-}
-
-QImage OCRService::preprocessImage(const QImage& image) const {
-    QImage processed = image;
-
-    // Tesseract works best when text x-height is at least 20 pixels
-    // For typical text, we can estimate this as roughly 1/3 of the line height
-    // If the image is too small, scale it up
-    const int minHeight = 100; // Minimum height for decent OCR
-
-    if (processed.height() < minHeight) {
-        float scaleFactor = static_cast<float>(minHeight) / processed.height();
-        processed = processed.scaled(
-            processed.width() * scaleFactor,
-            processed.height() * scaleFactor,
-            Qt::KeepAspectRatio,
-            Qt::SmoothTransformation
-        );
-    }
-
-    return processed;
-}
-
-QImage OCRService::convertToRGB888(const QImage& image) const {
-    if (image.format() == QImage::Format_RGB888) {
-        return image;
-    }
-    return image.convertToFormat(QImage::Format_RGB888);
 }
 
 } // namespace OCR
