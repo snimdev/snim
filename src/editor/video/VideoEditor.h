@@ -82,7 +82,10 @@ private:
     void previewFailed();
     [[nodiscard]] QImage grabFrame();                // pauses; null if nothing decoded yet
     void setBusy(bool busy);
-    [[nodiscard]] bool confirmUntrimmedFallback();   // trimmed but no exporter: ask once
+    // Whether to export the trimmed range; nullopt when the user declines the full file.
+    [[nodiscard]] std::optional<bool> shouldTrim();
+    void startTrim(Pending kind, const QString &output);
+    void handOffUpload(const QString &path, const QString &profileId);   // closes
     void updateTimeLabel();
     void updatePlayPauseIcon();
     [[nodiscard]] QIcon themedIcon(const QString &svgPath) const;

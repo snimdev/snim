@@ -38,17 +38,17 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <utility>
 
 namespace Editor::Video {
 
 namespace {
-// The recording's name with the uploaded file's container (the untrimmed temp may be .mov).
-QString uploadNameFor(const QString &sourceName, const QString &path)
+// A fresh temp file, e.g. Snim_trim_2026-10-08_12-00-00.mp4.
+QString tempPathFor(const QString &prefix, const QString &extension)
 {
-    const QString base = QFileInfo(sourceName).completeBaseName();
-    const QString suffix = QFileInfo(path).suffix();
-    return (base.isEmpty() ? QStringLiteral("recording") : base) + QStringLiteral(".")
-           + (suffix.isEmpty() ? QStringLiteral("mp4") : suffix);
+    return QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QStringLiteral("/")
+           + prefix + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
+           + QStringLiteral(".") + extension;
 }
 
 // Everything the animation export path reads off the chosen format.
@@ -481,8 +481,11 @@ void VideoEditor::setBusy(bool busy)
     m_statusLabel->setText(busy ? tr("Exporting…") : QString());
 }
 
-bool VideoEditor::confirmUntrimmedFallback()
+std::optional<bool> VideoEditor::shouldTrim()
 {
+    const bool trimmed = m_timeline->state().isTrimmed();
+    if (!trimmed || exporter()->isAvailable())
+        return trimmed;
     const auto answer = QMessageBox::question(
         this, tr("Trimming Unavailable"),
 #ifdef Q_OS_LINUX
@@ -491,7 +494,29 @@ bool VideoEditor::confirmUntrimmedFallback()
 #else
         tr("Trimming is not supported on this platform. Use the full recording instead?"));
 #endif
-    return answer == QMessageBox::Yes;
+    if (answer != QMessageBox::Yes)
+        return std::nullopt;
+    return false;
+}
+
+void VideoEditor::startTrim(Pending kind, const QString &output)
+{
+    const TrimState &state = m_timeline->state();
+    m_pending = kind;
+    setBusy(true);
+    m_player->pause();
+    exporter()->trim(m_tempPath, output, state.inMs(), state.outMs());
+}
+
+void VideoEditor::handOffUpload(const QString &path, const QString &profileId)
+{
+    // Marked saved so closeEvent leaves the file to the in-flight upload.
+    m_saved = true;
+    const QString suffix = QFileInfo(path).suffix();   // the untrimmed temp may be .mov
+    const QString name = animationFileNameFor(suggestedFileName(),
+                                              suffix.isEmpty() ? QStringLiteral("mp4") : suffix);
+    emit uploadRequested(path, name, /*deleteWhenDone=*/true, profileId);
+    close();
 }
 
 void VideoEditor::onSave()
@@ -502,8 +527,10 @@ void VideoEditor::onSave()
     if (dest.isEmpty())
         return;                                   // cancelled: keep editing
 
-    const TrimState &state = m_timeline->state();
-    if (!state.isTrimmed()) {                     // fast path: just move the file
+    const std::optional<bool> trim = shouldTrim();
+    if (!trim.has_value())
+        return;
+    if (!*trim) {                                 // fast path: just move the file
         if (moveFileTo(m_tempPath, dest))
             finishSaved(dest);
         else
@@ -511,43 +538,20 @@ void VideoEditor::onSave()
                                  tr("Could not save the recording to %1").arg(dest));
         return;
     }
-
-    if (!exporter()->isAvailable()) {
-        if (!confirmUntrimmedFallback())
-            return;
-        if (moveFileTo(m_tempPath, dest))
-            finishSaved(dest);
-        else
-            QMessageBox::warning(this, tr("Save Failed"),
-                                 tr("Could not save the recording to %1").arg(dest));
-        return;
-    }
-
-    m_pending = Pending::SaveMove;
     m_pendingDest = dest;
-    m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                       + QStringLiteral("/Snim_trim_")
-                       + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
-                       + QStringLiteral(".mp4");
-    setBusy(true);
-    m_player->pause();
-    exporter()->trim(m_tempPath, m_exportTempPath, state.inMs(), state.outMs());
+    m_exportTempPath = tempPathFor(QStringLiteral("Snim_trim_"), QStringLiteral("mp4"));
+    startTrim(Pending::SaveMove, m_exportTempPath);
 }
 
 void VideoEditor::onCopy()
 {
     // Copy needs a path that outlives this window, so the file lands in the
     // recordings folder first; the clipboard then carries a stable file URL.
-    const TrimState &state = m_timeline->state();
     const QString dest = recordingsDir() + "/" + suggestedFileName();
-
-    bool trimmed = state.isTrimmed();
-    if (trimmed && !exporter()->isAvailable()) {
-        if (!confirmUntrimmedFallback())
-            return;
-        trimmed = false;
-    }
-    if (!trimmed) {
+    const std::optional<bool> trim = shouldTrim();
+    if (!trim.has_value())
+        return;
+    if (!*trim) {
         if (moveFileTo(m_tempPath, dest)) {
             putOnClipboard(dest);
             finishSaved(dest);
@@ -558,11 +562,8 @@ void VideoEditor::onCopy()
         return;
     }
 
-    m_pending = Pending::Copy;
     m_pendingDest = dest;
-    setBusy(true);
-    m_player->pause();
-    exporter()->trim(m_tempPath, dest, state.inMs(), state.outMs());   // straight to dest
+    startTrim(Pending::Copy, dest);               // straight to dest
 }
 
 std::optional<AnimationParams> VideoEditor::resolveAnimationParams(AnimationFormat format,
@@ -643,10 +644,7 @@ void VideoEditor::startAnimation(AnimationFormat format, Pending kind,
     const AnimationFormatInfo info = animationFormatInfo(format);
     m_animationFormat = format;
     m_pending = kind;
-    m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                       + QStringLiteral("/") + info.tempPrefix
-                       + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
-                       + QStringLiteral(".") + info.extension;
+    m_exportTempPath = tempPathFor(info.tempPrefix, info.extension);
     setBusy(true);
     m_player->pause();
     animationExporter()->start(format, m_tempPath, m_exportTempPath, in, out, params);
@@ -660,33 +658,18 @@ void VideoEditor::doUpload(const QString &profileId)
                                 tr("Set up an upload destination in Settings → Upload first."));
         return;
     }
-    const TrimState &state = m_timeline->state();
-    bool trimmed = state.isTrimmed();
-    if (trimmed && !exporter()->isAvailable()) {
-        if (!confirmUntrimmedFallback())
-            return;
-        trimmed = false;
-    }
-    if (!trimmed) {
-        // Hand the recording temp to the app's uploader; mark saved so closeEvent
-        // won't delete it out from under the in-flight PUT (the app owns it now).
-        m_saved = true;
-        emit uploadRequested(m_tempPath, uploadNameFor(suggestedFileName(), m_tempPath),
-                             /*deleteWhenDone=*/true, profileId);
-        close();
+    const std::optional<bool> trim = shouldTrim();
+    if (!trim.has_value())
+        return;
+    if (!*trim) {
+        handOffUpload(m_tempPath, profileId);
         return;
     }
     // Trimmed: export to a temp, then upload that (handled in onExporterFinished). Stash
     // the chosen profile across the async export.
-    m_pending = Pending::Upload;
     m_pendingUploadProfileId = profileId;
-    m_exportTempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                       + QStringLiteral("/Snim_upload_")
-                       + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"))
-                       + QStringLiteral(".mp4");
-    setBusy(true);
-    m_player->pause();
-    exporter()->trim(m_tempPath, m_exportTempPath, state.inMs(), state.outMs());
+    m_exportTempPath = tempPathFor(QStringLiteral("Snim_upload_"), QStringLiteral("mp4"));
+    startTrim(Pending::Upload, m_exportTempPath);
 }
 
 QImage VideoEditor::grabFrame()
@@ -740,70 +723,39 @@ void VideoEditor::putOnClipboard(const QString &path)
 void VideoEditor::onExporterFinished(const QString &exportedPath)
 {
     setBusy(false);
-    const Pending pending = m_pending;
-    m_pending = Pending::None;
-
-    if (pending == Pending::SaveMove) {
-        if (moveFileTo(exportedPath, m_pendingDest)) {
-            QFile::remove(m_tempPath);            // the original is no longer needed
-            m_exportTempPath.clear();
-            finishSaved(m_pendingDest);
-        } else {
-            QFile::remove(exportedPath);          // keep only the original temp
-            m_exportTempPath.clear();
-            QMessageBox::warning(this, tr("Save Failed"),
-                                 tr("Could not save the recording to %1").arg(m_pendingDest));
-        }
-    } else if (pending == Pending::Copy) {
+    const Pending pending = std::exchange(m_pending, Pending::None);
+    if (pending == Pending::None)
+        return;
+    if (pending == Pending::Copy) {
         putOnClipboard(exportedPath);             // already at its final destination
         QFile::remove(m_tempPath);
         finishSaved(exportedPath);
-    } else if (pending == Pending::Upload) {
-        // The trimmed temp is ready: hand it to the app's uploader (which deletes it
-        // when done), drop the original recording, and close.
-        QFile::remove(m_tempPath);
-        m_exportTempPath.clear();
-        m_saved = true;
-        emit uploadRequested(exportedPath, uploadNameFor(suggestedFileName(), exportedPath),
-                             /*deleteWhenDone=*/true, m_pendingUploadProfileId);
-        close();
-    } else if (pending == Pending::CopyAnimation) {
-        const QString label = animationFormatInfo(m_animationFormat).label;
-        if (moveFileTo(exportedPath, m_pendingDest)) {
-            putOnClipboard(m_pendingDest);
-            QFile::remove(m_tempPath);
-            m_exportTempPath.clear();
-            finishSaved(m_pendingDest);
-        } else {
-            QFile::remove(exportedPath);
-            m_exportTempPath.clear();
-            QMessageBox::warning(this, tr("Copy Failed"),
-                                 tr("Could not save the %1 to %2").arg(label, m_pendingDest));
-        }
-    } else if (pending == Pending::UploadAnimation) {
-        // The app's uploader owns the encoded temp from here and deletes it when done.
-        QFile::remove(m_tempPath);
-        m_exportTempPath.clear();
-        m_saved = true;
-        emit uploadRequested(exportedPath, uploadNameFor(suggestedFileName(), exportedPath),
-                             /*deleteWhenDone=*/true, m_pendingUploadProfileId);
-        close();
-    } else if (pending == Pending::ExportAnimation) {
-        // Mirror SaveMove exactly: move the temp to the destination, drop the source MP4
-        // temp, clear m_exportTempPath on BOTH the success and failure branches so a later
-        // close()/discard never re-removes a stale path.
-        const QString label = animationFormatInfo(m_animationFormat).label;
-        if (moveFileTo(exportedPath, m_pendingDest)) {
-            QFile::remove(m_tempPath);
-            m_exportTempPath.clear();
-            finishSaved(m_pendingDest);
-        } else {
-            QFile::remove(exportedPath);
-            m_exportTempPath.clear();
-            QMessageBox::warning(this, tr("Export Failed"),
-                                 tr("Could not save the %1 to %2").arg(label, m_pendingDest));
-        }
+        return;
     }
+    // Every other export is a temp, cleared on both outcomes so a later discard never
+    // re-removes a stale path; the original recording goes once the export is safe.
+    m_exportTempPath.clear();
+    if (pending == Pending::Upload || pending == Pending::UploadAnimation) {
+        QFile::remove(m_tempPath);
+        handOffUpload(exportedPath, m_pendingUploadProfileId);   // the uploader deletes it
+        return;
+    }
+    if (moveFileTo(exportedPath, m_pendingDest)) {
+        if (pending == Pending::CopyAnimation)
+            putOnClipboard(m_pendingDest);
+        QFile::remove(m_tempPath);
+        finishSaved(m_pendingDest);
+        return;
+    }
+    QFile::remove(exportedPath);                  // keep only the original temp
+    if (pending == Pending::SaveMove)
+        QMessageBox::warning(this, tr("Save Failed"),
+                             tr("Could not save the recording to %1").arg(m_pendingDest));
+    else
+        QMessageBox::warning(this, pending == Pending::CopyAnimation ? tr("Copy Failed")
+                                                                     : tr("Export Failed"),
+                             tr("Could not save the %1 to %2")
+                                 .arg(animationFormatInfo(m_animationFormat).label, m_pendingDest));
 }
 
 void VideoEditor::onExporterFailed(const QString &error)
