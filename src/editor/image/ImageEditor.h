@@ -91,7 +91,6 @@ private:
     void applyShadow();
     void onBackdropChanged(const QString &propertyId);
     void selectLayerByItem(QGraphicsItem *item);
-    QIcon createThemedIcon(const QString &iconPath);
 
     // UI Components
     DrawingGraphicsView *m_view;

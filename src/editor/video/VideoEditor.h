@@ -70,7 +70,6 @@ private:
                          ExportAnimation, CopyAnimation, UploadAnimation };
 
     void setupUi();
-    [[nodiscard]] QMenu *addSplitButton(QAction *defaultAction);   // click = the action
     void buildAnimationMenu(QMenu *menu, AnimationFormat format);
     void exportAnimation(AnimationFormat format);                   // save-as
     void copyAnimation(AnimationFormat format);                     // recordings folder + clipboard
@@ -88,7 +87,6 @@ private:
     void handOffUpload(const QString &path, const QString &profileId);   // closes
     void updateTimeLabel();
     void updatePlayPauseIcon();
-    [[nodiscard]] QIcon themedIcon(const QString &svgPath) const;
     [[nodiscard]] QString suggestedFileName() const;
     [[nodiscard]] QString recordingsDir() const;     // ensured to exist
     bool moveFileTo(const QString &source, const QString &dest);

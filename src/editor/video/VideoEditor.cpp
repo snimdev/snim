@@ -6,10 +6,6 @@
 #include "editor/video/AnimationParams.h"
 #include "editor/video/AnimationOptionsDialog.h"
 #include "editor/video/Timecode.h"
-#include "upload/UploadConfig.h"
-#include "upload/UploadMenu.h"
-#include <QMenu>
-#include "core/IconUtil.h"
 #include "core/Settings.h"
 
 #include <QApplication>
@@ -25,6 +21,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMediaMetaData>
+#include <QMenu>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QStandardPaths>
@@ -140,58 +137,52 @@ VideoEditor::~VideoEditor()
 
 void VideoEditor::setupUi()
 {
-    // Same shell as the image editor: identical icon size, icon-only buttons, and the
-    // shared stylesheet, so the two windows read as one app.
-    m_toolbar = addToolBar(tr("Recording"));
-    m_toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    m_toolbar->setIconSize(QSize(20, 20));
-    m_toolbar->setMovable(false);
-    m_toolbar->setFloatable(false);
-    Editor::applyEditorStyleSheet(this);
+    m_toolbar = addEditorToolBar(this, tr("Recording"));
 
-    m_saveAction = m_toolbar->addAction(themedIcon(":/icons/icons/save.svg"), QString());
+    m_saveAction = m_toolbar->addAction(themedIcon(":/icons/icons/save.svg", m_toolbar), QString());
     m_saveAction->setToolTip(tr("Save As (Ctrl+S)"));
     m_saveAction->setShortcut(QKeySequence::Save);
     connect(m_saveAction, &QAction::triggered, this, &VideoEditor::onSave);
 
-    m_copyAction = m_toolbar->addAction(themedIcon(":/icons/icons/copy.svg"), QString());
+    m_copyAction = m_toolbar->addAction(themedIcon(":/icons/icons/copy.svg", m_toolbar), QString());
     m_copyAction->setShortcut(QKeySequence::Copy);
     m_copyAction->setToolTip(tr("Save into the recordings folder and copy the file to the clipboard"));
     connect(m_copyAction, &QAction::triggered, this, &VideoEditor::onCopy);
 
     m_toolbar->addSeparator();
 
-    m_gifAction = new QAction(themedIcon(":/icons/icons/export-gif.svg"), QString(), this);
+    m_gifAction = new QAction(themedIcon(":/icons/icons/export-gif.svg", m_toolbar), QString(),
+                              this);
     m_gifAction->setToolTip(tr("Export the trimmed range as an animated GIF"));
     connect(m_gifAction, &QAction::triggered, this,
             [this] { exportAnimation(AnimationFormat::Gif); });
-    buildAnimationMenu(addSplitButton(m_gifAction), AnimationFormat::Gif);
+    buildAnimationMenu(addSplitButton(m_toolbar, m_gifAction), AnimationFormat::Gif);
 
-    m_webpAction = new QAction(themedIcon(":/icons/icons/export-webp.svg"), QString(), this);
+    m_webpAction = new QAction(themedIcon(":/icons/icons/export-webp.svg", m_toolbar), QString(),
+                               this);
     m_webpAction->setToolTip(tr("Export the trimmed range as an animated WebP"));
     connect(m_webpAction, &QAction::triggered, this,
             [this] { exportAnimation(AnimationFormat::WebP); });
-    buildAnimationMenu(addSplitButton(m_webpAction), AnimationFormat::WebP);
+    buildAnimationMenu(addSplitButton(m_toolbar, m_webpAction), AnimationFormat::WebP);
 
     // Frame: click = save as PNG; the menu holds the other uses.
-    m_frameAction = new QAction(themedIcon(":/icons/icons/frame.svg"), QString(), this);
+    m_frameAction = new QAction(themedIcon(":/icons/icons/frame.svg", m_toolbar), QString(), this);
     m_frameAction->setToolTip(tr("Save the current frame as a PNG"));
     m_frameAction->setEnabled(false);   // until the media loads
     connect(m_frameAction, &QAction::triggered, this, &VideoEditor::onSaveFrame);
-    QMenu *frameMenu = addSplitButton(m_frameAction);
+    QMenu *frameMenu = addSplitButton(m_toolbar, m_frameAction);
     connect(frameMenu->addAction(tr("Save frame as PNG…")), &QAction::triggered,
             this, &VideoEditor::onSaveFrame);
     connect(frameMenu->addAction(tr("Open frame in editor")), &QAction::triggered,
             this, &VideoEditor::onEditFrame);
 
     // Upload: click = default destination; the menu picks a saved server.
-    m_uploadAction = new QAction(themedIcon(":/icons/icons/upload.svg"), QString(), this);
+    m_uploadAction = new QAction(themedIcon(":/icons/icons/upload.svg", m_toolbar), QString(),
+                                 this);
     m_uploadAction->setToolTip(tr("Upload to the default server and copy the link"));
     connect(m_uploadAction, &QAction::triggered, this, [this] { doUpload(QString()); });
-    QMenu *uploadMenu = addSplitButton(m_uploadAction);
-    connect(uploadMenu, &QMenu::aboutToShow, this, [this, uploadMenu] {
-        Upload::rebuildUploadMenu(uploadMenu, [this](const QString &id) { doUpload(id); });
-    });
+    fillWithUploadProfiles(addSplitButton(m_toolbar, m_uploadAction),
+                           [this](const QString &id) { doUpload(id); });
 
     auto *spacer = new QWidget(m_toolbar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -218,7 +209,8 @@ void VideoEditor::setupUi()
     transportLayout->setContentsMargins(10, 6, 10, 8);
     transportLayout->setSpacing(10);
 
-    m_playPauseAction = new QAction(themedIcon(":/icons/icons/play.svg"), tr("Play"), this);
+    m_playPauseAction = new QAction(themedIcon(":/icons/icons/play.svg", m_toolbar), tr("Play"),
+                                    this);
     m_playPauseAction->setEnabled(false);   // until the media loads
     connect(m_playPauseAction, &QAction::triggered, this, &VideoEditor::togglePlayPause);
     auto *playButton = new QToolButton(transport);
@@ -242,41 +234,15 @@ void VideoEditor::setupUi()
     setCentralWidget(central);
 }
 
-QMenu *VideoEditor::addSplitButton(QAction *defaultAction)
-{
-    auto *button = new QToolButton(m_toolbar);
-    button->setDefaultAction(defaultAction);
-    button->setPopupMode(QToolButton::MenuButtonPopup);
-    auto *menu = new QMenu(button);
-    button->setMenu(menu);
-    m_toolbar->addWidget(button);
-    return menu;
-}
-
 void VideoEditor::buildAnimationMenu(QMenu *menu, AnimationFormat format)
 {
     connect(menu->addAction(tr("Copy")), &QAction::triggered, this,
             [this, format] { copyAnimation(format); });
-    QMenu *upload = menu->addMenu(tr("Upload"));
-    connect(upload, &QMenu::aboutToShow, this, [this, upload, format] {
-        Upload::rebuildUploadMenu(upload, [this, format](const QString &id) {
-            uploadAnimation(format, id);
-        });
-    });
+    fillWithUploadProfiles(menu->addMenu(tr("Upload")),
+                           [this, format](const QString &id) { uploadAnimation(format, id); });
     menu->addSeparator();
     connect(menu->addAction(tr("Export options…")), &QAction::triggered, this,
             [this, format] { (void)resolveAnimationParams(format, /*alwaysAsk=*/true); });
-}
-
-QIcon VideoEditor::themedIcon(const QString &svgPath) const
-{
-    // Same tone selection as the image editor's toolbar, rendered at the toolbar's own
-    // icon size so the glyph fills its slot exactly (a hardcoded size in a bigger slot
-    // reads as a small icon floating in dead space).
-    const QColor windowColor = QApplication::palette().color(QPalette::Window);
-    const bool isDarkMode = windowColor.lightness() < 128;
-    const int size = m_toolbar ? m_toolbar->iconSize().width() : 20;
-    return Core::themedSvgIcon(svgPath, QColor(isDarkMode ? "#d0d0d0" : "#333333"), size);
 }
 
 // ---- playback ------------------------------------------------------------------
@@ -344,7 +310,8 @@ void VideoEditor::updatePlayPauseIcon()
 {
     const bool playing = m_player->playbackState() == QMediaPlayer::PlayingState;
     m_playPauseAction->setIcon(themedIcon(playing ? QStringLiteral(":/icons/icons/pause.svg")
-                                                  : QStringLiteral(":/icons/icons/play.svg")));
+                                                  : QStringLiteral(":/icons/icons/play.svg"),
+                                          m_toolbar));
     m_playPauseAction->setText(playing ? tr("Pause") : tr("Play"));
 }
 
@@ -618,13 +585,8 @@ void VideoEditor::copyAnimation(AnimationFormat format)
 
 void VideoEditor::uploadAnimation(AnimationFormat format, const QString &profileId)
 {
-    if (!m_previewOk)
-        return;                                   // no frames to grab
-    if (!Upload::UploadConfig::forProfile(profileId).isComplete()) {
-        QMessageBox::information(this, tr("Upload not configured"),
-                                tr("Set up an upload destination in Settings → Upload first."));
-        return;
-    }
+    if (!m_previewOk || !uploadConfigured(this, profileId))
+        return;                                   // no frames to grab, or nowhere to go
     const std::optional<AnimationParams> params = resolveAnimationParams(format);
     if (!params)
         return;
@@ -652,12 +614,8 @@ void VideoEditor::startAnimation(AnimationFormat format, Pending kind,
 
 void VideoEditor::doUpload(const QString &profileId)
 {
-    // Validate the CHOSEN destination (empty id = default), not just the default.
-    if (!Upload::UploadConfig::forProfile(profileId).isComplete()) {
-        QMessageBox::information(this, tr("Upload not configured"),
-                                tr("Set up an upload destination in Settings → Upload first."));
+    if (!uploadConfigured(this, profileId))
         return;
-    }
     const std::optional<bool> trim = shouldTrim();
     if (!trim.has_value())
         return;

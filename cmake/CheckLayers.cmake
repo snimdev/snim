@@ -7,8 +7,7 @@ set(allowed
         core/IconUtil.cpp core/IconUtil.h   # tray and menu icons
         core/MacTrayWorkaround.mm           # the macOS tray menu
         core/SelfTest.cpp                   # probes the image plugins and the style
-        core/Settings.h                     # the editor's stroke and fill colors
-        upload/UploadMenu.h)                # the editors' upload destination menu
+        core/Settings.h)                    # the editor's stroke and fill colors
 # Module includes, widget-like names, events, then the plain GUI classes.
 set(gui "Qt(Gui|Widgets|Svg|MultimediaWidgets)[/>]"
         "Q[A-Za-z]*(Widget|Dialog|Layout|Button|Edit|Box)>"

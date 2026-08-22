@@ -505,6 +505,7 @@ add_library(snim_lib STATIC
         src/capture/strategies/NativeCaptureStrategy.h
 
         # Editor: shared canvas, layers, tools, interactions, commands
+        src/editor/EditorChrome.cpp
         src/editor/EditorChrome.h
         src/editor/annotations/ToolRegistry.cpp
         src/editor/annotations/ToolRegistry.h

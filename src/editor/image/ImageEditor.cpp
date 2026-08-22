@@ -10,7 +10,6 @@
 #include "editor/annotations/IAnnotationSink.h"
 #include "editor/annotations/commands/EditorCommands.h"
 #include "core/FileNames.h"
-#include "core/IconUtil.h"
 #include "core/Perf.h"
 #include "core/Settings.h"
 #include "editor/annotations/tools/StepTool.h"
@@ -33,8 +32,6 @@
 #include <QStandardPaths>
 #include <QDateTime>
 #include <QElapsedTimer>
-#include "upload/UploadConfig.h"
-#include "upload/UploadMenu.h"
 #include <QLineEdit>
 #include <QPalette>
 #include <QScreen>
@@ -153,9 +150,6 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
             if (m_layerManager) m_layerManager->updateLayerList();
         });
     });
-
-    // Shared editor chrome (same sheet as the video editor).
-    Editor::applyEditorStyleSheet(this);
 
     // Open at a consistent 70% of the current screen (the one under the cursor, where
     // the capture happened), independent of the capture's size, so a small grab doesn't
@@ -360,37 +354,21 @@ void ImageEditor::setupUI()
     statusBar()->setSizeGripEnabled(false);
 }
 
-QIcon ImageEditor::createThemedIcon(const QString &iconPath)
-{
-    // Toolbar icon: pick a tone for the current theme, then hand off to the shared
-    // HiDPI-correct loader so it's crisp on Retina (rendered at the toolbar's icon
-    // size rather than a 1x bitmap the OS upscales).
-    const QColor windowColor = QApplication::palette().color(QPalette::Window);
-    const bool isDarkMode = windowColor.lightness() < 128;
-    const QColor iconColor(isDarkMode ? "#d0d0d0" : "#333333");
-    const int size = m_toolbar ? m_toolbar->iconSize().width() : 20;
-    return Core::themedSvgIcon(iconPath, iconColor, size);
-}
-
 void ImageEditor::setupToolbar()
 {
-    m_toolbar = addToolBar("Tools");
-    m_toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    m_toolbar->setIconSize(QSize(20, 20));
-    m_toolbar->setMovable(false);
-    m_toolbar->setFloatable(false);
+    m_toolbar = addEditorToolBar(this, "Tools");
 
     // --- File actions ---
     m_saveAsAction = new QAction(this);
     m_saveAsAction->setToolTip("Save As (Ctrl+S)");
-    m_saveAsAction->setIcon(createThemedIcon(":/icons/icons/save.svg"));
+    m_saveAsAction->setIcon(themedIcon(":/icons/icons/save.svg", m_toolbar));
     m_saveAsAction->setShortcut(QKeySequence::Save);
     connect(m_saveAsAction, &QAction::triggered, this, &ImageEditor::saveAs);
     m_toolbar->addAction(m_saveAsAction);
 
     m_copyAction = new QAction(this);
     m_copyAction->setToolTip("Copy to Clipboard (Ctrl+C)");
-    m_copyAction->setIcon(createThemedIcon(":/icons/icons/copy.svg"));
+    m_copyAction->setIcon(themedIcon(":/icons/icons/copy.svg", m_toolbar));
     m_copyAction->setShortcut(QKeySequence::Copy);
     connect(m_copyAction, &QAction::triggered, this, &ImageEditor::copyToClipboard);
     m_toolbar->addAction(m_copyAction);
@@ -398,17 +376,10 @@ void ImageEditor::setupToolbar()
     // Upload as a split button: click = default destination; ▾ = pick a saved server.
     m_uploadAction = new QAction(this);
     m_uploadAction->setToolTip("Upload to the default server and copy the link");
-    m_uploadAction->setIcon(createThemedIcon(":/icons/icons/upload.svg"));
+    m_uploadAction->setIcon(themedIcon(":/icons/icons/upload.svg", m_toolbar));
     connect(m_uploadAction, &QAction::triggered, this, [this] { doUpload(QString()); });
-    auto *uploadButton = new QToolButton(m_toolbar);
-    uploadButton->setDefaultAction(m_uploadAction);
-    uploadButton->setPopupMode(QToolButton::MenuButtonPopup);
-    auto *uploadMenu = new QMenu(uploadButton);
-    uploadButton->setMenu(uploadMenu);
-    connect(uploadMenu, &QMenu::aboutToShow, this, [this, uploadMenu] {
-        Upload::rebuildUploadMenu(uploadMenu, [this](const QString &id) { doUpload(id); });
-    });
-    m_toolbar->addWidget(uploadButton);
+    fillWithUploadProfiles(addSplitButton(m_toolbar, m_uploadAction),
+                           [this](const QString &id) { doUpload(id); });
 
     m_toolbar->addSeparator();
 
@@ -416,12 +387,12 @@ void ImageEditor::setupToolbar()
     //     they auto enable/disable and update their text ("Undo Add Arrow"). ---
     QAction *undoAction = m_undoStack->createUndoAction(this, "Undo");
     undoAction->setShortcut(QKeySequence::Undo);
-    undoAction->setIcon(createThemedIcon(":/icons/icons/undo.svg"));
+    undoAction->setIcon(themedIcon(":/icons/icons/undo.svg", m_toolbar));
     m_toolbar->addAction(undoAction);
 
     QAction *redoAction = m_undoStack->createRedoAction(this, "Redo");
     redoAction->setShortcut(QKeySequence::Redo);
-    redoAction->setIcon(createThemedIcon(":/icons/icons/redo.svg"));
+    redoAction->setIcon(themedIcon(":/icons/icons/redo.svg", m_toolbar));
     m_toolbar->addAction(redoAction);
 
     m_toolbar->addSeparator();
@@ -436,7 +407,7 @@ void ImageEditor::setupToolbar()
         const QString tip = spec.tooltip.isEmpty() ? spec.displayName : spec.tooltip;
         act->setToolTip(spec.shortcut.isNull() ? tip
                                                : QStringLiteral("%1 (%2)").arg(tip, QString(spec.shortcut)));
-        act->setIcon(createThemedIcon(spec.iconPath()));
+        act->setIcon(themedIcon(spec.iconPath(), m_toolbar));
         act->setCheckable(true);
         m_toolGroup->addAction(act);
         m_toolbar->addAction(act);
@@ -457,7 +428,7 @@ void ImageEditor::setupToolbar()
     m_backgroundAction = new QAction(this);
     m_backgroundAction->setCheckable(true);
     m_backgroundAction->setToolTip("Background (padding, color/gradient/wallpaper, rounded corners, shadow)");
-    m_backgroundAction->setIcon(createThemedIcon(":/icons/icons/background.svg"));
+    m_backgroundAction->setIcon(themedIcon(":/icons/icons/background.svg", m_toolbar));
     connect(m_backgroundAction, &QAction::triggered, this, &ImageEditor::onBackgroundButtonClicked);
     m_toolbar->addAction(m_backgroundAction);
 
@@ -469,7 +440,7 @@ void ImageEditor::setupToolbar()
     m_panelsAction = new QAction(this);
     m_panelsAction->setCheckable(true);
     m_panelsAction->setToolTip("Show layers & properties");
-    m_panelsAction->setIcon(createThemedIcon(":/icons/icons/panels.svg"));
+    m_panelsAction->setIcon(themedIcon(":/icons/icons/panels.svg", m_toolbar));
     connect(m_panelsAction, &QAction::toggled, this,
             [this](bool on) { if (m_rightSplitter) m_rightSplitter->setVisible(on); });
     m_toolbar->addAction(m_panelsAction);
@@ -531,12 +502,8 @@ void ImageEditor::copyToClipboard()
 
 void ImageEditor::doUpload(const QString &profileId)
 {
-    // Validate the CHOSEN destination (empty id = default), not just the default.
-    if (!Upload::UploadConfig::forProfile(profileId).isComplete()) {
-        QMessageBox::information(this, tr("Upload not configured"),
-                                tr("Set up an upload destination in Settings → Upload first."));
+    if (!uploadConfigured(this, profileId))
         return;
-    }
     // Render to a temp PNG and hand it to the app's uploader (which outlives this
     // window and deletes the temp when the upload finishes).
     const QString tmp = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
