@@ -96,23 +96,15 @@ void TrimTimeline::mouseMoveEvent(QMouseEvent *event)
     if (!m_interactive || m_drag == Drag::None)
         return;
     const qint64 ms = msAt(event->pos());
-    switch (m_drag) {
-    case Drag::InHandle:
-        m_state.setInMs(ms);
-        emit inChanged(m_state.inMs());
-        break;
-    case Drag::OutHandle:
-        m_state.setOutMs(ms);
-        emit outChanged(m_state.outMs());
-        break;
-    case Drag::Playhead:
+    if (m_drag == Drag::InHandle) {
+        setInMs(ms);
+    } else if (m_drag == Drag::OutHandle) {
+        setOutMs(ms);
+    } else {
         m_playheadMs = ms;
         emit scrubbed(ms);
-        break;
-    case Drag::None:
-        return;
+        update();
     }
-    update();
 }
 
 void TrimTimeline::mouseReleaseEvent(QMouseEvent *)

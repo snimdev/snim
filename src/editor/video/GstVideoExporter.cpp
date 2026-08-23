@@ -67,13 +67,20 @@ namespace {
 
 using Session = GstVideoExporter::Session;
 
-void postError(Session *session, const QString &error)
+// Queues a hook on the exporter's thread; with the exporter as context, none outlives it.
+template <typename... Params, typename... Args>
+void post(Session *session, void (GstVideoExporter::*hook)(quint64, Params...), Args... args)
 {
     GstVideoExporter *exporter = session->exporter;
     const quint64 generation = session->generation;
-    QMetaObject::invokeMethod(exporter, [exporter, generation, error] {
-        exporter->reportError(generation, error);
-    }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(exporter, [=] { (exporter->*hook)(generation, args...); },
+                              Qt::QueuedConnection);
+}
+
+void postBuildFailure(Session *session)
+{
+    post(session, &GstVideoExporter::reportError,
+         GstVideoExporter::tr("The trim pipeline could not be built."));
 }
 
 QString errorMessage(const GError *error, const QString &output)
@@ -148,11 +155,7 @@ void markReady(Branch *branch)
     if (branch->ready)
         return;
     branch->ready = true;
-    GstVideoExporter *exporter = branch->session->exporter;
-    const quint64 generation = branch->session->generation;
-    QMetaObject::invokeMethod(exporter, [exporter, generation] {
-        exporter->reportBranchReady(generation);
-    }, Qt::QueuedConnection);
+    post(branch->session, &GstVideoExporter::reportBranchReady);
 }
 
 // Holds the stream's first buffer until the seek flushes it, so nothing from before the
@@ -262,7 +265,7 @@ void onPadAdded(GstElement *decodebin, GstPad *pad, gpointer data)
                                              makeElement("aacparse"), tail});
     }
     if (!built) {
-        postError(session, GstVideoExporter::tr("The trim pipeline could not be built."));
+        postBuildFailure(session);
         return;
     }
     setTailLimits(tail);
@@ -293,7 +296,7 @@ void onPadAdded(GstElement *decodebin, GstPad *pad, gpointer data)
     const GstPadLinkReturn linked = gst_pad_link(pad, headSink);
     gst_object_unref(headSink);
     if (linked != GST_PAD_LINK_OK)
-        postError(session, GstVideoExporter::tr("The trim pipeline could not be built."));
+        postBuildFailure(session);
 }
 
 GstPad *requestMuxPad(GstElement *mux, const char *name)
@@ -334,14 +337,10 @@ void onNoMorePads(GstElement *decodebin, gpointer data)
     }
 
     if (!linked) {
-        postError(session, GstVideoExporter::tr("The trim pipeline could not be built."));
+        postBuildFailure(session);
         return;
     }
-    GstVideoExporter *exporter = session->exporter;
-    const quint64 generation = session->generation;
-    QMetaObject::invokeMethod(exporter, [exporter, generation, branches, hasVideo] {
-        exporter->reportPadsComplete(generation, branches, hasVideo);
-    }, Qt::QueuedConnection);
+    post(session, &GstVideoExporter::reportPadsComplete, branches, hasVideo);
 }
 
 // Sync handler rather than a watch: this app has no GLib main loop to dispatch a bus
@@ -351,9 +350,6 @@ GstBusSyncReply onBusMessage(GstBus *bus, GstMessage *message, gpointer data)
     Q_UNUSED(bus)
 
     auto *session = static_cast<Session *>(data);
-    GstVideoExporter *exporter = session->exporter;
-    const quint64 generation = session->generation;
-
     switch (GST_MESSAGE_TYPE(message)) {
         case GST_MESSAGE_ERROR: {
             GError *error = nullptr;
@@ -364,15 +360,11 @@ GstBusSyncReply onBusMessage(GstBus *bus, GstMessage *message, gpointer data)
                        << (debug ? QString::fromUtf8(debug) : QString());
             g_clear_error(&error);
             g_free(debug);
-            QMetaObject::invokeMethod(exporter, [exporter, generation, text] {
-                exporter->reportError(generation, text);
-            }, Qt::QueuedConnection);
+            post(session, &GstVideoExporter::reportError, text);
             break;
         }
         case GST_MESSAGE_EOS:
-            QMetaObject::invokeMethod(exporter, [exporter, generation] {
-                exporter->reportEos(generation);
-            }, Qt::QueuedConnection);
+            post(session, &GstVideoExporter::reportEos);
             break;
         default:
             break;
