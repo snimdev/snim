@@ -20,11 +20,7 @@ class DrawingGraphicsView : public QGraphicsView
 public:
     explicit DrawingGraphicsView(QWidget *parent = nullptr);
 
-    /**
-     * @brief Set the current drawing interaction
-     * @param interaction The interaction to use (ownership is NOT transferred)
-     */
-    void setDrawingStrategy(Interactions::IDrawingInteraction *interaction);
+    void setDrawingStrategy(Interactions::IDrawingInteraction *interaction);   // not owned
 
     void setImageBounds(const QRect &bounds) { m_imageBounds = bounds; }
 
@@ -38,11 +34,8 @@ public:
     void zoomActual();
 
 signals:
-    /**
-     * @brief ⌘/Ctrl+wheel over (or with a selected) text item requests a font-size
-     * change of `steps` notches. Editor turns this into an undoable command;
-     * the view never mutates the model itself.
-     */
+    // ⌘/Ctrl+wheel over (or with a selected) text item: a font-size change of `steps`
+    // notches, which the editor makes undoable; the view never edits the model itself.
     void adjustTextSizeRequested(Tools::ITool *tool, int steps);
 
 protected:

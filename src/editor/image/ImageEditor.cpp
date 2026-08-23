@@ -79,21 +79,7 @@ private:
 
 ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     : QMainWindow(parent)
-    , m_view(nullptr)
-    , m_scene(nullptr)
-    , m_pixmapItem(nullptr)
-    , m_toolbar(nullptr)
-    , m_saveAsAction(nullptr)
-    , m_copyAction(nullptr)
-    , m_panelsAction(nullptr)
-    , m_backgroundAction(nullptr)
-    , m_splitter(nullptr)
-    , m_rightSplitter(nullptr)
-    , m_layerManager(nullptr)
-    , m_layerProperties(nullptr)
     , m_originalScreenshot(screenshot)
-    , m_backdropItem(nullptr)
-    , m_backdropLayer(nullptr)
 {
     setWindowTitle("Image Editor");
 
@@ -1127,8 +1113,6 @@ void ImageEditor::onBackdropChanged(const QString &propertyId)
         m_backdropItem->update();   // color / gradient / wallpaper preset: just repaint
     }
 }
-
-// ...existing implementation methods...
 
 void ImageEditor::onLayerVisibilityChanged(Layer *layer, bool visible)
 {

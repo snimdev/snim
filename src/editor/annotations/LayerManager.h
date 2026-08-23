@@ -40,7 +40,6 @@ signals:
 
 private slots:
     void onItemSelectionChanged();
-    void onDeleteButtonClicked();
     void onGroupButtonClicked();
     void onUngroupButtonClicked();
 

@@ -52,7 +52,7 @@ LayerManager::LayerManager(QWidget *parent) : QWidget(parent) {
 
     m_deleteButton = new QPushButton("Delete");
     m_deleteButton->setEnabled(false);
-    connect(m_deleteButton, &QPushButton::clicked, this, &LayerManager::onDeleteButtonClicked);
+    connect(m_deleteButton, &QPushButton::clicked, this, &LayerManager::deleteCurrentLayer);
     buttons->addWidget(m_deleteButton);
     layout->addLayout(buttons);
 }
@@ -132,10 +132,6 @@ void LayerManager::onItemSelectionChanged() {
 
     if (current)
         emit layerSelected(current);
-}
-
-void LayerManager::onDeleteButtonClicked() {
-    deleteCurrentLayer();
 }
 
 void LayerManager::deleteCurrentLayer() {

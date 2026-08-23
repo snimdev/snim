@@ -93,21 +93,21 @@ private:
     void selectLayerByItem(QGraphicsItem *item);
 
     // UI Components
-    DrawingGraphicsView *m_view;
-    QGraphicsScene *m_scene;
-    QGraphicsPixmapItem *m_pixmapItem;
+    DrawingGraphicsView *m_view = nullptr;
+    QGraphicsScene *m_scene = nullptr;
+    QGraphicsPixmapItem *m_pixmapItem = nullptr;
 
     // - Toolbar
-    QToolBar *m_toolbar;
+    QToolBar *m_toolbar = nullptr;
 
     // - Toolbar :: Actions
-    QAction *m_saveAsAction;
-    QAction *m_copyAction;
+    QAction *m_saveAsAction = nullptr;
+    QAction *m_copyAction = nullptr;
     QAction *m_uploadAction = nullptr;
 
     // - Toolbar :: View controls
-    QAction *m_panelsAction;       // toggle the Layers/Properties side panel
-    QAction *m_backgroundAction;   // toggle the CleanShot-style beautify backdrop
+    QAction *m_panelsAction = nullptr;       // toggle the Layers/Properties side panel
+    QAction *m_backgroundAction = nullptr;   // toggle the CleanShot-style beautify backdrop
 
     // - Toolbar :: Tools. Registry-driven: one exclusive action group plus the
     //   id-keyed actions; interactions and templates live in the builder.
@@ -122,20 +122,20 @@ private:
     QUndoStack *m_undoStack = nullptr;
 
     // Sidebar
-    QSplitter *m_splitter;
-    QSplitter *m_rightSplitter;
+    QSplitter *m_splitter = nullptr;
+    QSplitter *m_rightSplitter = nullptr;
 
     // Layer Management
-    LayerManager *m_layerManager;
-    LayerProperties *m_layerProperties;
+    LayerManager *m_layerManager = nullptr;
+    LayerProperties *m_layerProperties = nullptr;
 
     // State
     QPixmap m_originalScreenshot;
     QDateTime m_capturedAt = QDateTime::currentDateTime();   // opens right after capture
     bool m_firstShown = false;   // fit/center the view only on the first show
     bool m_dirty = false;        // unsaved changes (layers added/edited, backdrop, ...)
-    BackdropItem *m_backdropItem;  // beautify backdrop (null when off)
-    Layer *m_backdropLayer;
+    BackdropItem *m_backdropItem = nullptr;   // beautify backdrop (null when off)
+    Layer *m_backdropLayer = nullptr;
     QWidget *m_backdropPopover = nullptr;   // floating quick-actions popover
     QWidget *m_presetGrid = nullptr;        // preset-tiles container inside the popover
     Layer *m_selectedLayer = nullptr;       // current side-panel selection
