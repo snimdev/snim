@@ -116,7 +116,7 @@ AnimationExporter::AnimationExporter(std::unique_ptr<VideoFrameGrabber> grabber,
 
 AnimationExporter::~AnimationExporter()
 {
-    reset();   // never leave the worker thread running past this object
+    cancel();   // never leave the worker thread running past this object
 }
 
 void AnimationExporter::adopt(std::unique_ptr<VideoFrameGrabber> grabber)
@@ -184,10 +184,6 @@ void AnimationExporter::start(AnimationFormat format, const QString &input,
     m_params = params.clamped();
     m_output = output;
     m_total = planAnimationFrames(inMs, outMs, m_params.fps).size();
-    m_done = 0;
-    m_inFlight = 0;
-    m_paused = false;
-    m_started = false;
     startWorker(format);
     m_running = true;
 
@@ -258,24 +254,19 @@ void AnimationExporter::onWrote(const QString &outputPath)
 {
     if (!m_running)
         return;
-    reset();
+    cancel();
     emit finished(outputPath);
 }
 
 void AnimationExporter::fail(const QString &error)
 {
-    reset();
+    cancel();
     // Deferred like the stub's failures, so a caller that connects after calling start()
     // still sees it.
     QMetaObject::invokeMethod(this, [this, error] { emit failed(error); }, Qt::QueuedConnection);
 }
 
 void AnimationExporter::cancel()
-{
-    reset();
-}
-
-void AnimationExporter::reset()
 {
     // Cleared first: it is what makes a signal already queued from the worker a no-op.
     m_running = false;

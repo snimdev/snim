@@ -75,9 +75,6 @@ bool AnimationEncoder::begin(const QString &path, const QSize &size,
 
     m_size = size;
     m_fps = p.fps;
-    m_firstMs = 0;
-    m_prevMs = 0;
-    m_hasPrev = false;
     return true;
 }
 

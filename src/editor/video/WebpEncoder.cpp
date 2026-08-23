@@ -9,9 +9,7 @@ namespace Editor::Video {
 
 struct WebpEncoder::Impl {
     WebPAnimEncoder *enc = nullptr;
-    int quality = 75;
-    bool lossless = false;
-    int effort = 4;        // libwebp method, cpu spent per frame
+    WebPConfig config{};   // the same for every frame, so built once in onBegin()
 
     // Freeing the encoder here is what lets onCancel() be a plain state reset, and covers
     // the destructor path even if the caller never cancels.
@@ -29,12 +27,15 @@ WebpEncoder::~WebpEncoder() = default;
 bool WebpEncoder::onBegin(const QSize &size, const AnimationParams &params, QString *errorOut)
 {
     WebPAnimEncoderOptions options;
-    if (!WebPAnimEncoderOptionsInit(&options)) {
+    if (!WebPAnimEncoderOptionsInit(&options) || !WebPConfigInit(&d->config)) {
         *errorOut = QStringLiteral("libwebp is too old to encode animations.");
         return false;
     }
     options.minimize_size = params.minimizeSize ? 1 : 0;
     options.anim_params.loop_count = params.loopCount;
+    d->config.lossless = params.lossless ? 1 : 0;
+    d->config.quality = float(params.quality);   // 0-100; lossless reads it as effort
+    d->config.method = params.effort;            // 0-6, clamped in AnimationParams
 
     d->enc = WebPAnimEncoderNew(size.width(), size.height(), &options);
     if (!d->enc) {
@@ -42,10 +43,6 @@ bool WebpEncoder::onBegin(const QSize &size, const AnimationParams &params, QStr
                         .arg(size.width()).arg(size.height());
         return false;
     }
-
-    d->quality = params.quality;
-    d->lossless = params.lossless;
-    d->effort = params.effort;
     return true;
 }
 
@@ -66,18 +63,8 @@ bool WebpEncoder::onFrame(const QImage &rgba, qint64 ms, QString *errorOut)
         return false;
     }
 
-    WebPConfig config;
-    if (!WebPConfigInit(&config)) {
-        WebPPictureFree(&picture);
-        *errorOut = QStringLiteral("libwebp is too old for this build.");
-        return false;
-    }
-    config.lossless = d->lossless ? 1 : 0;
-    config.quality = float(d->quality);   // 0-100; lossless reads it as effort
-    config.method = d->effort;            // 0-6, clamped in AnimationParams
-
     const int timestampMs = int(ms);
-    const bool ok = WebPAnimEncoderAdd(d->enc, &picture, timestampMs, &config) != 0;
+    const bool ok = WebPAnimEncoderAdd(d->enc, &picture, timestampMs, &d->config) != 0;
     const char *why = ok ? nullptr : WebPAnimEncoderGetError(d->enc);
     WebPPictureFree(&picture);
     if (!ok) {

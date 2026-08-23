@@ -58,7 +58,6 @@ private:
     void onFrameEncoded();
     void onWrote(const QString &outputPath);
     void fail(const QString &error);              // deferred, like the stub's failures
-    void reset();                                 // stop and drop the state, silently
     void adopt(std::unique_ptr<VideoFrameGrabber> grabber);   // takes ownership + wires
     [[nodiscard]] VideoFrameGrabber *grabber();   // lazily created + wired
     void throttle();                              // backpressure onto the grabber
