@@ -97,6 +97,10 @@ private:
     int m_space;
 };
 
+const QString kSwatchStyle =
+    QStringLiteral("QPushButton { background: %1; border: 1px solid palette(mid); border-radius: 6px; }"
+                   "QPushButton:hover { border-color: palette(dark); }");
+
 } // namespace
 
 LayerProperties::LayerProperties(QWidget *parent)
@@ -125,16 +129,12 @@ LayerProperties::LayerProperties(QWidget *parent)
 
 void LayerProperties::setLayer(Layer *layer)
 {
-    if (!layer) {
+    if (QWidget *page = m_layerWidgetMap.value(layer))
+        m_stackedWidget->setCurrentWidget(page);
+    else if (auto *tool = layer ? dynamic_cast<Tools::ITool*>(layer->item()) : nullptr)
+        m_layerWidgetMap[layer] = addPage(tool, layer);
+    else
         m_stackedWidget->setCurrentWidget(m_emptyWidget);
-        return;
-    }
-
-    if (m_layerWidgetMap.contains(layer)) {
-        m_stackedWidget->setCurrentWidget(m_layerWidgetMap[layer]);
-    } else {
-        buildPropertiesUI(layer);
-    }
 }
 
 void LayerProperties::rebuildLayer(Layer *layer)
@@ -153,8 +153,11 @@ void LayerProperties::setTool(Tools::ITool *tool, const QString &toolName)
         m_stackedWidget->setCurrentWidget(m_emptyWidget);
         return;
     }
-
-    buildPropertiesUIForTool(tool, toolName);
+    if (m_toolWidget) {
+        m_stackedWidget->removeWidget(m_toolWidget);
+        m_toolWidget->deleteLater();
+    }
+    m_toolWidget = addPage(tool, nullptr, toolName);
 }
 
 void LayerProperties::removeLayer(Layer *layer)
@@ -167,7 +170,6 @@ void LayerProperties::removeLayer(Layer *layer)
 }
 
 // Builds one labelled control (color / slider / dropdown / swatches) for a property.
-// Shared by the layer and tool-template builders so new control types land once.
 QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
                                                 const Tools::ToolProperty &prop,
                                                 QWidget *parent)
@@ -182,22 +184,8 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
     propLayout->addWidget(label);
 
     if (prop.controlType == "color") {
-        auto *swatch = new QPushButton(parent);
-        swatch->setFixedSize(32, 32);
-        swatch->setToolTip("Click to change color");
-        const QColor initialColor = prop.value.value<QColor>();
-        const QString style =
-            "QPushButton { background: %1; border: 1px solid palette(mid); border-radius: 6px; }"
-            "QPushButton:hover { border-color: palette(dark); }";
-        swatch->setStyleSheet(style.arg(initialColor.name()));
-        connect(swatch, &QPushButton::clicked, this, [this, tool, swatch, style, p = prop]() {
-            const QColor color = QColorDialog::getColor(p.value.value<QColor>(), this, "Select Color");
-            if (color.isValid()) {
-                emit propertyChangeRequested(tool, p.id, color);
-                swatch->setStyleSheet(style.arg(color.name()));
-            }
-        });
-        propLayout->addWidget(swatch);
+        propLayout->addWidget(createSwatch(tool, prop.id, "Click to change color",
+                                           prop.value.value<QColor>(), parent));
 
     } else if (prop.controlType == "slider") {
         auto *sliderRow = new QHBoxLayout();
@@ -241,34 +229,15 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
 
     } else if (prop.controlType == "colorpair") {
         // Two color swatches on one row (e.g. gradient Start → End) to save height.
-        const QString swatchStyle =
-            "QPushButton { background: %1; border: 1px solid palette(mid); border-radius: 6px; }"
-            "QPushButton:hover { border-color: palette(dark); }";
-        auto makeSwatch = [this, tool, parent, swatchStyle](const QString &subId, const QString &tip,
-                                                            const QColor &initial) {
-            auto *sw = new QPushButton(parent);
-            sw->setFixedSize(32, 32);
-            sw->setToolTip(tip);
-            sw->setStyleSheet(swatchStyle.arg(initial.name()));
-            connect(sw, &QPushButton::clicked, this, [this, tool, sw, swatchStyle, subId, initial]() {
-                const QColor c = QColorDialog::getColor(initial, this, "Select Color");
-                if (c.isValid()) {
-                    emit propertyChangeRequested(tool, subId, c);
-                    sw->setStyleSheet(swatchStyle.arg(c.name()));
-                }
-            });
-            return sw;
-        };
-
         auto *row = new QHBoxLayout();
         row->setSpacing(8);
-        row->addWidget(makeSwatch(prop.options.value("startId").toString(),
-                                  prop.options.value("startName").toString(),
-                                  prop.options.value("startValue").value<QColor>()));
+        row->addWidget(createSwatch(tool, prop.options.value("startId").toString(),
+                                    prop.options.value("startName").toString(),
+                                    prop.options.value("startValue").value<QColor>(), parent));
         row->addWidget(new QLabel("→", parent));
-        row->addWidget(makeSwatch(prop.options.value("endId").toString(),
-                                  prop.options.value("endName").toString(),
-                                  prop.options.value("endValue").value<QColor>()));
+        row->addWidget(createSwatch(tool, prop.options.value("endId").toString(),
+                                    prop.options.value("endName").toString(),
+                                    prop.options.value("endValue").value<QColor>(), parent));
         row->addStretch();
         propLayout->addLayout(row);
 
@@ -321,26 +290,45 @@ QLayout* LayerProperties::createPropertyControl(Tools::ITool *tool,
     return propLayout;
 }
 
-void LayerProperties::buildPropertiesUI(Layer *layer)
+QPushButton *LayerProperties::createSwatch(Tools::ITool *tool, const QString &propertyId,
+                                          const QString &tip, const QColor &initial,
+                                          QWidget *parent)
 {
-    auto* tool = dynamic_cast<Tools::ITool*>(layer->item());
-    if (!tool) {
-        m_stackedWidget->setCurrentWidget(m_emptyWidget);
-        return;
-    }
+    auto *swatch = new QPushButton(parent);
+    swatch->setFixedSize(32, 32);
+    swatch->setToolTip(tip);
+    swatch->setStyleSheet(kSwatchStyle.arg(initial.name()));
+    connect(swatch, &QPushButton::clicked, this, [this, tool, swatch, propertyId, initial]() {
+        const QColor color = QColorDialog::getColor(initial, this, "Select Color");
+        if (color.isValid()) {
+            emit propertyChangeRequested(tool, propertyId, color);
+            swatch->setStyleSheet(kSwatchStyle.arg(color.name()));
+        }
+    });
+    return swatch;
+}
 
+QWidget *LayerProperties::addPage(Tools::ITool *tool, Layer *layer, const QString &title)
+{
     auto* propertiesWidget = new QWidget();
     auto* layout = new QVBoxLayout(propertiesWidget);
     layout->setSpacing(12);
     layout->setContentsMargins(8, 8, 8, 8);
     layout->setAlignment(Qt::AlignTop);
 
+    if (!layer) {
+        auto* titleLabel = new QLabel(title);
+        titleLabel->setObjectName("sectionHeader");
+        titleLabel->setAlignment(Qt::AlignLeft);
+        layout->addWidget(titleLabel);
+    }
+
     for (const auto& prop : tool->getProperties())
         layout->addLayout(createPropertyControl(tool, prop, propertiesWidget));
 
     // Backdrop layers get a "Save as preset…" action so the current config can be
     // stored without going back to the popover. Editor handles the save.
-    if (layer->type() == Layer::Backdrop) {
+    if (layer && layer->type() == Layer::Backdrop) {
         auto *saveBtn = new QPushButton(QStringLiteral("＋  Save as preset…"), propertiesWidget);
         saveBtn->setObjectName("savePresetBtn");
         saveBtn->setCursor(Qt::PointingHandCursor);
@@ -360,44 +348,8 @@ void LayerProperties::buildPropertiesUI(Layer *layer)
     scroll->setWidget(propertiesWidget);
 
     m_stackedWidget->addWidget(scroll);
-    m_layerWidgetMap[layer] = scroll;
     m_stackedWidget->setCurrentWidget(scroll);
-}
-
-void LayerProperties::buildPropertiesUIForTool(Tools::ITool *tool, const QString &title)
-{
-    if (m_toolWidget) {
-        m_stackedWidget->removeWidget(m_toolWidget);
-        m_toolWidget->deleteLater();
-        m_toolWidget = nullptr;
-    }
-
-    auto* propertiesWidget = new QWidget();
-    auto* layout = new QVBoxLayout(propertiesWidget);
-    layout->setSpacing(12);
-    layout->setContentsMargins(8, 8, 8, 8);
-    layout->setAlignment(Qt::AlignTop);
-
-    auto* titleLabel = new QLabel(title);
-    titleLabel->setObjectName("sectionHeader");
-    titleLabel->setAlignment(Qt::AlignLeft);
-    layout->addWidget(titleLabel);
-
-    for (const auto& prop : tool->getProperties())
-        layout->addLayout(createPropertyControl(tool, prop, propertiesWidget));
-
-    layout->addStretch();
-
-    auto *scroll = new QScrollArea();
-    scroll->setObjectName("propertiesScroll");
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->setWidget(propertiesWidget);
-
-    m_toolWidget = scroll;
-    m_stackedWidget->addWidget(scroll);
-    m_stackedWidget->setCurrentWidget(scroll);
+    return scroll;
 }
 
 } // namespace Editor

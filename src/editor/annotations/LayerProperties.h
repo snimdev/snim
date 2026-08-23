@@ -5,8 +5,9 @@
 #include <QMap>
 #include "tools/ITool.h"
 
-class QStackedWidget;
 class QLayout;
+class QPushButton;
+class QStackedWidget;
 
 namespace Editor {
 
@@ -30,9 +31,11 @@ signals:
     void propertyChangeRequested(Tools::ITool *tool, const QString &propertyId, const QVariant &value);
 
 private:
-    void buildPropertiesUI(Layer *layer);
-    void buildPropertiesUIForTool(Tools::ITool *tool, const QString &title);
+    // A scrolling page of tool's controls, made current. A layer's page has no title.
+    QWidget *addPage(Tools::ITool *tool, Layer *layer, const QString &title = {});
     QLayout* createPropertyControl(Tools::ITool *tool, const Tools::ToolProperty &prop, QWidget *parent);
+    QPushButton *createSwatch(Tools::ITool *tool, const QString &propertyId, const QString &tip,
+                              const QColor &initial, QWidget *parent);
 
     QStackedWidget *m_stackedWidget;
     QMap<Layer*, QWidget*> m_layerWidgetMap;
