@@ -73,6 +73,12 @@ namespace {
         }
         return QStringLiteral("Gradient");
     }
+
+    BackdropItem::Fill fillFromName(const QString &name) {
+        return name == QLatin1String("Solid")     ? BackdropItem::Fill::Solid
+             : name == QLatin1String("Wallpaper") ? BackdropItem::Fill::Wallpaper
+                                                  : BackdropItem::Fill::Gradient;
+    }
 }
 
 BackdropItem::BackdropItem()
@@ -143,32 +149,27 @@ void BackdropItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QW
 
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setPen(Qt::NoPen);
+    paintFill(painter, m_canvasRect);
+}
 
+void BackdropItem::paintFill(QPainter *painter, const QRectF &rect) const
+{
     switch (m_fill) {
         case Fill::Solid:
-            painter->fillRect(m_canvasRect, m_solidColor);
-            break;
-        case Fill::Gradient: {
-            QColor c1, c2;
-            if (m_customGradient) {
-                c1 = m_gradStart;
-                c2 = m_gradEnd;
-            } else {
-                const GradientPreset &g = kGradients[qBound(0, m_gradientIndex, kGradientCount - 1)];
-                c1 = QColor(g.c1);
-                c2 = QColor(g.c2);
-            }
-            QLinearGradient grad(m_canvasRect.topLeft(), m_canvasRect.bottomRight());
-            grad.setColorAt(0.0, c1);
-            grad.setColorAt(1.0, c2);
-            painter->fillRect(m_canvasRect, grad);
-            break;
-        }
+            painter->fillRect(rect, m_solidColor);
+            return;
         case Fill::Wallpaper:
-            paintMeshWallpaper(painter, m_canvasRect,
+            paintMeshWallpaper(painter, rect,
                                kWallpapers[qBound(0, m_wallpaperIndex, kWallpaperCount - 1)]);
+            return;
+        case Fill::Gradient:
             break;
     }
+    const GradientPreset &g = kGradients[qBound(0, m_gradientIndex, kGradientCount - 1)];
+    QLinearGradient grad(rect.topLeft(), rect.bottomRight());
+    grad.setColorAt(0.0, m_customGradient ? m_gradStart : QColor(g.c1));
+    grad.setColorAt(1.0, m_customGradient ? m_gradEnd : QColor(g.c2));
+    painter->fillRect(rect, grad);
 }
 
 QVariantMap BackdropItem::toConfig() const
@@ -189,8 +190,7 @@ QVariantMap BackdropItem::toConfig() const
 
 void BackdropItem::applyConfig(const QVariantMap &c)
 {
-    const QString f = c.value("fill", "Gradient").toString();
-    m_fill = (f == "Solid") ? Fill::Solid : (f == "Wallpaper") ? Fill::Wallpaper : Fill::Gradient;
+    m_fill = fillFromName(c.value("fill", "Gradient").toString());
     m_solidColor     = QColor(c.value("solidColor", m_solidColor.name()).toString());
     m_gradientIndex  = c.value("gradientIndex", m_gradientIndex).toInt();
     m_customGradient = c.value("customGradient", m_customGradient).toBool();
@@ -232,27 +232,9 @@ QPixmap BackdropItem::configPreview(const QVariantMap &c, QSize size)
     clip.addRoundedRect(rect, 5, 5);
     p.setClipPath(clip);
 
-    const QString f = c.value("fill", "Gradient").toString();
-    if (f == "Solid") {
-        p.fillRect(rect, QColor(c.value("solidColor", "#1e1e2e").toString()));
-    } else if (f == "Wallpaper") {
-        paintMeshWallpaper(&p, rect,
-            kWallpapers[qBound(0, c.value("wallpaperIndex", 0).toInt(), kWallpaperCount - 1)]);
-    } else {
-        QColor c1, c2;
-        if (c.value("customGradient", false).toBool()) {
-            c1 = QColor(c.value("gradStart", "#4f46e5").toString());
-            c2 = QColor(c.value("gradEnd", "#9333ea").toString());
-        } else {
-            const GradientPreset &g = kGradients[qBound(0, c.value("gradientIndex", 0).toInt(), kGradientCount - 1)];
-            c1 = QColor(g.c1);
-            c2 = QColor(g.c2);
-        }
-        QLinearGradient grad(rect.topLeft(), rect.bottomRight());
-        grad.setColorAt(0.0, c1);
-        grad.setColorAt(1.0, c2);
-        p.fillRect(rect, grad);
-    }
+    BackdropItem look;   // a scratch item reads the config exactly as applyConfig() does
+    look.applyConfig(c);
+    look.paintFill(&p, rect);
     p.setClipping(false);
 
     // Mini "screenshot" with a soft shadow to convey the look.
@@ -339,10 +321,7 @@ void BackdropItem::setProperty(const QString &propertyId, const QVariant &value)
     m_activePreset.clear();
 
     if (propertyId == "fill") {
-        const QString s = value.toString();
-        m_fill = (s == "Solid") ? Fill::Solid
-               : (s == "Wallpaper") ? Fill::Wallpaper
-               : Fill::Gradient;
+        m_fill = fillFromName(value.toString());
         update();
     } else if (propertyId == "color") {
         m_solidColor = value.value<QColor>();

@@ -70,6 +70,8 @@ public:
     void setActivePreset(const QString &name) { m_activePreset = name; }
 
 private:
+    void paintFill(QPainter *painter, const QRectF &rect) const;   // the fill alone
+
     QRectF m_canvasRect;
     Fill   m_fill = Fill::Gradient;
     QColor m_solidColor = QColor("#1e1e2e");
