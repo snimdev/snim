@@ -791,16 +791,14 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
     }
 
     qDebug().noquote() << "Recording pipeline:" << description;
-    GError *parseError = nullptr;
-    m_pipeline = gst_parse_launch(description.toUtf8().constData(), &parseError);
+    QString parseError;
+    m_pipeline = Media::Gst::parseLaunch(description, &parseError);
     if (!m_pipeline) {
-        *error = parseError ? tr("The recording pipeline could not be built: %1")
-                                  .arg(QString::fromUtf8(parseError->message))
-                            : tr("The recording pipeline could not be built.");
-        g_clear_error(&parseError);
+        *error = parseError.isEmpty()
+                     ? tr("The recording pipeline could not be built.")
+                     : tr("The recording pipeline could not be built: %1").arg(parseError);
         return false;
     }
-    g_clear_error(&parseError);
 
     // The monotonic clock StreamTimestamp compares stamps to, whatever clock a source offers.
     GstClock *clock = gst_system_clock_obtain();

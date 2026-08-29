@@ -79,6 +79,10 @@ void configureRecordingOutput(GstElement *mux, GstElement *filesink);
 // The message of a GError, or an empty string for none.
 [[nodiscard]] QString errorText(const GError *error);
 
+// gst_parse_launch, failing on any error, even one GStreamer recovers from by dropping
+// the element (an unknown property). On failure `error` holds GStreamer's message.
+[[nodiscard]] GstElement *parseLaunch(const QString &description, QString *error);
+
 struct GstUnref {
     void operator()(gpointer object) const
     {

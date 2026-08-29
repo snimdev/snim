@@ -260,6 +260,21 @@ private slots:
                      || profile == "baseline",
                  profile.constData());
     }
+
+    void parseFailsOnAnyError()
+    {
+        QVERIFY(ensureInitialized());
+        QString error;
+        // gst_parse_launch alone recovers from this by dropping the element.
+        GstPtr<GstElement> bad(parseLaunch(
+            QStringLiteral("fakesrc name=src no-such-property=1 ! fakesink"), &error));
+        QVERIFY(!bad);
+        QVERIFY2(error.contains(QStringLiteral("no-such-property")), qPrintable(error));
+
+        GstPtr<GstElement> good(parseLaunch(QStringLiteral("fakesrc ! fakesink"), &error));
+        QVERIFY2(good, qPrintable(error));
+        QVERIFY(error.isEmpty());
+    }
 };
 
 QTEST_GUILESS_MAIN(tst_GstSupport)

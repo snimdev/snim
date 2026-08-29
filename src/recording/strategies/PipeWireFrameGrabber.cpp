@@ -78,10 +78,8 @@ extern "C" bool snimGrabPipeWireFrames(int pipewireFd, const quint32 *nodeIds, i
             "! appsink name=sink%1 sync=false max-buffers=1 drop=true ").arg(i);
     }
 
-    GError *parseError = nullptr;
-    GstPtr<GstElement> pipeline(gst_parse_launch(description.toUtf8().constData(), &parseError));
-    const QString parseText = Media::Gst::errorText(parseError);
-    g_clear_error(&parseError);
+    QString parseText;
+    GstPtr<GstElement> pipeline(Media::Gst::parseLaunch(description, &parseText));
     if (!pipeline)
         return failWith(QStringLiteral("The frame pipeline could not be built: %1").arg(parseText));
 

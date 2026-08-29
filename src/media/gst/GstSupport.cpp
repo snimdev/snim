@@ -220,4 +220,14 @@ QString errorText(const GError *error)
     return error && error->message ? QString::fromUtf8(error->message) : QString();
 }
 
+GstElement *parseLaunch(const QString &description, QString *error)
+{
+    GError *parseError = nullptr;
+    GstElement *element = gst_parse_launch_full(description.toUtf8().constData(), nullptr,
+                                                GST_PARSE_FLAG_FATAL_ERRORS, &parseError);
+    *error = errorText(parseError);
+    g_clear_error(&parseError);
+    return element;
+}
+
 } // namespace Media::Gst
