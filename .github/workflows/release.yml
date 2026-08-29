@@ -498,7 +498,8 @@ jobs:
           echo "$ACTUAL started in the Flatpak sandbox."
 
       - name: It passes its self-test
-        # The recorder line proves the runtime's GStreamer has every element the recorder needs.
+        # The recorder line proves the runtime's GStreamer has every element the recorder needs
+        # and accepts its pipeline.
         run: |
           if ! flatpak build --env=QT_QPA_PLATFORM=offscreen flatpak_app snim --self-test > /tmp/snim-self-test.txt 2>/tmp/snim-stderr.log; then
             cat /tmp/snim-self-test.txt /tmp/snim-stderr.log

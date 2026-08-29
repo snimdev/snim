@@ -57,6 +57,28 @@ LinuxPipeline::VideoSource currentVideoSource()
     return source;
 }
 
+// What the recorder launches: the video chain, plus the audio it can have. Empty without
+// an H.264 encoder.
+QString pipelineDescription(const QString &source, int fps, const QString &mux, bool mic,
+                            bool systemAudio)
+{
+    const QString encoder = Media::Gst::h264EncoderChain({Media::Gst::EncoderTuning::Live, fps});
+    if (encoder.isEmpty())
+        return {};
+    const QString video = LinuxPipeline::videoChain(source, fps, encoder, mux);
+    if (!mic && !systemAudio)
+        return video;
+    const QString aac = Media::Gst::aacEncoderChain();
+    // Audio is best-effort: a missing piece costs the audio track, not the recording.
+    if (!Media::Gst::hasFactory("pulsesrc") || !Media::Gst::hasFactory("aacparse")
+        || aac.isEmpty()) {
+        qWarning() << "Audio capture requested but pulsesrc, aacparse or an AAC encoder is "
+                      "missing; recording video only";
+        return video;
+    }
+    return video + LinuxPipeline::audioChain(aac, mic, systemAudio);
+}
+
 // A plain X11 session, where coordinates the X server reports are root-window pixels.
 bool isX11Session()
 {
@@ -489,6 +511,20 @@ void LinuxRecordingStrategy::checkElements(QStringList *found, QStringList *miss
     }
     if (const char *encoder = Media::Gst::encoderElement(Media::Gst::chooseH264Encoder(h264)))
         *found << QString::fromLatin1(encoder);
+    if (!missing->isEmpty())
+        return;
+
+    // Built, never played: an element or property this GStreamer lacks fails here.
+    const QString video = source == LinuxPipeline::VideoSource::X11
+                          ? LinuxPipeline::x11Source(QRect(0, 0, 64, 64), false, 30)
+                          : LinuxPipeline::portalSource();
+    QString error;
+    const Media::Gst::GstPtr<GstElement> pipeline(Media::Gst::parseLaunch(
+        pipelineDescription(video, 30, QStringLiteral("mp4mux"), true, true), &error));
+    if (!pipeline) {
+        *missing << QStringLiteral("a GStreamer that accepts the recording pipeline (%1)")
+                        .arg(error);
+    }
 }
 
 void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &outputPath)
@@ -739,13 +775,6 @@ void LinuxRecordingStrategy::handleSessionClosed()
 
 bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
 {
-    const QString encoder = Media::Gst::h264EncoderChain(
-        {Media::Gst::EncoderTuning::Live, m_target.fps});
-    if (encoder.isEmpty()) {
-        *error = tr("No H.264 encoder is installed.");
-        return false;
-    }
-
     const QString mux = QFileInfo(m_outputPath).suffix().compare(QStringLiteral("mov"),
                                                                  Qt::CaseInsensitive) == 0
                         ? QStringLiteral("qtmux") : QStringLiteral("mp4mux");
@@ -759,35 +788,12 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         source = LinuxPipeline::x11Source(m_x11Grab.rootPx, m_target.captureCursor,
                                           m_target.fps);
     }
-    QString description = LinuxPipeline::videoChain(source, m_target.fps, encoder, mux);
-
-    if (m_target.captureMic || m_target.captureSystemAudio) {
-        const QString aac = Media::Gst::aacEncoderChain();
-        // Audio is best-effort: a missing piece costs the audio track, not the recording.
-        if (!Media::Gst::hasFactory("pulsesrc") || !Media::Gst::hasFactory("aacparse")
-            || aac.isEmpty()) {
-            qWarning() << "Audio capture requested but pulsesrc, aacparse or an AAC encoder is "
-                          "missing; recording video only";
-        } else {
-            // An audiomixer even for a single source, so mic, system audio and both share
-            // one code path.
-            description += QStringLiteral(
-                " audiomixer name=amix ! valve name=audiovalve drop=false "
-                "! audioconvert ! audioresample "
-                "! audio/x-raw,rate=48000,channels=2 ! %1 ! aacparse ! queue ! mux.").arg(aac);
-            if (m_target.captureMic) {
-                description += QStringLiteral(
-                    " pulsesrc name=micsrc ! valve name=micvalve drop=false "
-                    "! queue ! audioconvert ! audioresample ! amix.");
-            }
-            if (m_target.captureSystemAudio) {
-                // @DEFAULT_MONITOR@ is a pipewire-pulse alias for the default sink's monitor.
-                description += QStringLiteral(
-                    " pulsesrc name=syssrc device=@DEFAULT_MONITOR@ "
-                    "! valve name=sysvalve drop=false "
-                    "! queue ! audioconvert ! audioresample ! amix.");
-            }
-        }
+    const QString description = pipelineDescription(source, m_target.fps, mux,
+                                                     m_target.captureMic,
+                                                     m_target.captureSystemAudio);
+    if (description.isEmpty()) {
+        *error = tr("No H.264 encoder is installed.");
+        return false;
     }
 
     qDebug().noquote() << "Recording pipeline:" << description;

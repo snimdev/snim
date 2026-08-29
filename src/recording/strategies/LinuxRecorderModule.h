@@ -58,8 +58,9 @@ struct ElementCheck {
     QStringList missing;   // what to install, named as missingPieces() names it
 };
 
-// The GStreamer elements this session's recording and ScreenCast screenshots need, for
-// `snim --self-test`. Never asks the portal: that is the desktop's part, not the bundle's.
+// The GStreamer elements this session's recording and ScreenCast screenshots need, and the
+// recording pipeline they build, for `snim --self-test`. Never asks the portal: that is the
+// desktop's part, not the bundle's.
 [[nodiscard]] ElementCheck checkElements();
 
 } // namespace Recording::LinuxRecorderModule

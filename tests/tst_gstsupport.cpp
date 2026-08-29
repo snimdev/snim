@@ -6,6 +6,7 @@
 #include <gst/gst.h>
 
 #include "media/gst/GstSupport.h"
+#include "recording/strategies/LinuxPipeline.h"
 
 using namespace Media::Gst;
 
@@ -274,6 +275,38 @@ private slots:
         GstPtr<GstElement> good(parseLaunch(QStringLiteral("fakesrc ! fakesink"), &error));
         QVERIFY2(good, qPrintable(error));
         QVERIFY(error.isEmpty());
+    }
+
+    // Parsing reaches no PipeWire or pulse server. ximagesrc reads the X display to link,
+    // so it gets none.
+    void parsesTheRecorderPipelines()
+    {
+        using namespace Recording::LinuxPipeline;
+        qunsetenv("DISPLAY");
+        QVERIFY(ensureInitialized());
+        const QString encoder = h264EncoderChain({EncoderTuning::Live, 30});
+        const QString aac = aacEncoderChain();
+        if (encoder.isEmpty() || aac.isEmpty())
+            QSKIP("No H.264 or AAC encoder");
+        for (const char *name : {"pulsesrc", "audiomixer", "aacparse", "valve", "mp4mux"}) {
+            if (!hasFactory(name))
+                QSKIP(qPrintable(QStringLiteral("Missing %1").arg(QLatin1String(name))));
+        }
+
+        int parsed = 0;
+        for (const QString &source : {portalSource(), x11Source(QRect(0, 0, 64, 64), true, 30),
+                                      x11WindowSource(1, true, 30)}) {
+            if (!hasFactory(source.section(QLatin1Char(' '), 0, 0).toLatin1().constData()))
+                continue;
+            const QString description = videoChain(source, 30, encoder, QStringLiteral("mp4mux"))
+                                        + audioChain(aac, true, true);
+            QString error;
+            GstPtr<GstElement> pipeline(parseLaunch(description, &error));
+            QVERIFY2(pipeline, qPrintable(error));
+            ++parsed;
+        }
+        if (parsed == 0)
+            QSKIP("Neither pipewiresrc nor ximagesrc");
     }
 };
 

@@ -57,7 +57,8 @@ public:
     // GStreamer is probed once per session, the portal until it answers.
     [[nodiscard]] static QStringList missingPieces();
     // For `snim --self-test`: the elements this session's recording and ScreenCast
-    // screenshots need, without asking the portal. `found` ends with the encoder.
+    // screenshots need, without asking the portal, then the recording pipeline they build
+    // (never played). `found` ends with the encoder.
     static void checkElements(QStringList *found, QStringList *missing);
     [[nodiscard]] WindowCapture windowCapture() const override;
     [[nodiscard]] QString name() const override

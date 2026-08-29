@@ -104,6 +104,27 @@ enum class VideoSource { Portal, X11 };
                  .arg(QString::number(fps), encoder, mux);
 }
 
+// Mic, system audio or both, into the muxer as one AAC track. An audiomixer even for a
+// single source, so every combination shares one code path.
+[[nodiscard]] inline QString audioChain(const QString &aac, bool mic, bool systemAudio)
+{
+    QString chain = QStringLiteral(" audiomixer name=amix ! valve name=audiovalve drop=false "
+                                   "! audioconvert ! audioresample "
+                                   "! audio/x-raw,rate=48000,channels=2 ! %1 ! aacparse "
+                                   "! queue ! mux.").arg(aac);
+    if (mic) {
+        chain += QStringLiteral(" pulsesrc name=micsrc ! valve name=micvalve drop=false "
+                                "! queue ! audioconvert ! audioresample ! amix.");
+    }
+    // @DEFAULT_MONITOR@ is a pipewire-pulse alias for the default sink's monitor.
+    if (systemAudio) {
+        chain += QStringLiteral(" pulsesrc name=syssrc device=@DEFAULT_MONITOR@ "
+                                "! valve name=sysvalve drop=false "
+                                "! queue ! audioconvert ! audioresample ! amix.");
+    }
+    return chain;
+}
+
 } // namespace Recording::LinuxPipeline
 
 #endif // RECORDING_LINUXPIPELINE_H
