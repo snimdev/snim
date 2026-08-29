@@ -63,8 +63,7 @@ enum class VideoSource { Portal, X11 };
 
 [[nodiscard]] inline QString portalSource()
 {
-    return QStringLiteral("pipewiresrc name=src keepalive-time=1000 resend-last=true "
-                          "provide-clock=false");
+    return QStringLiteral("pipewiresrc name=src keepalive-time=1000 resend-last=true");
 }
 
 // ximagesrc's endx/endy are inclusive, as QRect::right()/bottom() are.

@@ -775,16 +775,15 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
                 " audiomixer name=amix ! valve name=audiovalve drop=false "
                 "! audioconvert ! audioresample "
                 "! audio/x-raw,rate=48000,channels=2 ! %1 ! aacparse ! queue ! mux.").arg(aac);
-            // The pipeline keeps the monotonic clock StreamTimestamp compares stamps to.
             if (m_target.captureMic) {
                 description += QStringLiteral(
-                    " pulsesrc name=micsrc provide-clock=false ! valve name=micvalve drop=false "
+                    " pulsesrc name=micsrc ! valve name=micvalve drop=false "
                     "! queue ! audioconvert ! audioresample ! amix.");
             }
             if (m_target.captureSystemAudio) {
                 // @DEFAULT_MONITOR@ is a pipewire-pulse alias for the default sink's monitor.
                 description += QStringLiteral(
-                    " pulsesrc name=syssrc device=@DEFAULT_MONITOR@ provide-clock=false "
+                    " pulsesrc name=syssrc device=@DEFAULT_MONITOR@ "
                     "! valve name=sysvalve drop=false "
                     "! queue ! audioconvert ! audioresample ! amix.");
             }
@@ -802,6 +801,12 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         return false;
     }
     g_clear_error(&parseError);
+
+    // The monotonic clock StreamTimestamp compares stamps to, whatever clock a source offers.
+    GstClock *clock = gst_system_clock_obtain();
+    g_object_set(clock, "clock-type", GST_CLOCK_TYPE_MONOTONIC, nullptr);
+    gst_pipeline_use_clock(GST_PIPELINE(m_pipeline), clock);
+    gst_object_unref(clock);
 
     ++m_generation;
     m_link = std::make_shared<StrategyLink>();
