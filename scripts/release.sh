@@ -3,54 +3,62 @@
 # Cuts a release by tagging main and pushing the tag; the release workflow does
 # everything else (build, Linux packages, DMG, notes, GitHub release).
 #
-# Usage: scripts/release.sh beta|stable|major|minor|patch
+# Usage: scripts/release.sh beta|rc|stable|major|minor|patch
 #   beta    next beta: v1.0.0-beta.3 -> v1.0.0-beta.4, v1.0.0 -> v1.0.1-beta.1
-#   stable  promotes the current beta as is: v1.0.0-beta.4 -> v1.0.0
+#   rc      next release candidate: v1.0.0-rc.1 -> v1.0.0-rc.2,
+#           v1.0.0-beta.4 -> v1.0.0-rc.1, v1.0.0 -> v1.0.1-rc.1, no tags -> v1.0.0-rc.1
+#   stable  promotes the current beta or release candidate as is: v1.0.0-rc.2 -> v1.0.0
 #   major|minor|patch  bumps a stable release: v1.0.0 -> v2.0.0, v1.1.0 or v1.0.1
 #
 # Versions are never skipped: a bump is refused while the latest tag is a prerelease,
-# since v1.0.0-beta.3 -> v1.0.1 would leave 1.0.0 unreleased.
+# since v1.0.0-rc.2 -> v1.0.1 would leave 1.0.0 unreleased. Nor do they go backwards:
+# beta is refused after a release candidate.
 #
 #   SNIM_RELEASE_LATEST_TAG=<tag>  overrides the detected latest tag (for testing).
 #   SNIM_RELEASE_DRY_RUN=1         prints "<latest> -> <next>" and exits, touching nothing.
 
 set -euo pipefail
 
-BUMP="${1:?usage: release.sh beta|stable|major|minor|patch}"
+BUMP="${1:?usage: release.sh beta|rc|stable|major|minor|patch}"
 
 case "$BUMP" in
-    beta|stable|major|minor|patch) ;;
+    beta|rc|stable|major|minor|patch) ;;
     *)
-        echo "error: expected beta, stable, major, minor or patch (got '$BUMP')" >&2
+        echo "error: expected beta, rc, stable, major, minor or patch (got '$BUMP')" >&2
         exit 1
         ;;
 esac
 
-# Prereleases must sort below their release, which git only does when the suffix is known.
+# Prereleases must sort below their release and beta below rc, which git only does for
+# the suffixes it is given, in the order given.
 latest_release_tag() {
     if [ -n "${SNIM_RELEASE_LATEST_TAG-}" ]; then
         printf '%s\n' "$SNIM_RELEASE_LATEST_TAG"
         return
     fi
-    git -c versionsort.suffix=-beta. tag --list 'v*' --sort=-v:refname | head -n1
+    git -c versionsort.suffix=-beta. -c versionsort.suffix=-rc. \
+        tag --list 'v*' --sort=-v:refname | head -n1
 }
 
 # next_tag <mode> <latest tag, empty when the repo has none>
 next_tag() {
     local MODE="$1"
     local LATEST="${2-}"
-    local VERSION BASE PRE="" MAJOR MINOR PATCH
+    local VERSION BASE KIND="" PRE="" MAJOR MINOR PATCH AGAIN
 
     VERSION="${LATEST#v}"
     BASE="${VERSION%%-*}"
-    case "$VERSION" in
-        *-beta.*) PRE="${VERSION#*-beta.}" ;;
-        *-*)
-            echo "error: cannot count on from '$LATEST', which is not a beta" >&2
+    case "${VERSION#"$BASE"}" in
+        '') ;;
+        -beta.*) KIND=beta; PRE="${VERSION#*-beta.}" ;;
+        -rc.*) KIND=rc; PRE="${VERSION#*-rc.}" ;;
+        *)
+            echo "error: cannot count on from '$LATEST'," \
+                "which is not a beta or release candidate" >&2
             return 1
             ;;
     esac
-    if [ -n "$PRE" ]; then
+    if [ -n "$KIND" ]; then
         case "$PRE" in
             ''|*[!0-9]*)
                 echo "error: cannot count on from the prerelease in '$LATEST'" >&2
@@ -64,7 +72,11 @@ next_tag() {
 
     case "$MODE" in
         beta)
-            if [ -n "$PRE" ]; then
+            if [ "$KIND" = rc ]; then
+                echo "error: $LATEST is a release candidate, so a beta would go backwards;" \
+                    "cut another with rc or promote it with stable" >&2
+                return 1
+            elif [ -n "$PRE" ]; then
                 printf 'v%s.%s.%s-beta.%s\n' "$MAJOR" "$MINOR" "$PATCH" "$((PRE + 1))"
             elif [ -z "$LATEST" ]; then
                 printf 'v1.0.0-beta.1\n'
@@ -72,22 +84,37 @@ next_tag() {
                 printf 'v%s.%s.%s-beta.1\n' "$MAJOR" "$MINOR" "$((PATCH + 1))"
             fi
             ;;
+        rc)
+            if [ "$KIND" = rc ]; then
+                printf 'v%s.%s.%s-rc.%s\n' "$MAJOR" "$MINOR" "$PATCH" "$((PRE + 1))"
+            elif [ "$KIND" = beta ]; then
+                printf 'v%s.%s.%s-rc.1\n' "$MAJOR" "$MINOR" "$PATCH"
+            elif [ -z "$LATEST" ]; then
+                printf 'v1.0.0-rc.1\n'
+            else
+                printf 'v%s.%s.%s-rc.1\n' "$MAJOR" "$MINOR" "$((PATCH + 1))"
+            fi
+            ;;
         stable)
             if [ -z "$PRE" ]; then
                 if [ -z "$LATEST" ]; then
-                    echo "error: there is no prerelease to promote; use beta first" >&2
+                    echo "error: there is no prerelease to promote; start with rc (or beta)" >&2
                 else
                     echo "error: $LATEST is not a prerelease; use major, minor or patch" >&2
                 fi
                 return 1
             fi
-            # Promotion only: the beta was built from this very tree.
+            # Promotion only: the prerelease was built from this very tree.
             printf 'v%s.%s.%s\n' "$MAJOR" "$MINOR" "$PATCH"
             ;;
         major|minor|patch)
             if [ -n "$PRE" ]; then
+                AGAIN="rc"
+                if [ "$KIND" = beta ]; then
+                    AGAIN="beta or rc"
+                fi
                 echo "error: $LATEST is a prerelease and $MAJOR.$MINOR.$PATCH is not out yet;" \
-                    "promote it with stable or cut another beta" >&2
+                    "promote it with stable or cut another with $AGAIN" >&2
                 return 1
             fi
             case "$MODE" in
