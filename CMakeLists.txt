@@ -1162,8 +1162,8 @@ if(APPLE)
         # the self-contained build lives in dist/Snim.app.
         set(SNIM_DIST_APP "${CMAKE_BINARY_DIR}/dist/Snim.app")
         # macos_deploy.sh runs macdeployqt, strips the build-time Homebrew rpaths,
-        # and ad-hoc signs. For real distribution, replace the ad-hoc `-` identity
-        # in the script with a Developer ID and notarize the result.
+        # and signs with $SNIM_SIGN_IDENTITY from the build's environment (ad-hoc when
+        # unset). The release workflow passes a Developer ID and notarizes the DMG.
         add_custom_target(deploy
                 COMMAND "${CMAKE_COMMAND}" -E rm -rf "${SNIM_DIST_APP}"
                 COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/dist"

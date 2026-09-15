@@ -576,17 +576,43 @@ jobs:
           ctest --output-on-failure --timeout 120
 
       - name: Deploy the bundle
-        # macos_deploy.sh bundles Qt + tessdata, fixes rpaths and ad-hoc signs.
+        # Signs with the Developer ID when MACOS_SIGN_IDENTITY is set, ad-hoc otherwise.
+        env:
+          SNIM_SIGN_IDENTITY: ${{ vars.MACOS_SIGN_IDENTITY }}
         run: cmake --build build --target deploy
 
       - name: Create DMG
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          SIGN_IDENTITY: ${{ vars.MACOS_SIGN_IDENTITY }}
         run: |
           mkdir -p dmg-root
           cp -R build/dist/Snim.app dmg-root/
           ln -s /Applications dmg-root/Applications
           hdiutil create -volname Snim -srcfolder dmg-root -ov -format UDZO "Snim-$VERSION-macos-arm64.dmg"
+          if [ -n "$SIGN_IDENTITY" ]; then
+            codesign --sign "$SIGN_IDENTITY" --timestamp "Snim-$VERSION-macos-arm64.dmg"
+          fi
+
+      - name: Notarize and staple the DMG
+        if: vars.MACOS_SIGN_IDENTITY != ''
+        # Uses the `snim` notarytool keychain profile stored on the self-hosted Mac.
+        env:
+          DMG: Snim-${{ steps.version.outputs.version }}-macos-arm64.dmg
+        run: |
+          result="$RUNNER_TEMP/notarize.json"
+          xcrun notarytool submit "$DMG" --keychain-profile snim --wait --output-format json > "$result" || true
+          cat "$result"
+          id="$(plutil -extract id raw "$result" 2>/dev/null || true)"
+          status="$(plutil -extract status raw "$result" 2>/dev/null || true)"
+          if [ "$status" != "Accepted" ]; then
+            [ -z "$id" ] || xcrun notarytool log "$id" --keychain-profile snim || true
+            echo "::error title=Notarization failed::submission '${id:-none}' ended with status '${status:-unknown}'"
+            exit 1
+          fi
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          spctl --assess --type open --context context:primary-signature -v "$DMG"
 
       - uses: actions/upload-artifact@v6
         with:

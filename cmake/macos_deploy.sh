@@ -15,10 +15,12 @@
 #    a Homebrew prefix that does not exist on a user's Mac.
 # 4. Copies Homebrew's English Tesseract language pack into Contents/Resources,
 #    since a user's Mac has no tessdata of its own.
-# 5. Ad-hoc code-signs the whole bundle so it launches and keeps a stable
-#    Designated Requirement.
+# 5. Code-signs the bundle with $SNIM_SIGN_IDENTITY. The default `-` ad-hoc signs it,
+#    which is enough to launch locally. A Developer ID signs inside-out with the
+#    hardened runtime, a secure timestamp and cmake/Snim.entitlements, ready for
+#    notarization.
 #
-# Usage: macos_deploy.sh <path-to-.app> <path-to-macdeployqt>
+# Usage: [SNIM_SIGN_IDENTITY=<identity>] macos_deploy.sh <path-to-.app> <path-to-macdeployqt>
 
 set -euo pipefail
 
@@ -147,10 +149,39 @@ else
     echo "    skipped: no Homebrew eng.traineddata found (OCR will need a system install)"
 fi
 
-echo "==> ad-hoc codesigning $APP"
-codesign --force --deep --sign - "$APP"
+SIGN_IDENTITY="${SNIM_SIGN_IDENTITY:--}"
+if [ "$SIGN_IDENTITY" = "-" ]; then
+    echo "==> ad-hoc codesigning $APP"
+    codesign --force --deep --sign - "$APP"
+else
+    echo "==> codesigning $APP as $SIGN_IDENTITY"
+    ENTITLEMENTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/Snim.entitlements"
+    sign() {
+        codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$@"
+    }
+    # Inside-out: nested code first, since each signature seals the code it contains.
+    find "$APP/Contents" -type f ! -path "$EXE" | while read -r f; do
+        file -b "$f" | grep -q '^Mach-O' || continue
+        # A framework's own binary is signed with its bundle below.
+        case "$f" in
+            *.framework/Versions/*/*)
+                fw="${f%%.framework/*}.framework"
+                rel="${f#"$fw"/Versions/}"
+                [ "${rel#*/}" = "$(basename "$fw" .framework)" ] && continue
+                ;;
+        esac
+        echo "    sign ${f#"$APP"/}"
+        sign "$f"
+    done
+    find "$APP/Contents" -type d -name '*.framework' -prune | while read -r fw; do
+        echo "    sign ${fw#"$APP"/}"
+        sign "$fw"
+    done
+    echo "    sign $(basename "$APP")"
+    sign --entitlements "$ENTITLEMENTS" "$APP"
+fi
 
 echo "==> Verifying signature"
-codesign --verify --deep --strict "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
 
 echo "==> Done: $APP"
