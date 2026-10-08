@@ -1,5 +1,7 @@
 #include "screen/WindowEnumerator.h"
 
+#include <QGuiApplication>
+
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreFoundation/CoreFoundation.h>
 
@@ -10,6 +12,9 @@ namespace Screen {
 QVector<WindowInfo> enumerateWindowInfos()
 {
     QVector<WindowInfo> result;
+    // Offscreen screens are fake, so the real desktop's windows would not map onto them.
+    if (QGuiApplication::platformName() != QLatin1String("cocoa"))
+        return result;
 
     // On-screen windows, front-to-back, excluding desktop/wallpaper elements.
     CFArrayRef windows = CGWindowListCopyWindowInfo(
