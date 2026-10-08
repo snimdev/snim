@@ -30,23 +30,18 @@ emit_footer() {
 
 ## Installing
 
-**macOS**: the app is not notarized yet, so Gatekeeper blocks the first launch.
-Right-click `Snim.app` and choose **Open**, or clear the quarantine flag:
+**macOS** (macOS 15 or newer): the DMG is signed and notarized. Open it and drag Snim
+into Applications, or install it with Homebrew:
 
 ```bash
-xattr -cr /Applications/Snim.app
+brew install --cask snimdev/tap/snim
 ```
 
 The DMG is Apple Silicon only (arm64); there is no Intel build.
 
 **Windows** (Windows 10 2004 or newer, x64): the recommended `-setup.exe`
 installs for your user alone, without admin rights. The portable `.zip` runs from any
-folder and keeps its settings in the `snim.ini` beside `snim.exe`. Or install from
-PowerShell:
-
-```powershell
-irm https://snim.dev/install.ps1 | iex
-```
+folder and keeps its settings in the `snim.ini` beside `snim.exe`.
 
 The builds are not code-signed yet, so SmartScreen warns on the first launch: click
 **More info**, then **Run anyway**.
@@ -71,13 +66,19 @@ On ARM, take the `arm64` `.deb` or the `aarch64` `.rpm` instead. Any distributio
 install the Flatpak from our own repository:
 
 ```bash
-flatpak install https://dl.snim.dev/flatpak/snim.flatpakref
+flatpak install --user https://dl.snim.dev/flatpak/snim.flatpakref
 ```
 
 Elsewhere, extract the portable `Snim-x86_64.tar.gz` or `Snim-aarch64.tar.gz` anywhere
-and run `usr/bin/snim`. The packages and the tarball run on glibc 2.35 or newer on
-x86_64 (Ubuntu 22.04, Debian 12) and glibc 2.38 or newer on aarch64 (Ubuntu 24.04,
-Debian 13).
+and run `usr/bin/snim`, or let the install script unpack it under `~/.local`, no root
+needed:
+
+```bash
+curl -fsSL https://snim.dev/install.sh | bash
+```
+
+The packages and the tarball run on glibc 2.35 or newer on x86_64 (Ubuntu 22.04,
+Debian 12) and glibc 2.38 or newer on aarch64 (Ubuntu 24.04, Debian 13).
 
 Screen recording on Linux goes through the desktop portal, so it needs PipeWire and
 `xdg-desktop-portal` (plus your compositor's backend) installed and running.
@@ -92,8 +93,8 @@ EOF
     case "$TAG" in
         *-*)
             printf '\nThis is a prerelease, published for early testing: expect rough edges.\n'
-            printf '\nThe PowerShell one-liner installs the latest stable release; for this prerelease, run:\n\n'
-            printf '```powershell\n& ([scriptblock]::Create((irm https://snim.dev/install.ps1))) -Alpha\n```\n'
+            printf '\nOnce a stable release is out, the install script picks it; for prereleases, run:\n\n'
+            printf '```bash\ncurl -fsSL https://snim.dev/install.sh | bash -s -- --beta\n```\n'
             ;;
     esac
 }
