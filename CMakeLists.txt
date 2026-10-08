@@ -650,6 +650,8 @@ add_library(snim_lib STATIC
         src/hotkeys/ScreenshotKey.h
         src/hotkeys/ScreenshotKeyFactory.cpp
         src/hotkeys/ScreenshotKeyFactory.h
+        src/hotkeys/ScreenshotKeySwap.cpp
+        src/hotkeys/ScreenshotKeySwap.h
         src/hotkeys/screenshotkey/UnsupportedScreenshotKey.h
 
 )

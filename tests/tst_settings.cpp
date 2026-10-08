@@ -160,6 +160,19 @@ private slots:
         QCOMPARE(Settings::hotkeyDefaultsVersion(), 1);
     }
 
+    void screenshotKey_defaults_then_roundtrip()
+    {
+        QVERIFY(Settings::screenshotKeyMemento().isEmpty());
+        Settings::setScreenshotKeyMemento(QStringLiteral("{\"system\":\"1\"}"));
+        QCOMPARE(Settings::screenshotKeyMemento(), QStringLiteral("{\"system\":\"1\"}"));
+        Settings::setScreenshotKeyMemento(QString());
+        QVERIFY(Settings::screenshotKeyMemento().isEmpty());
+
+        QVERIFY(!Settings::screenshotKeyOfferDismissed());
+        Settings::setScreenshotKeyOfferDismissed(true);
+        QVERIFY(Settings::screenshotKeyOfferDismissed());
+    }
+
     void portableFileIn_needsSnimIni()
     {
         QTemporaryDir dir;

@@ -32,6 +32,8 @@ constexpr auto kUploadKnownHostKeys    = "Upload/KnownHostKeys";
 constexpr auto kDesktopIntegrationDismissed = "DesktopIntegration/PromptDismissed";
 constexpr auto kAnimationOptionsSkip   = "Animation/SkipOptions";
 constexpr auto kHotkeyDefaultsVersion  = "Hotkeys/DefaultsVersion";
+constexpr auto kScreenshotKeyMemento   = "ScreenshotKey/Memento";
+constexpr auto kScreenshotKeyOfferDismissed = "ScreenshotKey/OfferDismissed";
 
 // "Animation/<format>/<field>", one group per export format.
 QString animationKey(const QString &format, const char *field)
@@ -138,6 +140,17 @@ bool Settings::hasHotkey(const QString &name) { return store()->contains(hotkeyK
 void Settings::removeHotkey(const QString &name) { store()->remove(hotkeyKey(name)); }
 int Settings::hotkeyDefaultsVersion() { return store()->value(kHotkeyDefaultsVersion, 0).toInt(); }
 void Settings::setHotkeyDefaultsVersion(int version) { store()->setValue(kHotkeyDefaultsVersion, version); }
+
+QString Settings::screenshotKeyMemento() { return store()->value(kScreenshotKeyMemento).toString(); }
+void Settings::setScreenshotKeyMemento(const QString &json) { store()->setValue(kScreenshotKeyMemento, json); }
+bool Settings::screenshotKeyOfferDismissed()
+{
+    return store()->value(kScreenshotKeyOfferDismissed, false).toBool();
+}
+void Settings::setScreenshotKeyOfferDismissed(bool on)
+{
+    store()->setValue(kScreenshotKeyOfferDismissed, on);
+}
 
 QColor Settings::editorForeground() { return store()->value(kForeground, QColor(Qt::red)).value<QColor>(); }
 void Settings::setEditorForeground(const QColor &c) { store()->setValue(kForeground, c); }

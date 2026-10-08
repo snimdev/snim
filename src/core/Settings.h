@@ -96,6 +96,12 @@ public:
     // Last hotkey defaults migration applied to the stored bindings.
     static int hotkeyDefaultsVersion();                // default: 0 (rc.1 or a fresh store)
     static void setHotkeyDefaultsVersion(int version);
+    // The screenshot key swap (Hotkeys::ScreenshotKeySwap owns the JSON shape; raw I/O here).
+    static QString screenshotKeyMemento();             // default: "" (not swapped)
+    static void setScreenshotKeyMemento(const QString &json);
+    // True once the user answered "Don't ask again" to the first-run screenshot key offer.
+    static bool screenshotKeyOfferDismissed();         // default: false
+    static void setScreenshotKeyOfferDismissed(bool on);
 
     // Editor annotation defaults
     static QColor editorForeground();                   // default: red
