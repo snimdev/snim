@@ -29,6 +29,7 @@ QString keysymFor(Qt::Key key)
     case Qt::Key_Right:     return QStringLiteral("Right");
     case Qt::Key_Up:        return QStringLiteral("Up");
     case Qt::Key_Down:      return QStringLiteral("Down");
+    case Qt::Key_Print:     return QStringLiteral("Print");
     // Punctuation keysyms are lowercase words, not the characters themselves.
     case Qt::Key_Space:        return QStringLiteral("space");
     case Qt::Key_Comma:        return QStringLiteral("comma");

@@ -14,7 +14,7 @@ namespace Hotkeys {
  * This is only a SUGGESTION to the desktop, which owns the final binding and may
  * hand back something else entirely, so an approximate spelling costs the user a
  * re-bind, never a broken app. Returns "" when the sequence cannot be spelled at
- * all; the backend then registers the shortcut with no preferred trigger.
+ * all; the backend then reports that action as failed and does not bind it.
  */
 [[nodiscard]] QString toPortalTrigger(const QKeySequence &seq);
 

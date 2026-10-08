@@ -169,6 +169,16 @@ private slots:
                  QStringLiteral("CTRL+SHIFT+ALT+b"));
     }
 
+    void portalSpellsPrintScreen()
+    {
+        // The Linux defaults are Print chords; an unspelled Print fails to bind at all.
+        QCOMPARE(toPortalTrigger(QKeySequence(Qt::Key_Print)), QStringLiteral("Print"));
+        QCOMPARE(toPortalTrigger(QKeySequence("Ctrl+Print")), QStringLiteral("CTRL+Print"));
+        QCOMPARE(toPortalTrigger(QKeySequence("Ctrl+Alt+Print")), QStringLiteral("CTRL+ALT+Print"));
+        QCOMPARE(toPortalTrigger(QKeySequence("Ctrl+Shift+Print")),
+                 QStringLiteral("CTRL+SHIFT+Print"));
+    }
+
     void portalUnmappableIsEmpty()
     {
         QVERIFY(toPortalTrigger(QKeySequence()).isEmpty());
