@@ -154,22 +154,28 @@ if [ "$HEAD_SHA" != "$(git rev-parse origin/main)" ]; then
     exit 1
 fi
 
-echo "==> Checking CI on $HEAD_SHA"
-CI_RUNS="$(gh run list --commit "$HEAD_SHA" --workflow CI --limit 20 \
+# CI skips docs-only commits (paths-ignore in ci.yml), so check the newest one it ran on.
+CI_SHA="$(git log -1 --format=%H HEAD -- . ':(exclude)*.md' ':(exclude)LICENSE')"
+if [ "$CI_SHA" != "$HEAD_SHA" ]; then
+    echo "==> Only docs changed since $(git rev-parse --short "$CI_SHA")"
+fi
+
+echo "==> Checking CI on $CI_SHA"
+CI_RUNS="$(gh run list --commit "$CI_SHA" --workflow CI --limit 20 \
     --json status,conclusion --jq '.[] | "\(.status) \(.conclusion)"')"
 if [ -z "$CI_RUNS" ]; then
-    echo "error: no CI run found for $HEAD_SHA" >&2
+    echo "error: no CI run found for $CI_SHA" >&2
     exit 1
 fi
 
 while read -r status conclusion; do
     [ -n "$status" ] || continue
     if [ "$status" != "completed" ]; then
-        echo "error: CI is still running on $HEAD_SHA (status: $status)" >&2
+        echo "error: CI is still running on $CI_SHA (status: $status)" >&2
         exit 1
     fi
     if [ "$conclusion" != "success" ] && [ "$conclusion" != "skipped" ]; then
-        echo "error: CI is not green on $HEAD_SHA (conclusion: $conclusion)" >&2
+        echo "error: CI is not green on $CI_SHA (conclusion: $conclusion)" >&2
         exit 1
     fi
 done <<EOF
