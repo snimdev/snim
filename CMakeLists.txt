@@ -645,6 +645,12 @@ add_library(snim_lib STATIC
         src/hotkeys/PortalKeyMapping.cpp
         src/hotkeys/PortalKeyMapping.h
         src/hotkeys/backends/StubHotkeyBackend.h
+        # Screenshot key: a Strategy per platform for lending the OS screenshot key to Snim.
+        src/hotkeys/ScreenshotKey.cpp
+        src/hotkeys/ScreenshotKey.h
+        src/hotkeys/ScreenshotKeyFactory.cpp
+        src/hotkeys/ScreenshotKeyFactory.h
+        src/hotkeys/screenshotkey/UnsupportedScreenshotKey.h
 
 )
 

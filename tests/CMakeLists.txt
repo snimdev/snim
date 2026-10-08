@@ -67,6 +67,7 @@ set(SNIM_TESTS
         tst_hotkeybindings
         tst_hotkeymapping
         tst_hotkeymanager
+        tst_screenshotkey
         tst_desktopintegration
         tst_screenshotapp
         tst_updatecheck
