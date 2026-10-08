@@ -32,16 +32,26 @@ public:
             failNext = false;
             emit registrationFailed(bindings.first().action, QStringLiteral("already in use"));
         }
+        for (const HotkeyBinding &binding : bindings) {
+            if (failWith.contains(binding.action))
+                emit registrationFailed(binding.action, failWith.value(binding.action));
+        }
     }
     void unregisterAll() override { ++unregisterCount; }
 
     void simulateActivation(HotkeyAction action) { emit activated(action); }
+    // The portal answers after registerAll returns.
+    void simulateLateFailure(HotkeyAction action, const QString &reason)
+    {
+        emit registrationFailed(action, reason);
+    }
 
     QList<HotkeyBinding> lastRegistered;
     int registerCount = 0;
     int unregisterCount = 0;
     bool failNext = false;
     bool failEvery = false;
+    QMap<HotkeyAction, QString> failWith;
 };
 
 class tst_HotkeyManager : public QObject
@@ -151,6 +161,91 @@ private slots:
         QVERIFY(msg.contains(QStringLiteral("application menu")));
         // The per-binding wording is gone: it said nothing the user could act on.
         QVERIFY(!msg.contains(QStringLiteral("no app id")));
+    }
+
+    void failureReasonIsKeptPerAction()
+    {
+        auto fake = std::make_unique<FakeHotkeyBackend>();
+        FakeHotkeyBackend *f = fake.get();
+        f->failWith.insert(HotkeyAction::CaptureArea, QStringLiteral("taken by Spectacle"));
+        GlobalHotkeyManager mgr(std::move(fake));
+
+        QSignalSpy spy(&mgr, &GlobalHotkeyManager::failuresChanged);
+        mgr.applyBindings();
+        QTRY_COMPARE(spy.count(), 1);
+        QCOMPARE(mgr.failureReason(HotkeyAction::CaptureArea), QStringLiteral("taken by Spectacle"));
+        for (const HotkeyAction a : allHotkeyActions()) {
+            if (a != HotkeyAction::CaptureArea)
+                QVERIFY(mgr.failureReason(a).isEmpty());   // registered or unbound
+        }
+        QVERIFY(!mgr.allFailed());
+
+        // A failure the portal reports later is kept and announced again.
+        f->simulateLateFailure(HotkeyAction::RecordArea, QStringLiteral("no portal spelling"));
+        QTRY_COMPARE(spy.count(), 2);
+        QCOMPARE(mgr.failureReason(HotkeyAction::RecordArea), QStringLiteral("no portal spelling"));
+    }
+
+    void reapplyClearsTheFailures()
+    {
+        auto fake = std::make_unique<FakeHotkeyBackend>();
+        FakeHotkeyBackend *f = fake.get();
+        f->failWith.insert(HotkeyAction::CaptureArea, QStringLiteral("already in use"));
+        GlobalHotkeyManager mgr(std::move(fake));
+
+        QSignalSpy spy(&mgr, &GlobalHotkeyManager::failuresChanged);
+        mgr.applyBindings();
+        QTRY_COMPARE(spy.count(), 1);
+        QVERIFY(!mgr.failureReason(HotkeyAction::CaptureArea).isEmpty());
+
+        f->failWith.clear();
+        mgr.applyBindings();
+        QVERIFY(mgr.failureReason(HotkeyAction::CaptureArea).isEmpty());
+        // A clean pass is announced too, so a stale notice can be taken down.
+        QTRY_COMPARE(spy.count(), 2);
+    }
+
+    void oneFailuresChangedPerPass()
+    {
+        auto fake = std::make_unique<FakeHotkeyBackend>();
+        FakeHotkeyBackend *f = fake.get();
+        f->failEvery = true;
+        GlobalHotkeyManager mgr(std::move(fake));
+
+        QSignalSpy spy(&mgr, &GlobalHotkeyManager::failuresChanged);
+        mgr.applyBindings();
+        QVERIFY(f->lastRegistered.size() > 1);   // several failures, one notification
+        QTRY_COMPARE(spy.count(), 1);
+        QTest::qWait(20);
+        QCOMPARE(spy.count(), 1);
+    }
+
+    void allFailedOnlyWhenNothingRegistered()
+    {
+        auto fake = std::make_unique<FakeHotkeyBackend>();
+        FakeHotkeyBackend *f = fake.get();
+        f->failEvery = true;
+        GlobalHotkeyManager mgr(std::move(fake));
+
+        QSignalSpy spy(&mgr, &GlobalHotkeyManager::failuresChanged);
+        mgr.applyBindings();
+        QTRY_COMPARE(spy.count(), 1);
+        QVERIFY(mgr.allFailed());
+        for (const HotkeyBinding &b : f->lastRegistered)
+            QCOMPARE(mgr.failureReason(b.action), QStringLiteral("no app id"));
+
+        f->failEvery = false;
+        f->failNext = true;   // one of several fails
+        mgr.applyBindings();
+        QTRY_COMPARE(spy.count(), 2);
+        QVERIFY(!mgr.allFailed());
+
+        // Nothing bound means nothing failed.
+        for (const HotkeyAction a : allHotkeyActions())
+            HotkeyBindings::setSequence(a, QKeySequence());
+        mgr.applyBindings();
+        QTRY_COMPARE(spy.count(), 3);
+        QVERIFY(!mgr.allFailed());
     }
 };
 

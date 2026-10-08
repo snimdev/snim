@@ -4,6 +4,7 @@
 #include "hotkeys/HotkeyAction.h"
 #include "hotkeys/HotkeyBackend.h"
 
+#include <QMap>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -35,11 +36,18 @@ public:
     // change: the old registrations are dropped first.
     void applyBindings();
 
+    // Why the action did not register in the current pass; empty = registered or unbound.
+    [[nodiscard]] QString failureReason(HotkeyAction a) const;
+    // Every binding of the current pass failed (nothing registered at all).
+    [[nodiscard]] bool allFailed() const;
+
 signals:
     void actionTriggered(Hotkeys::HotkeyAction action);
     // Ready to show: one per failed binding, or a single consolidated line when a whole
     // pass failed (no hotkey works at all, so N identical balloons help nobody).
     void registrationFailed(const QString &message);
+    // Observer hook: once per pass, and again for late failures; read failureReason().
+    void failuresChanged();
 
 private:
     void wireBackend();
@@ -47,6 +55,7 @@ private:
     void flushFailures();
 
     std::unique_ptr<HotkeyBackend> m_backend;
+    QMap<HotkeyAction, QString> m_failures;
     QStringList m_pendingFailures;
     qsizetype m_requestedBindings = 0;
     bool m_flushScheduled = false;
