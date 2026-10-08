@@ -10,6 +10,7 @@
 
 namespace Hotkeys {
 class GlobalHotkeyManager;
+class ScreenshotKeySwap;
 } // namespace Hotkeys
 
 namespace App {
@@ -55,6 +56,7 @@ private:
     std::unique_ptr<UploadWorkflow> m_uploadWorkflow;
     std::unique_ptr<CaptureWorkflow> m_captureWorkflow;
     std::unique_ptr<Hotkeys::GlobalHotkeyManager> m_hotkeyManager;
+    std::unique_ptr<Hotkeys::ScreenshotKeySwap> m_screenshotKey;   // built with the manager
     std::unique_ptr<TextSnipWorkflow> m_textSnipWorkflow;
     std::unique_ptr<RecordingWorkflow> m_recordingWorkflow;
 };

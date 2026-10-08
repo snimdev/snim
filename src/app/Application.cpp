@@ -19,6 +19,8 @@
 #endif
 #include "hotkeys/GlobalHotkeyManager.h"
 #include "hotkeys/HotkeyBindings.h"
+#include "hotkeys/ScreenshotKeyFactory.h"
+#include "hotkeys/ScreenshotKeySwap.h"
 #include "ocr/OCRService.h"
 #ifdef SNIM_HAVE_LINUX_RECORDER
 #include "record/strategies/LinuxRecorderModule.h"
@@ -71,6 +73,13 @@ namespace App {
         // Deferred: the backends register against a running event loop.
         QTimer::singleShot(0, this, [this] {
             m_hotkeyManager = std::make_unique<Hotkeys::GlobalHotkeyManager>(this);
+            // After the manager, whose backend choice ran the portal probe the factory reuses.
+            m_screenshotKey = std::make_unique<Hotkeys::ScreenshotKeySwap>(
+                Hotkeys::ScreenshotKeyFactory::create(), [this] {
+                    if (m_hotkeyManager)
+                        m_hotkeyManager->applyBindings();
+                    m_tray->refreshShortcutHints();
+                });
             connect(m_hotkeyManager.get(), &Hotkeys::GlobalHotkeyManager::actionTriggered,
                     this, [this](Hotkeys::HotkeyAction action) {
                         if (hotkeyBlockedBySelection(action))
@@ -194,7 +203,7 @@ namespace App {
     }
 
     void Application::showSettings() {
-        auto *settingsDialog = new SettingsDialog(m_hotkeyManager.get());
+        auto *settingsDialog = new SettingsDialog(m_hotkeyManager.get(), m_screenshotKey.get());
         settingsDialog->setAttribute(Qt::WA_DeleteOnClose);
         connect(settingsDialog, &SettingsDialog::settingsApplied, this, [this] {
             if (m_hotkeyManager)

@@ -4,6 +4,7 @@
 #include "hotkeys/GlobalHotkeyManager.h"
 #include "hotkeys/HotkeyBackendFactory.h"
 #include "hotkeys/HotkeyBindings.h"
+#include "hotkeys/ScreenshotKeySwap.h"
 #include "upload/UploadProfiles.h"
 #include "upload/UploadConfig.h"
 #include "upload/Uploader.h"
@@ -12,6 +13,7 @@
 #include "screen/sources/ScreencastFrameSource.h"
 #endif
 #include <QAction>
+#include <QDesktopServices>
 #include <QGroupBox>
 #include <QMessageBox>
 #include <QSet>
@@ -28,8 +30,9 @@
 
 namespace App {
 
-SettingsDialog::SettingsDialog(Hotkeys::GlobalHotkeyManager *hotkeyManager, QWidget *parent)
-    : QDialog(parent), m_hotkeyManager(hotkeyManager)
+SettingsDialog::SettingsDialog(Hotkeys::GlobalHotkeyManager *hotkeyManager,
+                               Hotkeys::ScreenshotKeySwap *screenshotKey, QWidget *parent)
+    : QDialog(parent), m_hotkeyManager(hotkeyManager), m_screenshotKey(screenshotKey)
 {
     setWindowTitle("Settings");
     setModal(true);
@@ -916,19 +919,27 @@ void SettingsDialog::setupHotkeysTab()
         notice->setStyleSheet("color: #c62828;");
         notice->hide();
 
+        auto *swapButton = new QToolButton(group);
+        swapButton->setText(tr("Use it for Snim"));
+        swapButton->hide();
+        connect(swapButton, &QToolButton::clicked, this, [this] { changeScreenshotKey(true); });
+
         auto *row = new QHBoxLayout();
         row->addWidget(edit);
         row->addWidget(defaultButton);
+        auto *noticeRow = new QHBoxLayout();
+        noticeRow->addWidget(notice, 1);
+        noticeRow->addWidget(swapButton);
         auto *field = new QVBoxLayout();
         field->setSpacing(2);
         field->addLayout(row);
-        field->addWidget(notice);
+        field->addLayout(noticeRow);
         form->addRow(Hotkeys::hotkeyActionDescription(action) + ":", field);
 
         connect(edit, &QKeySequenceEdit::keySequenceChanged, this, &SettingsDialog::validateHotkeys);
         connect(edit, &QKeySequenceEdit::keySequenceChanged,
                 this, &SettingsDialog::refreshHotkeyNotices);
-        m_hotkeyRows.append(HotkeyRow{action, edit, notice});
+        m_hotkeyRows.append(HotkeyRow{action, edit, notice, swapButton});
     }
 
     layout->addWidget(group);
@@ -952,9 +963,139 @@ void SettingsDialog::setupHotkeysTab()
 
     layout->addWidget(m_hotkeyFailureLabel);
     layout->addWidget(m_hotkeyConflictLabel);
+    setupScreenshotKeySection(layout);
     layout->addStretch();
 
     m_tabWidget->addTab(m_hotkeysTab, "Hotkeys");
+}
+
+void SettingsDialog::setupScreenshotKeySection(QVBoxLayout *layout)
+{
+    m_screenshotKeyGroup = new QGroupBox(tr("Screenshot key"), m_hotkeysTab);
+    auto *box = new QVBoxLayout(m_screenshotKeyGroup);
+
+    m_screenshotKeyStatus = new QLabel(m_screenshotKeyGroup);
+    m_screenshotKeyStatus->setWordWrap(true);
+    box->addWidget(m_screenshotKeyStatus);
+
+    m_screenshotKeyButton = new QPushButton(m_screenshotKeyGroup);
+    connect(m_screenshotKeyButton, &QPushButton::clicked,
+            this, &SettingsDialog::onScreenshotKeyClicked);
+    auto *buttonRow = new QHBoxLayout();
+    buttonRow->addWidget(m_screenshotKeyButton);
+    buttonRow->addStretch();
+    box->addLayout(buttonRow);
+
+    layout->addWidget(m_screenshotKeyGroup);
+    // Without global hotkeys Snim has nothing to put on the key.
+    m_screenshotKeyGroup->setVisible(m_screenshotKey
+                                     && Hotkeys::HotkeyBackendFactory::isAvailable());
+    refreshScreenshotKeySection();
+}
+
+void SettingsDialog::refreshScreenshotKeySection(const QString &note)
+{
+    if (!m_screenshotKey)
+        return;
+    using Support = Hotkeys::ScreenshotKey::Support;
+    const Hotkeys::ScreenshotKey &key = m_screenshotKey->key();
+    const QString keyName = key.keyName();
+
+    QString status;
+    QString buttonText;
+    bool unsupported = false;
+    if (m_screenshotKey->isSwapped()) {
+        status = tr("Snim uses %1.").arg(keyName);
+        buttonText = tr("Give %1 back to %2").arg(keyName, key.ownerName());
+    } else {
+        switch (key.support()) {
+        case Support::Automatic:
+        case Support::Assisted:
+            status = tr("%1 uses %2.").arg(key.ownerName(), keyName);
+            buttonText = tr("Use %1 for Snim").arg(keyName);
+            break;
+        case Support::Manual:
+            status = key.guidance();
+            if (key.settingsPage().isValid())
+                buttonText = tr("Open shortcut settings");
+            break;
+        case Support::Unsupported:
+            status = tr("Your system does not let Snim take its screenshot key.");
+            unsupported = true;
+            break;
+        }
+    }
+    if (!note.isEmpty())
+        status += QStringLiteral("\n\n") + note;
+
+    m_screenshotKeyStatus->setText(status);
+    m_screenshotKeyStatus->setStyleSheet(unsupported ? QStringLiteral("color: gray;") : QString());
+    m_screenshotKeyButton->setText(buttonText);
+    m_screenshotKeyButton->setVisible(!buttonText.isEmpty());
+}
+
+void SettingsDialog::onScreenshotKeyClicked()
+{
+    if (!m_screenshotKey)
+        return;
+    const Hotkeys::ScreenshotKey &key = m_screenshotKey->key();
+    if (m_screenshotKey->isSwapped()) {
+        changeScreenshotKey(false);
+    } else if (key.support() == Hotkeys::ScreenshotKey::Support::Manual) {
+        QDesktopServices::openUrl(key.settingsPage());
+    } else {
+        changeScreenshotKey(true);
+    }
+}
+
+void SettingsDialog::changeScreenshotKey(bool take)
+{
+    if (!m_screenshotKey)
+        return;
+    const Hotkeys::ScreenshotKey &key = m_screenshotKey->key();
+    const Hotkeys::ScreenshotKey::Result result =
+        take ? m_screenshotKey->swap() : m_screenshotKey->undo();
+
+    QStringList notes;
+    if (!result.ok) {
+        QMessageBox::warning(this, tr("Screenshot key"), result.message);
+    } else {
+        if (!result.message.isEmpty())
+            notes << result.message;
+        // Assisted: the desktop still needs the user to finish the binding.
+        const QString guidance = key.guidance();
+        if (take && key.support() == Hotkeys::ScreenshotKey::Support::Assisted
+            && !guidance.isEmpty() && !notes.contains(guidance))
+            notes << guidance;
+
+        // Applied already, like Test connection: the rows show what the swap stored.
+        for (const Hotkeys::HotkeyBinding &b : key.preset()) {
+            for (const HotkeyRow &row : m_hotkeyRows) {
+                if (row.action == b.action)
+                    row.edit->setKeySequence(Hotkeys::HotkeyBindings::sequence(row.action));
+            }
+        }
+    }
+
+    validateHotkeys();
+    refreshHotkeyNotices();
+    refreshScreenshotKeySection(notes.join(QStringLiteral("\n\n")));
+}
+
+bool SettingsDialog::screenshotKeyOffersSwap(Hotkeys::HotkeyAction action,
+                                             const QKeySequence &seq) const
+{
+    if (!m_screenshotKey || m_screenshotKey->isSwapped())
+        return false;
+    const Hotkeys::ScreenshotKey &key = m_screenshotKey->key();
+    using Support = Hotkeys::ScreenshotKey::Support;
+    if (key.support() != Support::Automatic && key.support() != Support::Assisted)
+        return false;
+    for (const Hotkeys::HotkeyBinding &b : key.preset()) {
+        if (b.action == action && Hotkeys::HotkeyBindings::normalized(b.sequence) == seq)
+            return true;
+    }
+    return false;
 }
 
 void SettingsDialog::validateHotkeys()
@@ -999,13 +1140,23 @@ void SettingsDialog::refreshHotkeyNotices()
                                                : QString();
         if (firstReason.isEmpty())
             firstReason = reason;
+        const QKeySequence seq = Hotkeys::HotkeyBindings::normalized(row.edit->keySequence());
+        // Edited or not: the OS swallows a key it holds before any registration sees it.
+        const QString holder = m_screenshotKey && !seq.isEmpty()
+                                   ? m_screenshotKey->key().holderOf(seq)
+                                   : QString();
         // An edited row has not been registered yet, so the last pass says nothing about it.
-        const bool saved = Hotkeys::HotkeyBindings::normalized(row.edit->keySequence())
-                           == Hotkeys::HotkeyBindings::normalized(
-                               Hotkeys::HotkeyBindings::sequence(row.action));
-        const bool show = !allFailed && saved && !reason.isEmpty();
-        row.notice->setText(show ? tr("Not registered: %1").arg(reason) : QString());
-        row.notice->setVisible(show);
+        const bool saved = seq == Hotkeys::HotkeyBindings::normalized(
+                                      Hotkeys::HotkeyBindings::sequence(row.action));
+
+        QString text;
+        if (!holder.isEmpty())
+            text = tr("%1 uses this key.").arg(holder);
+        else if (!allFailed && saved && !reason.isEmpty())
+            text = tr("Not registered: %1").arg(reason);
+        row.notice->setText(text);
+        row.notice->setVisible(!text.isEmpty());
+        row.swapButton->setVisible(!holder.isEmpty() && screenshotKeyOffersSwap(row.action, seq));
     }
 
     // One line instead of the same notice on every row.

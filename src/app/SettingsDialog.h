@@ -23,11 +23,16 @@
 #include <QHash>
 #include <QKeySequenceEdit>
 #include <QPointer>
+#include <QGroupBox>
+#include <QToolButton>
 
 #include "hotkeys/HotkeyAction.h"
 #include "upload/UploadProfiles.h"
 
-namespace Hotkeys { class GlobalHotkeyManager; }
+namespace Hotkeys {
+class GlobalHotkeyManager;
+class ScreenshotKeySwap;
+}
 namespace Upload { class Uploader; }
 
 namespace App {
@@ -37,8 +42,10 @@ class SettingsDialog : public QDialog
     Q_OBJECT
 
 public:
-    // hotkeyManager, when given, lets each hotkey row show why its binding did not register.
+    // hotkeyManager, when given, lets each hotkey row show why its binding did not register;
+    // screenshotKey adds the section that lends the OS screenshot key to Snim.
     explicit SettingsDialog(Hotkeys::GlobalHotkeyManager *hotkeyManager = nullptr,
+                            Hotkeys::ScreenshotKeySwap *screenshotKey = nullptr,
                             QWidget *parent = nullptr);
 
 signals:
@@ -50,6 +57,7 @@ private slots:
     void resetSettings();
     void validateHotkeys();
     void refreshHotkeyNotices();
+    void onScreenshotKeyClicked();
 
 private:
     void setupUI();
@@ -57,6 +65,14 @@ private:
     void setupRecordingTab();
     void setupUploadTab();
     void setupHotkeysTab();
+    void setupScreenshotKeySection(QVBoxLayout *layout);
+    // note: what the last swap or undo said, shown under the status.
+    void refreshScreenshotKeySection(const QString &note = QString());
+    // Runs the swap (take) or its undo, then shows the bindings it stored.
+    void changeScreenshotKey(bool take);
+    // A row offers the swap when the preset puts seq on its action.
+    [[nodiscard]] bool screenshotKeyOffersSwap(Hotkeys::HotkeyAction action,
+                                               const QKeySequence &seq) const;
     // One page of the provider stack; each owns the fields of a single provider type.
     QWidget *createUploadS3Page();
     QWidget *createUploadSftpPage();
@@ -172,7 +188,8 @@ private:
     struct HotkeyRow {
         Hotkeys::HotkeyAction action;
         QKeySequenceEdit *edit;
-        QLabel *notice;   // under the edit, hidden unless the saved binding failed
+        QLabel *notice;   // under the edit, hidden unless the key is taken or failed
+        QToolButton *swapButton;   // beside the notice, when the screenshot key swap frees it
     };
 
     QWidget *m_hotkeysTab = nullptr;
@@ -180,6 +197,10 @@ private:
     QLabel *m_hotkeyConflictLabel = nullptr;   // hidden unless two rows collide
     QLabel *m_hotkeyFailureLabel = nullptr;    // replaces the row notices when none registered
     QPointer<Hotkeys::GlobalHotkeyManager> m_hotkeyManager;
+    Hotkeys::ScreenshotKeySwap *m_screenshotKey = nullptr;   // owned by Application
+    QGroupBox *m_screenshotKeyGroup = nullptr;
+    QLabel *m_screenshotKeyStatus = nullptr;
+    QPushButton *m_screenshotKeyButton = nullptr;
 
     // Dialog buttons
     QPushButton *m_applyButton = nullptr;
