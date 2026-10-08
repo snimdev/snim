@@ -133,6 +133,8 @@ QString Settings::hotkey(const QString &name, const QString &defaultText)
     return store()->value(hotkeyKey(name), defaultText).toString();
 }
 void Settings::setHotkey(const QString &name, const QString &text) { store()->setValue(hotkeyKey(name), text); }
+bool Settings::hasHotkey(const QString &name) { return store()->contains(hotkeyKey(name)); }
+void Settings::removeHotkey(const QString &name) { store()->remove(hotkeyKey(name)); }
 
 QColor Settings::editorForeground() { return store()->value(kForeground, QColor(Qt::red)).value<QColor>(); }
 void Settings::setEditorForeground(const QColor &c) { store()->setValue(kForeground, c); }

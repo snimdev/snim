@@ -91,6 +91,8 @@ public:
     // defaultText; "" = explicitly unbound (Hotkeys::HotkeyBindings owns the distinction).
     static QString hotkey(const QString &name, const QString &defaultText);
     static void setHotkey(const QString &name, const QString &text);
+    static bool hasHotkey(const QString &name);
+    static void removeHotkey(const QString &name);   // hotkey() then returns its default
 
     // Editor annotation defaults
     static QColor editorForeground();                   // default: red

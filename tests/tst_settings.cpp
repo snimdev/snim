@@ -135,6 +135,27 @@ private slots:
             QVERIFY(!k.contains("Secret", Qt::CaseInsensitive));
     }
 
+    void hotkey_set_has_remove()
+    {
+        QVERIFY(!Settings::hasHotkey("CaptureArea"));
+        QCOMPARE(Settings::hotkey("CaptureArea", "Ctrl+Print"), QStringLiteral("Ctrl+Print"));
+
+        Settings::setHotkey("CaptureArea", "Meta+F9");
+        QVERIFY(Settings::hasHotkey("CaptureArea"));
+        QCOMPARE(Settings::hotkey("CaptureArea", "Ctrl+Print"), QStringLiteral("Meta+F9"));
+
+        // A stored "" is still a stored key (explicitly unbound), not an absent one.
+        Settings::setHotkey("CaptureArea", "");
+        QVERIFY(Settings::hasHotkey("CaptureArea"));
+        QVERIFY(Settings::hotkey("CaptureArea", "Ctrl+Print").isEmpty());
+
+        Settings::removeHotkey("CaptureArea");
+        QVERIFY(!Settings::hasHotkey("CaptureArea"));
+        QCOMPARE(Settings::hotkey("CaptureArea", "Ctrl+Print"), QStringLiteral("Ctrl+Print"));
+        Settings::removeHotkey("CaptureArea");   // removing an absent key is harmless
+        QVERIFY(!Settings::hasHotkey("CaptureArea"));
+    }
+
     void portableFileIn_needsSnimIni()
     {
         QTemporaryDir dir;
