@@ -398,7 +398,7 @@ jobs:
             # The modules leave their base classes undefined on purpose: those bind to
             # snim at dlopen time, and the build job proves that seam holds.
             grep -E 'not found|undefined symbol' ldd.txt \
-              | grep -v -e 'Recording17RecordingStrategy' -e 'Video13VideoExporter' > unresolved.txt || true
+              | grep -v -e 'Record17RecordingStrategy' -e 'Video13VideoExporter' > unresolved.txt || true
             if [ -s unresolved.txt ]; then
               echo "::error title=Unresolved libraries or symbols on ${{ matrix.image }}::$binary does not fully resolve against this system"
               cat unresolved.txt

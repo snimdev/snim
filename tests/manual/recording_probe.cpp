@@ -8,8 +8,8 @@
 #include <cstdio>
 #include <memory>
 
-#include "recording/RecordingFrameOverlay.h"
-#include "recording/strategies/LinuxRecorderModule.h"
+#include "record/RecordingFrameOverlay.h"
+#include "record/strategies/LinuxRecorderModule.h"
 #include "screen/WindowEnumerator.h"
 
 // Manual check, not a ctest: records an area through the real recorder (the portal, or
@@ -35,23 +35,23 @@ int main(int argc, char *argv[])
     const int pauseAt = args.size() > 3 ? args.at(3).toInt() : -1;
     const int pauseFor = args.size() > 4 ? args.at(4).toInt() : 0;
 
-    std::unique_ptr<Recording::RecordingStrategy> recorder(
-        Recording::LinuxRecorderModule::create());
+    std::unique_ptr<Record::RecordingStrategy> recorder(
+        Record::LinuxRecorderModule::create());
     if (!recorder || !recorder->isAvailable()) {
         std::fprintf(stderr, "probe: recorder unavailable: %s\n",
-                     qPrintable(Recording::LinuxRecorderModule::missingPieces().join("; ")));
+                     qPrintable(Record::LinuxRecorderModule::missingPieces().join("; ")));
         return 3;
     }
 
     QRect area;
-    std::unique_ptr<Recording::RecordingFrameOverlay> frame;
+    std::unique_ptr<Record::RecordingFrameOverlay> frame;
     if (qEnvironmentVariableIsSet("SNIM_PROBE_FRAME"))
-        frame = std::make_unique<Recording::RecordingFrameOverlay>();
+        frame = std::make_unique<Record::RecordingFrameOverlay>();
 
     QElapsedTimer clock;
     qint64 firstDuration = -1;
     qint64 lastDuration = -1;
-    QObject::connect(recorder.get(), &Recording::RecordingStrategy::durationChanged, &app,
+    QObject::connect(recorder.get(), &Record::RecordingStrategy::durationChanged, &app,
                      [&](qint64 ms) {
                          if (firstDuration < 0)
                              firstDuration = ms;
@@ -59,12 +59,12 @@ int main(int argc, char *argv[])
                          std::fprintf(stderr, "probe: t=%lld ms duration=%lld ms\n",
                                       clock.elapsed(), ms);
                      });
-    QObject::connect(recorder.get(), &Recording::RecordingStrategy::pausedChanged, &app,
+    QObject::connect(recorder.get(), &Record::RecordingStrategy::pausedChanged, &app,
                      [&](bool paused) {
                          std::fprintf(stderr, "probe: t=%lld ms paused=%d\n", clock.elapsed(),
                                       paused);
                      });
-    QObject::connect(recorder.get(), &Recording::RecordingStrategy::started, &app, [&] {
+    QObject::connect(recorder.get(), &Record::RecordingStrategy::started, &app, [&] {
         std::fprintf(stderr, "probe: started after %lld ms\n", clock.elapsed());
         clock.restart();
         if (frame)
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
             recorder->stop();
         });
     });
-    QObject::connect(recorder.get(), &Recording::RecordingStrategy::finished, &app,
+    QObject::connect(recorder.get(), &Record::RecordingStrategy::finished, &app,
                      [&](const QString &path) {
                          std::fprintf(stderr, "probe: finished %s first=%lld last=%lld ms\n",
                                       qPrintable(path), firstDuration, lastDuration);
@@ -86,12 +86,12 @@ int main(int argc, char *argv[])
                              frame->hide();
                          QTimer::singleShot(200, &app, [&app] { app.exit(0); });
                      });
-    QObject::connect(recorder.get(), &Recording::RecordingStrategy::cancelled, &app, [&] {
+    QObject::connect(recorder.get(), &Record::RecordingStrategy::cancelled, &app, [&] {
         std::fprintf(stderr, "probe: cancelled after %lld ms, output %s\n", clock.elapsed(),
                      QFile::exists(out) ? "left behind" : "removed");
         QTimer::singleShot(200, &app, [&app] { app.exit(5); });
     });
-    QObject::connect(recorder.get(), &Recording::RecordingStrategy::failed, &app,
+    QObject::connect(recorder.get(), &Record::RecordingStrategy::failed, &app,
                      [&](const QString &error) {
                          std::fprintf(stderr, "probe: failed after %lld ms: %s\n",
                                       clock.elapsed(), qPrintable(error));
@@ -134,9 +134,9 @@ int main(int argc, char *argv[])
     } else if (const QStringList parts = spec.split(QLatin1Char(',')); parts.size() == 4) {
         area = QRect(parts[0].toInt(), parts[1].toInt(), parts[2].toInt(), parts[3].toInt());
     }
-    Recording::RecordTarget target;
+    Record::RecordTarget target;
     if (spec.startsWith(QLatin1String("window"))) {
-        target.kind = Recording::RecordTarget::Kind::Window;
+        target.kind = Record::RecordTarget::Kind::Window;
         target.windowId = spec.mid(7).toULongLong(nullptr, 0);
         area = QRect();
         if (spec == QLatin1String("window:top")) {

@@ -5,9 +5,9 @@
 #include <QTemporaryDir>
 
 #include "core/Settings.h"
-#include "recording/RecordingJournal.h"
+#include "record/RecordingJournal.h"
 
-using namespace Recording;
+using namespace Record;
 
 class tst_RecordingJournal : public QObject
 {

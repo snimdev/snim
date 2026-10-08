@@ -21,7 +21,7 @@
 #include "hotkeys/HotkeyBindings.h"
 #include "ocr/OCRService.h"
 #ifdef SNIM_HAVE_LINUX_RECORDER
-#include "recording/strategies/LinuxRecorderModule.h"
+#include "record/strategies/LinuxRecorderModule.h"
 #endif
 #include <QDesktopServices>
 #include <QUrl>
@@ -221,7 +221,7 @@ namespace App {
         QList<Core::SelfTest::Check> checks;
 #ifdef SNIM_HAVE_LINUX_RECORDER
         checks.append({QStringLiteral("recorder"), [](QString *detail) {
-            const auto check = Recording::LinuxRecorderModule::checkElements();
+            const auto check = Record::LinuxRecorderModule::checkElements();
             *detail = check.missing.isEmpty()
                           ? check.found.join(QStringLiteral(", "))
                           : QStringLiteral("missing ") + check.missing.join(QStringLiteral("; "));

@@ -1,10 +1,10 @@
 #include <QtTest>
 #include <QRegion>
 
-#include "recording/RecordTarget.h"
-#include "recording/RecordingGeometry.h"
+#include "record/RecordTarget.h"
+#include "record/RecordingGeometry.h"
 
-using namespace Recording;
+using namespace Record;
 
 class tst_RecordTarget : public QObject
 {

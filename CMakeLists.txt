@@ -600,30 +600,30 @@ add_library(snim_lib STATIC
         src/editor/video/AnimationExporter.cpp
         src/editor/video/AnimationExporter.h
 
-        # Recording: platform-agnostic Strategy + Factory (the macOS ScreenCaptureKit
+        # Record: platform-agnostic Strategy + Factory (the macOS ScreenCaptureKit
         # backend is added in the APPLE block below). The stub is the universal fallback.
-        src/recording/RecordTarget.h
-        src/recording/RecordingGeometry.h
-        src/recording/PcmMixBuffer.h
-        src/recording/PauseAwareClock.h
-        src/recording/RecordingStrategy.cpp
-        src/recording/RecordingStrategy.h
-        src/recording/RecordingFactory.cpp
-        src/recording/RecordingFactory.h
-        src/recording/RecordingController.cpp
-        src/recording/RecordingController.h
-        src/recording/RecordingJournal.cpp
-        src/recording/RecordingJournal.h
-        src/recording/RecordingControls.cpp
-        src/recording/RecordingControls.h
-        src/recording/RecordingFrameOverlay.cpp
-        src/recording/RecordingFrameOverlay.h
-        src/recording/RecordingOptionsBar.cpp
-        src/recording/RecordingOptionsBar.h
-        src/recording/CameraBubble.cpp
-        src/recording/CameraBubble.h
-        src/recording/strategies/StubRecordingStrategy.cpp
-        src/recording/strategies/StubRecordingStrategy.h
+        src/record/RecordTarget.h
+        src/record/RecordingGeometry.h
+        src/record/PcmMixBuffer.h
+        src/record/PauseAwareClock.h
+        src/record/RecordingStrategy.cpp
+        src/record/RecordingStrategy.h
+        src/record/RecordingFactory.cpp
+        src/record/RecordingFactory.h
+        src/record/RecordingController.cpp
+        src/record/RecordingController.h
+        src/record/RecordingJournal.cpp
+        src/record/RecordingJournal.h
+        src/record/RecordingControls.cpp
+        src/record/RecordingControls.h
+        src/record/RecordingFrameOverlay.cpp
+        src/record/RecordingFrameOverlay.h
+        src/record/RecordingOptionsBar.cpp
+        src/record/RecordingOptionsBar.h
+        src/record/CameraBubble.cpp
+        src/record/CameraBubble.h
+        src/record/strategies/StubRecordingStrategy.cpp
+        src/record/strategies/StubRecordingStrategy.h
 
         # Hotkeys: platform-agnostic core + pure key mappers (no platform headers, so
         # testable on any host). The real backends live in the platform blocks below.
@@ -680,8 +680,8 @@ if(APPLE)
             src/screen/WindowEnumerator_mac.mm
             src/screen/OverlayWindows_mac.mm
             # macOS screen-recording backend (ScreenCaptureKit + AVAssetWriter)
-            src/recording/strategies/MacRecordingStrategy.h
-            src/recording/strategies/MacRecordingStrategy.mm
+            src/record/strategies/MacRecordingStrategy.h
+            src/record/strategies/MacRecordingStrategy.mm
             # macOS trim exporter for the video editor (AVAssetExportSession remux)
             src/editor/video/MacVideoExporter.h
             src/editor/video/MacVideoExporter.mm
@@ -697,7 +697,7 @@ if(APPLE)
     # These .mm files hold ScreenCaptureKit/AVFoundation/Foundation objects across calls,
     # so compile them with ARC to manage those refs automatically.
     set_source_files_properties(
-            src/recording/strategies/MacRecordingStrategy.mm
+            src/record/strategies/MacRecordingStrategy.mm
             src/editor/video/MacVideoExporter.mm
             src/core/KeychainStore_mac.mm
             PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
@@ -841,8 +841,8 @@ endif()
 # without GStreamer on the host, RecordingFactory keeps returning the stub.
 if(GSTREAMER_AVAILABLE)
     target_sources(snim_lib PRIVATE
-            src/recording/strategies/LinuxRecorderModule.cpp
-            src/recording/strategies/LinuxRecorderModule.h
+            src/record/strategies/LinuxRecorderModule.cpp
+            src/record/strategies/LinuxRecorderModule.h
             # Screenshots from a ScreenCast session; the module grabs the frames.
             src/screen/sources/ScreencastFrameSource.cpp
             src/screen/sources/ScreencastFrameSource.h
@@ -855,9 +855,9 @@ if(GSTREAMER_AVAILABLE)
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_LINUX_RECORDER)
 
     add_library(snim_recorder_linux MODULE
-            src/recording/strategies/LinuxRecordingStrategy.cpp
-            src/recording/strategies/LinuxRecordingStrategy.h
-            src/recording/strategies/LinuxPipeline.h
+            src/record/strategies/LinuxRecordingStrategy.cpp
+            src/record/strategies/LinuxRecordingStrategy.h
+            src/record/strategies/LinuxPipeline.h
             # The portal handshake is an implementation detail of the recorder, so the
             # module carries its own copy: a static library hands an object out only
             # when something else already pulled it into the binary doing the loading.
@@ -866,7 +866,7 @@ if(GSTREAMER_AVAILABLE)
             src/core/Portal.cpp
             src/core/Portal.h
             # One-frame grabs for the ScreenCast frame source.
-            src/recording/strategies/PipeWireFrameGrabber.cpp
+            src/record/strategies/PipeWireFrameGrabber.cpp
             src/media/gst/GstSupport.cpp
             src/media/gst/GstSupport.h)
     set_target_properties(snim_recorder_linux PROPERTIES
@@ -981,12 +981,12 @@ endif()
 # Windows screen recording: Graphics Capture through C++/WinRT and Direct3D 11, WASAPI audio.
 if(WIN32)
     target_sources(snim_lib PRIVATE
-            src/recording/strategies/windows/WgcFrameSource.cpp
-            src/recording/strategies/windows/WgcFrameSource.h
-            src/recording/strategies/windows/WasapiAudioSource.cpp
-            src/recording/strategies/windows/WasapiAudioSource.h
-            src/recording/strategies/windows/WindowsRecordingStrategy.cpp
-            src/recording/strategies/windows/WindowsRecordingStrategy.h)
+            src/record/strategies/windows/WgcFrameSource.cpp
+            src/record/strategies/windows/WgcFrameSource.h
+            src/record/strategies/windows/WasapiAudioSource.cpp
+            src/record/strategies/windows/WasapiAudioSource.h
+            src/record/strategies/windows/WindowsRecordingStrategy.cpp
+            src/record/strategies/windows/WindowsRecordingStrategy.h)
     target_link_libraries(snim_lib PUBLIC windowsapp d3d11 dxgi)
     # Activates the Windows branch of RecordingFactory.
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_WIN_RECORDER)

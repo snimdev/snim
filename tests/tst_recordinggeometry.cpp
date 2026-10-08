@@ -1,9 +1,9 @@
 #include <QRegion>
 #include <QtTest>
 
-#include "recording/RecordingGeometry.h"
+#include "record/RecordingGeometry.h"
 
-using namespace Recording;
+using namespace Record;
 
 class tst_RecordingGeometry : public QObject
 {

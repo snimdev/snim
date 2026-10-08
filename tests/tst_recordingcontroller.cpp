@@ -3,14 +3,14 @@
 #include <QStandardPaths>
 #include <memory>
 
-#include "recording/RecordingController.h"
-#include "recording/RecordingJournal.h"
-#include "recording/RecordingOptionsBar.h"
-#include "recording/RecordingStrategy.h"
-#include "recording/RecordTarget.h"
+#include "record/RecordingController.h"
+#include "record/RecordingJournal.h"
+#include "record/RecordingOptionsBar.h"
+#include "record/RecordingStrategy.h"
+#include "record/RecordTarget.h"
 #include "screen/AreaSelector.h"
 
-using namespace Recording;
+using namespace Record;
 
 namespace {
 

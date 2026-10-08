@@ -1,10 +1,10 @@
 #include <QtTest>
 
-#include "recording/PcmMixBuffer.h"
+#include "record/PcmMixBuffer.h"
 
 #include <vector>
 
-using namespace Recording;
+using namespace Record;
 
 // The manual-mix math behind the macOS recorder's mic + system-audio track:
 // MixSourceClock places live buffers on the shared timeline, PcmMixBuffer sums

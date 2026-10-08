@@ -7,10 +7,10 @@
 #include "core/MacTrayWorkaround.h"
 #endif
 #ifdef SNIM_HAVE_WIN_RECORDER
-#include "recording/strategies/windows/WindowsRecordingStrategy.h"
+#include "record/strategies/windows/WindowsRecordingStrategy.h"
 #endif
 #ifdef SNIM_HAVE_LINUX_RECORDER
-#include "recording/strategies/LinuxRecorderModule.h"
+#include "record/strategies/LinuxRecorderModule.h"
 #endif
 
 #include <QAction>
@@ -146,7 +146,7 @@ namespace App {
 #if defined(Q_OS_MACOS)
         const QString reason = "Screen recording requires macOS 12.3 or later";
 #elif defined(SNIM_HAVE_LINUX_RECORDER)
-        const QStringList missing = Recording::LinuxRecorderModule::missingPieces();
+        const QStringList missing = Record::LinuxRecorderModule::missingPieces();
         const QString reason = missing.isEmpty()
                                ? QString("Screen recording could not start its recorder")
                                : "Screen recording needs " + missing.join("; ");
@@ -155,7 +155,7 @@ namespace App {
         const QString reason = "This build has no screen recording (it was built without "
                                "GStreamer)";
 #elif defined(SNIM_HAVE_WIN_RECORDER)
-        QString reason = Recording::WindowsRecordingStrategy::unavailableReason();
+        QString reason = Record::WindowsRecordingStrategy::unavailableReason();
         if (reason.isEmpty())
             reason = "Screen recording could not start its Windows recorder";
 #else

@@ -1,8 +1,8 @@
 #include <QtTest>
 
-#include "recording/StreamTimestamp.h"
+#include "record/StreamTimestamp.h"
 
-using namespace Recording;
+using namespace Record;
 
 namespace {
 constexpr quint64 kNone = StreamTimestamp::kNone;

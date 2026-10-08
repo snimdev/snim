@@ -12,18 +12,18 @@
 #include "app/TrayMenu.h"
 #include "app/UploadWorkflow.h"
 #include "editor/video/VideoEditor.h"
-#include "recording/RecordingController.h"
-#include "recording/RecordingJournal.h"
-#include "recording/RecordingStrategy.h"
-#include "recording/RecordTarget.h"
+#include "record/RecordingController.h"
+#include "record/RecordingJournal.h"
+#include "record/RecordingStrategy.h"
+#include "record/RecordTarget.h"
 
 using namespace App;
-using Recording::RecordingController;
-using Recording::RecordingJournal;
-using Recording::RecordTarget;
+using Record::RecordingController;
+using Record::RecordingJournal;
+using Record::RecordTarget;
 
 // A fake backend, as in tst_recordingcontroller: no screen grab, no encoder.
-class FakeRecordingStrategy : public Recording::RecordingStrategy
+class FakeRecordingStrategy : public Record::RecordingStrategy
 {
     Q_OBJECT
 public:

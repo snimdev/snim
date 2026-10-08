@@ -9,9 +9,9 @@
 #include <QToolButton>
 
 #include "core/Settings.h"
-#include "recording/RecordingOptionsBar.h"
+#include "record/RecordingOptionsBar.h"
 
-using namespace Recording;
+using namespace Record;
 
 // The options bar is built from real widgets and themed :/icons SVGs, so this runs on
 // the offscreen platform with the qrc compiled in. The clicks go through the real

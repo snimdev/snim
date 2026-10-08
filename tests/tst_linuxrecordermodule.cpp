@@ -4,11 +4,11 @@
 #include <algorithm>
 #include <memory>
 
-#include "recording/RecordingFactory.h"
-#include "recording/RecordingStrategy.h"
-#include "recording/strategies/LinuxRecorderModule.h"
+#include "record/RecordingFactory.h"
+#include "record/RecordingStrategy.h"
+#include "record/strategies/LinuxRecorderModule.h"
 
-using namespace Recording;
+using namespace Record;
 
 // The Linux recorder lives in a dlopened module so nothing else links GStreamer. Two
 // things have to hold: the module this build produced really loads against the binary

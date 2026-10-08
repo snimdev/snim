@@ -4,9 +4,9 @@
 #include "app/TrayMenu.h"
 #include "app/UploadWorkflow.h"
 #include "editor/video/VideoEditor.h"
-#include "recording/RecordingController.h"
-#include "recording/RecordingControls.h"
-#include "recording/RecordingJournal.h"
+#include "record/RecordingController.h"
+#include "record/RecordingControls.h"
+#include "record/RecordingJournal.h"
 
 #include <QAction>
 #include <QEventLoop>
@@ -22,11 +22,11 @@ namespace App {
     RecordingWorkflow::RecordingWorkflow(TrayMenu &tray, CaptureWorkflow &capture,
                                          UploadWorkflow &upload, Notifier &notifier,
                                          QObject *parent)
-        : RecordingWorkflow(std::make_unique<Recording::RecordingController>(), tray, capture,
+        : RecordingWorkflow(std::make_unique<Record::RecordingController>(), tray, capture,
                             upload, notifier, parent) {
     }
 
-    RecordingWorkflow::RecordingWorkflow(std::unique_ptr<Recording::RecordingController> controller,
+    RecordingWorkflow::RecordingWorkflow(std::unique_ptr<Record::RecordingController> controller,
                                          TrayMenu &tray, CaptureWorkflow &capture,
                                          UploadWorkflow &upload, Notifier &notifier,
                                          QObject *parent)
@@ -37,17 +37,17 @@ namespace App {
           , m_notifier(notifier)
           , m_controller(std::move(controller))
           , m_offerPrompt(&RecordingWorkflow::askAboutRecording) {
-        connect(m_controller.get(), &Recording::RecordingController::recordingStateChanged,
+        connect(m_controller.get(), &Record::RecordingController::recordingStateChanged,
                 this, &RecordingWorkflow::onRecordingStateChanged);
-        connect(m_controller.get(), &Recording::RecordingController::recordingFinished,
+        connect(m_controller.get(), &Record::RecordingController::recordingFinished,
                 this, &RecordingWorkflow::onRecordingFinished);
-        connect(m_controller.get(), &Recording::RecordingController::partialRecordingKept,
+        connect(m_controller.get(), &Record::RecordingController::partialRecordingKept,
                 this, [this](const QString &path) { m_partialRecording = path; });
-        connect(m_controller.get(), &Recording::RecordingController::recordingFailed,
+        connect(m_controller.get(), &Record::RecordingController::recordingFailed,
                 this, &RecordingWorkflow::onRecordingFailed);
         // Non-fatal setup problems (e.g. camera/mic access denied): a tray balloon,
         // not a modal box - the recording itself still proceeds.
-        connect(m_controller.get(), &Recording::RecordingController::recordingWarning,
+        connect(m_controller.get(), &Record::RecordingController::recordingWarning,
                 this, [this](const QString &message) {
                     m_notifier.notify(tr("Snim"), message, QSystemTrayIcon::Warning);
                 });
@@ -82,15 +82,15 @@ namespace App {
 
         if (recording) {
             if (!m_controls) {
-                m_controls = new Recording::RecordingControls();
-                connect(m_controls, &Recording::RecordingControls::stopRequested,
+                m_controls = new Record::RecordingControls();
+                connect(m_controls, &Record::RecordingControls::stopRequested,
                         this, &RecordingWorkflow::toggleAreaRecording);
-                connect(m_controls, &Recording::RecordingControls::pauseRequested,
-                        m_controller.get(), &Recording::RecordingController::togglePause);
-                connect(m_controller.get(), &Recording::RecordingController::recordingDuration,
-                        m_controls, &Recording::RecordingControls::setElapsed);
-                connect(m_controller.get(), &Recording::RecordingController::recordingPausedChanged,
-                        m_controls, &Recording::RecordingControls::setPaused);
+                connect(m_controls, &Record::RecordingControls::pauseRequested,
+                        m_controller.get(), &Record::RecordingController::togglePause);
+                connect(m_controller.get(), &Record::RecordingController::recordingDuration,
+                        m_controls, &Record::RecordingControls::setElapsed);
+                connect(m_controller.get(), &Record::RecordingController::recordingPausedChanged,
+                        m_controls, &Record::RecordingControls::setPaused);
             }
             m_controls->setElapsed(0);
             m_controls->show();
@@ -133,8 +133,8 @@ namespace App {
     }
 
     void RecordingWorkflow::offerUnsavedRecordings() {
-        Recording::RecordingJournal::prune();
-        const QStringList unsaved = Recording::RecordingJournal::recoverable();
+        Record::RecordingJournal::prune();
+        const QStringList unsaved = Record::RecordingJournal::recoverable();
         for (const QString &path : unsaved) {
             offerRecording(path, QMessageBox::Question, tr("Unsaved recording"),
                            tr("Snim closed before this recording was saved."));
@@ -148,7 +148,7 @@ namespace App {
             onRecordingFinished(path);
             break;
         case OfferChoice::Discard:
-            Recording::RecordingJournal::discard(path);
+            Record::RecordingJournal::discard(path);
             break;
         case OfferChoice::Later:
             break;
@@ -181,11 +181,11 @@ namespace App {
         if (!m_controller->isActive())
             return;
         m_tray.quitAction()->setEnabled(false);
-        Recording::RecordingController *controller = m_controller.get();
+        Record::RecordingController *controller = m_controller.get();
         // No editor while quitting: the finished file stays journaled for the next start.
-        disconnect(controller, &Recording::RecordingController::recordingFinished,
+        disconnect(controller, &Record::RecordingController::recordingFinished,
                    this, &RecordingWorkflow::onRecordingFinished);
-        disconnect(controller, &Recording::RecordingController::recordingFailed,
+        disconnect(controller, &Record::RecordingController::recordingFailed,
                    this, &RecordingWorkflow::onRecordingFailed);
         QEventLoop loop;
         bool done = false;   // stop() may already report, before the loop runs
@@ -193,9 +193,9 @@ namespace App {
             done = true;
             loop.quit();
         };
-        connect(controller, &Recording::RecordingController::recordingFinished, &loop, finish);
-        connect(controller, &Recording::RecordingController::recordingFailed, &loop, finish);
-        connect(controller, &Recording::RecordingController::recordingCancelled, &loop, finish);
+        connect(controller, &Record::RecordingController::recordingFinished, &loop, finish);
+        connect(controller, &Record::RecordingController::recordingFailed, &loop, finish);
+        connect(controller, &Record::RecordingController::recordingCancelled, &loop, finish);
         // Just past the Linux recorder's own 5 s EOS timeout.
         QTimer::singleShot(6000, &loop, &QEventLoop::quit);
         controller->stop();

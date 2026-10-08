@@ -10,8 +10,8 @@
 
 #include "capture/CaptureFactory.h"
 #include "capture/strategies/CaptureStrategy.h"
-#include "recording/RecordingController.h"
-#include "recording/RecordingStrategy.h"
+#include "record/RecordingController.h"
+#include "record/RecordingStrategy.h"
 #include "screen/AreaSelector.h"
 
 // Manual check, not a ctest: one capture through the app's own strategy, picked like the app
@@ -81,14 +81,14 @@ void reportOverlays(const QList<Screen::AreaSelector *> &selectors, const QRect 
 }
 
 // Records nothing: it prints the target the recording selector built, then cancels.
-class PrintingRecorder : public Recording::RecordingStrategy
+class PrintingRecorder : public Record::RecordingStrategy
 {
 public:
-    void start(const Recording::RecordTarget &target, const QString &) override
+    void start(const Record::RecordTarget &target, const QString &) override
     {
         const QRect r = target.regionVirtual;
         std::fprintf(stderr, "probe: recording %s %d,%d %dx%d window 0x%llx\n",
-                     target.kind == Recording::RecordTarget::Kind::Window ? "window" : "region",
+                     target.kind == Record::RecordTarget::Kind::Window ? "window" : "region",
                      r.x(), r.y(), r.width(), r.height(), target.windowId);
         QTimer::singleShot(0, this, [this] { emit cancelled(); });
     }
@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
                      s->geometry().height(), s->devicePixelRatio());
 
     std::unique_ptr<Capture::CaptureStrategy> strategy = Capture::CaptureFactory::createStrategy();
-    Recording::RecordingController recorder(std::make_unique<PrintingRecorder>());
+    Record::RecordingController recorder(std::make_unique<PrintingRecorder>());
     std::fprintf(stderr, "probe: strategy %s, mode %s\n", qPrintable(strategy->name()),
                  qPrintable(mode));
 
@@ -157,9 +157,9 @@ int main(int argc, char *argv[])
         std::fprintf(stderr, "probe: cancelled\n");
         finish(mode == QLatin1String("cancel") ? 0 : 5);
     });
-    QObject::connect(&recorder, &Recording::RecordingController::recordingCancelled, &app,
+    QObject::connect(&recorder, &Record::RecordingController::recordingCancelled, &app,
                      [&] { finish(0); });
-    QObject::connect(&recorder, &Recording::RecordingController::recordingFailed, &app,
+    QObject::connect(&recorder, &Record::RecordingController::recordingFailed, &app,
                      [&](const QString &error) {
         std::fprintf(stderr, "probe: recording failed: %s\n", qPrintable(error));
         finish(1);

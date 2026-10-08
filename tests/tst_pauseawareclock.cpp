@@ -1,8 +1,8 @@
 #include <QtTest>
 
-#include "recording/PauseAwareClock.h"
+#include "record/PauseAwareClock.h"
 
-using namespace Recording;
+using namespace Record;
 
 class tst_PauseAwareClock : public QObject
 {

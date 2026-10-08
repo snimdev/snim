@@ -3,15 +3,15 @@
 #include <QScreen>
 #include <QTemporaryDir>
 
-#include "recording/RecordTarget.h"
-#include "recording/strategies/windows/WindowsRecordingStrategy.h"
+#include "record/RecordTarget.h"
+#include "record/strategies/windows/WindowsRecordingStrategy.h"
 #include "Mp4Boxes.h"
 
 #include <windows.h>
 #include <mmdeviceapi.h>
 #include <wrl/client.h>
 
-using namespace Recording;
+using namespace Record;
 using namespace TestSupport;
 
 namespace {

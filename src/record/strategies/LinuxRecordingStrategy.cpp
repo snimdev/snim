@@ -1,0 +1,1067 @@
+#include "record/strategies/LinuxRecordingStrategy.h"
+
+#include "media/gst/GstSupport.h"
+#include "record/RecordingGeometry.h"
+#include "record/StreamTimestamp.h"
+#include "record/strategies/LinuxPipeline.h"
+#include "record/strategies/LinuxRecorderModule.h"
+#include "screen/ScreenCastPortalSession.h"
+#include "screen/sources/DesktopFrameSource.h"
+#ifdef SNIM_HAVE_XCB
+#include "screen/X11Windows.h"
+#endif
+
+#include <gst/gst.h>
+
+#include <QDebug>
+#include <QFile>
+#include <QFileInfo>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QTimer>
+
+#include <unistd.h>
+
+#include <functional>
+#include <mutex>
+#include <utility>
+
+namespace Record {
+
+namespace {
+
+constexpr int kDurationIntervalMs = 250;
+constexpr int kWindowWatchMs = 500;
+constexpr int kEosTimeoutMs = 5000;
+// Past this a pipeline still shutting down is stuck, not writing, so its outcome is reported.
+constexpr int kReleaseGraceMs = 2000;
+// Past pipewiresrc's own 30 s wait for the stream.
+constexpr int kFirstPortalFrameTimeoutMs = 35000;
+// ximagesrc reads the X server directly, so its first frame takes milliseconds.
+constexpr int kFirstX11FrameTimeoutMs = 5000;
+
+// Fixed for the session, like everything it probes.
+LinuxPipeline::VideoSource currentVideoSource()
+{
+    static const LinuxPipeline::VideoSource source = [] {
+        const bool hasXimagesrc = Media::Gst::ensureInitialized()
+                                  && Media::Gst::hasFactory("ximagesrc");
+        const QString platform = QGuiApplication::platformName();
+        const bool wayland = Screen::isWaylandSession();
+        // The portal probe is a blocking D-Bus call, so only make it when it decides anything.
+        const bool askPortal = platform == QLatin1String("xcb") && !wayland && !hasXimagesrc;
+        return LinuxPipeline::videoSourceFor(
+            platform, wayland, hasXimagesrc,
+            askPortal && Screen::ScreenCastPortalSession::portalVersion() > 0);
+    }();
+    return source;
+}
+
+// What the recorder launches: the video chain, plus the audio it can have. Empty without
+// an H.264 encoder.
+QString pipelineDescription(const QString &source, int fps, const QString &mux, bool mic,
+                            bool systemAudio)
+{
+    const QString encoder = Media::Gst::h264EncoderChain({Media::Gst::EncoderTuning::Live, fps});
+    if (encoder.isEmpty())
+        return {};
+    const QString video = LinuxPipeline::videoChain(source, fps, encoder, mux);
+    if (!mic && !systemAudio)
+        return video;
+    const QString aac = Media::Gst::aacEncoderChain();
+    // Audio is best-effort: a missing piece costs the audio track, not the recording.
+    if (!Media::Gst::hasFactory("pulsesrc") || !Media::Gst::hasFactory("aacparse")
+        || aac.isEmpty()) {
+        qWarning() << "Audio capture requested but pulsesrc, aacparse or an AAC encoder is "
+                      "missing; recording video only";
+        return video;
+    }
+    return video + LinuxPipeline::audioChain(aac, mic, systemAudio);
+}
+
+// A plain X11 session, where coordinates the X server reports are root-window pixels.
+bool isX11Session()
+{
+    return QGuiApplication::platformName() == QLatin1String("xcb") && !Screen::isWaylandSession();
+}
+
+void setOutputCaps(GstElement *outcaps, const QSize &size)
+{
+    GstCaps *caps = gst_caps_new_simple("video/x-raw",
+                                        "width", G_TYPE_INT, size.width(),
+                                        "height", G_TYPE_INT, size.height(),
+                                        "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
+                                        nullptr);
+    g_object_set(outcaps, "caps", caps, nullptr);
+    gst_caps_unref(caps);
+}
+
+QSize pixelSize(const QRect &logical, qreal dpr)
+{
+    return {qRound(logical.width() * dpr), qRound(logical.height() * dpr)};
+}
+
+// Every attached screen plus the whole workspace, as the portal could be sharing either.
+// GUI thread only.
+void collectStreamSources(QVector<StreamSource> *screens, StreamSource *virtualDesktop)
+{
+    QRect unionRect;
+    qreal maxDpr = 0.0;
+    bool uniformDpr = true;
+
+    const QList<QScreen *> all = QGuiApplication::screens();
+    for (const QScreen *screen : all) {
+        const QRect geometry = screen->geometry();
+        const qreal dpr = screen->devicePixelRatio();
+        screens->append(StreamSource{geometry, pixelSize(geometry, dpr)});
+
+        unionRect = unionRect.united(geometry);
+        if (maxDpr != 0.0 && !qFuzzyCompare(dpr, maxDpr))
+            uniformDpr = false;
+        maxDpr = qMax(maxDpr, dpr);
+    }
+
+    // Mixed scale factors give the workspace no single ratio, so assume the primary
+    // screen's; a guess wrong here only costs the workspace-share shortcut.
+    qreal desktopDpr = uniformDpr ? maxDpr : 0.0;
+    if (desktopDpr == 0.0) {
+        const QScreen *primary = QGuiApplication::primaryScreen();
+        desktopDpr = primary ? primary->devicePixelRatio() : 1.0;
+    }
+
+    virtualDesktop->rectLogical = unionRect;
+    virtualDesktop->sizePx = pixelSize(unionRect, desktopDpr);
+}
+
+} // namespace
+
+// Cut by teardown(), so a pipeline still shutting down never reaches a dead strategy.
+struct StrategyLink {
+    std::mutex mutex;
+    LinuxRecordingStrategy *strategy = nullptr;
+    quint64 generation = 0;
+};
+
+namespace {
+
+// Queues function(strategy, generation) onto the strategy's thread, unless the link is cut.
+template <typename Function>
+void post(const std::shared_ptr<StrategyLink> &link, Function function)
+{
+    const std::lock_guard<std::mutex> lock(link->mutex);
+    LinuxRecordingStrategy *strategy = link->strategy;
+    if (!strategy)
+        return;
+    const quint64 generation = link->generation;
+    QMetaObject::invokeMethod(strategy, [strategy, generation, function] {
+        function(strategy, generation);
+    }, Qt::QueuedConnection);
+}
+
+// Callbacks run on GStreamer threads.
+struct CallbackContext {
+    std::shared_ptr<StrategyLink> link;
+};
+
+struct CropContext {
+    std::shared_ptr<StrategyLink> link;
+    bool wholeStream = false;        // a window stream: keep all of it
+    QRect regionVirtual;
+    QRect streamRect;                // null when the portal sent no geometry
+    QVector<StreamSource> screens;
+    StreamSource virtualDesktop;
+    bool retina = true;
+    GstElement *crop = nullptr;      // owned ref
+    GstElement *outcaps = nullptr;   // owned ref
+};
+
+void freeCallbackContext(gpointer data)
+{
+    delete static_cast<CallbackContext *>(data);
+}
+
+void freeCropContext(gpointer data)
+{
+    auto *ctx = static_cast<CropContext *>(data);
+    if (ctx->crop)
+        gst_object_unref(ctx->crop);
+    if (ctx->outcaps)
+        gst_object_unref(ctx->outcaps);
+    delete ctx;
+}
+
+// The muxer's video sink pad, which parse-launch has already requested for us. mp4mux and
+// qtmux name their request pads video_%u / audio_%u, so match on the prefix.
+GstPad *videoSinkPad(GstElement *element)
+{
+    GstIterator *it = gst_element_iterate_sink_pads(element);
+    if (!it)
+        return nullptr;
+
+    GValue value = G_VALUE_INIT;
+    GstPad *fallback = nullptr;
+    GstPad *video = nullptr;
+    while (!video && gst_iterator_next(it, &value) == GST_ITERATOR_OK) {
+        GstPad *pad = GST_PAD(g_value_dup_object(&value));
+        g_value_reset(&value);
+        if (!pad)
+            continue;
+
+        gchar *name = gst_pad_get_name(pad);
+        const bool isVideo = name && g_str_has_prefix(name, "video");
+        g_free(name);
+
+        if (isVideo) {
+            video = pad;
+        } else if (!fallback) {
+            fallback = pad;
+        } else {
+            gst_object_unref(pad);
+        }
+    }
+    g_value_unset(&value);
+    gst_iterator_free(it);
+
+    if (video) {
+        if (fallback)
+            gst_object_unref(fallback);
+        return video;
+    }
+    return fallback;
+}
+
+GstPadProbeReturn onCapsEvent(GstPad *pad, GstPadProbeInfo *info, gpointer data)
+{
+    Q_UNUSED(pad)
+
+    GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
+    if (!event || GST_EVENT_TYPE(event) != GST_EVENT_CAPS)
+        return GST_PAD_PROBE_OK;
+
+    auto *ctx = static_cast<CropContext *>(data);
+
+    GstCaps *caps = nullptr;
+    gst_event_parse_caps(event, &caps);
+    int width = 0;
+    int height = 0;
+    const GstStructure *structure = caps ? gst_caps_get_structure(caps, 0) : nullptr;
+    if (!structure || !gst_structure_get_int(structure, "width", &width)
+        || !gst_structure_get_int(structure, "height", &height)) {
+        return GST_PAD_PROBE_OK;
+    }
+
+    // The negotiated caps carry the real pixel size, which the logical stream metadata
+    // cannot give us under fractional scaling.
+    const QSize capsPx(width, height);
+    QRect streamRect = ctx->streamRect;
+    // KDE reports monitor shares in output-local coordinates (position 0,0 for any
+    // monitor), so a rect that misses the selection is repositioned by inference too.
+    if (!ctx->wholeStream
+        && (streamRect.isEmpty() || !streamRect.intersects(ctx->regionVirtual))) {
+        streamRect = resolveStreamRect(capsPx, ctx->screens, ctx->virtualDesktop,
+                                       ctx->regionVirtual);
+    }
+
+    const StreamCrop crop = ctx->wholeStream
+                            ? windowStreamCrop(streamRect.size(), capsPx, ctx->retina)
+                            : portalStreamCrop(ctx->regionVirtual, streamRect, capsPx,
+                                               ctx->retina);
+    if (!crop.valid) {
+        post(ctx->link, [](LinuxRecordingStrategy *strategy, quint64 generation) {
+            strategy->reportError(generation,
+                                  LinuxRecordingStrategy::tr(
+                                      "The selected area is not on the shared screen. "
+                                      "Pick the screen containing your selection."));
+        });
+        return GST_PAD_PROBE_REMOVE;
+    }
+
+    g_object_set(ctx->crop,
+                 "left", crop.cropPx.x(),
+                 "top", crop.cropPx.y(),
+                 "right", width - (crop.cropPx.x() + crop.cropPx.width()),
+                 "bottom", height - (crop.cropPx.y() + crop.cropPx.height()),
+                 nullptr);
+
+    setOutputCaps(ctx->outcaps, crop.outputPx);
+
+    return GST_PAD_PROBE_REMOVE;
+}
+
+struct RestampContext {
+    GstElement *src = nullptr;   // not owned: the probe dies with the element
+    quint64 previous = StreamTimestamp::kNone;
+};
+
+void freeRestampContext(gpointer data)
+{
+    delete static_cast<RestampContext *>(data);
+}
+
+GstPadProbeReturn onStreamBuffer(GstPad *pad, GstPadProbeInfo *info, gpointer data)
+{
+    Q_UNUSED(pad)
+
+    auto *ctx = static_cast<RestampContext *>(data);
+    GstBuffer *buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+    quint64 pts = StreamTimestamp::kNone;
+    GstClockTime now = 0;
+    GstClockTime base = 0;
+    // No clock yet means a preroll frame, which lands at running time 0.
+    if (GstClock *clock = gst_element_get_clock(ctx->src)) {
+        now = gst_clock_get_time(clock);
+        base = gst_element_get_base_time(ctx->src);
+        gst_object_unref(clock);
+        if (GST_BUFFER_PTS_IS_VALID(buffer))
+            pts = GST_BUFFER_PTS(buffer);
+    }
+    const quint64 running = StreamTimestamp::runningTime(pts, now, base, ctx->previous);
+    ctx->previous = running;
+
+    buffer = gst_buffer_make_writable(buffer);
+    GST_BUFFER_PTS(buffer) = running;
+    GST_BUFFER_DTS(buffer) = GST_CLOCK_TIME_NONE;
+    GST_PAD_PROBE_INFO_DATA(info) = buffer;
+    return GST_PAD_PROBE_OK;
+}
+
+GstPadProbeReturn onFirstBuffer(GstPad *pad, GstPadProbeInfo *info, gpointer data)
+{
+    Q_UNUSED(pad)
+    Q_UNUSED(info)
+
+    post(static_cast<CallbackContext *>(data)->link,
+         [](LinuxRecordingStrategy *strategy, quint64 generation) {
+             strategy->reportStarted(generation);
+         });
+
+    return GST_PAD_PROBE_REMOVE;
+}
+
+// Sync handler rather than a watch: this app has no GLib main loop to dispatch a bus
+// watch from.
+GstBusSyncReply onBusMessage(GstBus *bus, GstMessage *message, gpointer data)
+{
+    Q_UNUSED(bus)
+
+    const std::shared_ptr<StrategyLink> &link = static_cast<CallbackContext *>(data)->link;
+
+    switch (GST_MESSAGE_TYPE(message)) {
+        case GST_MESSAGE_ERROR: {
+            GError *error = nullptr;
+            gchar *debug = nullptr;
+            gst_message_parse_error(message, &error, &debug);
+
+            QString text;
+            if (error && error->domain == GST_RESOURCE_ERROR
+                && error->code == GST_RESOURCE_ERROR_NO_SPACE_LEFT) {
+                text = LinuxRecordingStrategy::tr("Not enough disk space to continue recording.");
+            } else {
+                text = Media::Gst::errorText(error);
+                if (text.isEmpty())
+                    text = LinuxRecordingStrategy::tr("The recording pipeline failed.");
+            }
+            qWarning() << "GStreamer recording error:" << text
+                       << (debug ? QString::fromUtf8(debug) : QString());
+
+            if (error)
+                g_error_free(error);
+            g_free(debug);
+            gst_message_unref(message);
+
+            post(link, [text](LinuxRecordingStrategy *strategy, quint64 generation) {
+                strategy->reportError(generation, text);
+            });
+            return GST_BUS_DROP;
+        }
+        case GST_MESSAGE_EOS: {
+            gst_message_unref(message);
+            post(link, [](LinuxRecordingStrategy *strategy, quint64 generation) {
+                strategy->reportEos(generation);
+            });
+            return GST_BUS_DROP;
+        }
+        default:
+            return GST_BUS_PASS;
+    }
+}
+
+void runTask(gpointer data, gpointer userData)
+{
+    Q_UNUSED(userData)
+    auto *task = static_cast<std::function<void()> *>(data);
+    (*task)();
+    delete task;
+}
+
+} // namespace
+
+LinuxRecordingStrategy::LinuxRecordingStrategy(QObject *parent)
+    : RecordingStrategy(parent), m_life(std::make_shared<StrategyLink>()),
+      m_source(currentVideoSource())
+{
+    m_life->strategy = this;
+
+    m_durationTimer = new QTimer(this);
+    m_durationTimer->setInterval(kDurationIntervalMs);
+    connect(m_durationTimer, &QTimer::timeout, this, [this] {
+        emit durationChanged(m_elapsed.elapsed(PauseAwareClock::nowUs()) / 1000);
+    });
+
+    m_firstFrameTimer = new QTimer(this);
+    m_firstFrameTimer->setSingleShot(true);
+    m_firstFrameTimer->setInterval(m_source == LinuxPipeline::VideoSource::X11
+                                       ? kFirstX11FrameTimeoutMs
+                                       : kFirstPortalFrameTimeoutMs);
+    connect(m_firstFrameTimer, &QTimer::timeout, this, [this] {
+        qWarning() << "No first frame arrived within" << m_firstFrameTimer->interval() << "ms";
+        if (m_source == LinuxPipeline::VideoSource::X11) {
+            fail(tr("The X server sent no picture."));
+            return;
+        }
+        fail(tr("The screen share sent no picture. Check that the desktop portal "
+                "(xdg-desktop-portal and its backend for this desktop) is working."));
+    });
+
+    // ximagesrc keeps sending the last picture of a window that is gone.
+    m_windowWatch = new QTimer(this);
+    m_windowWatch->setInterval(kWindowWatchMs);
+    connect(m_windowWatch, &QTimer::timeout, this, [this] {
+#ifdef SNIM_HAVE_XCB
+        if (Screen::X11Windows::isOpen(m_target.windowId))
+            return;
+        qInfo() << "Recording: the recorded window closed";
+        stop();
+#endif
+    });
+
+    m_eosTimer = new QTimer(this);
+    m_eosTimer->setSingleShot(true);
+    m_eosTimer->setInterval(kEosTimeoutMs);
+    connect(m_eosTimer, &QTimer::timeout, this, [this] {
+        qWarning() << "GStreamer did not finalize the recording within" << kEosTimeoutMs << "ms";
+        fail(tr("The recording could not be finalized."));
+    });
+}
+
+LinuxRecordingStrategy::~LinuxRecordingStrategy()
+{
+    {
+        const std::lock_guard<std::mutex> lock(m_life->mutex);
+        m_life->strategy = nullptr;
+    }
+    teardown();
+}
+
+RecordingStrategy::WindowCapture LinuxRecordingStrategy::windowCapture() const
+{
+    if (m_source == LinuxPipeline::VideoSource::Portal)
+        return WindowCapture::SystemPicked;
+#ifdef SNIM_HAVE_XCB
+    return WindowCapture::Alone;
+#else
+    return WindowCapture::WithOverlays;   // no window ids: the picked window's area
+#endif
+}
+
+bool LinuxRecordingStrategy::isAvailable() const
+{
+    return missingPieces().isEmpty();
+}
+
+QStringList LinuxRecordingStrategy::missingPieces()
+{
+    if (!Media::Gst::ensureInitialized())
+        return {QStringLiteral("a working GStreamer (it failed to initialize)")};
+
+    const LinuxPipeline::VideoSource source = currentVideoSource();
+    // Plugins do not change while the app runs, so GStreamer is probed once.
+    static const QStringList gstMissing = Media::Gst::missingPieces(
+        LinuxPipeline::requiredElements(source), Media::Gst::hasFactory,
+        Media::Gst::probeH264Plugins());
+    // A yes is kept for the run; a no is asked again, the portal may still be starting.
+    static bool portalSeen = false;
+    QStringList pieces;
+    if (source == LinuxPipeline::VideoSource::Portal && !portalSeen) {
+        portalSeen = Screen::ScreenCastPortalSession::portalVersion() > 0;
+        if (!portalSeen) {
+            pieces << QStringLiteral("the ScreenCast portal (xdg-desktop-portal and a backend "
+                                     "for this desktop)");
+        }
+    }
+    return pieces + gstMissing;
+}
+
+void LinuxRecordingStrategy::checkElements(QStringList *found, QStringList *missing)
+{
+    if (!Media::Gst::ensureInitialized()) {
+        *missing = {QStringLiteral("a working GStreamer (it failed to initialize)")};
+        return;
+    }
+    // No portal: an X11 session is held to ximagesrc, any other to PipeWire.
+    const LinuxPipeline::VideoSource source = LinuxPipeline::videoSourceFor(
+        QGuiApplication::platformName(), Screen::isWaylandSession(),
+        Media::Gst::hasFactory("ximagesrc"), false);
+    const QList<const char *> required = LinuxPipeline::sessionElements(source);
+    const Media::Gst::H264Plugins h264 = Media::Gst::probeH264Plugins();
+    *missing = Media::Gst::missingPieces(required, Media::Gst::hasFactory, h264);
+    for (const char *element : required) {
+        if (Media::Gst::hasFactory(element))
+            *found << QString::fromLatin1(element);
+    }
+    if (const char *encoder = Media::Gst::encoderElement(Media::Gst::chooseH264Encoder(h264)))
+        *found << QString::fromLatin1(encoder);
+    if (!missing->isEmpty())
+        return;
+
+    // Built, never played: an element or property this GStreamer lacks fails here.
+    const QString video = source == LinuxPipeline::VideoSource::X11
+                          ? LinuxPipeline::x11Source(QRect(0, 0, 64, 64), false, 30)
+                          : LinuxPipeline::portalSource();
+    QString error;
+    const Media::Gst::GstPtr<GstElement> pipeline(Media::Gst::parseLaunch(
+        pipelineDescription(video, 30, QStringLiteral("mp4mux"), true, true), &error));
+    if (!pipeline) {
+        *missing << QStringLiteral("a GStreamer that accepts the recording pipeline (%1)")
+                        .arg(error);
+    }
+}
+
+void LinuxRecordingStrategy::start(const RecordTarget &target, const QString &outputPath)
+{
+    if (isRecording()) {
+        emit failed(tr("A recording is already running."));
+        return;
+    }
+    if (!isAvailable()) {
+        emit failed(tr("Screen recording is not available on this system."));
+        return;
+    }
+
+    m_target = target;
+    m_outputPath = outputPath;
+    m_starting = true;
+    m_stopping = false;
+
+    if (m_source == LinuxPipeline::VideoSource::X11) {
+        startX11();
+        return;
+    }
+
+    if (!m_session) {
+        m_session = new Screen::ScreenCastPortalSession(this);
+        connect(m_session, &Screen::ScreenCastPortalSession::ready,
+                this, &LinuxRecordingStrategy::handleSessionReady);
+        connect(m_session, &Screen::ScreenCastPortalSession::failed,
+                this, &LinuxRecordingStrategy::handleSessionFailed);
+        connect(m_session, &Screen::ScreenCastPortalSession::sessionClosed,
+                this, &LinuxRecordingStrategy::handleSessionClosed);
+    }
+
+    Screen::ScreenCastPortalSession::Options options;
+    options.captureCursor = target.captureCursor;
+    if (target.kind == RecordTarget::Kind::Window) {
+        // The portal's picker chooses the window, and its stream follows it.
+        options.source = Screen::ScreenCastPortalSession::Source::Window;
+        qInfo() << "Recording: asking the ScreenCast portal for a window";
+    } else {
+        qInfo() << "Recording: asking the ScreenCast portal for" << target.regionVirtual;
+    }
+    m_session->open(options);
+}
+
+void LinuxRecordingStrategy::startX11()
+{
+    if (m_target.kind == RecordTarget::Kind::Window && m_target.windowId != 0) {
+        startX11Window();
+        return;
+    }
+
+    m_x11Grab = x11Grab(m_target.regionVirtual, Screen::X11ScreenMap::currentScreens(),
+                        m_target.retinaCapture);
+    if (!m_x11Grab.valid) {
+        teardown();
+        emit failed(tr("The selected area is not on any screen."));
+        return;
+    }
+    qInfo() << "Recording: reading" << m_x11Grab.rootPx << "of the X11 root window for"
+            << m_target.regionVirtual << "into" << m_x11Grab.outputPx;
+
+    QString error;
+    if (!buildPipeline(0, &error)) {
+        teardown();
+        emit failed(error);
+        return;
+    }
+    startPipeline();
+}
+
+void LinuxRecordingStrategy::startX11Window()
+{
+#ifdef SNIM_HAVE_XCB
+    const std::optional<Screen::X11Windows::Capture> capture =
+        Screen::X11Windows::capture(m_target.windowId);
+    m_x11WindowGrab = capture ? x11WindowGrab(capture->size, capture->crop,
+                                              m_target.regionVirtual.size(),
+                                              m_target.retinaCapture)
+                              : X11WindowGrab{};
+    if (!m_x11WindowGrab.valid) {
+        teardown();
+        emit failed(tr("The window to record is no longer open."));
+        return;
+    }
+    m_x11Window = capture->window;
+    qInfo() << "Recording: reading X11 window" << Qt::hex << Qt::showbase << m_x11Window
+            << Qt::dec << Qt::noshowbase << capture->size << "cropped by"
+            << m_x11WindowGrab.cropPx << "into" << m_x11WindowGrab.outputPx;
+
+    QString error;
+    if (!buildPipeline(0, &error)) {
+        teardown();
+        emit failed(error);
+        return;
+    }
+    m_windowWatch->start();
+    startPipeline();
+#endif
+}
+
+void LinuxRecordingStrategy::stop()
+{
+    if (!isRecording() || m_stopping)
+        return;
+
+    // Before the first frame nothing needs finalizing, and EOS would wait on the source.
+    if (!m_recording) {
+        cancel();
+        return;
+    }
+
+    // EOS only drains through the muxer while buffers flow, so open the valves first.
+    // resume() bails out once m_stopping is set, hence the ordering here.
+    if (m_paused)
+        resume();
+
+    m_stopping = true;
+    m_durationTimer->stop();
+    qInfo() << "Recording: stopping, finalizing" << m_outputPath;
+    // Sending EOS waits for the source's streaming thread, which a stalled pipeline holds.
+    GstElement *pipeline = GST_ELEMENT(gst_object_ref(m_pipeline));
+    runOnPipelineThread([pipeline] {
+        gst_element_send_event(pipeline, gst_event_new_eos());
+        gst_object_unref(pipeline);
+    });
+    m_eosTimer->start();
+}
+
+void LinuxRecordingStrategy::pause()
+{
+    if (!m_recording || m_paused || m_stopping || !m_pipeline)
+        return;
+
+    // No state change: pipewiresrc stops consuming in PAUSED, the compositor suspends the
+    // ScreenCast stream and the way back to PLAYING never returns.
+    m_pauseStartRt = gst_element_get_current_running_time(m_pipeline);
+    setValvesDropping(true);
+    m_elapsed.pause(PauseAwareClock::nowUs());
+
+    m_durationTimer->stop();
+    m_paused = true;
+    emit pausedChanged(true);
+}
+
+void LinuxRecordingStrategy::resume()
+{
+    if (!m_recording || !m_paused || m_stopping || !m_pipeline)
+        return;
+
+    const GstClockTime rt = gst_element_get_current_running_time(m_pipeline);
+    if (GST_CLOCK_TIME_IS_VALID(rt) && GST_CLOCK_TIME_IS_VALID(m_pauseStartRt)
+        && rt > m_pauseStartRt) {
+        m_pausedTotal += rt - m_pauseStartRt;
+    }
+
+    // The negative offset shifts post-resume buffers back, so the recorded timeline has no
+    // gap where the pause was.
+    for (GstPad *pad : std::as_const(m_valvePads))
+        gst_pad_set_offset(pad, -gint64(m_pausedTotal));
+    setValvesDropping(false);
+    m_elapsed.resume(PauseAwareClock::nowUs());
+
+    m_durationTimer->start();
+    m_paused = false;
+    emit pausedChanged(false);
+}
+
+void LinuxRecordingStrategy::runOnPipelineThread(std::function<void()> task)
+{
+    if (!m_runner)
+        m_runner = g_thread_pool_new(runTask, nullptr, 1, FALSE, nullptr);
+    g_thread_pool_push(m_runner, new std::function<void()>(std::move(task)), nullptr);
+}
+
+void LinuxRecordingStrategy::setValvesDropping(bool drop)
+{
+    for (GstElement *valve : std::as_const(m_valves))
+        g_object_set(valve, "drop", drop ? TRUE : FALSE, nullptr);
+}
+
+void LinuxRecordingStrategy::handleSessionReady(quint32 nodeId, const QRect &streamRectLogical,
+                                                int pipewireFd)
+{
+    if (!m_starting) {
+        ::close(pipewireFd);
+        return;
+    }
+
+    m_pipewireFd = pipewireFd;
+    // An X11 portal reports root-window pixels, which Qt's scaling does not share.
+    m_streamRect = isX11Session()
+                   ? Screen::X11ScreenMap::toLogical(streamRectLogical,
+                                                     Screen::X11ScreenMap::currentScreens())
+                   : streamRectLogical;
+    qInfo() << "Recording: portal stream" << nodeId << "geometry" << streamRectLogical
+            << "logical" << m_streamRect;
+
+    // Portals that send no geometry leave the caps probe to infer it from these.
+    m_screens.clear();
+    m_virtualDesktop = StreamSource{};
+    collectStreamSources(&m_screens, &m_virtualDesktop);
+
+    QString error;
+    if (!buildPipeline(nodeId, &error)) {
+        teardown();
+        emit failed(error);
+        return;
+    }
+
+    startPipeline();
+}
+
+void LinuxRecordingStrategy::startPipeline()
+{
+    // pipewiresrc waits for the stream on the way to PLAYING, for up to 30 s.
+    GstElement *pipeline = GST_ELEMENT(gst_object_ref(m_pipeline));
+    const std::shared_ptr<StrategyLink> link = m_link;
+    m_firstFrameTimer->start();
+    runOnPipelineThread([pipeline, link] {
+        if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+            post(link, [](LinuxRecordingStrategy *strategy, quint64 generation) {
+                strategy->reportError(generation,
+                                      tr("The recording pipeline could not be started."));
+            });
+        }
+        gst_object_unref(pipeline);
+    });
+}
+
+void LinuxRecordingStrategy::handleSessionFailed(const QString &error)
+{
+    if (!isRecording())
+        return;
+    if (m_session->wasCancelled()) {
+        cancel();
+        return;
+    }
+    fail(error);
+}
+
+void LinuxRecordingStrategy::handleSessionClosed()
+{
+    // The compositor's stop-sharing button: finalize what has been recorded so far.
+    if (isRecording())
+        stop();
+}
+
+bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
+{
+    const QString mux = QFileInfo(m_outputPath).suffix().compare(QStringLiteral("mov"),
+                                                                 Qt::CaseInsensitive) == 0
+                        ? QStringLiteral("qtmux") : QStringLiteral("mp4mux");
+
+    const bool x11 = m_source == LinuxPipeline::VideoSource::X11;
+    QString source = LinuxPipeline::portalSource();
+    if (x11 && m_x11Window != 0) {
+        source = LinuxPipeline::x11WindowSource(m_x11Window, m_target.captureCursor,
+                                                m_target.fps);
+    } else if (x11) {
+        source = LinuxPipeline::x11Source(m_x11Grab.rootPx, m_target.captureCursor,
+                                          m_target.fps);
+    }
+    const QString description = pipelineDescription(source, m_target.fps, mux,
+                                                     m_target.captureMic,
+                                                     m_target.captureSystemAudio);
+    if (description.isEmpty()) {
+        *error = tr("No H.264 encoder is installed.");
+        return false;
+    }
+
+    qDebug().noquote() << "Recording pipeline:" << description;
+    QString parseError;
+    m_pipeline = Media::Gst::parseLaunch(description, &parseError);
+    if (!m_pipeline) {
+        *error = parseError.isEmpty()
+                     ? tr("The recording pipeline could not be built.")
+                     : tr("The recording pipeline could not be built: %1").arg(parseError);
+        return false;
+    }
+
+    // The monotonic clock StreamTimestamp compares stamps to, whatever clock a source offers.
+    GstClock *clock = gst_system_clock_obtain();
+    g_object_set(clock, "clock-type", GST_CLOCK_TYPE_MONOTONIC, nullptr);
+    gst_pipeline_use_clock(GST_PIPELINE(m_pipeline), clock);
+    gst_object_unref(clock);
+
+    ++m_generation;
+    m_link = std::make_shared<StrategyLink>();
+    m_link->strategy = this;
+    m_link->generation = m_generation;
+
+    GstElement *src = gst_bin_get_by_name(GST_BIN(m_pipeline), "src");
+    GstElement *crop = gst_bin_get_by_name(GST_BIN(m_pipeline), "crop");
+    GstElement *outcaps = gst_bin_get_by_name(GST_BIN(m_pipeline), "outcaps");
+    GstElement *muxer = gst_bin_get_by_name(GST_BIN(m_pipeline), "mux");
+    GstElement *sink = gst_bin_get_by_name(GST_BIN(m_pipeline), "sink");
+    const auto unrefAll = [&] {
+        for (GstElement *element : {src, crop, outcaps, muxer, sink}) {
+            if (element)
+                gst_object_unref(element);
+        }
+    };
+
+    if (!src || !crop || !outcaps || !muxer || !sink) {
+        unrefAll();
+        *error = tr("The recording pipeline could not be built.");
+        return false;
+    }
+
+    g_object_set(sink, "location", m_outputPath.toUtf8().constData(), nullptr);
+    Media::Gst::configureRecordingOutput(muxer, sink);
+
+    if (GstElement *micsrc = gst_bin_get_by_name(GST_BIN(m_pipeline), "micsrc")) {
+        // Under Qt's pulse backend QAudioDevice::id() is the pulse source name.
+        if (!m_target.micDeviceId.isEmpty())
+            g_object_set(micsrc, "device", m_target.micDeviceId.constData(), nullptr);
+        gst_object_unref(micsrc);
+    }
+
+    if (x11 && m_x11Window != 0) {
+        const QMargins &cropPx = m_x11WindowGrab.cropPx;
+        g_object_set(crop, "left", cropPx.left(), "top", cropPx.top(), "right", cropPx.right(),
+                     "bottom", cropPx.bottom(), nullptr);
+        setOutputCaps(outcaps, m_x11WindowGrab.outputPx);
+    } else if (x11) {
+        // ximagesrc stamps running time itself and grabs just the area, so no probes.
+        setOutputCaps(outcaps, m_x11Grab.outputPx);
+    } else {
+        configurePortalSource(src, crop, outcaps, nodeId);
+    }
+
+    // Pause closes every valve, but only the pads feeding the muxer carry the offset:
+    // audiomixer fills silence for a dropped input, so shifting its inputs excises nothing.
+    const auto collectValve = [this](const char *name, bool carriesOffset) {
+        GstElement *valve = gst_bin_get_by_name(GST_BIN(m_pipeline), name);
+        if (!valve)
+            return;
+        m_valves.append(valve);
+        if (!carriesOffset)
+            return;
+        if (GstPad *pad = gst_element_get_static_pad(valve, "src"))
+            m_valvePads.append(pad);
+    };
+    collectValve("videovalve", true);
+    collectValve("audiovalve", true);
+    collectValve("micvalve", false);
+    collectValve("sysvalve", false);
+
+    // The first video buffer reaching the muxer is the moment capture is really live.
+    if (GstPad *muxPad = videoSinkPad(muxer)) {
+        auto *bufferCtx = new CallbackContext{m_link};
+        gst_pad_add_probe(muxPad, GST_PAD_PROBE_TYPE_BUFFER, onFirstBuffer, bufferCtx,
+                          freeCallbackContext);
+        gst_object_unref(muxPad);
+    }
+
+    GstBus *bus = gst_element_get_bus(m_pipeline);
+    auto *busCtx = new CallbackContext{m_link};
+    gst_bus_set_sync_handler(bus, onBusMessage, busCtx, freeCallbackContext);
+    gst_object_unref(bus);
+
+    unrefAll();
+    return true;
+}
+
+void LinuxRecordingStrategy::configurePortalSource(GstElement *src, GstElement *crop,
+                                                   GstElement *outcaps, quint32 nodeId)
+{
+    // Set as properties rather than inside the launch string: no escaping to get wrong.
+    g_object_set(src, "fd", m_pipewireFd,
+                 "path", QByteArray::number(nodeId).constData(), nullptr);
+
+    // Not live, so basesrc never syncs on the producer's timestamps: one frame stamped 0
+    // by xdg-desktop-portal-wlr would park the source until the far future.
+    GstStructure *streamProps = gst_structure_new("props", "stream.is-live", G_TYPE_STRING,
+                                                  "false", nullptr);
+    g_object_set(src, "stream-properties", streamProps, nullptr);
+    gst_structure_free(streamProps);
+
+    GstPad *srcPad = gst_element_get_static_pad(src, "src");
+    if (!srcPad)
+        return;
+    gst_pad_add_probe(srcPad, GST_PAD_PROBE_TYPE_BUFFER, onStreamBuffer,
+                      new RestampContext{src}, freeRestampContext);
+    auto *cropCtx = new CropContext;
+    cropCtx->link = m_link;
+    cropCtx->wholeStream = m_target.kind == RecordTarget::Kind::Window;
+    cropCtx->regionVirtual = m_target.regionVirtual;
+    cropCtx->streamRect = m_streamRect;
+    cropCtx->screens = m_screens;
+    cropCtx->virtualDesktop = m_virtualDesktop;
+    cropCtx->retina = m_target.retinaCapture;
+    cropCtx->crop = GST_ELEMENT(gst_object_ref(crop));
+    cropCtx->outcaps = GST_ELEMENT(gst_object_ref(outcaps));
+    gst_pad_add_probe(srcPad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, onCapsEvent, cropCtx,
+                      freeCropContext);
+    gst_object_unref(srcPad);
+}
+
+void LinuxRecordingStrategy::reportStarted(quint64 generation)
+{
+    if (generation != m_generation || m_recording || m_stopping || m_paused)
+        return;
+
+    m_firstFrameTimer->stop();
+    m_starting = false;
+    m_recording = true;
+    m_elapsed.start(PauseAwareClock::nowUs());
+    qInfo() << "Recording: first frame in, recording to" << m_outputPath;
+    m_durationTimer->start();
+    emit started();
+}
+
+void LinuxRecordingStrategy::reportEos(quint64 generation)
+{
+    if (generation != m_generation)
+        return;
+    if (!m_recording) {
+        fail(tr("The recording ended before the first frame arrived."));
+        return;
+    }
+
+    const QString path = m_outputPath;
+    qInfo() << "Recording: finalized" << path;
+    teardown();
+    emit finished(path);
+}
+
+void LinuxRecordingStrategy::reportError(quint64 generation, const QString &error)
+{
+    if (generation != m_generation)
+        return;
+    fail(error);
+}
+
+void LinuxRecordingStrategy::fail(const QString &error)
+{
+    qWarning() << "Recording failed:" << error;
+    // A fragmented file keeps what was recorded before the failure.
+    teardown(Output::RemoveIfEmpty, [this, error] { emit failed(error); });
+}
+
+void LinuxRecordingStrategy::cancel()
+{
+    qInfo() << "Recording: cancelled before the first frame";
+    teardown(Output::Remove, [this] { emit cancelled(); });
+}
+
+void LinuxRecordingStrategy::teardown(Output output, std::function<void()> then)
+{
+    // Invalidates every callback still in flight for the pipeline being dropped.
+    ++m_generation;
+
+    m_durationTimer->stop();
+    m_firstFrameTimer->stop();
+    m_eosTimer->stop();
+    m_windowWatch->stop();
+    m_x11Window = 0;
+
+    for (GstPad *pad : std::as_const(m_valvePads))
+        gst_object_unref(pad);
+    m_valvePads.clear();
+    for (GstElement *valve : std::as_const(m_valves))
+        gst_object_unref(valve);
+    m_valves.clear();
+    m_pauseStartRt = 0;
+    m_pausedTotal = 0;
+    m_elapsed.reset();
+
+    if (m_link) {
+        const std::lock_guard<std::mutex> lock(m_link->mutex);
+        m_link->strategy = nullptr;
+    }
+    m_link.reset();
+
+    // Until it is down the pipeline may write the output, and pipewiresrc shares its
+    // connection by fd number: ours stays open, so unreusable, until then.
+    const int fd = std::exchange(m_pipewireFd, -1);
+    GstElement *pipeline = std::exchange(m_pipeline, nullptr);
+    const QString path = output == Output::Keep ? QString() : m_outputPath;
+    const bool removeAlways = output == Output::Remove;
+    const auto release = [pipeline, fd, path, removeAlways] {
+        if (pipeline) {
+            gst_element_set_state(pipeline, GST_STATE_NULL);
+            gst_object_unref(pipeline);
+        }
+        if (fd >= 0)
+            ::close(fd);
+        if (!path.isEmpty() && (removeAlways || QFileInfo(path).size() == 0))
+            QFile::remove(path);
+    };
+    if (pipeline && then) {
+        auto pending = std::make_shared<std::function<void()>>(std::move(then));
+        const auto reportOnce = [pending] {
+            if (const std::function<void()> report = std::exchange(*pending, {}))
+                report();
+        };
+        QTimer::singleShot(kReleaseGraceMs, this, reportOnce);
+        runOnPipelineThread([release, reportOnce, life = m_life] {
+            release();
+            post(life, [reportOnce](LinuxRecordingStrategy *, quint64) { reportOnce(); });
+        });
+    } else if (pipeline) {
+        runOnPipelineThread(release);
+    } else {
+        release();
+    }
+    if (GThreadPool *runner = std::exchange(m_runner, nullptr))
+        g_thread_pool_free(runner, FALSE, FALSE);
+
+    if (m_session)
+        m_session->close();
+
+    m_starting = false;
+    m_recording = false;
+    m_stopping = false;
+    m_paused = false;
+
+    if (!pipeline && then)
+        then();
+}
+
+} // namespace Record
+
+// The one symbol RecordingFactory resolves out of this module.
+extern "C" Record::RecordingStrategy *snimCreateLinuxRecorder(QObject *parent)
+{
+    return new Record::LinuxRecordingStrategy(parent);
+}
+
+extern "C" void snimLinuxRecorderMissingPieces(QStringList *pieces)
+{
+    *pieces = Record::LinuxRecordingStrategy::missingPieces();
+}
+
+extern "C" void snimLinuxRecorderCheckElements(QStringList *found, QStringList *missing)
+{
+    Record::LinuxRecordingStrategy::checkElements(found, missing);
+}

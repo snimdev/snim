@@ -9,7 +9,7 @@
 /**
  * One-frame PipeWire grabs for the ScreenCast frame source. The grabber needs GStreamer,
  * so it lives in the dlopened recorder module (libsnim-recorder-linux) and is reached
- * here by name, never linked; see Recording::LinuxRecorderModule for why.
+ * here by name, never linked; see Record::LinuxRecorderModule for why.
  */
 
 // Exported by the recorder module: one frame from each PipeWire node behind pipewireFd

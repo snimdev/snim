@@ -7,10 +7,10 @@
 #include <functional>
 #include <memory>
 
-namespace Recording {
+namespace Record {
 class RecordingController;
 class RecordingControls;
-} // namespace Recording
+} // namespace Record
 
 namespace App {
 
@@ -37,7 +37,7 @@ public:
     RecordingWorkflow(TrayMenu &tray, CaptureWorkflow &capture, UploadWorkflow &upload,
                       Notifier &notifier, QObject *parent = nullptr);
     // Test seam: drive a controller built around a fake strategy.
-    RecordingWorkflow(std::unique_ptr<Recording::RecordingController> controller, TrayMenu &tray,
+    RecordingWorkflow(std::unique_ptr<Record::RecordingController> controller, TrayMenu &tray,
                       CaptureWorkflow &capture, UploadWorkflow &upload, Notifier &notifier,
                       QObject *parent = nullptr);
     ~RecordingWorkflow() override;
@@ -73,8 +73,8 @@ private:
     CaptureWorkflow &m_capture;
     UploadWorkflow &m_upload;
     Notifier &m_notifier;
-    std::unique_ptr<Recording::RecordingController> m_controller;
-    Recording::RecordingControls *m_controls = nullptr;   // shown only while recording
+    std::unique_ptr<Record::RecordingController> m_controller;
+    Record::RecordingControls *m_controls = nullptr;   // shown only while recording
     QString m_partialRecording;   // footage the failing recording kept, until recordingFailed
     OfferPrompt m_offerPrompt;
 };

@@ -1,6 +1,6 @@
 #include <QtTest>
 
-#include "recording/RecordingGeometry.h"
+#include "record/RecordingGeometry.h"
 #include "screen/X11ScreenMap.h"
 
 using Screen::X11ScreenMap::nativeRect;
@@ -56,7 +56,7 @@ private slots:
             for (int x = 0; x < 40; x += 3) {
                 const QRect window(101 + x, 57 + 2 * x, 803 + x, 451 + x);
                 const QRect logical = toLogical(window, screens);
-                const Recording::X11Grab grab = Recording::x11Grab(logical, screens, true);
+                const Record::X11Grab grab = Record::x11Grab(logical, screens, true);
                 QVERIFY(grab.valid);
                 QVERIFY(qAbs(grab.rootPx.left() - window.left()) <= 1);
                 QVERIFY(qAbs(grab.rootPx.top() - window.top()) <= 1);
@@ -88,7 +88,7 @@ private slots:
         const QVector<X11Screen> screens{{QRect(0, 0, 1536, 864), 1.25}};
         const QRect stream = toLogical(QRect(0, 0, 1920, 1080), screens);
         QCOMPARE(stream, QRect(0, 0, 1536, 864));
-        const Recording::StreamCrop crop = Recording::portalStreamCrop(
+        const Record::StreamCrop crop = Record::portalStreamCrop(
             QRect(100, 100, 640, 360), stream, QSize(1920, 1080), true);
         QVERIFY(crop.valid);
         QCOMPARE(crop.cropPx, QRect(125, 125, 800, 450));

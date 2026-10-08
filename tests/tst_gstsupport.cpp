@@ -6,7 +6,7 @@
 #include <gst/gst.h>
 
 #include "media/gst/GstSupport.h"
-#include "recording/strategies/LinuxPipeline.h"
+#include "record/strategies/LinuxPipeline.h"
 
 using namespace Media::Gst;
 
@@ -281,7 +281,7 @@ private slots:
     // so it gets none.
     void parsesTheRecorderPipelines()
     {
-        using namespace Recording::LinuxPipeline;
+        using namespace Record::LinuxPipeline;
         qunsetenv("DISPLAY");
         QVERIFY(ensureInitialized());
         const QString encoder = h264EncoderChain({EncoderTuning::Live, 30});

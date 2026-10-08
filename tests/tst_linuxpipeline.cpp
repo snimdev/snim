@@ -2,9 +2,9 @@
 
 #include <algorithm>
 
-#include "recording/strategies/LinuxPipeline.h"
+#include "record/strategies/LinuxPipeline.h"
 
-using namespace Recording::LinuxPipeline;
+using namespace Record::LinuxPipeline;
 
 class tst_LinuxPipeline : public QObject
 {
