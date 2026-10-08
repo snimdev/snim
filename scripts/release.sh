@@ -154,19 +154,28 @@ if [ "$HEAD_SHA" != "$(git rev-parse origin/main)" ]; then
     exit 1
 fi
 
-# CI skips docs-only commits (paths-ignore in ci.yml), so check the newest one it ran on.
-CI_SHA="$(git log -1 --format=%H HEAD -- . ':(exclude)*.md' ':(exclude)LICENSE')"
-if [ "$CI_SHA" != "$HEAD_SHA" ]; then
-    echo "==> Only docs changed since $(git rev-parse --short "$CI_SHA")"
+# CI runs once per push, on its last commit, and skips docs-only pushes (paths-ignore
+# in ci.yml), so any commit from the newest code change up to HEAD tested the same code.
+CODE_SHA="$(git log -1 --format=%H HEAD -- . ':(exclude)*.md' ':(exclude)LICENSE')"
+if [ "$CODE_SHA" != "$HEAD_SHA" ]; then
+    echo "==> Only docs changed since $(git rev-parse --short "$CODE_SHA")"
 fi
 
-echo "==> Checking CI on $CI_SHA"
-CI_RUNS="$(gh run list --commit "$CI_SHA" --workflow CI --limit 20 \
-    --json status,conclusion --jq '.[] | "\(.status) \(.conclusion)"')"
-if [ -z "$CI_RUNS" ]; then
-    echo "error: no CI run found for $CI_SHA" >&2
+CI_SHA=""
+CI_RUNS=""
+for sha in $(git rev-list "$CODE_SHA..HEAD") "$CODE_SHA"; do
+    CI_RUNS="$(gh run list --commit "$sha" --workflow CI --limit 20 \
+        --json status,conclusion --jq '.[] | "\(.status) \(.conclusion)"')"
+    if [ -n "$CI_RUNS" ]; then
+        CI_SHA="$sha"
+        break
+    fi
+done
+if [ -z "$CI_SHA" ]; then
+    echo "error: no CI run found for $CODE_SHA or any later commit" >&2
     exit 1
 fi
+echo "==> Checking CI on $CI_SHA"
 
 while read -r status conclusion; do
     [ -n "$status" ] || continue
