@@ -26,6 +26,9 @@ public:
     // True when the action has a stored override (including "").
     [[nodiscard]] static bool isCustomized(HotkeyAction a);
 
+    // One-time: drops stored values that only pin an rc.1 default (its Apply wrote every row).
+    static void migrateDefaults();
+
     // Everything worth handing to a backend: normalized, unbound actions dropped,
     // in enum order.
     [[nodiscard]] static QList<HotkeyBinding> activeBindings();

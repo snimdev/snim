@@ -93,6 +93,9 @@ public:
     static void setHotkey(const QString &name, const QString &text);
     static bool hasHotkey(const QString &name);
     static void removeHotkey(const QString &name);   // hotkey() then returns its default
+    // Last hotkey defaults migration applied to the stored bindings.
+    static int hotkeyDefaultsVersion();                // default: 0 (rc.1 or a fresh store)
+    static void setHotkeyDefaultsVersion(int version);
 
     // Editor annotation defaults
     static QColor editorForeground();                   // default: red

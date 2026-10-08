@@ -154,6 +154,10 @@ private slots:
         QCOMPARE(Settings::hotkey("CaptureArea", "Ctrl+Print"), QStringLiteral("Ctrl+Print"));
         Settings::removeHotkey("CaptureArea");   // removing an absent key is harmless
         QVERIFY(!Settings::hasHotkey("CaptureArea"));
+
+        QCOMPARE(Settings::hotkeyDefaultsVersion(), 0);
+        Settings::setHotkeyDefaultsVersion(1);
+        QCOMPARE(Settings::hotkeyDefaultsVersion(), 1);
     }
 
     void portableFileIn_needsSnimIni()

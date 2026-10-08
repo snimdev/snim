@@ -31,6 +31,7 @@ constexpr auto kUploadDefaultProfileId = "Upload/DefaultProfileId";
 constexpr auto kUploadKnownHostKeys    = "Upload/KnownHostKeys";
 constexpr auto kDesktopIntegrationDismissed = "DesktopIntegration/PromptDismissed";
 constexpr auto kAnimationOptionsSkip   = "Animation/SkipOptions";
+constexpr auto kHotkeyDefaultsVersion  = "Hotkeys/DefaultsVersion";
 
 // "Animation/<format>/<field>", one group per export format.
 QString animationKey(const QString &format, const char *field)
@@ -135,6 +136,8 @@ QString Settings::hotkey(const QString &name, const QString &defaultText)
 void Settings::setHotkey(const QString &name, const QString &text) { store()->setValue(hotkeyKey(name), text); }
 bool Settings::hasHotkey(const QString &name) { return store()->contains(hotkeyKey(name)); }
 void Settings::removeHotkey(const QString &name) { store()->remove(hotkeyKey(name)); }
+int Settings::hotkeyDefaultsVersion() { return store()->value(kHotkeyDefaultsVersion, 0).toInt(); }
+void Settings::setHotkeyDefaultsVersion(int version) { store()->setValue(kHotkeyDefaultsVersion, version); }
 
 QColor Settings::editorForeground() { return store()->value(kForeground, QColor(Qt::red)).value<QColor>(); }
 void Settings::setEditorForeground(const QColor &c) { store()->setValue(kForeground, c); }

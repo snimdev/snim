@@ -2,6 +2,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 
+#include "core/Settings.h"
 #include "hotkeys/HotkeyAction.h"
 #include "hotkeys/HotkeyBindings.h"
 
@@ -134,11 +135,75 @@ private slots:
             QVERIFY(!b.sequence.isEmpty());
     }
 
+    void migrationDropsAnRc1Store()
+    {
+        storeRc1Apply();
+        HotkeyBindings::migrateDefaults();
+        for (const HotkeyAction a : allHotkeyActions()) {
+            QVERIFY(!HotkeyBindings::isCustomized(a));
+            QCOMPARE(HotkeyBindings::sequence(a), hotkeyActionDefault(a));
+        }
+        QCOMPARE(Core::Settings::hotkeyDefaultsVersion(), 1);
+    }
+
+    void migrationKeepsCustomBindings()
+    {
+        storeRc1Apply();
+        QSettings().setValue("Hotkeys/CaptureWindow", "Ctrl+Alt+F3");
+        QSettings().setValue("Hotkeys/RecordWindow", "Meta+F2");
+        HotkeyBindings::migrateDefaults();
+        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureWindow), QKeySequence("Ctrl+Alt+F3"));
+        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::RecordWindow), QKeySequence("Meta+F2"));
+        QVERIFY(!HotkeyBindings::isCustomized(HotkeyAction::CaptureArea));
+    }
+
+    void migrationKeepsAUserClearedCaptureArea()
+    {
+        // "" was never the CaptureArea default, so the user unbound it on purpose.
+        storeRc1Apply();
+        QSettings().setValue("Hotkeys/CaptureArea", "");
+        HotkeyBindings::migrateDefaults();
+        QVERIFY(HotkeyBindings::isCustomized(HotkeyAction::CaptureArea));
+        QVERIFY(HotkeyBindings::sequence(HotkeyAction::CaptureArea).isEmpty());
+    }
+
+    void migrationRunsOnce()
+    {
+        storeRc1Apply();
+        HotkeyBindings::migrateDefaults();
+        // Chosen after the migration, so it is the user's own pick and must stay.
+        QSettings().setValue("Hotkeys/CaptureArea", "Ctrl+Shift+A");
+        HotkeyBindings::migrateDefaults();
+        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureArea), QKeySequence("Ctrl+Shift+A"));
+        QCOMPARE(Core::Settings::hotkeyDefaultsVersion(), 1);
+    }
+
+    void migratedStoreKeepsTheOldChord()
+    {
+        Core::Settings::setHotkeyDefaultsVersion(1);
+        QSettings().setValue("Hotkeys/CaptureArea", "Ctrl+Shift+A");
+        HotkeyBindings::migrateDefaults();
+        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureArea), QKeySequence("Ctrl+Shift+A"));
+    }
+
     void normalizedKeepsOnlyTheFirstChord()
     {
         QCOMPARE(HotkeyBindings::normalized(QKeySequence("Ctrl+A, Ctrl+B")), QKeySequence("Ctrl+A"));
         QCOMPARE(HotkeyBindings::normalized(QKeySequence("Ctrl+Shift+A")), QKeySequence("Ctrl+Shift+A"));
         QVERIFY(HotkeyBindings::normalized(QKeySequence()).isEmpty());
+    }
+
+private:
+    // What rc.1's Settings Apply left behind: every row, its empty defaults included.
+    static void storeRc1Apply()
+    {
+        QSettings store;
+        store.setValue("Hotkeys/CaptureArea", "Ctrl+Shift+A");
+        store.setValue("Hotkeys/CaptureWindow", "Ctrl+Shift+W");
+        store.setValue("Hotkeys/CaptureFullScreen", "");
+        store.setValue("Hotkeys/OcrTextSnip", "Ctrl+Shift+T");
+        store.setValue("Hotkeys/RecordArea", "Ctrl+Shift+R");
+        store.setValue("Hotkeys/RecordWindow", "");
     }
 };
 

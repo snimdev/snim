@@ -4,6 +4,7 @@
 #include "core/SelfTest.h"
 #include "core/Settings.h"
 #include "core/Version.h"
+#include "hotkeys/HotkeyBindings.h"
 #include <QApplication>
 #include <QLoggingCategory>
 #include <QIcon>
@@ -110,6 +111,8 @@ int main(int argc, char *argv[]) {
     // The portable zip ships an empty snim.ini beside snim.exe: then the registry stays untouched.
     Core::Settings::setPortableFile(Core::Settings::portableFileIn(exeDirectory()));
 #endif
+    // Before Application reads the bindings, and after the store is chosen.
+    Hotkeys::HotkeyBindings::migrateDefaults();
 
     App::Application app(argc, argv);
 
