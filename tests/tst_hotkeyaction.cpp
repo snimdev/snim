@@ -69,16 +69,51 @@ private slots:
         }
     }
 
-    void defaultsMatchTheTrayShortcuts()
+    void defaultsPerPlatform_data()
     {
-        QCOMPARE(hotkeyActionDefault(HotkeyAction::CaptureArea), QKeySequence("Ctrl+Shift+A"));
-        QCOMPARE(hotkeyActionDefault(HotkeyAction::CaptureWindow), QKeySequence("Ctrl+Shift+W"));
-        QCOMPARE(hotkeyActionDefault(HotkeyAction::OcrTextSnip), QKeySequence("Ctrl+Shift+T"));
-        QCOMPARE(hotkeyActionDefault(HotkeyAction::RecordArea), QKeySequence("Ctrl+Shift+R"));
-        // Deliberately unbound, not an oversight: on macOS Qt maps Ctrl to Command and
-        // every plausible Cmd+Shift+<letter> left for these two is already taken.
-        QVERIFY(hotkeyActionDefault(HotkeyAction::CaptureFullScreen).isEmpty());
-        QVERIFY(hotkeyActionDefault(HotkeyAction::RecordWindow).isEmpty());
+        QTest::addColumn<HotkeyPlatform>("platform");
+        QTest::addColumn<HotkeyAction>("action");
+        QTest::addColumn<QKeySequence>("expected");
+
+        // Empty is deliberately unbound, not an oversight: every plausible free chord
+        // left for those actions is already taken by something common.
+        const QList<QPair<HotkeyPlatform, const char *>> platforms = {
+            {HotkeyPlatform::Windows, "windows"},
+            {HotkeyPlatform::Mac, "mac"},
+            {HotkeyPlatform::Linux, "linux"}};
+        for (const auto &[platform, name] : platforms) {
+            const auto row = [&](HotkeyAction a, const char *keys) {
+                QTest::addRow("%s/%s", name, qPrintable(hotkeyActionId(a)))
+                    << platform << a << QKeySequence(QString::fromLatin1(keys));
+            };
+            row(HotkeyAction::CaptureArea, "Ctrl+Shift+A");
+            row(HotkeyAction::CaptureWindow, "Ctrl+Shift+W");
+            row(HotkeyAction::CaptureFullScreen, "");
+            row(HotkeyAction::OcrTextSnip, "Ctrl+Shift+T");
+            row(HotkeyAction::RecordArea, "Ctrl+Shift+R");
+            row(HotkeyAction::RecordWindow, "");
+        }
+    }
+
+    void defaultsPerPlatform()
+    {
+        QFETCH(HotkeyPlatform, platform);
+        QFETCH(HotkeyAction, action);
+        QFETCH(QKeySequence, expected);
+        QCOMPARE(hotkeyActionDefault(action, platform), expected);
+    }
+
+    void hostOverloadUsesTheHostPlatform()
+    {
+#if defined(Q_OS_MACOS)
+        static_assert(hostHotkeyPlatform() == HotkeyPlatform::Mac);
+#elif defined(Q_OS_WIN)
+        static_assert(hostHotkeyPlatform() == HotkeyPlatform::Windows);
+#else
+        static_assert(hostHotkeyPlatform() == HotkeyPlatform::Linux);
+#endif
+        for (const HotkeyAction a : allHotkeyActions())
+            QCOMPARE(hotkeyActionDefault(a), hotkeyActionDefault(a, hostHotkeyPlatform()));
     }
 };
 

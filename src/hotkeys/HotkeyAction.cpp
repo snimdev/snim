@@ -50,8 +50,9 @@ QString hotkeyActionDescription(HotkeyAction a)
     return {};
 }
 
-QKeySequence hotkeyActionDefault(HotkeyAction a)
+QKeySequence hotkeyActionDefault(HotkeyAction a, HotkeyPlatform p)
 {
+    Q_UNUSED(p)
     // The bound defaults match the sequences the tray menu has always displayed.
     switch (a) {
     case HotkeyAction::CaptureArea:       return QKeySequence(QStringLiteral("Ctrl+Shift+A"));
@@ -62,6 +63,11 @@ QKeySequence hotkeyActionDefault(HotkeyAction a)
     case HotkeyAction::RecordWindow:      return {};
     }
     return {};
+}
+
+QKeySequence hotkeyActionDefault(HotkeyAction a)
+{
+    return hotkeyActionDefault(a, hostHotkeyPlatform());
 }
 
 } // namespace Hotkeys

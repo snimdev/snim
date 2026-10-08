@@ -32,7 +32,23 @@ inline constexpr int kHotkeyActionCount = 6;
 // User-facing label (settings row, portal description, failure messages).
 [[nodiscard]] QString hotkeyActionDescription(HotkeyAction a);
 
+// The platform a default is chosen for, so every platform's table is testable anywhere.
+enum class HotkeyPlatform { Windows, Mac, Linux };
+
+[[nodiscard]] constexpr HotkeyPlatform hostHotkeyPlatform()
+{
+#if defined(Q_OS_MACOS)
+    return HotkeyPlatform::Mac;
+#elif defined(Q_OS_WIN)
+    return HotkeyPlatform::Windows;
+#else
+    return HotkeyPlatform::Linux;
+#endif
+}
+
 // Factory default; empty = deliberately unbound (the free combos collide with common bindings).
+[[nodiscard]] QKeySequence hotkeyActionDefault(HotkeyAction a, HotkeyPlatform p);
+// The default on the platform this build runs on.
 [[nodiscard]] QKeySequence hotkeyActionDefault(HotkeyAction a);
 
 struct HotkeyBinding {
