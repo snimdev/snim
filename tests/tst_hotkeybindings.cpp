@@ -32,8 +32,7 @@ private slots:
         for (const HotkeyAction a : allHotkeyActions())
             QCOMPARE(HotkeyBindings::sequence(a), hotkeyActionDefault(a));
 
-        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureArea),
-                 QKeySequence("Ctrl+Shift+A"));
+        QVERIFY(!HotkeyBindings::sequence(HotkeyAction::CaptureArea).isEmpty());
         QVERIFY(HotkeyBindings::sequence(HotkeyAction::RecordWindow).isEmpty());
     }
 
@@ -50,7 +49,8 @@ private slots:
         // Overwriting replaces, and the other actions are untouched.
         HotkeyBindings::setSequence(HotkeyAction::CaptureFullScreen, QKeySequence("Meta+F1"));
         QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureFullScreen), QKeySequence("Meta+F1"));
-        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureArea), QKeySequence("Ctrl+Shift+A"));
+        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureArea),
+                 hotkeyActionDefault(HotkeyAction::CaptureArea));
     }
 
     void keyNamesAreFrozen()
@@ -107,23 +107,29 @@ private slots:
 
     void activeBindingsSkipsUnboundAndNormalizes()
     {
-        // Out of the box: the four bound defaults, in enum order.
+        // Out of the box: the three bound defaults, in enum order.
+        QList<HotkeyAction> bound;
+        for (const HotkeyAction a : allHotkeyActions()) {
+            if (!hotkeyActionDefault(a).isEmpty())
+                bound.append(a);
+        }
+        QCOMPARE(bound.size(), 3);
         QList<HotkeyBinding> active = HotkeyBindings::activeBindings();
-        QCOMPARE(active.size(), 4);
-        QCOMPARE(active.at(0).action, HotkeyAction::CaptureArea);
-        QCOMPARE(active.at(1).action, HotkeyAction::CaptureWindow);
-        QCOMPARE(active.at(2).action, HotkeyAction::OcrTextSnip);
-        QCOMPARE(active.at(3).action, HotkeyAction::RecordArea);
-        QCOMPARE(active.at(0).sequence, QKeySequence("Ctrl+Shift+A"));
+        QCOMPARE(active.size(), bound.size());
+        for (qsizetype i = 0; i < active.size(); ++i) {
+            QCOMPARE(active.at(i).action, bound.at(i));
+            QCOMPARE(active.at(i).sequence, hotkeyActionDefault(bound.at(i)));
+        }
 
         // A multi-chord sequence is trimmed to its first chord on the way out, since
         // no backend can register the rest.
         HotkeyBindings::setSequence(HotkeyAction::RecordWindow, QKeySequence("Ctrl+K, Ctrl+J"));
-        HotkeyBindings::setSequence(HotkeyAction::CaptureWindow, QKeySequence());   // unbound
+        HotkeyBindings::setSequence(HotkeyAction::CaptureArea, QKeySequence());   // unbound
         active = HotkeyBindings::activeBindings();
-        QCOMPARE(active.size(), 4);
-        QCOMPARE(active.at(3).action, HotkeyAction::RecordWindow);
-        QCOMPARE(active.at(3).sequence, QKeySequence("Ctrl+K"));
+        QCOMPARE(active.size(), bound.size());
+        QVERIFY(active.first().action != HotkeyAction::CaptureArea);
+        QCOMPARE(active.last().action, HotkeyAction::RecordWindow);
+        QCOMPARE(active.last().sequence, QKeySequence("Ctrl+K"));
         for (const HotkeyBinding &b : active)
             QVERIFY(!b.sequence.isEmpty());
     }

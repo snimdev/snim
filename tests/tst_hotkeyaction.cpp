@@ -2,6 +2,9 @@
 #include <QSet>
 
 #include "hotkeys/HotkeyAction.h"
+#include "hotkeys/MacKeyMapping.h"
+#include "hotkeys/PortalKeyMapping.h"
+#include "hotkeys/WinKeyMapping.h"
 
 using namespace Hotkeys;
 
@@ -75,24 +78,30 @@ private slots:
         QTest::addColumn<HotkeyAction>("action");
         QTest::addColumn<QKeySequence>("expected");
 
-        // Empty is deliberately unbound, not an oversight: every plausible free chord
-        // left for those actions is already taken by something common.
-        const QList<QPair<HotkeyPlatform, const char *>> platforms = {
-            {HotkeyPlatform::Windows, "windows"},
-            {HotkeyPlatform::Mac, "mac"},
-            {HotkeyPlatform::Linux, "linux"}};
-        for (const auto &[platform, name] : platforms) {
-            const auto row = [&](HotkeyAction a, const char *keys) {
-                QTest::addRow("%s/%s", name, qPrintable(hotkeyActionId(a)))
-                    << platform << a << QKeySequence(QString::fromLatin1(keys));
-            };
-            row(HotkeyAction::CaptureArea, "Ctrl+Shift+A");
-            row(HotkeyAction::CaptureWindow, "Ctrl+Shift+W");
-            row(HotkeyAction::CaptureFullScreen, "");
-            row(HotkeyAction::OcrTextSnip, "Ctrl+Shift+T");
-            row(HotkeyAction::RecordArea, "Ctrl+Shift+R");
-            row(HotkeyAction::RecordWindow, "");
+        // Empty is deliberately unbound, not an oversight: the free chords left for
+        // those actions collide with common app shortcuts.
+        const auto row = [](HotkeyPlatform p, const char *name, HotkeyAction a, const char *keys) {
+            QTest::addRow("%s/%s", name, qPrintable(hotkeyActionId(a)))
+                << p << a << QKeySequence(QString::fromLatin1(keys));
+        };
+        // Windows and Linux: Print chords, since the OS keeps bare Print for itself.
+        for (const auto &[p, name] : {std::pair{HotkeyPlatform::Windows, "windows"},
+                                      std::pair{HotkeyPlatform::Linux, "linux"}}) {
+            row(p, name, HotkeyAction::CaptureArea, "Ctrl+Print");
+            row(p, name, HotkeyAction::CaptureWindow, "Ctrl+Alt+Print");
+            row(p, name, HotkeyAction::CaptureFullScreen, "");
+            row(p, name, HotkeyAction::OcrTextSnip, "");
+            row(p, name, HotkeyAction::RecordArea, "Ctrl+Shift+Print");
+            row(p, name, HotkeyAction::RecordWindow, "");
         }
+        // macOS: Qt's Ctrl is Command, so Option is added to the system's 3/4/5 keys.
+        const HotkeyPlatform mac = HotkeyPlatform::Mac;
+        row(mac, "mac", HotkeyAction::CaptureArea, "Ctrl+Alt+Shift+4");
+        row(mac, "mac", HotkeyAction::CaptureWindow, "");
+        row(mac, "mac", HotkeyAction::CaptureFullScreen, "Ctrl+Alt+Shift+3");
+        row(mac, "mac", HotkeyAction::OcrTextSnip, "");
+        row(mac, "mac", HotkeyAction::RecordArea, "Ctrl+Alt+Shift+5");
+        row(mac, "mac", HotkeyAction::RecordWindow, "");
     }
 
     void defaultsPerPlatform()
@@ -101,6 +110,38 @@ private slots:
         QFETCH(HotkeyAction, action);
         QFETCH(QKeySequence, expected);
         QCOMPARE(hotkeyActionDefault(action, platform), expected);
+    }
+
+    void everyDefaultMapsOnItsPlatform()
+    {
+        // A default its own backend cannot register is a hotkey that silently never fires.
+        for (const HotkeyAction a : allHotkeyActions()) {
+            const QKeySequence winSeq = hotkeyActionDefault(a, HotkeyPlatform::Windows);
+            const QKeySequence macSeq = hotkeyActionDefault(a, HotkeyPlatform::Mac);
+            const QKeySequence linuxSeq = hotkeyActionDefault(a, HotkeyPlatform::Linux);
+            if (!winSeq.isEmpty())
+                QVERIFY2(toWinHotkey(winSeq).has_value(), qPrintable(winSeq.toString()));
+            if (!macSeq.isEmpty())
+                QVERIFY2(toCarbonHotkey(macSeq).has_value(), qPrintable(macSeq.toString()));
+            if (!linuxSeq.isEmpty())
+                QVERIFY2(!toPortalTrigger(linuxSeq).isEmpty(), qPrintable(linuxSeq.toString()));
+        }
+    }
+
+    void noDuplicateDefaultsWithinAPlatform()
+    {
+        for (const HotkeyPlatform p :
+             {HotkeyPlatform::Windows, HotkeyPlatform::Mac, HotkeyPlatform::Linux}) {
+            QSet<QString> seen;
+            for (const HotkeyAction a : allHotkeyActions()) {
+                const QKeySequence seq = hotkeyActionDefault(a, p);
+                if (seq.isEmpty())
+                    continue;
+                const QString text = seq.toString(QKeySequence::PortableText);
+                QVERIFY2(!seen.contains(text), qPrintable(text));
+                seen.insert(text);
+            }
+        }
     }
 
     void hostOverloadUsesTheHostPlatform()

@@ -52,14 +52,26 @@ QString hotkeyActionDescription(HotkeyAction a)
 
 QKeySequence hotkeyActionDefault(HotkeyAction a, HotkeyPlatform p)
 {
-    Q_UNUSED(p)
-    // The bound defaults match the sequences the tray menu has always displayed.
+    // Chords on the OS screenshot key, so no everyday app shortcut is grabbed.
+    if (p == HotkeyPlatform::Mac) {
+        // Qt's Ctrl is Command: Option+Shift+Command 3/4/5, beside the system's own keys.
+        switch (a) {
+        case HotkeyAction::CaptureArea:       return QKeySequence(QStringLiteral("Ctrl+Alt+Shift+4"));
+        case HotkeyAction::CaptureFullScreen: return QKeySequence(QStringLiteral("Ctrl+Alt+Shift+3"));
+        case HotkeyAction::RecordArea:        return QKeySequence(QStringLiteral("Ctrl+Alt+Shift+5"));
+        case HotkeyAction::CaptureWindow:
+        case HotkeyAction::OcrTextSnip:
+        case HotkeyAction::RecordWindow:      return {};
+        }
+        return {};
+    }
+
     switch (a) {
-    case HotkeyAction::CaptureArea:       return QKeySequence(QStringLiteral("Ctrl+Shift+A"));
-    case HotkeyAction::CaptureWindow:     return QKeySequence(QStringLiteral("Ctrl+Shift+W"));
-    case HotkeyAction::CaptureFullScreen: return {};
-    case HotkeyAction::OcrTextSnip:       return QKeySequence(QStringLiteral("Ctrl+Shift+T"));
-    case HotkeyAction::RecordArea:        return QKeySequence(QStringLiteral("Ctrl+Shift+R"));
+    case HotkeyAction::CaptureArea:       return QKeySequence(QStringLiteral("Ctrl+Print"));
+    case HotkeyAction::CaptureWindow:     return QKeySequence(QStringLiteral("Ctrl+Alt+Print"));
+    case HotkeyAction::RecordArea:        return QKeySequence(QStringLiteral("Ctrl+Shift+Print"));
+    case HotkeyAction::CaptureFullScreen:
+    case HotkeyAction::OcrTextSnip:
     case HotkeyAction::RecordWindow:      return {};
     }
     return {};

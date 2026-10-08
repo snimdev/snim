@@ -63,10 +63,9 @@ private slots:
 
     void applyBindingsPassesTheResolvedActiveSet()
     {
+        for (const HotkeyAction a : allHotkeyActions())
+            HotkeyBindings::setSequence(a, QKeySequence());   // unbound
         HotkeyBindings::setSequence(HotkeyAction::CaptureArea, QKeySequence("Ctrl+Alt+1"));
-        HotkeyBindings::setSequence(HotkeyAction::CaptureWindow, QKeySequence());   // unbound
-        HotkeyBindings::setSequence(HotkeyAction::OcrTextSnip, QKeySequence());
-        HotkeyBindings::setSequence(HotkeyAction::RecordArea, QKeySequence());
 
         auto fake = std::make_unique<FakeHotkeyBackend>();
         FakeHotkeyBackend *f = fake.get();
@@ -94,7 +93,10 @@ private slots:
         // The old set is dropped before the new one goes in, so nothing survives twice.
         QCOMPARE(f->unregisterCount, 2);
         QCOMPARE(f->registerCount, 2);
-        QCOMPARE(f->lastRegistered.size(), 5);           // 4 defaults + the new one
+        qsizetype defaults = 0;
+        for (const HotkeyAction a : allHotkeyActions())
+            defaults += hotkeyActionDefault(a).isEmpty() ? 0 : 1;
+        QCOMPARE(f->lastRegistered.size(), defaults + 1);   // the defaults + the new one
         QCOMPARE(f->lastRegistered.last().action, HotkeyAction::RecordWindow);
     }
 
