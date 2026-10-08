@@ -194,7 +194,7 @@ namespace App {
     }
 
     void Application::showSettings() {
-        auto *settingsDialog = new SettingsDialog();
+        auto *settingsDialog = new SettingsDialog(m_hotkeyManager.get());
         settingsDialog->setAttribute(Qt::WA_DeleteOnClose);
         connect(settingsDialog, &SettingsDialog::settingsApplied, this, [this] {
             if (m_hotkeyManager)

@@ -22,10 +22,12 @@
 #include <QVector>
 #include <QHash>
 #include <QKeySequenceEdit>
+#include <QPointer>
 
 #include "hotkeys/HotkeyAction.h"
 #include "upload/UploadProfiles.h"
 
+namespace Hotkeys { class GlobalHotkeyManager; }
 namespace Upload { class Uploader; }
 
 namespace App {
@@ -35,7 +37,9 @@ class SettingsDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit SettingsDialog(QWidget *parent = nullptr);
+    // hotkeyManager, when given, lets each hotkey row show why its binding did not register.
+    explicit SettingsDialog(Hotkeys::GlobalHotkeyManager *hotkeyManager = nullptr,
+                            QWidget *parent = nullptr);
 
 signals:
     // Emitted after Apply has persisted everything, before the dialog closes.
@@ -45,6 +49,7 @@ private slots:
     void applySettings();
     void resetSettings();
     void validateHotkeys();
+    void refreshHotkeyNotices();
 
 private:
     void setupUI();
@@ -167,11 +172,14 @@ private:
     struct HotkeyRow {
         Hotkeys::HotkeyAction action;
         QKeySequenceEdit *edit;
+        QLabel *notice;   // under the edit, hidden unless the saved binding failed
     };
 
     QWidget *m_hotkeysTab = nullptr;
     QVector<HotkeyRow> m_hotkeyRows;
     QLabel *m_hotkeyConflictLabel = nullptr;   // hidden unless two rows collide
+    QLabel *m_hotkeyFailureLabel = nullptr;    // replaces the row notices when none registered
+    QPointer<Hotkeys::GlobalHotkeyManager> m_hotkeyManager;
 
     // Dialog buttons
     QPushButton *m_applyButton = nullptr;

@@ -1,6 +1,7 @@
 #include "app/SettingsDialog.h"
 #include "core/Settings.h"
 #include "core/KeychainStore.h"
+#include "hotkeys/GlobalHotkeyManager.h"
 #include "hotkeys/HotkeyBackendFactory.h"
 #include "hotkeys/HotkeyBindings.h"
 #include "upload/UploadProfiles.h"
@@ -27,8 +28,8 @@
 
 namespace App {
 
-SettingsDialog::SettingsDialog(QWidget *parent)
-    : QDialog(parent)
+SettingsDialog::SettingsDialog(Hotkeys::GlobalHotkeyManager *hotkeyManager, QWidget *parent)
+    : QDialog(parent), m_hotkeyManager(hotkeyManager)
 {
     setWindowTitle("Settings");
     setModal(true);
@@ -36,6 +37,11 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 
     setupUI();
     loadSettings();
+
+    // The dialog is the context: the connection dies with it, the manager lives on.
+    if (m_hotkeyManager)
+        connect(m_hotkeyManager, &Hotkeys::GlobalHotkeyManager::failuresChanged,
+                this, &SettingsDialog::refreshHotkeyNotices);
 }
 
 void SettingsDialog::setupUI()
@@ -884,6 +890,12 @@ void SettingsDialog::setupHotkeysTab()
     m_hotkeyConflictLabel->setStyleSheet("color: #c62828;");
     m_hotkeyConflictLabel->hide();
 
+    // Separate from the conflict label, whose text blocks Apply.
+    m_hotkeyFailureLabel = new QLabel(m_hotkeysTab);
+    m_hotkeyFailureLabel->setWordWrap(true);
+    m_hotkeyFailureLabel->setStyleSheet("color: #c62828;");
+    m_hotkeyFailureLabel->hide();
+
     auto *group = new QGroupBox(tr("Global Hotkeys"), m_hotkeysTab);
     auto *form = new QFormLayout(group);
 
@@ -899,13 +911,24 @@ void SettingsDialog::setupHotkeysTab()
             edit->setKeySequence(Hotkeys::hotkeyActionDefault(action));
         });
 
+        auto *notice = new QLabel(group);
+        notice->setWordWrap(true);
+        notice->setStyleSheet("color: #c62828;");
+        notice->hide();
+
         auto *row = new QHBoxLayout();
         row->addWidget(edit);
         row->addWidget(defaultButton);
-        form->addRow(Hotkeys::hotkeyActionDescription(action) + ":", row);
+        auto *field = new QVBoxLayout();
+        field->setSpacing(2);
+        field->addLayout(row);
+        field->addWidget(notice);
+        form->addRow(Hotkeys::hotkeyActionDescription(action) + ":", field);
 
         connect(edit, &QKeySequenceEdit::keySequenceChanged, this, &SettingsDialog::validateHotkeys);
-        m_hotkeyRows.append(HotkeyRow{action, edit});
+        connect(edit, &QKeySequenceEdit::keySequenceChanged,
+                this, &SettingsDialog::refreshHotkeyNotices);
+        m_hotkeyRows.append(HotkeyRow{action, edit, notice});
     }
 
     layout->addWidget(group);
@@ -927,6 +950,7 @@ void SettingsDialog::setupHotkeysTab()
         layout->addWidget(info);
     }
 
+    layout->addWidget(m_hotkeyFailureLabel);
     layout->addWidget(m_hotkeyConflictLabel);
     layout->addStretch();
 
@@ -964,6 +988,30 @@ void SettingsDialog::validateHotkeys()
         m_hotkeyRows[i].edit->setStyleSheet(clashing.contains(i) ? kClashStyle : QString());
     m_hotkeyConflictLabel->setText(messages.join(QStringLiteral("\n")));
     m_hotkeyConflictLabel->setVisible(!messages.isEmpty());
+}
+
+void SettingsDialog::refreshHotkeyNotices()
+{
+    const bool allFailed = m_hotkeyManager && m_hotkeyManager->allFailed();
+    QString firstReason;
+    for (const HotkeyRow &row : m_hotkeyRows) {
+        const QString reason = m_hotkeyManager ? m_hotkeyManager->failureReason(row.action)
+                                               : QString();
+        if (firstReason.isEmpty())
+            firstReason = reason;
+        // An edited row has not been registered yet, so the last pass says nothing about it.
+        const bool saved = Hotkeys::HotkeyBindings::normalized(row.edit->keySequence())
+                           == Hotkeys::HotkeyBindings::normalized(
+                               Hotkeys::HotkeyBindings::sequence(row.action));
+        const bool show = !allFailed && saved && !reason.isEmpty();
+        row.notice->setText(show ? tr("Not registered: %1").arg(reason) : QString());
+        row.notice->setVisible(show);
+    }
+
+    // One line instead of the same notice on every row.
+    m_hotkeyFailureLabel->setText(
+        allFailed ? tr("No global hotkey could be registered: %1").arg(firstReason) : QString());
+    m_hotkeyFailureLabel->setVisible(allFailed);
 }
 
 void SettingsDialog::pickColor(QColor &color, const QString &title,
@@ -1018,6 +1066,7 @@ void SettingsDialog::loadSettings()
     for (const HotkeyRow &row : m_hotkeyRows)
         row.edit->setKeySequence(Hotkeys::HotkeyBindings::sequence(row.action));
     validateHotkeys();
+    refreshHotkeyNotices();
 
     // Upload - load the working copy of all profiles. Secrets stay in the keychain.
     m_uploadEnabledCheck->setChecked(Core::Settings::uploadEnabled());
