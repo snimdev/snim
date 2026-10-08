@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ideas and feature requests
+    url: https://snim.dev/ideas
+    about: Suggest a feature or vote on ideas on the snim.dev board.
+  - name: Security issue
+    url: https://github.com/snimdev/snim/security/advisories/new
+    about: Report a vulnerability privately instead of opening a public issue.
