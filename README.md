@@ -1,5 +1,9 @@
 # Snim
 
+[![CI](https://github.com/snimdev/snim/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/snimdev/snim/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/snimdev/snim?include_prereleases&sort=semver)](https://github.com/snimdev/snim/releases)
+[![License](https://img.shields.io/github/license/snimdev/snim)](LICENSE)
+
 Screenshots, screen recordings, OCR and uploads in one small app for Linux, macOS and Windows. The name comes from the Macedonian "snimi": capture.
 
 [Download](https://snim.dev/download) · [Website](https://snim.dev) · [Ideas and roadmap](https://snim.dev/ideas)
