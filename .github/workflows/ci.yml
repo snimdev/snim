@@ -11,11 +11,11 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths-ignore: ['**.md', 'LICENSE']
 
-# One run per ref: a new push supersedes the one still going. Never cancel on main,
-# where each run is the record for a merged commit.
+# One run per ref: a new push supersedes the one still going, on main too, since the
+# newest run tests everything before it.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
