@@ -108,7 +108,8 @@ Snim $TAG, the first release.
 - **Annotation editor** with arrows, rectangles, ellipses, freehand, text, highlight,
   blur and step numbers, plus beautify backdrops (padding, rounded corners, shadow)
   and saved presets.
-- **Screen recording** with a trim editor, GIF export and an optional webcam bubble.
+- **Screen recording** with a trim editor, GIF or WebP export and an optional webcam
+  bubble.
 - **OCR text snip** that copies recognized text straight to the clipboard.
 - **Uploads** to S3-compatible storage, SFTP and FTP, with named destination profiles.
 - **Global hotkeys** for every capture action, bound to the same actions as the tray menu.
