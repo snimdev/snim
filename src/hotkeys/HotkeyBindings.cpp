@@ -25,8 +25,17 @@ QKeySequence HotkeyBindings::sequence(HotkeyAction a)
 
 void HotkeyBindings::setSequence(HotkeyAction a, const QKeySequence &seq)
 {
+    if (normalized(seq) == hotkeyActionDefault(a)) {
+        Core::Settings::removeHotkey(settingsName(a));
+        return;
+    }
     // Empty writes "" (explicit unbound); removing the key would resurrect the default.
     Core::Settings::setHotkey(settingsName(a), seq.toString(QKeySequence::PortableText));
+}
+
+bool HotkeyBindings::isCustomized(HotkeyAction a)
+{
+    return Core::Settings::hasHotkey(settingsName(a));
 }
 
 QList<HotkeyBinding> HotkeyBindings::activeBindings()

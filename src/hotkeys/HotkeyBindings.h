@@ -21,7 +21,10 @@ public:
     // What this action currently answers to: the stored sequence, or the default
     // when the key was never written. Empty means unbound.
     [[nodiscard]] static QKeySequence sequence(HotkeyAction a);
+    // Stores only overrides: the default removes the key, "" unbinds a bound default.
     static void setSequence(HotkeyAction a, const QKeySequence &seq);
+    // True when the action has a stored override (including "").
+    [[nodiscard]] static bool isCustomized(HotkeyAction a);
 
     // Everything worth handing to a backend: normalized, unbound actions dropped,
     // in enum order.

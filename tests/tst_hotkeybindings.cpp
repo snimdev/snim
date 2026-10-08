@@ -72,10 +72,37 @@ private slots:
         HotkeyBindings::setSequence(HotkeyAction::CaptureArea, QKeySequence());
         QVERIFY(HotkeyBindings::sequence(HotkeyAction::CaptureArea).isEmpty());
         QCOMPARE(QSettings().value("Hotkeys/CaptureArea"), QVariant(QString()));
+        QVERIFY(HotkeyBindings::isCustomized(HotkeyAction::CaptureArea));
         QVERIFY(!hotkeyActionDefault(HotkeyAction::CaptureArea).isEmpty());  // default intact
 
         for (const HotkeyBinding &b : HotkeyBindings::activeBindings())
             QVERIFY(b.action != HotkeyAction::CaptureArea);
+    }
+
+    void settingTheDefaultStoresNothing()
+    {
+        // Only overrides are stored, so a later change of default reaches every user
+        // who never picked their own key.
+        for (const HotkeyAction a : allHotkeyActions()) {
+            HotkeyBindings::setSequence(a, hotkeyActionDefault(a));
+            QVERIFY(!HotkeyBindings::isCustomized(a));
+            QCOMPARE(HotkeyBindings::sequence(a), hotkeyActionDefault(a));
+        }
+        QVERIFY(QSettings().allKeys().isEmpty());
+    }
+
+    void overrideThenDefaultRemovesTheKey()
+    {
+        HotkeyBindings::setSequence(HotkeyAction::CaptureArea, QKeySequence("Ctrl+Alt+F7"));
+        QVERIFY(HotkeyBindings::isCustomized(HotkeyAction::CaptureArea));
+        QVERIFY(QSettings().contains("Hotkeys/CaptureArea"));
+
+        HotkeyBindings::setSequence(HotkeyAction::CaptureArea,
+                                    hotkeyActionDefault(HotkeyAction::CaptureArea));
+        QVERIFY(!HotkeyBindings::isCustomized(HotkeyAction::CaptureArea));
+        QVERIFY(!QSettings().contains("Hotkeys/CaptureArea"));
+        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureArea),
+                 hotkeyActionDefault(HotkeyAction::CaptureArea));
     }
 
     void activeBindingsSkipsUnboundAndNormalizes()
