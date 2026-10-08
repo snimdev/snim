@@ -81,7 +81,7 @@ ImageEditor::ImageEditor(const QPixmap &screenshot, QWidget *parent)
     : QMainWindow(parent)
     , m_originalScreenshot(screenshot)
 {
-    setWindowTitle("Image Editor");
+    setWindowTitle(tr("Snim - Image Editor"));
 
     // Undo/redo stack, created before the toolbar so its Undo/Redo actions exist.
     m_undoStack = new QUndoStack(this);

@@ -95,7 +95,7 @@ void saveAnimationParams(AnimationFormat format, const AnimationParams &p)
 VideoEditor::VideoEditor(const QString &tempPath, QWidget *parent)
     : QMainWindow(parent), m_tempPath(tempPath)
 {
-    setWindowTitle(tr("Snim - Recording"));
+    setWindowTitle(tr("Snim - Video Editor"));
     resize(900, 620);
     setupUi();
 
