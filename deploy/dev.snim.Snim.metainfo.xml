@@ -41,4 +41,12 @@
   </provides>
 
   <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="1.0.0~rc.1" date="2026-10-08" type="development">
+      <description>
+        <p>First release candidate, with Linux packages for Debian, Ubuntu and Fedora, a Flatpak, a notarized macOS DMG and a Windows installer.</p>
+      </description>
+    </release>
+  </releases>
 </component>
