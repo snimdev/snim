@@ -2,10 +2,10 @@
 #define SCREEN_STRATEGYSELECTION_H
 
 #include "FrameSourceFactory.h"
+#include "core/Desktop.h"
 
 #include <QList>
 #include <QString>
-#include <QStringList>
 
 #include <functional>
 #include <optional>
@@ -16,16 +16,7 @@
  */
 namespace Screen::StrategySelection {
 
-// XDG_CURRENT_DESKTOP is a colon-separated list such as "ubuntu:GNOME".
-inline bool desktopIs(const QString &currentDesktop, const QString &name)
-{
-    const QStringList parts = currentDesktop.split(QLatin1Char(':'), Qt::SkipEmptyParts);
-    for (const QString &part : parts) {
-        if (part.compare(name, Qt::CaseInsensitive) == 0)
-            return true;
-    }
-    return false;
-}
+using Core::desktopIs;
 
 // GNOME's Screenshot portal asks on every call, and so does any sandboxed app outside
 // KDE; on KDE in Flatpak the silent Screenshot request already works.
