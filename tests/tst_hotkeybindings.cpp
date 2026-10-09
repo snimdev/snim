@@ -89,7 +89,10 @@ private slots:
             QVERIFY(!HotkeyBindings::isCustomized(a));
             QCOMPARE(HotkeyBindings::sequence(a), hotkeyActionDefault(a));
         }
-        QVERIFY(QSettings().allKeys().isEmpty());
+        QSettings settings;
+        // macOS also lists the global preferences, so look only where bindings live.
+        settings.beginGroup("Hotkeys");
+        QVERIFY(settings.allKeys().isEmpty());
     }
 
     void overrideThenDefaultRemovesTheKey()
