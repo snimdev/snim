@@ -43,6 +43,11 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.0.0~rc.2" date="2026-10-09" type="development">
+      <description>
+        <p>Print Screen can now open Snim, in one click on Windows, macOS and KDE. New default hotkeys leave browser shortcuts alone, hotkey problems show up in Settings, and screen recordings on Linux play back smoothly at a steady frame rate.</p>
+      </description>
+    </release>
     <release version="1.0.0~rc.1" date="2026-10-08" type="development">
       <description>
         <p>First release candidate, with Linux packages for Debian, Ubuntu and Fedora, a Flatpak, a notarized macOS DMG and a Windows installer.</p>
