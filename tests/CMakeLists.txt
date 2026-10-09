@@ -165,15 +165,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             "DBUS_SESSION_BUS_ADDRESS=unix:path=${CMAKE_CURRENT_BINARY_DIR}/no-session-bus")
 endif()
 
-# The Linux keychain against a fake and a real Secret Service, and the portal plumbing
-# against a fake portal, on a private session bus where nothing is activatable, so they
-# can never reach the desktop's own keyring or portal.
+# The Linux keychain against a fake and a real Secret Service, the portal plumbing against
+# a fake portal and the KDE screenshot key against a fake kglobalaccel, on a private session
+# bus where nothing is activatable, so they can never reach the desktop's own services.
 set(SNIM_BUS_TESTS)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_program(SNIM_DBUS_RUN_SESSION dbus-run-session)
 endif()
 if(SNIM_DBUS_RUN_SESSION)
-    foreach(test_name tst_keychainstore_linux tst_portal)
+    foreach(test_name tst_keychainstore_linux tst_portal tst_screenshotkey_kde)
         add_executable(${test_name} ${test_name}.cpp)
         target_link_libraries(${test_name} PRIVATE snim_lib Qt6::Test)
         add_test(NAME ${test_name}

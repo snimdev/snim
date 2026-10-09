@@ -8,6 +8,9 @@
 #ifdef Q_OS_WIN
 #include "hotkeys/screenshotkey/WindowsScreenshotKey.h"
 #endif
+#ifdef Q_OS_LINUX
+#include "hotkeys/screenshotkey/KdeScreenshotKey.h"
+#endif
 
 namespace Hotkeys {
 
@@ -24,8 +27,13 @@ std::unique_ptr<ScreenshotKey> ScreenshotKeyFactory::create()
 #else
         break;
 #endif
-    case ScreenshotKeyKind::Mac:
     case ScreenshotKeyKind::Kde:
+#ifdef Q_OS_LINUX
+        return std::make_unique<KdeScreenshotKey>();
+#else
+        break;
+#endif
+    case ScreenshotKeyKind::Mac:
     case ScreenshotKeyKind::Gnome:
     case ScreenshotKeyKind::Unsupported:
         break;

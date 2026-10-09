@@ -797,6 +797,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             # Global hotkeys via the xdg-desktop-portal GlobalShortcuts session
             src/hotkeys/backends/PortalHotkeyBackend.cpp
             src/hotkeys/backends/PortalHotkeyBackend.h
+            # Print for Snim on KDE, through kglobalaccel
+            src/hotkeys/screenshotkey/KdeScreenshotKey.cpp
+            src/hotkeys/screenshotkey/KdeScreenshotKey.h
     )
 endif()
 
