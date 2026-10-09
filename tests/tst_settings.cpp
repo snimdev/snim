@@ -158,6 +158,10 @@ private slots:
         QCOMPARE(Settings::hotkeyDefaultsVersion(), 0);
         Settings::setHotkeyDefaultsVersion(1);
         QCOMPARE(Settings::hotkeyDefaultsVersion(), 1);
+
+        QVERIFY(!Settings::kdeKeysMoved());
+        Settings::setKdeKeysMoved(true);
+        QVERIFY(Settings::kdeKeysMoved());
     }
 
     void screenshotKey_defaults_then_roundtrip()

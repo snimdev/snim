@@ -96,6 +96,9 @@ public:
     // Last hotkey defaults migration applied to the stored bindings.
     static int hotkeyDefaultsVersion();                // default: 0 (rc.1 or a fresh store)
     static void setHotkeyDefaultsVersion(int version);
+    // True once KDE's copy of Snim's rc.1 shortcuts was moved to the current bindings.
+    static bool kdeKeysMoved();                        // default: false
+    static void setKdeKeysMoved(bool on);
     // The screenshot key swap (Hotkeys::ScreenshotKeySwap owns the JSON shape; raw I/O here).
     static QString screenshotKeyMemento();             // default: "" (not swapped)
     static void setScreenshotKeyMemento(const QString &json);

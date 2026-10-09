@@ -56,6 +56,14 @@ public:
     Result release() override;
     Result restore(const QString &memento) override;
 
+    // rc.1 filed Snim's portal shortcuts under Ctrl+Shift+A/W/T/R, and KDE keeps a known
+    // shortcut's keys over a new preferred trigger. Moves each one still on its rc.1 key
+    // to Snim's binding, unless another shortcut holds that key. false when kglobalaccel
+    // could not be asked, so it is worth another try.
+    bool moveOldSnimKeys();
+    // moveOldSnimKeys() at most once per profile, and only when key is KDE's.
+    static void moveOldSnimKeysOnce(ScreenshotKey &key);
+
     // Registers the wire types above with Qt DBus; safe to call any number of times.
     static void registerMetaTypes();
 

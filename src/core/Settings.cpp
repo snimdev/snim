@@ -32,6 +32,7 @@ constexpr auto kUploadKnownHostKeys    = "Upload/KnownHostKeys";
 constexpr auto kDesktopIntegrationDismissed = "DesktopIntegration/PromptDismissed";
 constexpr auto kAnimationOptionsSkip   = "Animation/SkipOptions";
 constexpr auto kHotkeyDefaultsVersion  = "Hotkeys/DefaultsVersion";
+constexpr auto kKdeKeysMoved           = "Hotkeys/KdeKeysMoved";
 constexpr auto kScreenshotKeyMemento   = "ScreenshotKey/Memento";
 constexpr auto kScreenshotKeyOfferDismissed = "ScreenshotKey/OfferDismissed";
 
@@ -140,6 +141,8 @@ bool Settings::hasHotkey(const QString &name) { return store()->contains(hotkeyK
 void Settings::removeHotkey(const QString &name) { store()->remove(hotkeyKey(name)); }
 int Settings::hotkeyDefaultsVersion() { return store()->value(kHotkeyDefaultsVersion, 0).toInt(); }
 void Settings::setHotkeyDefaultsVersion(int version) { store()->setValue(kHotkeyDefaultsVersion, version); }
+bool Settings::kdeKeysMoved() { return store()->value(kKdeKeysMoved, false).toBool(); }
+void Settings::setKdeKeysMoved(bool on) { store()->setValue(kKdeKeysMoved, on); }
 
 QString Settings::screenshotKeyMemento() { return store()->value(kScreenshotKeyMemento).toString(); }
 void Settings::setScreenshotKeyMemento(const QString &json) { store()->setValue(kScreenshotKeyMemento, json); }

@@ -26,6 +26,9 @@
 #ifdef SNIM_HAVE_LINUX_RECORDER
 #include "record/strategies/LinuxRecorderModule.h"
 #endif
+#ifdef Q_OS_LINUX
+#include "hotkeys/screenshotkey/KdeScreenshotKey.h"
+#endif
 #include <QDesktopServices>
 #include <QUrl>
 #include <algorithm>
@@ -95,6 +98,10 @@ namespace App {
                         m_tray->notify(tr("Hotkey unavailable"), message,
                                        QSystemTrayIcon::Warning, 5000);
                     });
+#ifdef Q_OS_LINUX
+            // Before the portal binds: KDE keeps the keys a known shortcut already has.
+            Hotkeys::KdeScreenshotKey::moveOldSnimKeysOnce(m_screenshotKey->key());
+#endif
             m_hotkeyManager->applyBindings();
             m_tray->refreshShortcutHints();
             // Here, since the swap it offers is only built above.

@@ -9,10 +9,14 @@
 #include <QJsonObject>
 #include <QMutex>
 #include <QSet>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QThread>
 
+#include "core/Settings.h"
+#include "hotkeys/HotkeyBindings.h"
 #include "hotkeys/screenshotkey/KdeScreenshotKey.h"
+#include "hotkeys/screenshotkey/UnsupportedScreenshotKey.h"
 
 using namespace Hotkeys;
 
@@ -35,6 +39,20 @@ const int kPrint = Qt::Key_Print;
 const int kMetaShiftS = combined("Meta+Shift+S");
 const int kCtrlPrint = combined("Ctrl+Print");
 const int kCtrlShiftPrint = combined("Ctrl+Shift+Print");
+const int kCtrlAltPrint = combined("Ctrl+Alt+Print");
+const int kMetaF9 = combined("Meta+F9");
+// rc.1's defaults, which KDE kept for Snim's shortcuts.
+const int kCtrlShiftA = combined("Ctrl+Shift+A");
+const int kCtrlShiftW = combined("Ctrl+Shift+W");
+const int kCtrlShiftT = combined("Ctrl+Shift+T");
+const int kCtrlShiftR = combined("Ctrl+Shift+R");
+
+// A new default as kglobalaccel holds it; empty for an unbound one.
+Keys linuxDefault(HotkeyAction action)
+{
+    const QKeySequence seq = hotkeyActionDefault(action, HotkeyPlatform::Linux);
+    return seq.isEmpty() ? Keys{} : Keys{{seq[0].toCombined()}};
+}
 
 } // namespace
 
@@ -82,6 +100,14 @@ public:
     {
         QMutexLocker lock(&m_mutex);
         return m_sets;
+    }
+
+    // As if changed in System Settings; not recorded in sets().
+    void setKeys(const QString &component, const QString &action, const Keys &keys)
+    {
+        QMutexLocker lock(&m_mutex);
+        if (Shortcut *s = find({component, action, QString(), QString()}))
+            s->keys = keys;
     }
 
     QString introspect(const QString &) const override { return {}; }
@@ -189,8 +215,15 @@ private slots:
         QDBusConnectionInterface *bus = QDBusConnection::sessionBus().interface();
         if (!bus || bus->isServiceRegistered(kService))
             QSKIP("no private session bus, or it already has a kglobalaccel; refusing to touch it");
-        QStandardPaths::setTestModeEnabled(true);
+        QCoreApplication::setOrganizationName("SnimTest");
+        QCoreApplication::setApplicationName("tst_screenshotkey_kde");
+        QStandardPaths::setTestModeEnabled(true);   // throwaway store, never the real prefs
         KdeScreenshotKey::registerMetaTypes();
+    }
+
+    void init()
+    {
+        QSettings().clear();
     }
 
     void cleanup()
@@ -391,10 +424,126 @@ private slots:
         const ScreenshotKey::Result released = key.release();
         const ScreenshotKey::Result restored =
             key.restore(QStringLiteral(R"({"holders":[],"snim":null})"));
+        const bool moved = key.moveOldSnimKeys();
         qputenv("SNIM_TEST_PRIVATE_BUS", "1");
 
         QVERIFY(!released.ok);
         QVERIFY(!restored.ok);
+        QVERIFY(!moved);
+        QVERIFY(m_fake->sets().isEmpty());
+    }
+
+    void oldSnimKeysMoveToTheNewDefaults()
+    {
+        startFake();
+        addSpectacle();
+        addOldSnim();
+        KdeScreenshotKey key;
+
+        QVERIFY(key.moveOldSnimKeys());
+        for (const HotkeyAction action : {HotkeyAction::CaptureArea, HotkeyAction::CaptureWindow,
+                                          HotkeyAction::OcrTextSnip, HotkeyAction::RecordArea})
+            QCOMPARE(m_fake->keys(kSnim, hotkeyActionId(action)), linuxDefault(action));
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("captureArea")), (Keys{{kCtrlPrint}}));
+        QVERIFY(m_fake->keys(kSnim, QStringLiteral("ocrTextSnip")).isEmpty());
+        QCOMPARE(m_fake->keys(kSpectacle, QStringLiteral("_launch")),
+                 (Keys{{kPrint}, {kMetaShiftS}}));
+
+        // Nothing is left on an old key, so another run changes nothing.
+        const QStringList sets = m_fake->sets();
+        QCOMPARE(sets.size(), 4);
+        QVERIFY(key.moveOldSnimKeys());
+        QCOMPARE(m_fake->sets(), sets);
+    }
+
+    void keysTheUserChangedStay()
+    {
+        startFake();
+        // Changed in System Settings: another key, or a second one beside the old.
+        m_fake->add({kSnim, QStringLiteral("Snim"), QStringLiteral("captureArea"),
+                     QStringLiteral("Capture Area"), {{kMetaF9}}});
+        m_fake->add({kSnim, QStringLiteral("Snim"), QStringLiteral("recordArea"),
+                     QStringLiteral("Record Area"), {{kCtrlShiftR}, {combined("Meta+R")}}});
+        m_fake->add({kSnim, QStringLiteral("Snim"), QStringLiteral("captureWindow"),
+                     QStringLiteral("Capture Window"), {{kCtrlShiftW}}});
+        // rc.1 left Capture Full Screen unbound, so any key on it is the user's.
+        m_fake->add({kSnim, QStringLiteral("Snim"), QStringLiteral("captureFullScreen"),
+                     QStringLiteral("Capture Full Screen"), {{kCtrlShiftA}}});
+        KdeScreenshotKey key;
+
+        QVERIFY(key.moveOldSnimKeys());
+        QCOMPARE(m_fake->sets(), QStringList{kSnim + "/captureWindow"});
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("captureWindow")), (Keys{{kCtrlAltPrint}}));
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("captureArea")), (Keys{{kMetaF9}}));
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("recordArea")),
+                 (Keys{{kCtrlShiftR}, {combined("Meta+R")}}));
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("captureFullScreen")), (Keys{{kCtrlShiftA}}));
+    }
+
+    void aTakenNewKeyIsSkipped()
+    {
+        startFake();
+        m_fake->add({QStringLiteral("org.example.grabber"), QStringLiteral("Grabber"),
+                     QStringLiteral("grab"), QStringLiteral("Grab"), {{kCtrlPrint}}});
+        addOldSnim();
+        KdeScreenshotKey key;
+
+        QVERIFY(key.moveOldSnimKeys());
+        // KDE would drop Ctrl+Print and leave Capture Area with no key at all.
+        QVERIFY(!m_fake->sets().contains(kSnim + "/captureArea"));
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("captureArea")), (Keys{{kCtrlShiftA}}));
+        QCOMPARE(m_fake->keys(QStringLiteral("org.example.grabber"), QStringLiteral("grab")),
+                 (Keys{{kCtrlPrint}}));
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("recordArea")), (Keys{{kCtrlShiftPrint}}));
+    }
+
+    void oldKeysFollowSnimsOwnBindings()
+    {
+        // Chosen in Snim's Settings while KDE kept the rc.1 key: Settings wins.
+        HotkeyBindings::setSequence(HotkeyAction::RecordArea, QKeySequence(kMetaF9));
+        HotkeyBindings::setSequence(HotkeyAction::CaptureWindow, QKeySequence());
+        startFake();
+        addOldSnim();
+        KdeScreenshotKey key;
+
+        QVERIFY(key.moveOldSnimKeys());
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("recordArea")), (Keys{{kMetaF9}}));
+        QVERIFY(m_fake->keys(kSnim, QStringLiteral("captureWindow")).isEmpty());
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("captureArea")), (Keys{{kCtrlPrint}}));
+    }
+
+    void movesOncePerProfile()
+    {
+        startFake();
+        addOldSnim();
+        KdeScreenshotKey key;
+
+        KdeScreenshotKey::moveOldSnimKeysOnce(key);
+        QVERIFY(Core::Settings::kdeKeysMoved());
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("captureArea")), (Keys{{kCtrlPrint}}));
+
+        // Put back on its old key by hand: the flag leaves it there.
+        m_fake->setKeys(kSnim, QStringLiteral("captureArea"), {{kCtrlShiftA}});
+        const QStringList sets = m_fake->sets();
+        KdeScreenshotKey::moveOldSnimKeysOnce(key);
+        QCOMPARE(m_fake->sets(), sets);
+        QCOMPARE(m_fake->keys(kSnim, QStringLiteral("captureArea")), (Keys{{kCtrlShiftA}}));
+    }
+
+    void moveIsTriedAgainUntilKGlobalAccelAnswers()
+    {
+        // No kglobalaccel yet: nothing moved, nothing remembered.
+        KdeScreenshotKey absent;
+        QVERIFY(!absent.moveOldSnimKeys());
+        KdeScreenshotKey::moveOldSnimKeysOnce(absent);
+        QVERIFY(!Core::Settings::kdeKeysMoved());
+
+        // Another system's strategy is not KDE's to move.
+        startFake();
+        addOldSnim();
+        UnsupportedScreenshotKey other;
+        KdeScreenshotKey::moveOldSnimKeysOnce(other);
+        QVERIFY(!Core::Settings::kdeKeysMoved());
         QVERIFY(m_fake->sets().isEmpty());
     }
 
@@ -419,6 +568,18 @@ private:
     {
         m_fake->add({kSpectacle, QStringLiteral("Spectacle"), QStringLiteral("_launch"),
                      QStringLiteral("Launch Spectacle"), {{kPrint}, {kMetaShiftS}}});
+    }
+
+    void addOldSnim()
+    {
+        const QList<QPair<HotkeyAction, int>> old{{HotkeyAction::CaptureArea, kCtrlShiftA},
+                                                  {HotkeyAction::CaptureWindow, kCtrlShiftW},
+                                                  {HotkeyAction::OcrTextSnip, kCtrlShiftT},
+                                                  {HotkeyAction::RecordArea, kCtrlShiftR}};
+        for (const auto &[action, key] : old) {
+            m_fake->add({kSnim, QStringLiteral("Snim"), hotkeyActionId(action),
+                         hotkeyActionDescription(action), {{key}}});
+        }
     }
 
     void addSnim()

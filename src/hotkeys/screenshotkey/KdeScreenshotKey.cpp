@@ -1,5 +1,8 @@
 #include "hotkeys/screenshotkey/KdeScreenshotKey.h"
 
+#include "core/Settings.h"
+#include "hotkeys/HotkeyBindings.h"
+
 #include <QDBusArgument>
 #include <QDBusMessage>
 #include <QDBusMetaType>
@@ -111,19 +114,41 @@ bool setKeys(const QDBusConnection &bus, const QStringList &id, const Keys &keys
         .has_value();
 }
 
-// Every shortcut on key except Snim's own; nullopt when kglobalaccel did not answer.
-std::optional<QList<KGlobalAccelShortcut>> otherHolders(const QDBusConnection &bus, int key)
+// Every shortcut on key; nullopt when kglobalaccel did not answer.
+std::optional<QList<KGlobalAccelShortcut>> shortcutsOn(const QDBusConnection &bus, int key)
 {
     const auto reply = call(bus, QStringLiteral("getGlobalShortcutsByKey"), {key});
     if (!reply || reply->arguments().isEmpty())
         return std::nullopt;
+    return qdbus_cast<QList<KGlobalAccelShortcut>>(reply->arguments().constFirst());
+}
+
+// Every shortcut on key except Snim's own; nullopt when kglobalaccel did not answer.
+std::optional<QList<KGlobalAccelShortcut>> otherHolders(const QDBusConnection &bus, int key)
+{
+    const auto all = shortcutsOn(bus, key);
+    if (!all)
+        return std::nullopt;
     QList<KGlobalAccelShortcut> others;
-    for (const KGlobalAccelShortcut &shortcut :
-         qdbus_cast<QList<KGlobalAccelShortcut>>(reply->arguments().constFirst())) {
+    for (const KGlobalAccelShortcut &shortcut : *all) {
         if (shortcut.componentUniqueName != kSnimComponent)
             others.append(shortcut);
     }
     return others;
+}
+
+// rc.1's default for action; empty for the actions it left unbound.
+QKeySequence rc1Default(HotkeyAction action)
+{
+    switch (action) {
+    case HotkeyAction::CaptureArea:       return QKeySequence(QStringLiteral("Ctrl+Shift+A"));
+    case HotkeyAction::CaptureWindow:     return QKeySequence(QStringLiteral("Ctrl+Shift+W"));
+    case HotkeyAction::OcrTextSnip:       return QKeySequence(QStringLiteral("Ctrl+Shift+T"));
+    case HotkeyAction::RecordArea:        return QKeySequence(QStringLiteral("Ctrl+Shift+R"));
+    case HotkeyAction::CaptureFullScreen:
+    case HotkeyAction::RecordWindow:      return {};
+    }
+    return {};
 }
 
 QStringList actionIdOf(const KGlobalAccelShortcut &shortcut)
@@ -437,6 +462,68 @@ ScreenshotKey::Result KdeScreenshotKey::restore(const QString &memento)
                     .arg(missed.join(QStringLiteral(", ")), shortcutsPage())};
     }
     return {true, {}, {}};
+}
+
+bool KdeScreenshotKey::moveOldSnimKeys()
+{
+    if (!refusal().isEmpty())
+        return false;
+    forget();
+
+    const auto reply = call(m_bus, QStringLiteral("allActionsForComponent"),
+                            {QVariant::fromValue(QStringList{kSnimComponent})});
+    if (!reply || reply->arguments().isEmpty())
+        return false;
+
+    bool asked = true;
+    for (const QStringList &id : qdbus_cast<QList<QStringList>>(reply->arguments().constFirst())) {
+        const std::optional<HotkeyAction> action =
+            id.size() == 4 ? hotkeyActionFromId(id.at(1)) : std::nullopt;
+        const QKeySequence old = action ? rc1Default(*action) : QKeySequence();
+        if (old.isEmpty())
+            continue;
+        const std::optional<Keys> before = keysOf(m_bus, id);
+        if (!before) {
+            asked = false;
+            continue;
+        }
+        // Any other keys are the user's choice.
+        if (*before != Keys{Key{old[0].toCombined()}})
+            continue;
+
+        Keys moved;
+        const QKeySequence now = HotkeyBindings::normalized(HotkeyBindings::sequence(*action));
+        if (!now.isEmpty()) {
+            const int key = now[0].toCombined();
+            // kglobalaccel drops a taken key, which would leave the shortcut with none.
+            const auto holders = shortcutsOn(m_bus, key);
+            if (!holders) {
+                asked = false;
+                continue;
+            }
+            if (!holders->isEmpty())
+                continue;
+            moved = Keys{Key{key}};
+        }
+        if (!setKeys(m_bus, id, moved)) {
+            asked = false;
+            continue;
+        }
+        const std::optional<Keys> after = keysOf(m_bus, id);
+        if (!after || *after != moved)
+            setKeys(m_bus, id, *before);
+    }
+    forget();
+    return asked;
+}
+
+void KdeScreenshotKey::moveOldSnimKeysOnce(ScreenshotKey &key)
+{
+    auto *kde = dynamic_cast<KdeScreenshotKey *>(&key);
+    if (!kde || Core::Settings::kdeKeysMoved())
+        return;
+    if (kde->moveOldSnimKeys())
+        Core::Settings::setKdeKeysMoved(true);
 }
 
 bool KdeScreenshotKey::hasService() const
