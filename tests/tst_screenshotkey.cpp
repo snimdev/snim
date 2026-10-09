@@ -11,6 +11,7 @@
 #include "hotkeys/ScreenshotKey.h"
 #include "hotkeys/ScreenshotKeySwap.h"
 #include "hotkeys/WinKeyMapping.h"
+#include "hotkeys/screenshotkey/GnomeScreenshotKey.h"
 #include "hotkeys/screenshotkey/UnsupportedScreenshotKey.h"
 
 #include <memory>
@@ -75,6 +76,35 @@ class tst_ScreenshotKey : public QObject
 
     static QKeySequence seq(const char *text) { return QKeySequence(QString::fromLatin1(text)); }
 
+    // Stands in for gsettings on show-screenshot-ui; every call is recorded.
+    QString m_gsettingsValue;
+    bool m_gsettingsFails = false;
+    QStringList m_gsettingsCalls;
+
+    std::unique_ptr<GnomeScreenshotKey> makeGnome(bool flatpak = false)
+    {
+        return std::make_unique<GnomeScreenshotKey>(
+            [this](const QStringList &args) -> std::optional<QString> {
+                m_gsettingsCalls << args.join(QLatin1Char(' '));
+                const QStringList key{QStringLiteral("org.gnome.shell.keybindings"),
+                                      QStringLiteral("show-screenshot-ui")};
+                if (m_gsettingsFails || args.mid(1, 2) != key)
+                    return std::nullopt;
+                if (args.at(0) == QLatin1String("get") && args.size() == 3)
+                    return m_gsettingsValue + QLatin1Char('\n');
+                if (args.at(0) == QLatin1String("set") && args.size() == 4) {
+                    m_gsettingsValue = args.at(3);
+                    return QString();
+                }
+                if (args.at(0) == QLatin1String("reset") && args.size() == 3) {
+                    m_gsettingsValue = QStringLiteral("['Print']");
+                    return QString();
+                }
+                return std::nullopt;
+            },
+            flatpak);
+    }
+
 private slots:
     void initTestCase()
     {
@@ -88,6 +118,9 @@ private slots:
         QSettings().clear();
         m_reapplies = 0;
         makeSwap();
+        m_gsettingsValue = QStringLiteral("['Print']");
+        m_gsettingsFails = false;
+        m_gsettingsCalls.clear();
     }
 
     void chooser_data()
@@ -399,6 +432,162 @@ private slots:
         // Undo falls back to the OS default for these, so none may pass for a value.
         for (const char *text : {"", " 1", "1 ", "-1", "+1", "0x1", "on", "Absent", "4294967296"})
             QVERIFY2(!decodeSnippingSetting(QString::fromLatin1(text)).has_value(), text);
+    }
+
+    void gsettingsListParses_data()
+    {
+        QTest::addColumn<QString>("text");
+        QTest::addColumn<QStringList>("expected");
+
+        QTest::newRow("default") << "['Print']\n" << QStringList{"Print"};
+        QTest::newRow("two") << "['<Shift>Print', 'Print']" << QStringList{"<Shift>Print", "Print"};
+        QTest::newRow("empty") << "@as []" << QStringList();
+        QTest::newRow("bare empty") << "[]" << QStringList();
+        QTest::newRow("typed") << "@as ['<Super>s']" << QStringList{"<Super>s"};
+        QTest::newRow("spacing") << "  [ 'a' ,'b'  ]  " << QStringList{"a", "b"};
+        QTest::newRow("double quotes") << "[\"it's\"]" << QStringList{"it's"};
+        QTest::newRow("escapes") << "['back\\\\slash', 'it\\'s']"
+                                 << QStringList{"back\\slash", "it's"};
+    }
+
+    void gsettingsListParses()
+    {
+        QFETCH(QString, text);
+        QFETCH(QStringList, expected);
+        const std::optional<QStringList> list = parseGSettingsList(text);
+        QVERIFY(list.has_value());
+        QCOMPARE(*list, expected);
+    }
+
+    void gsettingsListRejectsOtherText()
+    {
+        for (const char *text : {"", "Print", "'Print'", "['Print'", "[Print]", "['a' 'b']",
+                                 "['a',]", "['open]", "@as"})
+            QVERIFY2(!parseGSettingsList(QString::fromLatin1(text)).has_value(), text);
+    }
+
+    void gsettingsListFormats()
+    {
+        QCOMPARE(formatGSettingsList({}), QStringLiteral("@as []"));
+        QCOMPARE(formatGSettingsList({"Print"}), QStringLiteral("['Print']"));
+        QCOMPARE(formatGSettingsList({"<Shift>Print", "Print"}),
+                 QStringLiteral("['<Shift>Print', 'Print']"));
+
+        const QStringList awkward{"back\\slash", "it's", "say \"hi\""};
+        QCOMPARE(parseGSettingsList(formatGSettingsList(awkward)), awkward);
+    }
+
+    void gnomeIsAssisted()
+    {
+        const auto gnome = makeGnome();
+        QCOMPARE(gnome->support(), ScreenshotKey::Support::Assisted);
+        QCOMPARE(gnome->ownerName(), QStringLiteral("GNOME"));
+        QVERIFY(!gnome->guidance().isEmpty());
+        QVERIFY(!gnome->settingsPage().isValid());
+        QCOMPARE(gnome->preset().size(), 1);
+        QCOMPARE(gnome->preset().at(0).sequence, QKeySequence(Qt::Key_Print));
+        // Nothing is read until something asks.
+        QVERIFY(m_gsettingsCalls.isEmpty());
+    }
+
+    void gnomeHolderOfReadsOnceForAWhile()
+    {
+        const auto gnome = makeGnome();
+        QCOMPARE(gnome->holderOf(seq("Print")), QStringLiteral("GNOME"));
+        QCOMPARE(gnome->holderOf(seq("Print")), QStringLiteral("GNOME"));
+        QVERIFY(gnome->holderOf(seq("Ctrl+Print")).isEmpty());
+        QVERIFY(gnome->holderOf(seq("Shift+Print")).isEmpty());
+        QCOMPARE(m_gsettingsCalls.size(), 1);
+
+        // Another binding on Print is not the screenshot UI's.
+        m_gsettingsValue = QStringLiteral("['<Super>Print']");
+        QVERIFY(makeGnome()->holderOf(seq("Print")).isEmpty());
+        m_gsettingsFails = true;
+        QVERIFY(makeGnome()->holderOf(seq("Print")).isEmpty());
+    }
+
+    void gnomeReleaseKeepsTheOtherKeys()
+    {
+        m_gsettingsValue = QStringLiteral("['<Super>Print', 'Print']");
+        const auto gnome = makeGnome();
+        QCOMPARE(gnome->holderOf(seq("Print")), QStringLiteral("GNOME"));
+
+        const ScreenshotKey::Result result = gnome->release();
+        QVERIFY(result.ok);
+        QCOMPARE(result.memento, QStringLiteral("['<Super>Print', 'Print']"));
+        QCOMPARE(result.message, gnome->guidance());
+        QCOMPARE(m_gsettingsValue, QStringLiteral("['<Super>Print']"));
+        // Read live again after the change.
+        QVERIFY(gnome->holderOf(seq("Print")).isEmpty());
+    }
+
+    void gnomeReleaseCanEmptyTheList()
+    {
+        const auto gnome = makeGnome();
+        const ScreenshotKey::Result result = gnome->release();
+        QVERIFY(result.ok);
+        QCOMPARE(result.memento, QStringLiteral("['Print']"));
+        QCOMPARE(m_gsettingsValue, QStringLiteral("@as []"));
+        QCOMPARE(m_gsettingsCalls.last(),
+                 QStringLiteral("set org.gnome.shell.keybindings show-screenshot-ui @as []"));
+    }
+
+    void gnomeFailedReadChangesNothing()
+    {
+        m_gsettingsFails = true;
+        const ScreenshotKey::Result result = makeGnome()->release();
+        QVERIFY(!result.ok);
+        QVERIFY(!result.message.isEmpty());
+        QCOMPARE(m_gsettingsCalls.size(), 1);
+    }
+
+    void gnomeRestoreResetsTheDefault()
+    {
+        const auto gnome = makeGnome();
+        const ScreenshotKey::Result released = gnome->release();
+        QVERIFY(released.ok);
+
+        const ScreenshotKey::Result restored = gnome->restore(released.memento);
+        QVERIFY(restored.ok);
+        QCOMPARE(m_gsettingsCalls.last(),
+                 QStringLiteral("reset org.gnome.shell.keybindings show-screenshot-ui"));
+        QCOMPARE(m_gsettingsValue, QStringLiteral("['Print']"));
+        QCOMPARE(gnome->holderOf(seq("Print")), QStringLiteral("GNOME"));
+    }
+
+    void gnomeRestoreSetsAnyOtherList()
+    {
+        m_gsettingsValue = QStringLiteral("@as []");
+        QVERIFY(makeGnome()->restore(QStringLiteral("['<Super>Print', 'Print']")).ok);
+        QCOMPARE(m_gsettingsCalls.last(),
+                 QStringLiteral("set org.gnome.shell.keybindings show-screenshot-ui "
+                                "['<Super>Print', 'Print']"));
+
+        // Unreadable: GNOME's default is the best guess.
+        QVERIFY(makeGnome()->restore(QStringLiteral("garbage")).ok);
+        QCOMPARE(m_gsettingsValue, QStringLiteral("['Print']"));
+    }
+
+    void gnomeUnderFlatpakOnlyGuides()
+    {
+        const auto gnome = makeGnome(true);
+        QCOMPARE(gnome->support(), ScreenshotKey::Support::Manual);
+        QVERIFY(gnome->guidance().contains(QStringLiteral("Take a screenshot interactively")));
+        // Out of reach, so Print is taken to be GNOME's.
+        QCOMPARE(gnome->holderOf(seq("Print")), QStringLiteral("GNOME"));
+        QVERIFY(gnome->holderOf(seq("Ctrl+Print")).isEmpty());
+
+        QVERIFY(!gnome->release().ok);
+        QVERIFY(!gnome->restore(QStringLiteral("['Print']")).ok);
+        QVERIFY(m_gsettingsCalls.isEmpty());
+    }
+
+    void gsettingsRunnerRefusesInTests()
+    {
+        QVERIFY(!GnomeScreenshotKey::runGSettings(
+                     {QStringLiteral("get"), QStringLiteral("org.gnome.shell.keybindings"),
+                      QStringLiteral("show-screenshot-ui")})
+                     .has_value());
     }
 
     void nullKeyFallsBackToTheNullObject()

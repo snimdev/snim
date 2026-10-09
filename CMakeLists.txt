@@ -653,6 +653,8 @@ add_library(snim_lib STATIC
         src/hotkeys/ScreenshotKeySwap.cpp
         src/hotkeys/ScreenshotKeySwap.h
         src/hotkeys/screenshotkey/UnsupportedScreenshotKey.h
+        src/hotkeys/screenshotkey/GnomeScreenshotKey.cpp
+        src/hotkeys/screenshotkey/GnomeScreenshotKey.h
 
 )
 
