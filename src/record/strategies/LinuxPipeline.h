@@ -91,13 +91,15 @@ enum class VideoSource { Portal, X11 };
         .arg(fps);
 }
 
-// The source, then everything shared: pause valve, rate cap, crop and scale, encoder, muxer.
+// The source, then everything shared: pause valve, constant frame rate, crop and scale,
+// encoder, muxer. A screen cast sends frames on damage, at the display's refresh rate, so
+// videorate repeats or drops them onto an even 1/fps grid.
 [[nodiscard]] inline QString videoChain(const QString &source, int fps, const QString &encoder,
                                         const QString &mux)
 {
     return source
            + QStringLiteral(" ! valve name=videovalve drop=false "
-                            "! videorate drop-only=true max-rate=%1 skip-to-first=true "
+                            "! videorate skip-to-first=true ! video/x-raw,framerate=%1/1 "
                             "! videocrop name=crop ! videoscale ! videoconvert "
                             "! capsfilter name=outcaps caps=video/x-raw,pixel-aspect-ratio=1/1 "
                             "! queue ! %2 ! queue ! %3 name=mux ! filesink name=sink")

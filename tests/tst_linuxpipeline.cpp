@@ -103,8 +103,8 @@ private slots:
         QVERIFY(portal.startsWith(QStringLiteral("pipewiresrc name=src ")));
 
         const QString tail = QStringLiteral(" ! valve name=videovalve drop=false "
-                                            "! videorate drop-only=true max-rate=30 "
-                                            "skip-to-first=true ! videocrop name=crop "
+                                            "! videorate skip-to-first=true "
+                                            "! video/x-raw,framerate=30/1 ! videocrop name=crop "
                                             "! videoscale ! videoconvert ! capsfilter "
                                             "name=outcaps caps=video/x-raw,pixel-aspect-ratio=1/1 "
                                             "! queue ! x264enc ! queue ! mp4mux name=mux "

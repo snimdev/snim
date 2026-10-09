@@ -12,6 +12,7 @@
 #include <QStringList>
 #include <QVector>
 
+#include <atomic>
 #include <functional>
 #include <memory>
 
@@ -124,6 +125,7 @@ private:
     QVector<GstPad *> m_valvePads;    // owned refs, the valve src pads carrying the offset
     quint64 m_pauseStartRt = 0;       // GstClockTime, kept gst-free for this header
     quint64 m_pausedTotal = 0;
+    std::shared_ptr<std::atomic<quint64>> m_videoShift;   // m_pausedTotal, for the video probe
     PauseAwareClock m_elapsed;        // the timer's clock: buffer timestamps vary by portal
 
     bool m_starting = false;

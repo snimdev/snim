@@ -308,6 +308,75 @@ private slots:
         if (parsed == 0)
             QSKIP("Neither pipewiresrc nor ximagesrc");
     }
+
+    // Frames 6, 12 or 18 ms apart, as a 165 Hz screen cast sends them, leave the chain
+    // exactly 1/fps apart.
+    void theRecorderChainKeepsAConstantFrameRate()
+    {
+        using namespace Record::LinuxPipeline;
+        QVERIFY(ensureInitialized());
+        for (const char *name : {"videotestsrc", "valve", "videorate", "videocrop", "videoscale",
+                                 "videoconvert", "identity", "filesink"}) {
+            if (!hasFactory(name))
+                QSKIP(qPrintable(QStringLiteral("Missing %1").arg(QLatin1String(name))));
+        }
+
+        constexpr int kFps = 60;
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QString error;
+        GstPtr<GstElement> pipeline(parseLaunch(
+            videoChain(QStringLiteral("videotestsrc name=src num-buffers=330 "
+                                      "! video/x-raw,width=64,height=48,framerate=165/1"),
+                       kFps, QStringLiteral("identity name=enc"), QStringLiteral("identity")),
+            &error));
+        QVERIFY2(pipeline, qPrintable(error));
+        GstPtr<GstElement> sink(gst_bin_get_by_name(GST_BIN(pipeline.get()), "sink"));
+        g_object_set(sink.get(), "location",
+                     dir.filePath(QStringLiteral("raw")).toUtf8().constData(), nullptr);
+
+        // Keeps refreshes 0, 1, 3 and 6 of every 7: gaps of 1, 2, 3 and 1 refreshes.
+        GstPtr<GstElement> src(gst_bin_get_by_name(GST_BIN(pipeline.get()), "src"));
+        GstPtr<GstPad> srcPad(gst_element_get_static_pad(src.get(), "src"));
+        gst_pad_add_probe(srcPad.get(), GST_PAD_PROBE_TYPE_BUFFER,
+                          [](GstPad *, GstPadProbeInfo *info, gpointer) {
+                              const guint64 refresh =
+                                  GST_BUFFER_OFFSET(GST_PAD_PROBE_INFO_BUFFER(info)) % 7;
+                              return refresh == 0 || refresh == 1 || refresh == 3
+                                             || refresh == 6
+                                         ? GST_PAD_PROBE_OK
+                                         : GST_PAD_PROBE_DROP;
+                          }, nullptr, nullptr);
+        QList<GstClockTime> stamps;
+        GstPtr<GstElement> enc(gst_bin_get_by_name(GST_BIN(pipeline.get()), "enc"));
+        GstPtr<GstPad> encPad(gst_element_get_static_pad(enc.get(), "sink"));
+        gst_pad_add_probe(encPad.get(), GST_PAD_PROBE_TYPE_BUFFER,
+                          [](GstPad *, GstPadProbeInfo *info, gpointer data) {
+                              static_cast<QList<GstClockTime> *>(data)->append(
+                                  GST_BUFFER_PTS(GST_PAD_PROBE_INFO_BUFFER(info)));
+                              return GST_PAD_PROBE_OK;
+                          }, &stamps, nullptr);
+
+        gst_element_set_state(pipeline.get(), GST_STATE_PLAYING);
+        GstPtr<GstBus> bus(gst_element_get_bus(pipeline.get()));
+        GstMessage *message = gst_bus_timed_pop_filtered(
+            bus.get(), 20 * GST_SECOND, GstMessageType(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+        const bool eos = message && GST_MESSAGE_TYPE(message) == GST_MESSAGE_EOS;
+        if (message)
+            gst_message_unref(message);
+        gst_element_set_state(pipeline.get(), GST_STATE_NULL);
+        QVERIFY(eos);
+
+        // Two seconds of input.
+        QVERIFY2(stamps.size() >= 2 * kFps && stamps.size() <= 2 * kFps + 2,
+                 qPrintable(QString::number(stamps.size())));
+        const GstClockTime period = GST_SECOND / kFps;
+        for (qsizetype i = 1; i < stamps.size(); ++i) {
+            const GstClockTime step = stamps[i] - stamps[i - 1];
+            QVERIFY2(step + 1 >= period && step <= period + 1,
+                     qPrintable(QStringLiteral("frame %1: %2 ns").arg(i).arg(step)));
+        }
+    }
 };
 
 QTEST_GUILESS_MAIN(tst_GstSupport)

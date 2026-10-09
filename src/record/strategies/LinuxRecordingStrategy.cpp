@@ -325,6 +325,31 @@ GstPadProbeReturn onStreamBuffer(GstPad *pad, GstPadProbeInfo *info, gpointer da
     return GST_PAD_PROBE_OK;
 }
 
+using PauseShift = std::shared_ptr<std::atomic<quint64>>;
+
+void freePauseShift(gpointer data)
+{
+    delete static_cast<PauseShift *>(data);
+}
+
+// videorate reads raw timestamps, not running time, so a pad offset would leave it the
+// paused span to fill with repeated frames: video drops the span from its timestamps.
+GstPadProbeReturn onVideoBuffer(GstPad *pad, GstPadProbeInfo *info, gpointer data)
+{
+    Q_UNUSED(pad)
+
+    const quint64 shift = (*static_cast<PauseShift *>(data))->load();
+    if (shift == 0)
+        return GST_PAD_PROBE_OK;
+    GstBuffer *buffer = gst_buffer_make_writable(GST_PAD_PROBE_INFO_BUFFER(info));
+    for (GstClockTime *time : {&GST_BUFFER_PTS(buffer), &GST_BUFFER_DTS(buffer)}) {
+        if (GST_CLOCK_TIME_IS_VALID(*time))
+            *time = *time > shift ? *time - shift : 0;
+    }
+    GST_PAD_PROBE_INFO_DATA(info) = buffer;
+    return GST_PAD_PROBE_OK;
+}
+
 GstPadProbeReturn onFirstBuffer(GstPad *pad, GstPadProbeInfo *info, gpointer data)
 {
     Q_UNUSED(pad)
@@ -685,6 +710,8 @@ void LinuxRecordingStrategy::resume()
     // gap where the pause was.
     for (GstPad *pad : std::as_const(m_valvePads))
         gst_pad_set_offset(pad, -gint64(m_pausedTotal));
+    if (m_videoShift)
+        m_videoShift->store(m_pausedTotal);
     setValvesDropping(false);
     m_elapsed.resume(PauseAwareClock::nowUs());
 
@@ -857,7 +884,7 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         configurePortalSource(src, crop, outcaps, nodeId);
     }
 
-    // Pause closes every valve, but only the pads feeding the muxer carry the offset:
+    // Pause closes every valve, but only audio's pad toward the muxer carries the offset:
     // audiomixer fills silence for a dropped input, so shifting its inputs excises nothing.
     const auto collectValve = [this](const char *name, bool carriesOffset) {
         GstElement *valve = gst_bin_get_by_name(GST_BIN(m_pipeline), name);
@@ -869,10 +896,21 @@ bool LinuxRecordingStrategy::buildPipeline(quint32 nodeId, QString *error)
         if (GstPad *pad = gst_element_get_static_pad(valve, "src"))
             m_valvePads.append(pad);
     };
-    collectValve("videovalve", true);
+    collectValve("videovalve", false);
     collectValve("audiovalve", true);
     collectValve("micvalve", false);
     collectValve("sysvalve", false);
+
+    // Video takes the pause off its timestamps instead.
+    m_videoShift = std::make_shared<std::atomic<quint64>>(0);
+    if (GstElement *videoValve = gst_bin_get_by_name(GST_BIN(m_pipeline), "videovalve")) {
+        if (GstPad *pad = gst_element_get_static_pad(videoValve, "src")) {
+            gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, onVideoBuffer,
+                              new PauseShift(m_videoShift), freePauseShift);
+            gst_object_unref(pad);
+        }
+        gst_object_unref(videoValve);
+    }
 
     // The first video buffer reaching the muxer is the moment capture is really live.
     if (GstPad *muxPad = videoSinkPad(muxer)) {
@@ -993,6 +1031,7 @@ void LinuxRecordingStrategy::teardown(Output output, std::function<void()> then)
     m_valves.clear();
     m_pauseStartRt = 0;
     m_pausedTotal = 0;
+    m_videoShift.reset();
     m_elapsed.reset();
 
     if (m_link) {
