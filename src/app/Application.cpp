@@ -6,6 +6,7 @@
 #include "app/TrayMenu.h"
 #include "app/UploadWorkflow.h"
 #include "core/Perf.h"
+#include "core/Settings.h"
 #include <QAction>
 #include <QTimer>
 #include <QMessageBox>
@@ -96,6 +97,8 @@ namespace App {
                     });
             m_hotkeyManager->applyBindings();
             m_tray->refreshShortcutHints();
+            // Here, since the swap it offers is only built above.
+            QTimer::singleShot(0, this, &Application::offerScreenshotKey);
         });
 
         // Deferred so startup completes before a dialog blocks it.
@@ -138,6 +141,58 @@ namespace App {
         if (action == Hotkeys::HotkeyAction::RecordArea)
             return !(m_recordingWorkflow && m_recordingWorkflow->isRecording());
         return true;
+    }
+
+    void Application::offerScreenshotKey() {
+        if (!m_screenshotKey)
+            return;
+        const Hotkeys::ScreenshotKey &key = m_screenshotKey->key();
+        const QList<Hotkeys::HotkeyBinding> preset = key.preset();
+        const bool customized = std::any_of(preset.cbegin(), preset.cend(),
+                                            [](const Hotkeys::HotkeyBinding &b) {
+                                                return Hotkeys::HotkeyBindings::isCustomized(b.action);
+                                            });
+        if (!Hotkeys::screenshotKeyOfferApplicable(key.support(), m_screenshotKey->isSwapped(),
+                                                   Core::Settings::screenshotKeyOfferDismissed(),
+                                                   customized))
+            return;
+
+        const QString keyName = key.keyName();
+        const QString owner = key.ownerName();
+        QMessageBox box;
+        box.setIcon(QMessageBox::Question);
+        box.setWindowTitle(tr("Use %1 for Snim?").arg(keyName));
+        box.setText(tr("%1 currently uses %2. Snim can take over %2 for its own captures.")
+                        .arg(owner, keyName));
+        box.setInformativeText(tr("You can give %1 back to %2 any time in Settings > Hotkeys.")
+                                   .arg(keyName, owner));
+        QPushButton *useIt = box.addButton(tr("Use it"), QMessageBox::AcceptRole);
+        box.addButton(tr("Not now"), QMessageBox::RejectRole);
+        QPushButton *never = box.addButton(tr("Don't ask again"), QMessageBox::DestructiveRole);
+        box.setDefaultButton(useIt);
+        // A tray app has no window of its own to bring this one forward.
+        box.show();
+        box.raise();
+        box.activateWindow();
+        box.exec();
+
+        if (box.clickedButton() == never) {
+            Core::Settings::setScreenshotKeyOfferDismissed(true);
+            return;
+        }
+        if (box.clickedButton() != useIt)
+            return;
+
+        const Hotkeys::ScreenshotKey::Result result = m_screenshotKey->swap();
+        if (!result.ok) {
+            QMessageBox::warning(nullptr, tr("Screenshot key"), result.message);
+            return;
+        }
+        // Answered: giving the key back in Settings must not bring the offer back.
+        Core::Settings::setScreenshotKeyOfferDismissed(true);
+        // Anything left to do, such as Windows' sign-out note.
+        if (!result.message.isEmpty())
+            QMessageBox::information(nullptr, tr("Screenshot key"), result.message);
     }
 
     void Application::showAbout() {

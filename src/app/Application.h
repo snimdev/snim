@@ -52,6 +52,9 @@ private:
     // Should this hotkey be swallowed because a selection overlay is already up?
     [[nodiscard]] bool hotkeyBlockedBySelection(Hotkeys::HotkeyAction action) const;
 
+    // Asks once per start whether Snim may take the OS screenshot key, until answered.
+    void offerScreenshotKey();
+
     std::unique_ptr<TrayMenu> m_tray;
     std::unique_ptr<UploadWorkflow> m_uploadWorkflow;
     std::unique_ptr<CaptureWorkflow> m_captureWorkflow;
