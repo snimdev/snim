@@ -25,9 +25,8 @@ namespace {
 QString snippingToolClashReason()
 {
     return WindowsHotkeyBackend::tr(
-        "Windows gives Print Screen to Snipping Tool; turn off \"Use the Print "
-        "screen key to open screen capture\" in Settings > Accessibility > "
-        "Keyboard, then restart Snim");
+        "Windows gives Print Screen to Snipping Tool; use Snim's Settings > Hotkeys > "
+        "Screenshot key to give it to Snim");
 }
 
 } // namespace
@@ -65,9 +64,8 @@ void WindowsHotkeyBackend::registerAll(const QList<HotkeyBinding> &bindings)
         if (!RegisterHotKey(nullptr, id, hotkey->modifiers | MOD_NOREPEAT, hotkey->virtualKey)) {
             const DWORD error = GetLastError();
             // Best effort: a rejected sequence must not cost the remaining ones.
-            if (error == ERROR_HOTKEY_ALREADY_REGISTERED && barePrintScreen)
-                emit registrationFailed(binding.action, snippingToolClashReason());
-            else if (error == ERROR_HOTKEY_ALREADY_REGISTERED)
+            // A taken Print Screen is another app (OneDrive, ShareX), never Snipping Tool.
+            if (error == ERROR_HOTKEY_ALREADY_REGISTERED)
                 emit registrationFailed(binding.action,
                                         tr("already in use by another application"));
             else
