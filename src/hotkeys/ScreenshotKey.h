@@ -63,6 +63,11 @@ enum class ScreenshotKeyKind { Windows, Mac, Kde, Gnome, Unsupported };
 // Snim's bindings after the swap: Print, or the macOS system keys (Qt's Ctrl is Command).
 [[nodiscard]] QList<HotkeyBinding> screenshotKeyPreset(HotkeyPlatform platform);
 
+// Pure: whether to offer the swap at startup. Only a one-click swap that is not done and
+// not declined, and only while the user has not chosen keys for the preset's actions.
+[[nodiscard]] bool screenshotKeyOfferApplicable(ScreenshotKey::Support support, bool swapped,
+                                                bool dismissed, bool presetCustomized);
+
 } // namespace Hotkeys
 
 #endif // HOTKEYS_SCREENSHOTKEY_H

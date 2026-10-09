@@ -250,6 +250,35 @@ private slots:
         }
     }
 
+    void offerApplicable_data()
+    {
+        QTest::addColumn<ScreenshotKey::Support>("support");
+        QTest::addColumn<bool>("swapped");
+        QTest::addColumn<bool>("dismissed");
+        QTest::addColumn<bool>("customized");
+        QTest::addColumn<bool>("expected");
+
+        using Support = ScreenshotKey::Support;
+        QTest::newRow("one click") << Support::Automatic << false << false << false << true;
+        QTest::newRow("swapped") << Support::Automatic << true << false << false << false;
+        QTest::newRow("dismissed") << Support::Automatic << false << true << false << false;
+        QTest::newRow("customized") << Support::Automatic << false << false << true << false;
+        QTest::newRow("assisted") << Support::Assisted << false << false << false << false;
+        QTest::newRow("manual") << Support::Manual << false << false << false << false;
+        QTest::newRow("unsupported") << Support::Unsupported << false << false << false << false;
+        QTest::newRow("all against") << Support::Automatic << true << true << true << false;
+    }
+
+    void offerApplicable()
+    {
+        QFETCH(ScreenshotKey::Support, support);
+        QFETCH(bool, swapped);
+        QFETCH(bool, dismissed);
+        QFETCH(bool, customized);
+        QFETCH(bool, expected);
+        QCOMPARE(screenshotKeyOfferApplicable(support, swapped, dismissed, customized), expected);
+    }
+
     void unsupportedIsANullObject()
     {
         UnsupportedScreenshotKey key;

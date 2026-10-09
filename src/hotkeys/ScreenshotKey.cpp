@@ -35,4 +35,11 @@ QList<HotkeyBinding> screenshotKeyPreset(HotkeyPlatform platform)
     return {{HotkeyAction::CaptureArea, QKeySequence(QStringLiteral("Print"))}};
 }
 
+bool screenshotKeyOfferApplicable(ScreenshotKey::Support support, bool swapped, bool dismissed,
+                                  bool presetCustomized)
+{
+    return support == ScreenshotKey::Support::Automatic && !swapped && !dismissed
+           && !presetCustomized;
+}
+
 } // namespace Hotkeys
