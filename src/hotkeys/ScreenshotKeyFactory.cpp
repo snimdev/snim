@@ -5,6 +5,10 @@
 
 #include <QtGlobal>
 
+#ifdef Q_OS_WIN
+#include "hotkeys/screenshotkey/WindowsScreenshotKey.h"
+#endif
+
 namespace Hotkeys {
 
 std::unique_ptr<ScreenshotKey> ScreenshotKeyFactory::create()
@@ -15,6 +19,11 @@ std::unique_ptr<ScreenshotKey> ScreenshotKeyFactory::create()
                             HotkeyBackendFactory::isAvailable());
     switch (kind) {
     case ScreenshotKeyKind::Windows:
+#ifdef Q_OS_WIN
+        return std::make_unique<WindowsScreenshotKey>();
+#else
+        break;
+#endif
     case ScreenshotKeyKind::Mac:
     case ScreenshotKeyKind::Kde:
     case ScreenshotKeyKind::Gnome:

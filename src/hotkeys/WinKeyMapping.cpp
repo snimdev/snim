@@ -1,5 +1,7 @@
 #include "hotkeys/WinKeyMapping.h"
 
+#include <algorithm>
+
 namespace Hotkeys {
 
 namespace {
@@ -114,6 +116,27 @@ bool snippingToolOwnsPrintScreen(std::optional<quint32> setting, quint32 buildNu
     if (setting)
         return *setting != 0;
     return buildNumber >= 22621;
+}
+
+QString encodeSnippingSetting(std::optional<quint32> setting)
+{
+    return setting ? QString::number(*setting) : QStringLiteral("absent");
+}
+
+std::optional<std::optional<quint32>> decodeSnippingSetting(const QString &memento)
+{
+    using Decoded = std::optional<std::optional<quint32>>;
+    if (memento == QLatin1String("absent"))
+        return Decoded(std::in_place);   // engaged, holding "absent"
+    // Digits only: toUInt() alone would also take a sign or surrounding spaces.
+    const auto isDigit = [](QChar c) { return c >= u'0' && c <= u'9'; };
+    if (memento.isEmpty() || !std::all_of(memento.cbegin(), memento.cend(), isDigit))
+        return std::nullopt;
+    bool ok = false;
+    const quint32 value = memento.toUInt(&ok);
+    if (!ok)
+        return std::nullopt;
+    return Decoded(std::in_place, value);
 }
 
 } // namespace Hotkeys

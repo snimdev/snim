@@ -380,6 +380,27 @@ private slots:
         QVERIFY(!m_swap->isSwapped());   // so the swap can be offered again
     }
 
+    void windowsMementoRoundTrips()
+    {
+        QCOMPARE(encodeSnippingSetting(std::nullopt), QStringLiteral("absent"));
+        QCOMPARE(encodeSnippingSetting(0u), QStringLiteral("0"));
+        QCOMPARE(encodeSnippingSetting(1u), QStringLiteral("1"));
+
+        const QList<std::optional<quint32>> settings{std::nullopt, 0u, 1u, 2u, 4294967295u};
+        for (const std::optional<quint32> &setting : settings) {
+            const auto back = decodeSnippingSetting(encodeSnippingSetting(setting));
+            QVERIFY(back.has_value());
+            QVERIFY(*back == setting);
+        }
+    }
+
+    void windowsMementoRejectsForeignText()
+    {
+        // Undo falls back to the OS default for these, so none may pass for a value.
+        for (const char *text : {"", " 1", "1 ", "-1", "+1", "0x1", "on", "Absent", "4294967296"})
+            QVERIFY2(!decodeSnippingSetting(QString::fromLatin1(text)).has_value(), text);
+    }
+
     void nullKeyFallsBackToTheNullObject()
     {
         ScreenshotKeySwap swap(nullptr, {});

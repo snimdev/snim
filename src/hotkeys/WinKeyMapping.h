@@ -2,6 +2,7 @@
 #define HOTKEYS_WINKEYMAPPING_H
 
 #include <QKeySequence>
+#include <QString>
 #include <QtGlobal>
 
 #include <optional>
@@ -34,6 +35,11 @@ struct WinHotkey {
  */
 [[nodiscard]] bool snippingToolOwnsPrintScreen(std::optional<quint32> setting,
                                                quint32 buildNumber);
+
+// That setting as a screenshot key memento: "absent", or the DWORD in decimal ("0", "1").
+[[nodiscard]] QString encodeSnippingSetting(std::optional<quint32> setting);
+// The inverse: the inner nullopt is "absent"; the outer one is text never encoded.
+[[nodiscard]] std::optional<std::optional<quint32>> decodeSnippingSetting(const QString &memento);
 
 } // namespace Hotkeys
 

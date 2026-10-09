@@ -954,6 +954,8 @@ if(WIN32)
             # The registry value that gives Print Screen to Snipping Tool
             src/hotkeys/WinPrintScreen.cpp
             src/hotkeys/WinPrintScreen.h
+            src/hotkeys/screenshotkey/WindowsScreenshotKey.cpp
+            src/hotkeys/screenshotkey/WindowsScreenshotKey.h
     )
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_WIN_HOTKEYS)
 endif()
