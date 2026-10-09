@@ -206,7 +206,7 @@ if [ -z "$LATEST_TAG" ]; then
     echo "  (first release)"
 else
     echo "  Commits since $LATEST_TAG:"
-    git log --no-merges --format='    %s' "$LATEST_TAG..HEAD" | head -n 15
+    git log --no-merges --max-count=15 --format='    %s' "$LATEST_TAG..HEAD"
 fi
 echo
 
