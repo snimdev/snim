@@ -5,12 +5,11 @@
 #ifdef Q_OS_WIN
 
 #include "hotkeys/WinKeyMapping.h"
+#include "hotkeys/WinPrintScreen.h"
 
 #include <QCoreApplication>
 #include <QDebug>
-#include <QOperatingSystemVersion>
 
-#include <algorithm>
 #include <optional>
 
 #include <windows.h>
@@ -22,23 +21,6 @@
 namespace Hotkeys {
 
 namespace {
-
-std::optional<quint32> printScreenSnippingSetting()
-{
-    DWORD value = 0;
-    DWORD size = sizeof(value);
-    if (RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Keyboard",
-                     L"PrintScreenKeyForSnippingEnabled", RRF_RT_REG_DWORD, nullptr, &value,
-                     &size) != ERROR_SUCCESS)
-        return std::nullopt;
-    return quint32(value);
-}
-
-// QOperatingSystemVersion reads the real build via RtlGetVersion, unaffected by manifests.
-quint32 windowsBuildNumber()
-{
-    return quint32(std::max(0, QOperatingSystemVersion::current().microVersion()));
-}
 
 QString snippingToolClashReason()
 {

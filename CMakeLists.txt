@@ -951,6 +951,9 @@ if(WIN32)
     target_sources(snim_lib PRIVATE
             src/hotkeys/backends/WindowsHotkeyBackend.cpp
             src/hotkeys/backends/WindowsHotkeyBackend.h
+            # The registry value that gives Print Screen to Snipping Tool
+            src/hotkeys/WinPrintScreen.cpp
+            src/hotkeys/WinPrintScreen.h
     )
     target_compile_definitions(snim_lib PUBLIC SNIM_HAVE_WIN_HOTKEYS)
 endif()
