@@ -2,6 +2,7 @@
 
 #include "hotkeys/HotkeyBackendFactory.h"
 #include "hotkeys/screenshotkey/GnomeScreenshotKey.h"
+#include "hotkeys/screenshotkey/MacScreenshotKey.h"
 #include "hotkeys/screenshotkey/UnsupportedScreenshotKey.h"
 
 #include <QtGlobal>
@@ -34,9 +35,14 @@ std::unique_ptr<ScreenshotKey> ScreenshotKeyFactory::create()
 #else
         break;
 #endif
+    case ScreenshotKeyKind::Mac:
+#ifdef Q_OS_MACOS
+        return std::make_unique<MacScreenshotKey>(macSymbolicPrefs());
+#else
+        break;
+#endif
     case ScreenshotKeyKind::Gnome:
         return std::make_unique<GnomeScreenshotKey>();
-    case ScreenshotKeyKind::Mac:
     case ScreenshotKeyKind::Unsupported:
         break;
     }

@@ -652,9 +652,13 @@ add_library(snim_lib STATIC
         src/hotkeys/ScreenshotKeyFactory.h
         src/hotkeys/ScreenshotKeySwap.cpp
         src/hotkeys/ScreenshotKeySwap.h
+        src/hotkeys/MacSymbolicHotkeys.cpp
+        src/hotkeys/MacSymbolicHotkeys.h
         src/hotkeys/screenshotkey/UnsupportedScreenshotKey.h
         src/hotkeys/screenshotkey/GnomeScreenshotKey.cpp
         src/hotkeys/screenshotkey/GnomeScreenshotKey.h
+        src/hotkeys/screenshotkey/MacScreenshotKey.cpp
+        src/hotkeys/screenshotkey/MacScreenshotKey.h
 
 )
 
@@ -704,13 +708,16 @@ if(APPLE)
             # macOS global hotkeys (Carbon RegisterEventHotKey); the header is listed
             # so AUTOMOC sees its Q_OBJECT, as with the .mm-backed classes above
             src/hotkeys/backends/MacHotkeyBackend.h
-            src/hotkeys/backends/MacHotkeyBackend.mm)
+            src/hotkeys/backends/MacHotkeyBackend.mm
+            # The system screenshot shortcuts in com.apple.symbolichotkeys
+            src/hotkeys/screenshotkey/MacSymbolicPrefs.mm)
     # These .mm files hold ScreenCaptureKit/AVFoundation/Foundation objects across calls,
     # so compile them with ARC to manage those refs automatically.
     set_source_files_properties(
             src/record/strategies/MacRecordingStrategy.mm
             src/editor/video/MacVideoExporter.mm
             src/core/KeychainStore_mac.mm
+            src/hotkeys/screenshotkey/MacSymbolicPrefs.mm
             PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     # Activates the Mac branch of RecordingFactory and the Carbon branch of
     # HotkeyBackendFactory.

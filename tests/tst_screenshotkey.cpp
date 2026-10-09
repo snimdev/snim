@@ -7,13 +7,16 @@
 #include "hotkeys/HotkeyAction.h"
 #include "hotkeys/HotkeyBindings.h"
 #include "hotkeys/MacKeyMapping.h"
+#include "hotkeys/MacSymbolicHotkeys.h"
 #include "hotkeys/PortalKeyMapping.h"
 #include "hotkeys/ScreenshotKey.h"
 #include "hotkeys/ScreenshotKeySwap.h"
 #include "hotkeys/WinKeyMapping.h"
 #include "hotkeys/screenshotkey/GnomeScreenshotKey.h"
+#include "hotkeys/screenshotkey/MacScreenshotKey.h"
 #include "hotkeys/screenshotkey/UnsupportedScreenshotKey.h"
 
+#include <array>
 #include <memory>
 
 using namespace Hotkeys;
@@ -25,6 +28,21 @@ QList<HotkeyBinding> fakePreset()
 {
     return {{HotkeyAction::CaptureArea, QKeySequence(QStringLiteral("Print"))},
             {HotkeyAction::CaptureFullScreen, QKeySequence(QStringLiteral("Shift+Print"))}};
+}
+
+// What the prefs would hold after writes, as MacScreenshotKey applies them.
+MacSymbolicStates applyMacWrites(MacSymbolicStates states, const MacSymbolicWrites &writes)
+{
+    for (auto it = writes.cbegin(); it != writes.cend(); ++it) {
+        switch (it.value()) {
+        case MacSymbolicWrite::Keep:        break;
+        case MacSymbolicWrite::Disable:
+        case MacSymbolicWrite::AddDisabled: states.insert(it.key(), MacSymbolicState::Disabled); break;
+        case MacSymbolicWrite::Enable:      states.insert(it.key(), MacSymbolicState::Enabled); break;
+        case MacSymbolicWrite::Remove:      states.insert(it.key(), MacSymbolicState::Absent); break;
+        }
+    }
+    return states;
 }
 
 // Stands in for an OS: answers release/restore as told and records the calls.
@@ -105,6 +123,22 @@ class tst_ScreenshotKey : public QObject
             flatpak);
     }
 
+    // Stands in for com.apple.symbolichotkeys; every read is counted.
+    MacSymbolicStates m_macStates;
+    bool m_macReadFails = false;
+    int m_macReads = 0;
+
+    std::unique_ptr<MacScreenshotKey> makeMac()
+    {
+        return std::make_unique<MacScreenshotKey>(
+            MacScreenshotKey::Prefs{[this]() -> std::optional<MacSymbolicStates> {
+                ++m_macReads;
+                if (m_macReadFails)
+                    return std::nullopt;
+                return m_macStates;
+            }});
+    }
+
 private slots:
     void initTestCase()
     {
@@ -121,6 +155,9 @@ private slots:
         m_gsettingsValue = QStringLiteral("['Print']");
         m_gsettingsFails = false;
         m_gsettingsCalls.clear();
+        m_macStates.clear();
+        m_macReadFails = false;
+        m_macReads = 0;
     }
 
     void chooser_data()
@@ -589,6 +626,193 @@ private slots:
                       QStringLiteral("show-screenshot-ui")})
                      .has_value());
     }
+
+    void macSymbolicHotkeysMatchThePreset()
+    {
+        const QList<MacSymbolicHotkey> hotkeys = macScreenshotHotkeys();
+        QCOMPARE(hotkeys.size(), 3);
+        QCOMPARE(hotkeys.at(0).id, 28);
+        QCOMPARE(hotkeys.at(1).id, 30);
+        QCOMPARE(hotkeys.at(2).id, 184);
+        QVERIFY((hotkeys.at(0).parameters == std::array<int, 3>{51, 20, 1179648}));
+        QVERIFY((hotkeys.at(1).parameters == std::array<int, 3>{52, 21, 1179648}));
+        QVERIFY((hotkeys.at(2).parameters == std::array<int, 3>{53, 23, 1179648}));
+
+        // The codes are the ones MacKeyMapping registers for the same keys.
+        for (const MacSymbolicHotkey &hotkey : hotkeys) {
+            const std::optional<CarbonHotkey> carbon = toCarbonHotkey(hotkey.sequence);
+            QVERIFY(carbon.has_value());
+            QCOMPARE(int(carbon->keyCode), hotkey.parameters[1]);
+            QCOMPARE(carbon->modifiers, 0x0300u);   // cmdKey | shiftKey
+            QCOMPARE(hotkey.parameters[0], int(hotkey.sequence[0].key()));
+        }
+
+        // Every preset key is one of the system's, and each of those is in the preset.
+        const QList<HotkeyBinding> preset = screenshotKeyPreset(HotkeyPlatform::Mac);
+        QCOMPARE(preset.size(), hotkeys.size());
+        for (const HotkeyBinding &b : preset)
+            QVERIFY2(macScreenshotHotkeyOn(b.sequence).has_value(), qPrintable(b.sequence.toString()));
+    }
+
+    void macSymbolicHotkeyOnAKey()
+    {
+        QCOMPARE(macScreenshotHotkeyOn(seq("Ctrl+Shift+3"))->id, 28);
+        QCOMPARE(macScreenshotHotkeyOn(seq("Ctrl+Shift+4"))->id, 30);
+        QCOMPARE(macScreenshotHotkeyOn(seq("Ctrl+Shift+5, Ctrl+K"))->id, 184);
+        // Snim's own defaults sit beside the system's keys, not on them.
+        QVERIFY(!macScreenshotHotkeyOn(seq("Ctrl+Alt+Shift+4")).has_value());
+        QVERIFY(!macScreenshotHotkeyOn(seq("Ctrl+Shift+6")).has_value());
+        QVERIFY(!macScreenshotHotkeyOn(seq("Print")).has_value());
+        QVERIFY(!macScreenshotHotkeyOn(QKeySequence()).has_value());
+        QVERIFY(macSymbolicHotkeyIsOn(MacSymbolicState::Absent));
+        QVERIFY(macSymbolicHotkeyIsOn(MacSymbolicState::Enabled));
+        QVERIFY(!macSymbolicHotkeyIsOn(MacSymbolicState::Disabled));
+    }
+
+    void macMementoRoundTrips()
+    {
+        const MacSymbolicStates states{{28, MacSymbolicState::Absent},
+                                       {30, MacSymbolicState::Enabled},
+                                       {184, MacSymbolicState::Disabled}};
+        QCOMPARE(encodeMacSymbolicStates(states), QStringLiteral("28=absent,30=1,184=0"));
+
+        const QList<MacSymbolicState> all{MacSymbolicState::Absent, MacSymbolicState::Enabled,
+                                          MacSymbolicState::Disabled};
+        for (const MacSymbolicState a : all) {
+            for (const MacSymbolicState b : all) {
+                for (const MacSymbolicState c : all) {
+                    const MacSymbolicStates s{{28, a}, {30, b}, {184, c}};
+                    const auto back = decodeMacSymbolicStates(encodeMacSymbolicStates(s));
+                    QVERIFY(back.has_value());
+                    QVERIFY(*back == s);
+                }
+            }
+        }
+    }
+
+    void macMementoRejectsForeignText()
+    {
+        for (const char *text : {"", "28", "28=", "=1", "28=2", "29=1", "28=1,28=0", " 28=1",
+                                 "028=1", "+28=1", "28=1,", "28=ABSENT", "28=absent;30=1"})
+            QVERIFY2(!decodeMacSymbolicStates(QString::fromLatin1(text)).has_value(), text);
+    }
+
+    void macReleaseTurnsOffWhatIsOn()
+    {
+        // Never written: the system default is on, so each entry is written in full.
+        const MacSymbolicWrites fresh = macReleaseWrites({});
+        QCOMPARE(fresh.size(), 3);
+        for (const MacSymbolicWrite write : fresh)
+            QCOMPARE(write, MacSymbolicWrite::AddDisabled);
+
+        const MacSymbolicWrites mixed = macReleaseWrites({{28, MacSymbolicState::Enabled},
+                                                          {30, MacSymbolicState::Disabled},
+                                                          {184, MacSymbolicState::Absent}});
+        QCOMPARE(mixed.value(28), MacSymbolicWrite::Disable);
+        QCOMPARE(mixed.value(30), MacSymbolicWrite::Keep);
+        QCOMPARE(mixed.value(184), MacSymbolicWrite::AddDisabled);
+        QVERIFY(macSymbolicWritesChange(mixed));
+
+        // Already off everywhere: nothing to write.
+        const MacSymbolicStates off{{28, MacSymbolicState::Disabled},
+                                    {30, MacSymbolicState::Disabled},
+                                    {184, MacSymbolicState::Disabled}};
+        QVERIFY(!macSymbolicWritesChange(macReleaseWrites(off)));
+    }
+
+    void macRestoreUndoesOnlyTheRelease()
+    {
+        const MacSymbolicStates before{{28, MacSymbolicState::Absent},
+                                       {30, MacSymbolicState::Enabled},
+                                       {184, MacSymbolicState::Disabled}};
+        const MacSymbolicStates released = applyMacWrites(before, macReleaseWrites(before));
+        for (const MacSymbolicState state : released)
+            QCOMPARE(state, MacSymbolicState::Disabled);
+
+        const MacSymbolicWrites writes = macRestoreWrites(before, released);
+        QCOMPARE(writes.value(28), MacSymbolicWrite::Remove);
+        QCOMPARE(writes.value(30), MacSymbolicWrite::Enable);
+        QCOMPARE(writes.value(184), MacSymbolicWrite::Keep);
+        QVERIFY(applyMacWrites(released, writes) == before);
+
+        // Turned back on (or reset) since the swap: the user's, left alone.
+        const MacSymbolicStates changed{{28, MacSymbolicState::Enabled},
+                                        {30, MacSymbolicState::Absent},
+                                        {184, MacSymbolicState::Disabled}};
+        QVERIFY(!macSymbolicWritesChange(macRestoreWrites(before, changed)));
+
+        // An entry the memento does not name was not Snim's to change.
+        const MacSymbolicWrites partial =
+            macRestoreWrites(MacSymbolicStates{{30, MacSymbolicState::Enabled}}, released);
+        QCOMPARE(partial.value(28), MacSymbolicWrite::Keep);
+        QCOMPARE(partial.value(30), MacSymbolicWrite::Enable);
+        QCOMPARE(partial.value(184), MacSymbolicWrite::Keep);
+    }
+
+    void macRestoreWithoutAMementoFallsBackToTheDefault()
+    {
+        const MacSymbolicWrites writes =
+            macRestoreWrites(std::nullopt, {{28, MacSymbolicState::Disabled},
+                                            {30, MacSymbolicState::Enabled},
+                                            {184, MacSymbolicState::Absent}});
+        QCOMPARE(writes.value(28), MacSymbolicWrite::Remove);
+        QCOMPARE(writes.value(30), MacSymbolicWrite::Keep);
+        QCOMPARE(writes.value(184), MacSymbolicWrite::Keep);
+    }
+
+    void macKeyGuidesTheUser()
+    {
+        const auto mac = makeMac();
+        QCOMPARE(mac->support(), ScreenshotKey::Support::Manual);
+        QCOMPARE(mac->keyName(), QStringLiteral("⇧⌘3, ⇧⌘4 and ⇧⌘5"));
+        QCOMPARE(mac->ownerName(), QStringLiteral("macOS"));
+        QCOMPARE(mac->preset().size(), 3);
+        QVERIFY(mac->guidance().contains(QStringLiteral("Keyboard Shortcuts > Screenshots")));
+        QCOMPARE(mac->settingsPage(),
+                 QUrl(QStringLiteral("x-apple.systempreferences:com.apple.Keyboard-Settings.extension")));
+
+        const ScreenshotKey::Result released = mac->release();
+        QVERIFY(!released.ok);
+        QCOMPARE(released.message, mac->guidance());
+        QVERIFY(!mac->restore(QStringLiteral("28=absent")).ok);
+        // Nothing is read until something asks who holds a key.
+        QCOMPARE(m_macReads, 0);
+    }
+
+    void macHolderOfFollowsTheEntries()
+    {
+        // Never written: the system default, so all three are the system's.
+        const auto fresh = makeMac();
+        QCOMPARE(fresh->holderOf(seq("Ctrl+Shift+3")), QStringLiteral("macOS"));
+        QCOMPARE(fresh->holderOf(seq("Ctrl+Shift+4")), QStringLiteral("macOS"));
+        QCOMPARE(fresh->holderOf(seq("Ctrl+Shift+5")), QStringLiteral("macOS"));
+        QVERIFY(fresh->holderOf(seq("Ctrl+Alt+Shift+4")).isEmpty());
+        QVERIFY(fresh->holderOf(seq("Print")).isEmpty());
+        QCOMPARE(m_macReads, 1);
+
+        m_macStates = {{28, MacSymbolicState::Disabled},
+                       {30, MacSymbolicState::Enabled},
+                       {184, MacSymbolicState::Absent}};
+        const auto mixed = makeMac();
+        QVERIFY(mixed->holderOf(seq("Ctrl+Shift+3")).isEmpty());
+        QCOMPARE(mixed->holderOf(seq("Ctrl+Shift+4")), QStringLiteral("macOS"));
+        QCOMPARE(mixed->holderOf(seq("Ctrl+Shift+5")), QStringLiteral("macOS"));
+
+        // Unreadable: most likely the system default.
+        m_macReadFails = true;
+        QCOMPARE(makeMac()->holderOf(seq("Ctrl+Shift+3")), QStringLiteral("macOS"));
+    }
+
+#ifdef Q_OS_MACOS
+    void macRealPrefsStayOutOfTests()
+    {
+        MacScreenshotKey key(macSymbolicPrefs());
+        // Never read, so taken for the system default whatever this Mac has.
+        QCOMPARE(key.holderOf(seq("Ctrl+Shift+4")), QStringLiteral("macOS"));
+        QVERIFY(!key.release().ok);
+        QVERIFY(!key.restore(QStringLiteral("28=absent")).ok);
+    }
+#endif
 
     void nullKeyFallsBackToTheNullObject()
     {
