@@ -17,6 +17,8 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   # Upload passwords live in the host keyring (GNOME Keyring, KWallet, KeePassXC)
   - --talk-name=org.freedesktop.secrets
+  # Gives Print Screen to Snim on KDE (Settings > Hotkeys > Screenshot key)
+  - --talk-name=org.kde.kglobalaccel
   - --filesystem=xdg-pictures/Screenshots:create
   - --filesystem=xdg-videos/Snim:create
 
