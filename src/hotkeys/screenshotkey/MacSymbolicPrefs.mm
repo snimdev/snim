@@ -80,11 +80,67 @@ std::optional<MacSymbolicStates> readStates()
     return states;
 }
 
+void applyEdit(NSMutableDictionary *hotkeys, const MacSymbolicHotkey &hotkey,
+               MacSymbolicWrite edit)
+{
+    NSString *key = entryKey(hotkey.id);
+    switch (edit) {
+    case MacSymbolicWrite::Keep:
+        return;
+    case MacSymbolicWrite::Remove:
+        [hotkeys removeObjectForKey:key];
+        return;
+    case MacSymbolicWrite::AddDisabled:
+        // The shape System Settings writes for a shortcut it turns off.
+        hotkeys[key] = @{
+            @"enabled" : @NO,
+            @"value" : @{
+                @"parameters" : @[ @(hotkey.parameters[0]), @(hotkey.parameters[1]),
+                                   @(hotkey.parameters[2]) ],
+                @"type" : @"standard",
+            },
+        };
+        return;
+    case MacSymbolicWrite::Disable:
+    case MacSymbolicWrite::Enable: {
+        id current = hotkeys[key];
+        if (![current isKindOfClass:[NSDictionary class]])
+            return;
+        NSMutableDictionary *entry = [current mutableCopy];
+        entry[@"enabled"] = edit == MacSymbolicWrite::Enable ? @YES : @NO;
+        hotkeys[key] = entry;
+        return;
+    }
+    }
+}
+
+bool writeEdits(const MacSymbolicWrites &edits)
+{
+    if (QStandardPaths::isTestModeEnabled())
+        return false;
+    bool saved = false;
+    @autoreleasepool {
+        // Every other entry is written back as it was.
+        NSMutableDictionary *hotkeys = nil;
+        if (NSDictionary *current = readSymbolicHotkeys())
+            hotkeys = [current mutableCopy];
+        else
+            hotkeys = [NSMutableDictionary dictionary];
+        for (const MacSymbolicHotkey &hotkey : macScreenshotHotkeys())
+            applyEdit(hotkeys, hotkey, edits.value(hotkey.id, MacSymbolicWrite::Keep));
+        CFPreferencesSetAppValue(symbolicHotkeysKey(), (__bridge CFPropertyListRef)hotkeys,
+                                 symbolicHotkeysDomain());
+        saved = CFPreferencesAppSynchronize(symbolicHotkeysDomain());
+    }
+    return saved;
+}
+
 } // namespace
 
 MacScreenshotKey::Prefs macSymbolicPrefs()
 {
-    return {&readStates};
+    return {&readStates, &writeEdits, &MacScreenshotKey::canActivateSettings,
+            &MacScreenshotKey::activateSettings};
 }
 
 } // namespace Hotkeys

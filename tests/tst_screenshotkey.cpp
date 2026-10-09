@@ -123,20 +123,43 @@ class tst_ScreenshotKey : public QObject
             flatpak);
     }
 
-    // Stands in for com.apple.symbolichotkeys; every read is counted.
+    // Stands in for com.apple.symbolichotkeys and activateSettings; every call is counted.
     MacSymbolicStates m_macStates;
     bool m_macReadFails = false;
+    bool m_macWriteFails = false;
+    bool m_macCanActivate = false;
+    bool m_macActivateFails = false;
     int m_macReads = 0;
+    QList<MacSymbolicWrites> m_macWrites;
+    int m_macActivations = 0;
 
     std::unique_ptr<MacScreenshotKey> makeMac()
     {
-        return std::make_unique<MacScreenshotKey>(
-            MacScreenshotKey::Prefs{[this]() -> std::optional<MacSymbolicStates> {
-                ++m_macReads;
-                if (m_macReadFails)
-                    return std::nullopt;
-                return m_macStates;
-            }});
+        MacScreenshotKey::Prefs prefs;
+        prefs.read = [this]() -> std::optional<MacSymbolicStates> {
+            ++m_macReads;
+            if (m_macReadFails)
+                return std::nullopt;
+            return m_macStates;
+        };
+        prefs.write = [this](const MacSymbolicWrites &writes) {
+            if (m_macWriteFails)
+                return false;
+            m_macWrites.append(writes);
+            m_macStates = applyMacWrites(m_macStates, writes);
+            return true;
+        };
+        prefs.canActivate = [this] { return m_macCanActivate; };
+        prefs.activate = [this] {
+            ++m_macActivations;
+            return !m_macActivateFails;
+        };
+        return std::make_unique<MacScreenshotKey>(prefs);
+    }
+
+    static MacSymbolicStates allMac(MacSymbolicState state)
+    {
+        return {{28, state}, {30, state}, {184, state}};
     }
 
 private slots:
@@ -157,7 +180,12 @@ private slots:
         m_gsettingsCalls.clear();
         m_macStates.clear();
         m_macReadFails = false;
+        m_macWriteFails = false;
+        m_macCanActivate = false;
+        m_macActivateFails = false;
         m_macReads = 0;
+        m_macWrites.clear();
+        m_macActivations = 0;
     }
 
     void chooser_data()
@@ -800,12 +828,142 @@ private slots:
         QCOMPARE(mac->settingsPage(),
                  QUrl(QStringLiteral("x-apple.systempreferences:com.apple.Keyboard-Settings.extension")));
 
+        // No reload, so no one-click swap.
         const ScreenshotKey::Result released = mac->release();
         QVERIFY(!released.ok);
         QCOMPARE(released.message, mac->guidance());
-        QVERIFY(!mac->restore(QStringLiteral("28=absent")).ok);
-        // Nothing is read until something asks who holds a key.
+        // Nothing is read until something asks.
         QCOMPARE(m_macReads, 0);
+        QVERIFY(m_macWrites.isEmpty());
+    }
+
+    void macIsOneClickWithTheReload()
+    {
+        m_macCanActivate = true;
+        const auto mac = makeMac();
+        QCOMPARE(mac->support(), ScreenshotKey::Support::Automatic);
+        // Asked once: only an OS update adds or removes the tool.
+        m_macCanActivate = false;
+        QCOMPARE(mac->support(), ScreenshotKey::Support::Automatic);
+        QCOMPARE(makeMac()->support(), ScreenshotKey::Support::Manual);
+    }
+
+    void macReleaseThenRestoreRoundTrips()
+    {
+        m_macCanActivate = true;
+        m_macStates = {{28, MacSymbolicState::Enabled}};   // 30 and 184 never written
+        const auto mac = makeMac();
+        QCOMPARE(mac->holderOf(seq("Ctrl+Shift+4")), QStringLiteral("macOS"));
+
+        const ScreenshotKey::Result released = mac->release();
+        QVERIFY2(released.ok, qPrintable(released.message));
+        QVERIFY(released.message.isEmpty());
+        QCOMPARE(released.memento, QStringLiteral("28=1,30=absent,184=absent"));
+        QCOMPARE(m_macWrites.size(), 1);
+        QCOMPARE(m_macWrites.at(0).value(28), MacSymbolicWrite::Disable);
+        QCOMPARE(m_macWrites.at(0).value(30), MacSymbolicWrite::AddDisabled);
+        QCOMPARE(m_macWrites.at(0).value(184), MacSymbolicWrite::AddDisabled);
+        QCOMPARE(m_macActivations, 1);
+        // Read live again after the write.
+        QVERIFY(mac->holderOf(seq("Ctrl+Shift+4")).isEmpty());
+
+        const ScreenshotKey::Result restored = mac->restore(released.memento);
+        QVERIFY2(restored.ok, qPrintable(restored.message));
+        QVERIFY(restored.message.isEmpty());
+        QVERIFY((m_macStates == MacSymbolicStates{{28, MacSymbolicState::Enabled},
+                                                  {30, MacSymbolicState::Absent},
+                                                  {184, MacSymbolicState::Absent}}));
+        QCOMPARE(m_macActivations, 2);
+        QCOMPARE(mac->holderOf(seq("Ctrl+Shift+4")), QStringLiteral("macOS"));
+    }
+
+    void macAlreadyOffWritesNothing()
+    {
+        m_macCanActivate = true;
+        m_macStates = allMac(MacSymbolicState::Disabled);
+        const auto mac = makeMac();
+
+        const ScreenshotKey::Result released = mac->release();
+        QVERIFY(released.ok);
+        QCOMPARE(released.memento, QStringLiteral("28=0,30=0,184=0"));
+        // Off before Snim came, so off after the undo too.
+        QVERIFY(mac->restore(released.memento).ok);
+        QVERIFY(m_macWrites.isEmpty());
+        QCOMPARE(m_macActivations, 0);
+        QVERIFY(m_macStates == allMac(MacSymbolicState::Disabled));
+    }
+
+    void macWithoutTheReloadAsksForALogOut()
+    {
+        m_macCanActivate = true;
+        m_macActivateFails = true;
+        const auto mac = makeMac();
+
+        // The prefs are written, so the swap stands; the log in applies it.
+        const ScreenshotKey::Result released = mac->release();
+        QVERIFY(released.ok);
+        QVERIFY(!released.memento.isEmpty());
+        QVERIFY(released.message.contains(QStringLiteral("Log out")));
+        QVERIFY(m_macStates == allMac(MacSymbolicState::Disabled));
+
+        const ScreenshotKey::Result restored = mac->restore(released.memento);
+        QVERIFY(restored.ok);
+        QVERIFY(restored.message.contains(QStringLiteral("Log out")));
+        QVERIFY(m_macStates == allMac(MacSymbolicState::Absent));
+    }
+
+    void macFailedReadOrWriteIsRefused()
+    {
+        m_macCanActivate = true;
+        m_macStates = allMac(MacSymbolicState::Disabled);
+        m_macWriteFails = true;
+        const ScreenshotKey::Result restored = makeMac()->restore(QStringLiteral("28=absent"));
+        QVERIFY(!restored.ok);
+        QVERIFY(!restored.message.isEmpty());
+
+        m_macStates.clear();
+        const ScreenshotKey::Result released = makeMac()->release();
+        QVERIFY(!released.ok);
+        QVERIFY(released.memento.isEmpty());
+        QCOMPARE(m_macActivations, 0);
+
+        m_macWriteFails = false;
+        m_macReadFails = true;
+        QVERIFY(!makeMac()->release().ok);
+        QVERIFY(!makeMac()->restore(QStringLiteral("28=absent")).ok);
+        QVERIFY(m_macWrites.isEmpty());
+    }
+
+    void macRestoreNeedsNeitherTheToolNorTheMemento()
+    {
+        // Gone after an OS update, and the memento unreadable: the system default comes back.
+        m_macStates = allMac(MacSymbolicState::Disabled);
+        const ScreenshotKey::Result restored = makeMac()->restore(QStringLiteral("garbage"));
+        QVERIFY(restored.ok);
+        QVERIFY(m_macStates == allMac(MacSymbolicState::Absent));
+    }
+
+    void macSwapsThroughTheCommand()
+    {
+        m_macCanActivate = true;
+        ScreenshotKeySwap swap(makeMac(), {});
+
+        QVERIFY(swap.swap().ok);
+        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureArea), seq("Ctrl+Shift+4"));
+        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::CaptureFullScreen), seq("Ctrl+Shift+3"));
+        QCOMPARE(HotkeyBindings::sequence(HotkeyAction::RecordArea), seq("Ctrl+Shift+5"));
+        QVERIFY(m_macStates == allMac(MacSymbolicState::Disabled));
+
+        QVERIFY(swap.undo().ok);
+        QVERIFY(m_macStates == allMac(MacSymbolicState::Absent));
+        for (const HotkeyAction a : allHotkeyActions())
+            QVERIFY(!HotkeyBindings::isCustomized(a));
+    }
+
+    void macReloadRefusesInTests()
+    {
+        QVERIFY(!MacScreenshotKey::canActivateSettings());
+        QVERIFY(!MacScreenshotKey::activateSettings());
     }
 
     void macHolderOfFollowsTheEntries()
