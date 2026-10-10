@@ -133,7 +133,7 @@ QString h264EncoderChain(H264Encoder encoder, bool parser, const EncoderTuning &
                             ? QStringLiteral("x264enc tune=zerolatency speed-preset=veryfast "
                                              "pass=qual quantizer=22 vbv-buf-capacity=0")
                             : QStringLiteral("x264enc speed-preset=faster pass=qual "
-                                             "quantizer=20"));
+                                             "quantizer=20 vbv-buf-capacity=0"));
         if (tuning.keyIntMax > 0)
             chain += QStringLiteral(" key-int-max=%1").arg(tuning.keyIntMax);
         break;

@@ -165,7 +165,7 @@ private slots:
                                 "quantizer=22 vbv-buf-capacity=0 key-int-max=30 ! h264parse"));
         QCOMPARE(h264EncoderChain(H264Encoder::X264, false, {EncoderTuning::Offline, 0}),
                  QStringLiteral("capsfilter caps=video/x-raw,format=I420 ! x264enc "
-                                "speed-preset=faster pass=qual quantizer=20 "
+                                "speed-preset=faster pass=qual quantizer=20 vbv-buf-capacity=0 "
                                 "! capsfilter caps=video/x-h264,stream-format=avc,alignment=au"));
         QCOMPARE(h264EncoderChain(H264Encoder::Va, true, live),
                  QStringLiteral("vapostproc ! vah264enc ! h264parse"));
