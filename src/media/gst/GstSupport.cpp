@@ -128,9 +128,10 @@ QString h264EncoderChain(H264Encoder encoder, bool parser, const EncoderTuning &
     QString chain;
     switch (encoder) {
     case H264Encoder::X264:
+        // pass=qual still caps the rate at bitrate (2048 kbit/s by default) unless the VBV is 0.
         chain = i420 + (tuning.mode == EncoderTuning::Live
                             ? QStringLiteral("x264enc tune=zerolatency speed-preset=veryfast "
-                                             "pass=qual quantizer=22")
+                                             "pass=qual quantizer=22 vbv-buf-capacity=0")
                             : QStringLiteral("x264enc speed-preset=faster pass=qual "
                                              "quantizer=20"));
         if (tuning.keyIntMax > 0)

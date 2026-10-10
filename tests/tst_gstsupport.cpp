@@ -162,7 +162,7 @@ private slots:
         QCOMPARE(h264EncoderChain(H264Encoder::X264, true, live),
                  QStringLiteral("capsfilter caps=video/x-raw,format=I420 ! x264enc "
                                 "tune=zerolatency speed-preset=veryfast pass=qual "
-                                "quantizer=22 key-int-max=30 ! h264parse"));
+                                "quantizer=22 vbv-buf-capacity=0 key-int-max=30 ! h264parse"));
         QCOMPARE(h264EncoderChain(H264Encoder::X264, false, {EncoderTuning::Offline, 0}),
                  QStringLiteral("capsfilter caps=video/x-raw,format=I420 ! x264enc "
                                 "speed-preset=faster pass=qual quantizer=20 "
