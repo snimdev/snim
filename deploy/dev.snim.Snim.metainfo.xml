@@ -43,6 +43,11 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.0.0~rc.3" date="2026-10-10" type="development">
+      <description>
+        <p>Screen recordings on Linux keep text sharp while scrolling: the encoder no longer holds them to 2 Mbit/s, and trimmed exports get the same fix.</p>
+      </description>
+    </release>
     <release version="1.0.0~rc.2" date="2026-10-09" type="development">
       <description>
         <p>Print Screen can now open Snim, in one click on Windows, macOS and KDE. New default hotkeys leave browser shortcuts alone, hotkey problems show up in Settings, and screen recordings on Linux play back smoothly at a steady frame rate.</p>
