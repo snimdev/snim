@@ -171,7 +171,7 @@ private slots:
                  QStringLiteral("vapostproc ! vah264enc ! h264parse"));
         QCOMPARE(h264EncoderChain(H264Encoder::OpenH264, true, live),
                  QStringLiteral("capsfilter caps=video/x-raw,format=I420 ! "
-                                "openh264enc complexity=0 ! h264parse"));
+                                "openh264enc complexity=0 rate-control=off ! h264parse"));
         QVERIFY(h264EncoderChain(H264Encoder::None, true, live).isEmpty());
     }
 

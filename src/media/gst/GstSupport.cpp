@@ -142,7 +142,8 @@ QString h264EncoderChain(H264Encoder encoder, bool parser, const EncoderTuning &
         chain = QStringLiteral("vapostproc ! vah264enc");
         break;
     case H264Encoder::OpenH264:
-        chain = i420 + QStringLiteral("openh264enc complexity=0");
+        // A fixed QP: the default rate control aims at bitrate, 128 kbit/s by default.
+        chain = i420 + QStringLiteral("openh264enc complexity=0 rate-control=off");
         break;
     case H264Encoder::None:
         return {};
