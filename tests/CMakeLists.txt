@@ -62,6 +62,8 @@ set(SNIM_TESTS
         tst_uploadconfig
         tst_uploadworkflow
         tst_uploadutil
+        tst_providerregistry
+        tst_providerform
         tst_socketshim
         tst_hotkeyaction
         tst_hotkeybindings
