@@ -1,4 +1,5 @@
 #include "app/SettingsDialog.h"
+#include "app/ProviderForm.h"
 #include "core/Settings.h"
 #include "core/KeychainStore.h"
 #include "hotkeys/GlobalHotkeyManager.h"
@@ -237,61 +238,6 @@ void selectData(QComboBox *combo, const QVariant &data)
         combo->setCurrentIndex(index);
 }
 
-// The secret edit's placeholder while nothing is stored.
-QString secretHint(const Upload::UploadProfile &p)
-{
-    const Upload::ProviderSpec *spec = Upload::ProviderRegistry::find(p.type);
-    return spec ? spec->secretHint(p) : QString();
-}
-
-// Provider pages inside m_uploadStack. Fixed, explicit indices.
-constexpr int kS3Page   = 0;
-constexpr int kSftpPage = 1;
-constexpr int kFtpPage  = 2;
-
-int pageForType(const QString &t)
-{
-    if (t == QLatin1String("sftp")) return kSftpPage;
-    if (t == QLatin1String("ftp"))  return kFtpPage;
-    return kS3Page;
-}
-
-// Combo index <-> stored value maps. Written out rather than cast, so reordering a combo
-// can never silently rewrite stored profiles.
-constexpr int kSftpAuthPassword = 0;
-constexpr int kSftpAuthKey      = 1;
-
-QString sftpAuthForIndex(int index)
-{
-    return index == kSftpAuthKey ? QStringLiteral("key") : QStringLiteral("password");
-}
-
-int indexForSftpAuth(const QString &mode)
-{
-    return mode == QLatin1String("key") ? kSftpAuthKey : kSftpAuthPassword;
-}
-
-// The encryption combo leads with the secure default.
-constexpr int kFtpEncExplicit = 0;
-constexpr int kFtpEncImplicit = 1;
-constexpr int kFtpEncNone     = 2;
-
-QString ftpEncryptionForIndex(int index)
-{
-    switch (index) {
-    case kFtpEncImplicit: return QStringLiteral("implicit");
-    case kFtpEncNone:     return QStringLiteral("none");
-    default:              return QStringLiteral("explicit");
-    }
-}
-
-int indexForFtpEncryption(const QString &enc)
-{
-    if (enc == QLatin1String("implicit")) return kFtpEncImplicit;
-    if (enc == QLatin1String("none"))     return kFtpEncNone;
-    return kFtpEncExplicit;
-}
-
 // Why the keychain refused a secret and what to do about it, in this platform's words.
 QString keychainProblem(Core::KeychainStore::Failure why)
 {
@@ -382,11 +328,14 @@ void SettingsDialog::setupUploadTab()
     m_uploadTopForm->setRowVisible(m_uploadWarningRow, false);
     formCol->addLayout(m_uploadTopForm);
 
-    // One page of fields per provider type; bind/flush only ever touch the current one.
+    // One page of fields per provider, in registry order; bind/flush only ever touch the
+    // current one.
     m_uploadStack = new QStackedWidget(m_uploadForm);
-    m_uploadStack->addWidget(createUploadS3Page());     // kS3Page
-    m_uploadStack->addWidget(createUploadSftpPage());   // kSftpPage
-    m_uploadStack->addWidget(createUploadFtpPage());    // kFtpPage
+    for (const Upload::ProviderSpec &spec : Upload::ProviderRegistry::providers()) {
+        auto *page = new ProviderForm(spec, m_uploadStack);
+        m_uploadStack->addWidget(page);
+        m_uploadPages.push_back(page);
+    }
     formCol->addWidget(m_uploadStack);
 
     auto *sharedForm = new QFormLayout();
@@ -413,8 +362,8 @@ void SettingsDialog::setupUploadTab()
     split->addWidget(m_uploadForm, /*stretch=*/1);
     layout->addLayout(split);
 
-    auto *note = new QLabel(tr("Each destination's secret (S3 secret key, SFTP/FTP password or "
-                               "key passphrase) is stored in your system keychain, not in "
+    auto *note = new QLabel(tr("Each destination's secret (secret key, password or key "
+                               "passphrase) is stored in your system keychain, not in "
                                "settings. Uploads use the default ★ server; the Upload button's "
                                "▾ menu lets you pick another per upload."), m_uploadTab);
     note->setStyleSheet("color: gray; font-style: italic;");
@@ -432,159 +381,12 @@ void SettingsDialog::setupUploadTab()
     m_tabWidget->addTab(m_uploadTab, "Upload");
 }
 
-QWidget *SettingsDialog::createUploadS3Page()
+ProviderForm *SettingsDialog::uploadPageFor(const QString &type) const
 {
-    auto *page = new QWidget(m_uploadStack);
-    auto *form = new QFormLayout(page);
-    form->setContentsMargins(0, 0, 0, 0);
-
-    m_uploadEndpointEdit = new QLineEdit(page);
-    m_uploadEndpointEdit->setPlaceholderText("s3.amazonaws.com  ·  <acct>.r2.cloudflarestorage.com");
-    form->addRow("Endpoint:", m_uploadEndpointEdit);
-
-    m_uploadRegionEdit = new QLineEdit(page);
-    m_uploadRegionEdit->setPlaceholderText("us-east-1  ·  auto (Cloudflare R2)");
-    form->addRow("Region:", m_uploadRegionEdit);
-
-    m_uploadBucketEdit = new QLineEdit(page);
-    form->addRow("Bucket:", m_uploadBucketEdit);
-
-    m_uploadAccessKeyEdit = new QLineEdit(page);
-    form->addRow("Access key ID:", m_uploadAccessKeyEdit);
-
-    m_uploadSecretEdit = new QLineEdit(page);
-    m_uploadSecretEdit->setEchoMode(QLineEdit::Password);
-    form->addRow("Secret key:", m_uploadSecretEdit);
-
-    m_uploadPrefixEdit = new QLineEdit(page);
-    m_uploadPrefixEdit->setPlaceholderText("e.g. screenshots/");
-    form->addRow("Key prefix:", m_uploadPrefixEdit);
-
-    m_uploadPathStyleCheck = new QCheckBox("Force path-style URLs (MinIO / Wasabi)", page);
-    form->addRow(QString(), m_uploadPathStyleCheck);
-
-    return page;
-}
-
-QWidget *SettingsDialog::createUploadSftpPage()
-{
-    auto *page = new QWidget(m_uploadStack);
-    m_sftpForm = new QFormLayout(page);
-    m_sftpForm->setContentsMargins(0, 0, 0, 0);
-
-    m_sftpHostEdit = new QLineEdit(page);
-    m_sftpHostEdit->setPlaceholderText(QStringLiteral("sftp.example.com"));
-    m_sftpForm->addRow(tr("Host:"), m_sftpHostEdit);
-
-    m_sftpPortSpin = new QSpinBox(page);
-    m_sftpPortSpin->setRange(0, 65535);
-    m_sftpPortSpin->setSpecialValueText(tr("22 (default)"));   // shown at 0
-    m_sftpForm->addRow(tr("Port:"), m_sftpPortSpin);
-
-    m_sftpUserEdit = new QLineEdit(page);
-    m_sftpForm->addRow(tr("Username:"), m_sftpUserEdit);
-
-    m_sftpAuthCombo = new QComboBox(page);
-    m_sftpAuthCombo->addItem(tr("Password"));            // kSftpAuthPassword
-    m_sftpAuthCombo->addItem(tr("Private key file"));    // kSftpAuthKey
-    m_sftpForm->addRow(tr("Authentication:"), m_sftpAuthCombo);
-
-    // One secret edit for both modes - the label says which it is.
-    m_sftpSecretLabel = new QLabel(tr("Password:"), page);
-    m_sftpSecretEdit = new QLineEdit(page);
-    m_sftpSecretEdit->setEchoMode(QLineEdit::Password);
-    m_sftpForm->addRow(m_sftpSecretLabel, m_sftpSecretEdit);
-
-    // The path + Browse pair lives in a container widget so hiding the row in password
-    // mode (setRowVisible) hides both, not just the label.
-    auto *keyRowWidget = new QWidget(page);
-    auto *keyRow = new QHBoxLayout(keyRowWidget);
-    keyRow->setContentsMargins(0, 0, 0, 0);
-    m_sftpKeyPathEdit = new QLineEdit(keyRowWidget);
-    m_sftpKeyPathEdit->setPlaceholderText(QDir::homePath() + QStringLiteral("/.ssh/id_ed25519"));
-    m_sftpKeyBrowseButton = new QPushButton(tr("Browse…"), keyRowWidget);
-    m_sftpKeyBrowseButton->setMaximumWidth(90);
-    keyRow->addWidget(m_sftpKeyPathEdit);
-    keyRow->addWidget(m_sftpKeyBrowseButton);
-    m_sftpKeyPathRow = m_sftpForm->rowCount();
-    m_sftpForm->addRow(tr("Private key:"), keyRowWidget);
-
-    m_sftpRemoteDirEdit = new QLineEdit(page);
-    m_sftpRemoteDirEdit->setPlaceholderText(tr("e.g. /var/www/uploads - empty = login folder"));
-    m_sftpForm->addRow(tr("Remote directory:"), m_sftpRemoteDirEdit);
-
-    connect(m_sftpAuthCombo, &QComboBox::currentIndexChanged,
-            this, &SettingsDialog::updateSftpAuthMode);
-    connect(m_sftpKeyBrowseButton, &QPushButton::clicked, this, [this] {
-        const QString current = m_sftpKeyPathEdit->text().trimmed();
-        const QString path = QFileDialog::getOpenFileName(
-            this, tr("Select private key file"),
-            current.isEmpty() ? QDir::homePath() + QStringLiteral("/.ssh") : current);
-        if (!path.isEmpty())
-            m_sftpKeyPathEdit->setText(path);
-    });
-    updateSftpAuthMode();
-
-    return page;
-}
-
-QWidget *SettingsDialog::createUploadFtpPage()
-{
-    auto *page = new QWidget(m_uploadStack);
-    auto *form = new QFormLayout(page);
-    form->setContentsMargins(0, 0, 0, 0);
-
-    m_ftpHostEdit = new QLineEdit(page);
-    m_ftpHostEdit->setPlaceholderText(QStringLiteral("ftp.example.com"));
-    form->addRow(tr("Host:"), m_ftpHostEdit);
-
-    m_ftpPortSpin = new QSpinBox(page);
-    m_ftpPortSpin->setRange(0, 65535);
-    m_ftpPortSpin->setSpecialValueText(tr("21 (default)"));   // shown at 0
-    form->addRow(tr("Port:"), m_ftpPortSpin);
-
-    m_ftpUserEdit = new QLineEdit(page);
-    m_ftpUserEdit->setPlaceholderText(tr("empty = anonymous"));
-    form->addRow(tr("Username:"), m_ftpUserEdit);
-
-    m_ftpSecretEdit = new QLineEdit(page);
-    m_ftpSecretEdit->setEchoMode(QLineEdit::Password);
-    form->addRow(tr("Password:"), m_ftpSecretEdit);
-
-    m_ftpEncryptionCombo = new QComboBox(page);
-    m_ftpEncryptionCombo->addItem(tr("Explicit TLS (FTPS)"));        // kFtpEncExplicit
-    m_ftpEncryptionCombo->addItem(tr("Implicit TLS (port 990)"));    // kFtpEncImplicit
-    m_ftpEncryptionCombo->addItem(tr("None (plain FTP - insecure)"));// kFtpEncNone
-    form->addRow(tr("Encryption:"), m_ftpEncryptionCombo);
-
-    m_ftpRemoteDirEdit = new QLineEdit(page);
-    m_ftpRemoteDirEdit->setPlaceholderText(tr("e.g. /var/www/uploads - empty = login folder"));
-    form->addRow(tr("Remote directory:"), m_ftpRemoteDirEdit);
-
-    return page;
-}
-
-QLineEdit *SettingsDialog::secretEditFor(const QString &type) const
-{
-    switch (pageForType(type)) {
-    case kSftpPage: return m_sftpSecretEdit;
-    case kFtpPage:  return m_ftpSecretEdit;
-    default:        return m_uploadSecretEdit;
-    }
-}
-
-void SettingsDialog::updateSftpAuthMode()
-{
-    Upload::UploadProfile shown;
-    shown.type = QStringLiteral("sftp");
-    shown.values.insert(QStringLiteral("sftpAuthMode"),
-                        sftpAuthForIndex(m_sftpAuthCombo->currentIndex()));
-    const bool keyAuth = shown.text(QStringLiteral("sftpAuthMode")) == QLatin1String("key");
-    m_sftpSecretLabel->setText(keyAuth ? tr("Key passphrase (optional):") : tr("Password:"));
-    m_sftpForm->setRowVisible(m_sftpKeyPathRow, keyAuth);
-    // Keep the hint in step with the mode - but never clobber the "stored" marker.
-    if (m_sftpSecretEdit->placeholderText() != tr("•••••••• (stored)"))
-        m_sftpSecretEdit->setPlaceholderText(secretHint(shown));
+    for (ProviderForm *page : m_uploadPages)
+        if (page->spec().id == type)
+            return page;
+    return nullptr;
 }
 
 void SettingsDialog::refreshUploadList()
@@ -600,36 +402,6 @@ void SettingsDialog::refreshUploadList()
     // Same condition as the form, minus a test that is still running (its own handler
     // re-enables the button when it reports back).
     m_uploadTestButton->setEnabled(any && !m_uploadTester);
-}
-
-void SettingsDialog::clearUploadPages()
-{
-    m_uploadEndpointEdit->clear();
-    m_uploadRegionEdit->clear();
-    m_uploadBucketEdit->clear();
-    m_uploadAccessKeyEdit->clear();
-    m_uploadSecretEdit->clear();
-    m_uploadPrefixEdit->clear();
-    m_uploadPathStyleCheck->setChecked(false);
-
-    m_sftpHostEdit->clear();
-    m_sftpPortSpin->setValue(0);
-    m_sftpUserEdit->clear();
-    {
-        const QSignalBlocker block(m_sftpAuthCombo);
-        m_sftpAuthCombo->setCurrentIndex(kSftpAuthPassword);
-    }
-    updateSftpAuthMode();
-    m_sftpSecretEdit->clear();
-    m_sftpKeyPathEdit->clear();
-    m_sftpRemoteDirEdit->clear();
-
-    m_ftpHostEdit->clear();
-    m_ftpPortSpin->setValue(0);
-    m_ftpUserEdit->clear();
-    m_ftpSecretEdit->clear();
-    m_ftpEncryptionCombo->setCurrentIndex(kFtpEncExplicit);
-    m_ftpRemoteDirEdit->clear();
 }
 
 void SettingsDialog::bindUploadForm(int row)
@@ -655,48 +427,20 @@ void SettingsDialog::bindUploadForm(int row)
 
     // Only the current page is ever read back, but blanking the others keeps a previous
     // profile's values from lingering behind the stack (and clears the row when invalid).
-    clearUploadPages();
-    m_uploadStack->setCurrentIndex(pageForType(p.type));
-    if (!valid)
+    ProviderForm *page = uploadPageFor(p.type);
+    for (ProviderForm *other : m_uploadPages)
+        if (other != page || !valid)
+            other->clear();
+    if (page)
+        m_uploadStack->setCurrentWidget(page);
+    if (!valid || !page)
         return;
-
-    const auto text = [&p](const char *key) { return p.text(QString::fromLatin1(key)); };
-    switch (pageForType(p.type)) {
-    case kS3Page:
-        m_uploadEndpointEdit->setText(text("endpoint"));
-        m_uploadRegionEdit->setText(text("region"));
-        m_uploadBucketEdit->setText(text("bucket"));
-        m_uploadAccessKeyEdit->setText(text("accessKeyId"));
-        m_uploadPrefixEdit->setText(text("keyPrefix"));
-        m_uploadPathStyleCheck->setChecked(p.flag(QStringLiteral("forcePathStyle")));
-        break;
-    case kSftpPage:
-        m_sftpHostEdit->setText(text("host"));
-        m_sftpPortSpin->setValue(p.number(QStringLiteral("port")));
-        m_sftpUserEdit->setText(text("username"));
-        {
-            const QSignalBlocker block(m_sftpAuthCombo);
-            m_sftpAuthCombo->setCurrentIndex(indexForSftpAuth(text("sftpAuthMode")));
-        }
-        updateSftpAuthMode();   // secret row label + private-key row visibility
-        m_sftpKeyPathEdit->setText(text("privateKeyPath"));
-        m_sftpRemoteDirEdit->setText(text("remoteDir"));
-        break;
-    case kFtpPage:
-        m_ftpHostEdit->setText(text("host"));
-        m_ftpPortSpin->setValue(p.number(QStringLiteral("port")));
-        m_ftpUserEdit->setText(text("username"));
-        m_ftpEncryptionCombo->setCurrentIndex(indexForFtpEncryption(text("ftpsMode")));
-        m_ftpRemoteDirEdit->setText(text("remoteDir"));
-        break;
-    }
 
     // The secret edit is write-only: it stays empty and its placeholder says whether one
     // is already stored (in this type's keychain service) or staged for this Apply.
-    QLineEdit *secret = secretEditFor(p.type);
     const bool hasSecret = m_uploadNewSecrets.contains(p.id) ||
         Core::KeychainStore::retrieve(Upload::keychainServiceFor(p.type), p.id).has_value();
-    secret->setPlaceholderText(hasSecret ? tr("•••••••• (stored)") : secretHint(p));
+    page->bind(p, hasSecret);
 }
 
 void SettingsDialog::flushUploadForm(int row)
@@ -707,35 +451,11 @@ void SettingsDialog::flushUploadForm(int row)
     p.name = m_uploadNameEdit->text().trimmed();
     p.publicBaseUrl = m_uploadPublicUrlEdit->text().trimmed();
     // The type never changes, so the bound page is still the one this profile owns.
-    const auto set = [&p](const char *key, const QVariant &v) {
-        p.values.insert(QString::fromLatin1(key), v);
-    };
-    switch (pageForType(p.type)) {
-    case kS3Page:
-        set("endpoint", m_uploadEndpointEdit->text().trimmed());
-        set("region", m_uploadRegionEdit->text().trimmed());
-        set("bucket", m_uploadBucketEdit->text().trimmed());
-        set("accessKeyId", m_uploadAccessKeyEdit->text().trimmed());
-        set("keyPrefix", m_uploadPrefixEdit->text().trimmed());
-        set("forcePathStyle", m_uploadPathStyleCheck->isChecked());
-        break;
-    case kSftpPage:
-        set("host", m_sftpHostEdit->text().trimmed());
-        set("port", m_sftpPortSpin->value());          // 0 = the protocol default
-        set("username", m_sftpUserEdit->text().trimmed());
-        set("sftpAuthMode", sftpAuthForIndex(m_sftpAuthCombo->currentIndex()));
-        set("privateKeyPath", m_sftpKeyPathEdit->text().trimmed());
-        set("remoteDir", m_sftpRemoteDirEdit->text().trimmed());
-        break;
-    case kFtpPage:
-        set("host", m_ftpHostEdit->text().trimmed());
-        set("port", m_ftpPortSpin->value());           // 0 = the protocol default
-        set("username", m_ftpUserEdit->text().trimmed());
-        set("ftpsMode", ftpEncryptionForIndex(m_ftpEncryptionCombo->currentIndex()));
-        set("remoteDir", m_ftpRemoteDirEdit->text().trimmed());
-        break;
-    }
-    const QString secret = secretEditFor(p.type)->text();
+    ProviderForm *page = uploadPageFor(p.type);
+    if (!page)
+        return;
+    page->flush(p);
+    const QString secret = page->secret();
     if (!secret.isEmpty())
         m_uploadNewSecrets.insert(p.id, secret);   // staged; written to keychain on Apply
 }
@@ -1275,9 +995,8 @@ QString SettingsDialog::saveSettings()
     if (!refused.isEmpty())
         return tr("Snim could not save the password for %1: %2")
             .arg(refusedNames.join(QStringLiteral(", ")), keychainProblem(why));
-    m_uploadSecretEdit->clear();
-    m_sftpSecretEdit->clear();
-    m_ftpSecretEdit->clear();
+    for (ProviderForm *page : m_uploadPages)
+        page->clearSecret();
     return {};
 }
 

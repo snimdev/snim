@@ -391,6 +391,8 @@ add_library(snim_lib STATIC
         src/app/CaptureWorkflow.cpp
         src/app/CaptureWorkflow.h
         src/app/Notifier.h
+        src/app/ProviderForm.cpp
+        src/app/ProviderForm.h
         src/app/RecordingWorkflow.cpp
         src/app/RecordingWorkflow.h
         src/app/SettingsDialog.cpp

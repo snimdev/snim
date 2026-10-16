@@ -17,7 +17,6 @@
 #include <QCheckBox>
 #include <QListWidget>
 #include <QMenu>
-#include <QSpinBox>
 #include <QStackedWidget>
 #include <QVector>
 #include <QHash>
@@ -36,6 +35,8 @@ class ScreenshotKeySwap;
 namespace Upload { class Uploader; }
 
 namespace App {
+
+class ProviderForm;
 
 class SettingsDialog : public QDialog
 {
@@ -73,10 +74,6 @@ private:
     // A row offers the swap when the preset puts seq on its action.
     [[nodiscard]] bool screenshotKeyOffersSwap(Hotkeys::HotkeyAction action,
                                                const QKeySequence &seq) const;
-    // One page of the provider stack; each owns the fields of a single provider type.
-    QWidget *createUploadS3Page();
-    QWidget *createUploadSftpPage();
-    QWidget *createUploadFtpPage();
     void loadSettings();
     // Empty when every staged secret reached the keychain; otherwise what to tell the user.
     QString saveSettings();
@@ -84,7 +81,7 @@ private:
     void refreshUploadList();                  // rebuild the list from m_uploadWorking
     void bindUploadForm(int row);              // load working[row] into the field widgets
     void flushUploadForm(int row);             // write the field widgets back into working[row]
-    void clearUploadPages();                   // blank every provider page's fields
+    [[nodiscard]] ProviderForm *uploadPageFor(const QString &type) const;   // null if none
     void onUploadSelectionChanged(int row);
     // The provider type is fixed at creation, so it is an argument of Add, not a field.
     void onUploadAddProfile(const QString &type);
@@ -93,10 +90,6 @@ private:
     // Test the destination as currently typed (saved or not) by uploading a probe file
     // and deleting it again. Never writes to the keychain - only Apply does.
     void onUploadTestConnection();
-    // Auth-mode combo -> secret row label + private-key row visibility. Pure UI: it never
-    // touches m_uploadWorking (the working copy is flushed on selection change / Apply).
-    void updateSftpAuthMode();
-    [[nodiscard]] QLineEdit *secretEditFor(const QString &type) const;
     void pickColor(QColor &color, const QString &title, QColorDialog::ColorDialogOptions options);
     void updateColorButtons();                 // paint both swatches from the two colors
 
@@ -122,7 +115,7 @@ private:
     QCheckBox *m_systemAudioCheck = nullptr;
     QCheckBox *m_frameCheck = nullptr;   // "Highlight recorded area while recording"
 
-    // Upload Tab (multi-destination: S3-compatible / SFTP / FTP). The secret is NOT
+    // Upload Tab (multi-destination, one page per Upload::ProviderSpec). The secret is NOT
     // persisted to QSettings - it goes to the OS keychain (service = the profile type's,
     // account = the profile id) on Apply. The form binds to the selected profile in an
     // in-memory working copy; nothing is persisted until Apply.
@@ -130,7 +123,7 @@ private:
     QCheckBox *m_uploadEnabledCheck = nullptr;
     QListWidget *m_uploadList = nullptr;
     QPushButton *m_uploadAddButton = nullptr;
-    QMenu *m_uploadAddMenu = nullptr;            // one entry per provider type
+    QMenu *m_uploadAddMenu = nullptr;            // one entry per provider
     QPushButton *m_uploadRemoveButton = nullptr;
     QPushButton *m_uploadDefaultButton = nullptr;
     QWidget *m_uploadForm = nullptr;             // the field group; disabled when no selection
@@ -139,37 +132,8 @@ private:
     QLabel *m_uploadUnavailableLabel = nullptr;  // shown when the type wasn't built in
     QFormLayout *m_uploadTopForm = nullptr;
     int m_uploadWarningRow = -1;                 // row of m_uploadUnavailableLabel
-    QStackedWidget *m_uploadStack = nullptr;     // S3 / SFTP / FTP pages
-
-    // S3 page
-    QLineEdit *m_uploadEndpointEdit = nullptr;
-    QLineEdit *m_uploadRegionEdit = nullptr;
-    QLineEdit *m_uploadBucketEdit = nullptr;
-    QLineEdit *m_uploadAccessKeyEdit = nullptr;
-    QLineEdit *m_uploadSecretEdit = nullptr;     // write-only into the keychain
-    QLineEdit *m_uploadPrefixEdit = nullptr;
-    QCheckBox *m_uploadPathStyleCheck = nullptr;
-
-    // SFTP page
-    QFormLayout *m_sftpForm = nullptr;
-    QLineEdit *m_sftpHostEdit = nullptr;
-    QSpinBox *m_sftpPortSpin = nullptr;
-    QLineEdit *m_sftpUserEdit = nullptr;
-    QComboBox *m_sftpAuthCombo = nullptr;
-    QLabel *m_sftpSecretLabel = nullptr;         // "Password:" / "Key passphrase (optional):"
-    QLineEdit *m_sftpSecretEdit = nullptr;       // write-only into the keychain
-    QLineEdit *m_sftpKeyPathEdit = nullptr;
-    QPushButton *m_sftpKeyBrowseButton = nullptr;
-    int m_sftpKeyPathRow = -1;                   // hidden in password auth mode
-    QLineEdit *m_sftpRemoteDirEdit = nullptr;
-
-    // FTP page
-    QLineEdit *m_ftpHostEdit = nullptr;
-    QSpinBox *m_ftpPortSpin = nullptr;
-    QLineEdit *m_ftpUserEdit = nullptr;
-    QLineEdit *m_ftpSecretEdit = nullptr;        // write-only into the keychain
-    QComboBox *m_ftpEncryptionCombo = nullptr;
-    QLineEdit *m_ftpRemoteDirEdit = nullptr;
+    QStackedWidget *m_uploadStack = nullptr;     // m_uploadPages
+    QVector<ProviderForm *> m_uploadPages;       // one per provider, in registry order
 
     // Shared by every provider type
     QLineEdit *m_uploadPublicUrlEdit = nullptr;

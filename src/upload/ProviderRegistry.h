@@ -38,7 +38,7 @@ struct FieldSpec {
  * keychain service holding its secrets, its settings, when a destination is filled in and
  * how its uploader is built. Adding a provider is one ProviderSpec entry in
  * ProviderRegistry.cpp (plus its strategy's sources). Plain data, so it stays below the
- * UI layer.
+ * UI layer; App::ProviderForm builds the settings page from it.
  */
 struct ProviderSpec {
     QString id;                  // persisted as the profile type: "s3", "sftp", "ftp"
