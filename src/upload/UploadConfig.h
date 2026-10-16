@@ -3,6 +3,7 @@
 
 #include "core/KeychainStore.h"
 #include "core/Settings.h"
+#include "upload/ProviderRegistry.h"
 #include "upload/UploadProfiles.h"
 
 #include <QString>
@@ -21,27 +22,13 @@ struct UploadConfig : UploadProfile {
     QString secretKey;       // from keychain: S3 secret / SFTP password or key passphrase
                              // / FTP password; empty if absent
 
-    // Pure config check, per type - "is this destination filled in", never "is its
-    // backend compiled in" (that is UploaderFactory::isAvailable). So a
+    // Pure config check, per provider (ProviderSpec::isComplete) - "is this destination
+    // filled in", never "is its backend compiled in" (that is UploaderFactory::isAvailable). So a
     // configured SFTP profile in a build without libssh2 still passes here and gets a
     // precise "not included in this build" failure instead of a vague "not configured".
     [[nodiscard]] bool isComplete() const {
-        if (!enabled)
-            return false;
-        switch (type) {
-        case ProviderType::Sftp:
-            // Key auth needs no stored secret (the passphrase is optional), which also
-            // keeps it usable on the stub-keychain platforms.
-            return !host.isEmpty() && !username.isEmpty()
-                   && (sftpAuth == SftpAuthMode::PrivateKey ? !privateKeyPath.isEmpty()
-                                                            : !secretKey.isEmpty());
-        case ProviderType::Ftp:
-            return !host.isEmpty() && (username.isEmpty() || !secretKey.isEmpty());
-        case ProviderType::S3:
-            break;
-        }
-        return !endpoint.isEmpty() && !region.isEmpty() && !bucket.isEmpty()
-               && !accessKeyId.isEmpty() && !secretKey.isEmpty();
+        const ProviderSpec *spec = ProviderRegistry::find(providerTypeToString(type));
+        return enabled && spec && spec->isComplete(*this);
     }
 
     // Snapshot the given profile (empty id = the default profile). enabled comes from

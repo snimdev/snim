@@ -1,7 +1,7 @@
 #include "upload/UploadProfiles.h"
 
-#include "core/KeychainStore.h"
 #include "core/Settings.h"
+#include "upload/ProviderRegistry.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -31,12 +31,8 @@ ProviderType providerTypeFromString(const QString &s)
 
 QString providerDisplayName(ProviderType t)
 {
-    switch (t) {
-    case ProviderType::Sftp: return QStringLiteral("SFTP");
-    case ProviderType::Ftp:  return QStringLiteral("FTP");
-    case ProviderType::S3:   break;
-    }
-    return QStringLiteral("S3");
+    const ProviderSpec *spec = ProviderRegistry::find(providerTypeToString(t));
+    return spec ? spec->displayName : QString();
 }
 
 QString sftpAuthModeToString(SftpAuthMode m)
@@ -68,12 +64,8 @@ FtpEncryption ftpEncryptionFromString(const QString &s)
 
 QString keychainServiceFor(ProviderType t)
 {
-    switch (t) {
-    case ProviderType::Sftp: return Core::KeychainStore::sftpService();
-    case ProviderType::Ftp:  return Core::KeychainStore::ftpService();
-    case ProviderType::S3:   break;
-    }
-    return Core::KeychainStore::s3Service();
+    const ProviderSpec *spec = ProviderRegistry::find(providerTypeToString(t));
+    return spec ? spec->keychainService : QString();
 }
 
 QString profileLabel(const UploadProfile &p, bool isDefault)

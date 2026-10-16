@@ -3,7 +3,6 @@
 
 #include "upload/KnownHosts.h"
 #include "upload/UploadProfiles.h"
-#include "core/KeychainStore.h"
 #include "core/Settings.h"
 
 using namespace Upload;
@@ -138,9 +137,8 @@ private slots:
         QVERIFY(sftp != ftp);
         // Frozen for compatibility: existing keychain items were written under this id.
         QCOMPARE(s3, QStringLiteral("dev.snim.s3"));
-        QCOMPARE(s3, Core::KeychainStore::s3Service());
-        QCOMPARE(sftp, Core::KeychainStore::sftpService());
-        QCOMPARE(ftp, Core::KeychainStore::ftpService());
+        QCOMPARE(sftp, QStringLiteral("dev.snim.sftp"));
+        QCOMPARE(ftp, QStringLiteral("dev.snim.ftp"));
     }
 
     // --- JSON round-trip of every field, per type ----------------------------

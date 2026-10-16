@@ -438,6 +438,8 @@ add_library(snim_lib STATIC
         # Upload: S3-compatible Strategy + Factory (Qt Network + hand-rolled SigV4). The
         # keychain backings are added per platform below. The SFTP/FTP backends are
         # conditional on libssh2/libcurl; everything here is not.
+        src/upload/ProviderRegistry.cpp
+        src/upload/ProviderRegistry.h
         src/upload/Uploader.h
         src/upload/UploaderFactory.cpp
         src/upload/UploaderFactory.h
