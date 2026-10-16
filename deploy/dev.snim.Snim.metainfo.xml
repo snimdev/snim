@@ -43,6 +43,11 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.0.0" date="2026-10-16" type="stable">
+      <description>
+        <p>First stable release: screenshots with an annotation editor, screen recording with trimming and GIF or WebP export, text recognition and uploads, on Linux, macOS and Windows.</p>
+      </description>
+    </release>
     <release version="1.0.0~rc.3" date="2026-10-10" type="development">
       <description>
         <p>Screen recordings on Linux keep text sharp while scrolling: the encoder no longer holds them to 2 Mbit/s, and trimmed exports get the same fix.</p>
