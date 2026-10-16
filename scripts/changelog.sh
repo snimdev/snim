@@ -113,6 +113,7 @@ Snim $TAG, the first release.
 - **OCR text snip** that copies recognized text straight to the clipboard.
 - **Uploads** to S3-compatible storage, SFTP and FTP, with named destination profiles.
 - **Global hotkeys** for every capture action, bound to the same actions as the tray menu.
+- **Print Screen key** that opens Snim, in one click on Windows, macOS and KDE.
 - **KDE fast-path screenshots** via KWin's ScreenShot2 interface, so captures skip the
   portal dialog entirely.
 EOF
