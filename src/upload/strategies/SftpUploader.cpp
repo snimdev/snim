@@ -154,7 +154,7 @@ struct SessionParams {
     int port = 22;                   // already resolved: never 0
     QString username;
     QString secret;                  // password or key passphrase
-    SftpAuthMode authMode = SftpAuthMode::Password;
+    bool keyAuth = false;            // else password auth
     QString keyPath;
     std::optional<QString> pinned;   // Snim's pin for host:port, read on the GUI thread
 };
@@ -262,7 +262,7 @@ SessionResult establishSession(SshResources &res, const SessionParams &p)
     const QByteArray userUtf8 = p.username.toUtf8();
     const QByteArray secretUtf8 = p.secret.toUtf8();
     int authRc = 0;
-    if (p.authMode == SftpAuthMode::PrivateKey) {
+    if (p.keyAuth) {
         const QByteArray keyFile = QFile::encodeName(p.keyPath);
         // No separate public-key file: libssh2 derives it from the private key.
         // The passphrase may legitimately be empty for an unencrypted key.
@@ -279,7 +279,7 @@ SessionResult establishSession(SshResources &res, const SessionParams &p)
         // was the problem" - missing, not a key, or the wrong passphrase - as opposed
         // to the server rejecting an otherwise valid key (AUTHENTICATION_FAILED /
         // PUBLICKEY_UNVERIFIED), which the generic wording already covers.
-        if (p.authMode == SftpAuthMode::PrivateKey && authRc == LIBSSH2_ERROR_FILE) {
+        if (p.keyAuth && authRc == LIBSSH2_ERROR_FILE) {
             const QString why = sessionError(res.session);
             message += QLatin1Char(' ')
                        + (why.isEmpty()
@@ -311,12 +311,13 @@ SessionResult establishSession(SshResources &res, const SessionParams &p)
 SessionParams sessionParamsFor(const UploadConfig &cfg)
 {
     SessionParams p;
-    p.host = cfg.host;
-    p.port = cfg.port > 0 ? cfg.port : 22;
-    p.username = cfg.username;
+    const int port = cfg.number(QStringLiteral("port"));
+    p.host = cfg.text(QStringLiteral("host"));
+    p.port = port > 0 ? port : 22;
+    p.username = cfg.text(QStringLiteral("username"));
     p.secret = cfg.secretKey;
-    p.authMode = cfg.sftpAuth;
-    p.keyPath = cfg.privateKeyPath;
+    p.keyAuth = cfg.text(QStringLiteral("sftpAuthMode")) == QLatin1String("key");
+    p.keyPath = cfg.text(QStringLiteral("privateKeyPath"));
     p.pinned = KnownHosts::lookup(p.host, p.port);
     return p;
 }
@@ -355,11 +356,13 @@ QUrl SftpUploader::fallbackUrl(const QString &remotePath) const
     // of course never appears.
     QUrl url;
     url.setScheme(QStringLiteral("sftp"));
-    if (!m_config.username.isEmpty())
-        url.setUserName(m_config.username);
-    url.setHost(m_config.host);
-    if (m_config.port > 0)
-        url.setPort(m_config.port);
+    const QString username = m_config.text(QStringLiteral("username"));
+    const int port = m_config.number(QStringLiteral("port"));
+    if (!username.isEmpty())
+        url.setUserName(username);
+    url.setHost(m_config.text(QStringLiteral("host")));
+    if (port > 0)
+        url.setPort(port);
     // QUrl encodes the path for us; one leading slash, never two.
     url.setPath(remotePath.startsWith(QLatin1Char('/')) ? remotePath
                                                         : QLatin1Char('/') + remotePath);

@@ -17,6 +17,13 @@ namespace {
 // upload is in flight would be far worse than leaking a one-time allocation.
 std::once_flag g_curlInit;
 
+QString ftpUrl(const UploadConfig &cfg, const QString &remotePath)
+{
+    return Util::buildFtpUrl(cfg.text(QStringLiteral("host")), cfg.number(QStringLiteral("port")),
+                             cfg.text(QStringLiteral("ftpsMode")) == QLatin1String("implicit"),
+                             remotePath);
+}
+
 struct ReadCtx {
     // A QFile for a real upload, an in-memory QBuffer for the connection-test probe.
     QIODevice *body = nullptr;
@@ -75,9 +82,10 @@ CURLcode performTransfer(const UploadConfig &cfg, const QString &url, ReadCtx *r
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, readCtx->cancel);
 
     // Only when named - an empty username means curl's built-in anonymous login.
-    const QByteArray user = cfg.username.toUtf8();
+    const QString username = cfg.text(QStringLiteral("username"));
+    const QByteArray user = username.toUtf8();
     const QByteArray pass = cfg.secretKey.toUtf8();
-    if (!cfg.username.isEmpty()) {
+    if (!username.isEmpty()) {
         curl_easy_setopt(curl, CURLOPT_USERNAME, user.constData());
         curl_easy_setopt(curl, CURLOPT_PASSWORD, pass.constData());
     }
@@ -86,7 +94,7 @@ CURLcode performTransfer(const UploadConfig &cfg, const QString &url, ReadCtx *r
     // AND data (never CURLUSESSL_TRY) so a misconfigured server can't silently
     // downgrade the transfer to plaintext. Implicit TLS already rides the ftps://
     // scheme; asking for ALL there is redundant but states the same intent.
-    if (cfg.ftpEncryption != FtpEncryption::None)
+    if (cfg.text(QStringLiteral("ftpsMode")) != QLatin1String("none"))
         curl_easy_setopt(curl, CURLOPT_USE_SSL, static_cast<long>(CURLUSESSL_ALL));
 
     // POSTQUOTE runs on the same control connection once the data transfer is done, so
@@ -141,7 +149,7 @@ FtpUploader::FtpUploader(const UploadConfig &config, QObject *parent)
 
 QUrl FtpUploader::fallbackUrl(const QString &remotePath) const
 {
-    return QUrl(Util::buildFtpUrl(m_config, remotePath));
+    return QUrl(ftpUrl(m_config, remotePath));
 }
 
 BlockingUploader::Transfer FtpUploader::transfer() const
@@ -159,7 +167,7 @@ BlockingUploader::Transfer FtpUploader::transfer() const
         const QByteArray postQuote =
             job.testing ? QByteArrayLiteral("DELE ") + job.remoteName.toUtf8() : QByteArray();
         long response = 0;
-        const CURLcode rc = performTransfer(cfg, Util::buildFtpUrl(cfg, job.remotePath),
+        const CURLcode rc = performTransfer(cfg, ftpUrl(cfg, job.remotePath),
                                             &readCtx, postQuote, &response);
 
         Outcome out;
@@ -175,7 +183,8 @@ BlockingUploader::Transfer FtpUploader::transfer() const
             out.error = job.testing ? tr("Test failed: could not initialize the FTP transport.")
                                     : tr("Upload failed: could not initialize the FTP transport.");
         } else {
-            out.error = failureMessage(job.testing, rc, response, cfg.username);
+            out.error = failureMessage(job.testing, rc, response,
+                                       cfg.text(QStringLiteral("username")));
         }
         return out;
     };

@@ -5,6 +5,7 @@
 #include "hotkeys/HotkeyBackendFactory.h"
 #include "hotkeys/HotkeyBindings.h"
 #include "hotkeys/ScreenshotKeySwap.h"
+#include "upload/ProviderRegistry.h"
 #include "upload/UploadProfiles.h"
 #include "upload/UploadConfig.h"
 #include "upload/Uploader.h"
@@ -237,68 +238,57 @@ void selectData(QComboBox *combo, const QVariant &data)
 }
 
 // The secret edit's placeholder while nothing is stored.
-QString secretHint(Upload::ProviderType type, Upload::SftpAuthMode auth)
+QString secretHint(const Upload::UploadProfile &p)
 {
-    if (type == Upload::ProviderType::S3)
-        return SettingsDialog::tr("Secret access key");
-    return type == Upload::ProviderType::Sftp && auth == Upload::SftpAuthMode::PrivateKey
-               ? SettingsDialog::tr("Key passphrase")
-               : SettingsDialog::tr("Password");
+    const Upload::ProviderSpec *spec = Upload::ProviderRegistry::find(p.type);
+    return spec ? spec->secretHint(p) : QString();
 }
 
-// Provider pages inside m_uploadStack. Fixed, explicit indices - nothing relies on the
-// numeric value of ProviderType.
+// Provider pages inside m_uploadStack. Fixed, explicit indices.
 constexpr int kS3Page   = 0;
 constexpr int kSftpPage = 1;
 constexpr int kFtpPage  = 2;
 
-int pageForType(Upload::ProviderType t)
+int pageForType(const QString &t)
 {
-    switch (t) {
-    case Upload::ProviderType::Sftp: return kSftpPage;
-    case Upload::ProviderType::Ftp:  return kFtpPage;
-    case Upload::ProviderType::S3:   break;
-    }
+    if (t == QLatin1String("sftp")) return kSftpPage;
+    if (t == QLatin1String("ftp"))  return kFtpPage;
     return kS3Page;
 }
 
-// Combo index <-> enum maps. Written out rather than cast, so reordering a combo can
-// never silently rewrite stored profiles.
+// Combo index <-> stored value maps. Written out rather than cast, so reordering a combo
+// can never silently rewrite stored profiles.
 constexpr int kSftpAuthPassword = 0;
 constexpr int kSftpAuthKey      = 1;
 
-Upload::SftpAuthMode sftpAuthForIndex(int index)
+QString sftpAuthForIndex(int index)
 {
-    return index == kSftpAuthKey ? Upload::SftpAuthMode::PrivateKey
-                                 : Upload::SftpAuthMode::Password;
+    return index == kSftpAuthKey ? QStringLiteral("key") : QStringLiteral("password");
 }
 
-int indexForSftpAuth(Upload::SftpAuthMode mode)
+int indexForSftpAuth(const QString &mode)
 {
-    return mode == Upload::SftpAuthMode::PrivateKey ? kSftpAuthKey : kSftpAuthPassword;
+    return mode == QLatin1String("key") ? kSftpAuthKey : kSftpAuthPassword;
 }
 
-// The encryption combo leads with the secure default, so index != enum value here.
+// The encryption combo leads with the secure default.
 constexpr int kFtpEncExplicit = 0;
 constexpr int kFtpEncImplicit = 1;
 constexpr int kFtpEncNone     = 2;
 
-Upload::FtpEncryption ftpEncryptionForIndex(int index)
+QString ftpEncryptionForIndex(int index)
 {
     switch (index) {
-    case kFtpEncImplicit: return Upload::FtpEncryption::Implicit;
-    case kFtpEncNone:     return Upload::FtpEncryption::None;
-    default:              return Upload::FtpEncryption::Explicit;
+    case kFtpEncImplicit: return QStringLiteral("implicit");
+    case kFtpEncNone:     return QStringLiteral("none");
+    default:              return QStringLiteral("explicit");
     }
 }
 
-int indexForFtpEncryption(Upload::FtpEncryption enc)
+int indexForFtpEncryption(const QString &enc)
 {
-    switch (enc) {
-    case Upload::FtpEncryption::Implicit: return kFtpEncImplicit;
-    case Upload::FtpEncryption::None:     return kFtpEncNone;
-    case Upload::FtpEncryption::Explicit: break;
-    }
+    if (enc == QLatin1String("implicit")) return kFtpEncImplicit;
+    if (enc == QLatin1String("none"))     return kFtpEncNone;
     return kFtpEncExplicit;
 }
 
@@ -357,21 +347,12 @@ void SettingsDialog::setupUploadTab()
     // fields and re-keying the keychain entry), so Add asks for it up front.
     m_uploadAddMenu = new QMenu(m_uploadAddButton);
     m_uploadAddMenu->setToolTipsVisible(true);
-    struct AddEntry { Upload::ProviderType type; QString text; QString missingDep; };
-    const AddEntry addEntries[] = {
-        { Upload::ProviderType::S3, tr("S3-compatible…"), QString() },
-        { Upload::ProviderType::Sftp, tr("SFTP…"),
-          tr("Requires libssh2, which was not included in this build.") },
-        { Upload::ProviderType::Ftp, tr("FTP / FTPS…"),
-          tr("Requires libcurl, which was not included in this build.") },
-    };
-    for (const AddEntry &entry : addEntries) {
-        QAction *action = m_uploadAddMenu->addAction(entry.text);
-        const bool available = Upload::UploaderFactory::isAvailable(entry.type);
-        action->setEnabled(available);
-        if (!available)
-            action->setToolTip(entry.missingDep);
-        const Upload::ProviderType type = entry.type;
+    for (const Upload::ProviderSpec &spec : Upload::ProviderRegistry::providers()) {
+        QAction *action = m_uploadAddMenu->addAction(spec.addLabel);
+        action->setEnabled(spec.available());
+        if (!spec.available())
+            action->setToolTip(spec.missingDependency);
+        const QString type = spec.id;
         connect(action, &QAction::triggered, this, [this, type] { onUploadAddProfile(type); });
     }
     m_uploadAddButton->setMenu(m_uploadAddMenu);   // a menu button: click opens the list
@@ -583,25 +564,27 @@ QWidget *SettingsDialog::createUploadFtpPage()
     return page;
 }
 
-QLineEdit *SettingsDialog::secretEditFor(Upload::ProviderType type) const
+QLineEdit *SettingsDialog::secretEditFor(const QString &type) const
 {
-    switch (type) {
-    case Upload::ProviderType::Sftp: return m_sftpSecretEdit;
-    case Upload::ProviderType::Ftp:  return m_ftpSecretEdit;
-    case Upload::ProviderType::S3:   break;
+    switch (pageForType(type)) {
+    case kSftpPage: return m_sftpSecretEdit;
+    case kFtpPage:  return m_ftpSecretEdit;
+    default:        return m_uploadSecretEdit;
     }
-    return m_uploadSecretEdit;
 }
 
 void SettingsDialog::updateSftpAuthMode()
 {
-    const Upload::SftpAuthMode mode = sftpAuthForIndex(m_sftpAuthCombo->currentIndex());
-    const bool keyAuth = mode == Upload::SftpAuthMode::PrivateKey;
+    Upload::UploadProfile shown;
+    shown.type = QStringLiteral("sftp");
+    shown.values.insert(QStringLiteral("sftpAuthMode"),
+                        sftpAuthForIndex(m_sftpAuthCombo->currentIndex()));
+    const bool keyAuth = shown.text(QStringLiteral("sftpAuthMode")) == QLatin1String("key");
     m_sftpSecretLabel->setText(keyAuth ? tr("Key passphrase (optional):") : tr("Password:"));
     m_sftpForm->setRowVisible(m_sftpKeyPathRow, keyAuth);
     // Keep the hint in step with the mode - but never clobber the "stored" marker.
     if (m_sftpSecretEdit->placeholderText() != tr("•••••••• (stored)"))
-        m_sftpSecretEdit->setPlaceholderText(secretHint(Upload::ProviderType::Sftp, mode));
+        m_sftpSecretEdit->setPlaceholderText(secretHint(shown));
 }
 
 void SettingsDialog::refreshUploadList()
@@ -658,9 +641,8 @@ void SettingsDialog::bindUploadForm(int row)
     // Shared fields + the read-only type, and the "not built in" warning for a saved
     // profile whose transport this build lacks (the form stays editable).
     m_uploadNameEdit->setText(p.name);
-    m_uploadNameEdit->setPlaceholderText(p.type == Upload::ProviderType::S3
-                                             ? tr("My S3 / R2 / MinIO")
-                                             : tr("My server"));
+    const Upload::ProviderSpec *spec = Upload::ProviderRegistry::find(p.type);
+    m_uploadNameEdit->setPlaceholderText(spec ? spec->namePlaceholder : tr("My server"));
     // A result from the previously bound profile would read as this one's - drop it.
     m_uploadTestStatusLabel->clear();
     m_uploadTestStatusLabel->setStyleSheet(QString());
@@ -678,33 +660,34 @@ void SettingsDialog::bindUploadForm(int row)
     if (!valid)
         return;
 
-    switch (p.type) {
-    case Upload::ProviderType::S3:
-        m_uploadEndpointEdit->setText(p.endpoint);
-        m_uploadRegionEdit->setText(p.region);
-        m_uploadBucketEdit->setText(p.bucket);
-        m_uploadAccessKeyEdit->setText(p.accessKeyId);
-        m_uploadPrefixEdit->setText(p.keyPrefix);
-        m_uploadPathStyleCheck->setChecked(p.forcePathStyle);
+    const auto text = [&p](const char *key) { return p.text(QString::fromLatin1(key)); };
+    switch (pageForType(p.type)) {
+    case kS3Page:
+        m_uploadEndpointEdit->setText(text("endpoint"));
+        m_uploadRegionEdit->setText(text("region"));
+        m_uploadBucketEdit->setText(text("bucket"));
+        m_uploadAccessKeyEdit->setText(text("accessKeyId"));
+        m_uploadPrefixEdit->setText(text("keyPrefix"));
+        m_uploadPathStyleCheck->setChecked(p.flag(QStringLiteral("forcePathStyle")));
         break;
-    case Upload::ProviderType::Sftp:
-        m_sftpHostEdit->setText(p.host);
-        m_sftpPortSpin->setValue(p.port);
-        m_sftpUserEdit->setText(p.username);
+    case kSftpPage:
+        m_sftpHostEdit->setText(text("host"));
+        m_sftpPortSpin->setValue(p.number(QStringLiteral("port")));
+        m_sftpUserEdit->setText(text("username"));
         {
             const QSignalBlocker block(m_sftpAuthCombo);
-            m_sftpAuthCombo->setCurrentIndex(indexForSftpAuth(p.sftpAuth));
+            m_sftpAuthCombo->setCurrentIndex(indexForSftpAuth(text("sftpAuthMode")));
         }
         updateSftpAuthMode();   // secret row label + private-key row visibility
-        m_sftpKeyPathEdit->setText(p.privateKeyPath);
-        m_sftpRemoteDirEdit->setText(p.remoteDir);
+        m_sftpKeyPathEdit->setText(text("privateKeyPath"));
+        m_sftpRemoteDirEdit->setText(text("remoteDir"));
         break;
-    case Upload::ProviderType::Ftp:
-        m_ftpHostEdit->setText(p.host);
-        m_ftpPortSpin->setValue(p.port);
-        m_ftpUserEdit->setText(p.username);
-        m_ftpEncryptionCombo->setCurrentIndex(indexForFtpEncryption(p.ftpEncryption));
-        m_ftpRemoteDirEdit->setText(p.remoteDir);
+    case kFtpPage:
+        m_ftpHostEdit->setText(text("host"));
+        m_ftpPortSpin->setValue(p.number(QStringLiteral("port")));
+        m_ftpUserEdit->setText(text("username"));
+        m_ftpEncryptionCombo->setCurrentIndex(indexForFtpEncryption(text("ftpsMode")));
+        m_ftpRemoteDirEdit->setText(text("remoteDir"));
         break;
     }
 
@@ -713,7 +696,7 @@ void SettingsDialog::bindUploadForm(int row)
     QLineEdit *secret = secretEditFor(p.type);
     const bool hasSecret = m_uploadNewSecrets.contains(p.id) ||
         Core::KeychainStore::retrieve(Upload::keychainServiceFor(p.type), p.id).has_value();
-    secret->setPlaceholderText(hasSecret ? tr("•••••••• (stored)") : secretHint(p.type, p.sftpAuth));
+    secret->setPlaceholderText(hasSecret ? tr("•••••••• (stored)") : secretHint(p));
 }
 
 void SettingsDialog::flushUploadForm(int row)
@@ -724,29 +707,32 @@ void SettingsDialog::flushUploadForm(int row)
     p.name = m_uploadNameEdit->text().trimmed();
     p.publicBaseUrl = m_uploadPublicUrlEdit->text().trimmed();
     // The type never changes, so the bound page is still the one this profile owns.
-    switch (p.type) {
-    case Upload::ProviderType::S3:
-        p.endpoint = m_uploadEndpointEdit->text().trimmed();
-        p.region = m_uploadRegionEdit->text().trimmed();
-        p.bucket = m_uploadBucketEdit->text().trimmed();
-        p.accessKeyId = m_uploadAccessKeyEdit->text().trimmed();
-        p.keyPrefix = m_uploadPrefixEdit->text().trimmed();
-        p.forcePathStyle = m_uploadPathStyleCheck->isChecked();
+    const auto set = [&p](const char *key, const QVariant &v) {
+        p.values.insert(QString::fromLatin1(key), v);
+    };
+    switch (pageForType(p.type)) {
+    case kS3Page:
+        set("endpoint", m_uploadEndpointEdit->text().trimmed());
+        set("region", m_uploadRegionEdit->text().trimmed());
+        set("bucket", m_uploadBucketEdit->text().trimmed());
+        set("accessKeyId", m_uploadAccessKeyEdit->text().trimmed());
+        set("keyPrefix", m_uploadPrefixEdit->text().trimmed());
+        set("forcePathStyle", m_uploadPathStyleCheck->isChecked());
         break;
-    case Upload::ProviderType::Sftp:
-        p.host = m_sftpHostEdit->text().trimmed();
-        p.port = m_sftpPortSpin->value();          // 0 = the protocol default
-        p.username = m_sftpUserEdit->text().trimmed();
-        p.sftpAuth = sftpAuthForIndex(m_sftpAuthCombo->currentIndex());
-        p.privateKeyPath = m_sftpKeyPathEdit->text().trimmed();
-        p.remoteDir = m_sftpRemoteDirEdit->text().trimmed();
+    case kSftpPage:
+        set("host", m_sftpHostEdit->text().trimmed());
+        set("port", m_sftpPortSpin->value());          // 0 = the protocol default
+        set("username", m_sftpUserEdit->text().trimmed());
+        set("sftpAuthMode", sftpAuthForIndex(m_sftpAuthCombo->currentIndex()));
+        set("privateKeyPath", m_sftpKeyPathEdit->text().trimmed());
+        set("remoteDir", m_sftpRemoteDirEdit->text().trimmed());
         break;
-    case Upload::ProviderType::Ftp:
-        p.host = m_ftpHostEdit->text().trimmed();
-        p.port = m_ftpPortSpin->value();           // 0 = the protocol default
-        p.username = m_ftpUserEdit->text().trimmed();
-        p.ftpEncryption = ftpEncryptionForIndex(m_ftpEncryptionCombo->currentIndex());
-        p.remoteDir = m_ftpRemoteDirEdit->text().trimmed();
+    case kFtpPage:
+        set("host", m_ftpHostEdit->text().trimmed());
+        set("port", m_ftpPortSpin->value());           // 0 = the protocol default
+        set("username", m_ftpUserEdit->text().trimmed());
+        set("ftpsMode", ftpEncryptionForIndex(m_ftpEncryptionCombo->currentIndex()));
+        set("remoteDir", m_ftpRemoteDirEdit->text().trimmed());
         break;
     }
     const QString secret = secretEditFor(p.type)->text();
@@ -766,18 +752,13 @@ void SettingsDialog::onUploadSelectionChanged(int row)
     bindUploadForm(row);
 }
 
-void SettingsDialog::onUploadAddProfile(Upload::ProviderType type)
+void SettingsDialog::onUploadAddProfile(const QString &type)
 {
     flushUploadForm(m_uploadCurrentRow);
     Upload::UploadProfile p;
     p.id = Upload::UploadProfiles::newId();
     p.name = tr("New server");
-    p.type = type;
-    if (type == Upload::ProviderType::S3) {
-        p.endpoint = QStringLiteral("s3.amazonaws.com");
-        p.region = QStringLiteral("us-east-1");
-    }
-    // SFTP/FTP keep the struct defaults: port 0 (protocol default) and explicit FTPS.
+    p.type = type;   // the fields read as their defaults until edited
     m_uploadWorking.push_back(p);
     if (m_uploadDefaultId.isEmpty())
         m_uploadDefaultId = p.id;          // first one is the default

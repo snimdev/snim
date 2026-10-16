@@ -62,14 +62,16 @@ QNetworkRequest S3Uploader::signedRequest(const QString &method, const QString &
                                           const QString &payloadHash, QUrl *urlOut) const
 {
     const UploadConfig &cfg = m_config;
+    const QString endpoint = cfg.text(QStringLiteral("endpoint"));
+    const QString bucket = cfg.text(QStringLiteral("bucket"));
     // Host + path differ by URL style; both feed the signer AND the request URL so the
     // wire path matches the signed path exactly.
     QString host, rawPath;
-    if (cfg.forcePathStyle) {
-        host = cfg.endpoint;
-        rawPath = QLatin1Char('/') + cfg.bucket + QLatin1Char('/') + objectKey;
+    if (cfg.flag(QStringLiteral("forcePathStyle"))) {
+        host = endpoint;
+        rawPath = QLatin1Char('/') + bucket + QLatin1Char('/') + objectKey;
     } else {
-        host = cfg.bucket + QLatin1Char('.') + cfg.endpoint;
+        host = bucket + QLatin1Char('.') + endpoint;
         rawPath = QLatin1Char('/') + objectKey;
     }
 
@@ -77,9 +79,9 @@ QNetworkRequest S3Uploader::signedRequest(const QString &method, const QString &
     sr.method = method;
     sr.host = host;
     sr.rawPath = rawPath;
-    sr.region = cfg.region;
+    sr.region = cfg.text(QStringLiteral("region"));
     sr.service = QStringLiteral("s3");
-    sr.accessKeyId = cfg.accessKeyId;
+    sr.accessKeyId = cfg.text(QStringLiteral("accessKeyId"));
     sr.secretKey = cfg.secretKey;       // local-only; never logged or stored on the object
     sr.contentType = contentType;
     sr.payloadHash = payloadHash;
@@ -117,7 +119,8 @@ void S3Uploader::upload(const QString &localPath, const QString &keyHint)
     }
 
     // Object key: prefix + a short uuid (avoids collisions / overwrites) + safe name.
-    const QString objectKey = m_config.keyPrefix + Util::uniqueRemoteName(keyHint);
+    const QString objectKey = m_config.text(QStringLiteral("keyPrefix"))
+                              + Util::uniqueRemoteName(keyHint);
 
     QUrl url;
     QNetworkRequest req = signedRequest(QStringLiteral("PUT"), objectKey,
@@ -171,7 +174,7 @@ void S3Uploader::testConnection()
 
     // Same prefix + unique-name rules as a real upload, so this also proves the key
     // prefix is writable rather than just the bucket root.
-    m_probeKey = m_config.keyPrefix
+    m_probeKey = m_config.text(QStringLiteral("keyPrefix"))
                  + Util::uniqueRemoteName(QStringLiteral("snim-connection-test.txt"));
     const QByteArray body = QByteArrayLiteral("Snim connection test");
 

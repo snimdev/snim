@@ -1,8 +1,6 @@
 #ifndef UPLOAD_UPLOADUTIL_H
 #define UPLOAD_UPLOADUTIL_H
 
-#include "upload/UploadConfig.h"
-
 #include <QString>
 
 /**
@@ -27,10 +25,11 @@ namespace Upload::Util {
 [[nodiscard]] QString joinPublicUrl(const QString &publicBaseUrl, const QString &remoteName);
 
 // Credential-free ftp:// (plain / explicit TLS) or ftps:// (implicit TLS) URL for
-// libcurl; the port appears only when set. Path segments are percent-encoded (slashes
-// stay literal). curl reads an FTP path as relative to the login directory, so an
-// absolute remotePath's leading '/' becomes "%2F".
-[[nodiscard]] QString buildFtpUrl(const UploadConfig &cfg, const QString &remotePath);
+// libcurl; the port appears only when set (> 0). Path segments are percent-encoded
+// (slashes stay literal). curl reads an FTP path as relative to the login directory, so
+// an absolute remotePath's leading '/' becomes "%2F".
+[[nodiscard]] QString buildFtpUrl(const QString &host, int port, bool implicitTls,
+                                  const QString &remotePath);
 
 } // namespace Upload::Util
 

@@ -23,11 +23,9 @@ class tst_UploadConfig : public QObject
     {
         UploadConfig c;
         c.enabled = true;
-        c.type = ProviderType::S3;
-        c.endpoint = "s3.amazonaws.com";
-        c.region = "us-east-1";
-        c.bucket = "shots";
-        c.accessKeyId = "AKIA123";
+        c.type = "s3";
+        c.values = {{"endpoint", "s3.amazonaws.com"}, {"region", "us-east-1"},
+                    {"bucket", "shots"}, {"accessKeyId", "AKIA123"}};
         c.secretKey = "s3cret";
         return c;
     }
@@ -36,10 +34,9 @@ class tst_UploadConfig : public QObject
     {
         UploadConfig c;
         c.enabled = true;
-        c.type = ProviderType::Sftp;
-        c.host = "sftp.example.com";
-        c.username = "darko";
-        c.sftpAuth = SftpAuthMode::Password;
+        c.type = "sftp";
+        c.values = {{"host", "sftp.example.com"}, {"username", "darko"},
+                    {"sftpAuthMode", "password"}};
         c.secretKey = "hunter2";
         return c;
     }
@@ -48,11 +45,9 @@ class tst_UploadConfig : public QObject
     {
         UploadConfig c;
         c.enabled = true;
-        c.type = ProviderType::Sftp;
-        c.host = "sftp.example.com";
-        c.username = "darko";
-        c.sftpAuth = SftpAuthMode::PrivateKey;
-        c.privateKeyPath = "/home/darko/.ssh/id_ed25519";
+        c.type = "sftp";
+        c.values = {{"host", "sftp.example.com"}, {"username", "darko"},
+                    {"sftpAuthMode", "key"}, {"privateKeyPath", "/home/darko/.ssh/id_ed25519"}};
         return c;   // no secretKey: the passphrase is optional
     }
 
@@ -60,8 +55,8 @@ class tst_UploadConfig : public QObject
     {
         UploadConfig c;
         c.enabled = true;
-        c.type = ProviderType::Ftp;
-        c.host = "ftp.example.com";
+        c.type = "ftp";
+        c.values = {{"host", "ftp.example.com"}};
         return c;   // empty username = anonymous, no password needed
     }
 
@@ -96,19 +91,20 @@ private slots:
     void s3NeedsEveryCredentialField()
     {
         QVERIFY(s3().isComplete());
-        { auto c = s3(); c.endpoint.clear();    QVERIFY(!c.isComplete()); }
-        { auto c = s3(); c.region.clear();      QVERIFY(!c.isComplete()); }
-        { auto c = s3(); c.bucket.clear();      QVERIFY(!c.isComplete()); }
-        { auto c = s3(); c.accessKeyId.clear(); QVERIFY(!c.isComplete()); }
+        for (const char *key : {"endpoint", "region", "bucket", "accessKeyId"}) {
+            auto c = s3();
+            c.values[key] = QString();
+            QVERIFY2(!c.isComplete(), key);
+        }
         { auto c = s3(); c.secretKey.clear();   QVERIFY(!c.isComplete()); }
     }
 
     void s3IgnoresOptionalFields()
     {
         auto c = s3();
-        c.keyPrefix.clear();
+        c.values["keyPrefix"] = QString();
         c.publicBaseUrl.clear();
-        c.forcePathStyle = true;
+        c.values["forcePathStyle"] = true;
         QVERIFY(c.isComplete());
     }
 
@@ -121,7 +117,7 @@ private slots:
         c.secretKey.clear();
         QVERIFY(!c.isComplete());
         // A key path is irrelevant while the mode says password.
-        c.privateKeyPath = "/home/darko/.ssh/id_ed25519";
+        c.values["privateKeyPath"] = "/home/darko/.ssh/id_ed25519";
         QVERIFY(!c.isComplete());
     }
 
@@ -132,17 +128,17 @@ private slots:
         QVERIFY(c.isComplete());          // empty passphrase is legitimate
         c.secretKey = "passphrase";       // ... and so is a set one
         QVERIFY(c.isComplete());
-        c.privateKeyPath.clear();
+        c.values["privateKeyPath"] = QString();
         QVERIFY(!c.isComplete());         // the key file itself is mandatory
     }
 
     void sftpAlwaysNeedsHostAndUsername()
     {
-        { auto c = sftpPassword(); c.host.clear();     QVERIFY(!c.isComplete()); }
-        { auto c = sftpPassword(); c.username.clear(); QVERIFY(!c.isComplete()); }
-        { auto c = sftpKey();      c.host.clear();     QVERIFY(!c.isComplete()); }
+        { auto c = sftpPassword(); c.values.remove("host");     QVERIFY(!c.isComplete()); }
+        { auto c = sftpPassword(); c.values.remove("username"); QVERIFY(!c.isComplete()); }
+        { auto c = sftpKey();      c.values.remove("host");     QVERIFY(!c.isComplete()); }
         // Unlike FTP, an empty SFTP username is never "anonymous".
-        { auto c = sftpKey();      c.username.clear(); QVERIFY(!c.isComplete()); }
+        { auto c = sftpKey();      c.values.remove("username"); QVERIFY(!c.isComplete()); }
     }
 
     // --- FTP -----------------------------------------------------------------
@@ -151,14 +147,14 @@ private slots:
     {
         QVERIFY(ftpAnonymous().isComplete());
         auto c = ftpAnonymous();
-        c.host.clear();
+        c.values["host"] = QString();
         QVERIFY(!c.isComplete());
     }
 
     void ftpNamedUserNeedsAPassword()
     {
         auto c = ftpAnonymous();
-        c.username = "bob";
+        c.values["username"] = "bob";
         QVERIFY(!c.isComplete());
         c.secretKey = "hunter2";
         QVERIFY(c.isComplete());
@@ -166,10 +162,9 @@ private slots:
 
     void ftpCompletenessIgnoresEncryptionMode()
     {
-        for (const FtpEncryption e : {FtpEncryption::None, FtpEncryption::Explicit,
-                                      FtpEncryption::Implicit}) {
+        for (const char *mode : {"none", "explicit", "implicit"}) {
             auto c = ftpAnonymous();
-            c.ftpEncryption = e;
+            c.values["ftpsMode"] = mode;
             QVERIFY(c.isComplete());
         }
     }
@@ -179,12 +174,14 @@ private slots:
     void typeSelectsItsOwnFieldGroup()
     {
         // Fully filled S3 credentials say nothing about an SFTP/FTP destination.
-        { auto c = s3(); c.type = ProviderType::Sftp; QVERIFY(!c.isComplete()); }
-        { auto c = s3(); c.type = ProviderType::Ftp;  QVERIFY(!c.isComplete()); }
+        { auto c = s3(); c.type = "sftp"; QVERIFY(!c.isComplete()); }
+        { auto c = s3(); c.type = "ftp";  QVERIFY(!c.isComplete()); }
         // ... and vice versa.
-        { auto c = sftpPassword(); c.type = ProviderType::S3; QVERIFY(!c.isComplete()); }
+        { auto c = sftpPassword(); c.type = "s3"; QVERIFY(!c.isComplete()); }
         // An FTP host is not an S3 endpoint.
-        { auto c = ftpAnonymous(); c.type = ProviderType::S3; QVERIFY(!c.isComplete()); }
+        { auto c = ftpAnonymous(); c.type = "s3"; QVERIFY(!c.isComplete()); }
+        // No provider, no destination.
+        { auto c = s3(); c.type = "gopher"; QVERIFY(!c.isComplete()); }
     }
 
     // --- forProfile() snapshotting -------------------------------------------
@@ -194,37 +191,28 @@ private slots:
         UploadProfile p;
         p.id = UploadProfiles::newId();
         p.name = "Box";
-        p.type = ProviderType::Sftp;
-        p.host = "sftp.example.com";
-        p.port = 2222;
-        p.username = "darko";
-        p.remoteDir = "/var/www/uploads";
-        p.sftpAuth = SftpAuthMode::PrivateKey;
-        p.privateKeyPath = "/home/darko/.ssh/id_ed25519";
-        p.ftpEncryption = FtpEncryption::Implicit;
+        p.type = "sftp";
+        p.values = {{"host", "sftp.example.com"}, {"port", 2222}, {"username", "darko"},
+                    {"remoteDir", "/var/www/uploads"}, {"sftpAuthMode", "key"},
+                    {"privateKeyPath", "/home/darko/.ssh/id_ed25519"}};
         p.publicBaseUrl = "https://cdn.example.com";
-        p.keyPrefix = "screenshots/";
-        p.forcePathStyle = true;
         UploadProfiles::setAll({p}, p.id);
 
         Core::Settings::setUploadEnabled(true);
         const UploadConfig c = UploadConfig::forProfile(p.id);
         QVERIFY(c.enabled);                       // from the global toggle, not the profile
-        QCOMPARE(c.type, ProviderType::Sftp);
-        QCOMPARE(c.host, QStringLiteral("sftp.example.com"));
-        QCOMPARE(c.port, 2222);
-        QCOMPARE(c.username, QStringLiteral("darko"));
-        QCOMPARE(c.remoteDir, QStringLiteral("/var/www/uploads"));
-        QCOMPARE(c.sftpAuth, SftpAuthMode::PrivateKey);
-        QCOMPARE(c.privateKeyPath, QStringLiteral("/home/darko/.ssh/id_ed25519"));
-        QCOMPARE(c.ftpEncryption, FtpEncryption::Implicit);
+        QCOMPARE(c.type, QStringLiteral("sftp"));
+        QCOMPARE(c.text("host"), QStringLiteral("sftp.example.com"));
+        QCOMPARE(c.number("port"), 2222);
+        QCOMPARE(c.text("username"), QStringLiteral("darko"));
+        QCOMPARE(c.text("remoteDir"), QStringLiteral("/var/www/uploads"));
+        QCOMPARE(c.text("sftpAuthMode"), QStringLiteral("key"));
+        QCOMPARE(c.text("privateKeyPath"), QStringLiteral("/home/darko/.ssh/id_ed25519"));
         QCOMPARE(c.publicBaseUrl, QStringLiteral("https://cdn.example.com"));
-        QCOMPARE(c.keyPrefix, QStringLiteral("screenshots/"));
-        QVERIFY(c.forcePathStyle);
         QVERIFY(c.isComplete());                  // key auth: complete without a keychain
 
         // An empty id means "the default profile" - same snapshot here.
-        QCOMPARE(UploadConfig::forProfile(QString()).host, QStringLiteral("sftp.example.com"));
+        QCOMPARE(UploadConfig::forProfile(QString()).text("host"), QStringLiteral("sftp.example.com"));
 
         Core::Settings::setUploadEnabled(false);
         QVERIFY(!UploadConfig::forProfile(p.id).isComplete());
@@ -234,9 +222,9 @@ private slots:
     {
         Core::Settings::setUploadEnabled(true);
         const UploadConfig c = UploadConfig::forProfile("does-not-exist");
-        QCOMPARE(c.type, ProviderType::S3);       // the null profile's default type
-        QVERIFY(c.host.isEmpty());
-        QVERIFY(c.bucket.isEmpty());
+        QCOMPARE(c.type, QStringLiteral("s3"));   // the null profile's default type
+        QVERIFY(c.values.isEmpty());
+        QVERIFY(c.text("bucket").isEmpty());
         QVERIFY(c.secretKey.isEmpty());           // no id -> no keychain lookup at all
         QVERIFY(!c.isComplete());
     }

@@ -15,7 +15,7 @@ std::unique_ptr<Uploader> UploaderFactory::create(const QString &profileId, QObj
 std::unique_ptr<Uploader> UploaderFactory::createForConfig(const UploadConfig &cfg,
                                                            QObject *parent)
 {
-    const ProviderSpec *spec = ProviderRegistry::find(providerTypeToString(cfg.type));
+    const ProviderSpec *spec = ProviderRegistry::find(cfg.type);
     if (!spec || !cfg.isComplete())
         return std::make_unique<StubUploader>(QString(), parent);
     if (!spec->available())
@@ -25,9 +25,9 @@ std::unique_ptr<Uploader> UploaderFactory::createForConfig(const UploadConfig &c
     return spec->create(cfg, parent);
 }
 
-bool UploaderFactory::isAvailable(ProviderType type)
+bool UploaderFactory::isAvailable(const QString &type)
 {
-    const ProviderSpec *spec = ProviderRegistry::find(providerTypeToString(type));
+    const ProviderSpec *spec = ProviderRegistry::find(type);
     return spec && spec->available();
 }
 

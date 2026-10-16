@@ -38,13 +38,12 @@ QString joinPublicUrl(const QString &publicBaseUrl, const QString &remoteName)
     return base + QLatin1Char('/') + SigV4::awsUriEncode(remoteName, /*encodeSlash=*/false);
 }
 
-QString buildFtpUrl(const UploadConfig &cfg, const QString &remotePath)
+QString buildFtpUrl(const QString &host, int port, bool implicitTls, const QString &remotePath)
 {
-    QString url = cfg.ftpEncryption == FtpEncryption::Implicit ? QStringLiteral("ftps://")
-                                                               : QStringLiteral("ftp://");
-    url += cfg.host;
-    if (cfg.port > 0)
-        url += QLatin1Char(':') + QString::number(cfg.port);
+    QString url = implicitTls ? QStringLiteral("ftps://") : QStringLiteral("ftp://");
+    url += host;
+    if (port > 0)
+        url += QLatin1Char(':') + QString::number(port);
     // Percent-encode each segment (spaces, UTF-8, ...) - curl's URL parser rejects raw
     // spaces - while the separators stay literal so curl still CWDs per directory.
     const bool absolute = remotePath.startsWith(QLatin1Char('/'));

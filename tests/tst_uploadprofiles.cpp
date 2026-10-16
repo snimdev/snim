@@ -8,7 +8,7 @@
 using namespace Upload;
 
 // The multi-destination store: a JSON list of profiles + a default id in QSettings,
-// the provider-type enum helpers, and the SFTP host-key pin store (same QSettings
+// the provider-type helpers, and the SFTP host-key pin store (same QSettings
 // neighbourhood, same GUI-thread-only contract). Pure (test-mode isolated) settings,
 // and the keychain is never touched.
 class tst_UploadProfiles : public QObject
@@ -20,10 +20,8 @@ class tst_UploadProfiles : public QObject
         UploadProfile p;
         p.id = UploadProfiles::newId();
         p.name = name;
-        p.endpoint = "s3.amazonaws.com";
-        p.region = "us-east-1";
-        p.bucket = bucket;
-        p.accessKeyId = "AKIA" + name;
+        p.values = {{"endpoint", "s3.amazonaws.com"}, {"region", "us-east-1"},
+                    {"bucket", bucket}, {"accessKeyId", "AKIA" + name}};
         return p;
     }
 
@@ -63,7 +61,7 @@ private slots:
         UploadProfiles::setAll({a, b}, QString());
         QCOMPARE(UploadProfiles::defaultId(), a.id);
         UploadProfiles::setAll({a, b}, "missing");
-        QCOMPARE(UploadProfiles::defaultProfile().bucket, QStringLiteral("bucket-a"));
+        QCOMPARE(UploadProfiles::defaultProfile().text("bucket"), QStringLiteral("bucket-a"));
     }
 
     void setAllClearsTheDefaultWithTheList()
@@ -81,54 +79,21 @@ private slots:
         QVERIFY(UploadProfiles::byId(QString()).id.isEmpty());
     }
 
-    // --- provider-type enum <-> string helpers -------------------------------
+    // --- provider-type helpers ---------------------------------------------
 
-    void providerTypeStringRoundTrip()
+    void providerDisplayNames()
     {
-        QCOMPARE(providerTypeToString(ProviderType::S3), QStringLiteral("s3"));
-        QCOMPARE(providerTypeToString(ProviderType::Sftp), QStringLiteral("sftp"));
-        QCOMPARE(providerTypeToString(ProviderType::Ftp), QStringLiteral("ftp"));
-        for (const ProviderType t : {ProviderType::S3, ProviderType::Sftp, ProviderType::Ftp})
-            QCOMPARE(providerTypeFromString(providerTypeToString(t)), t);
-        // Missing/unknown reads as S3, which is what makes pre-enum profiles round-trip.
-        QCOMPARE(providerTypeFromString(QString()), ProviderType::S3);
-        QCOMPARE(providerTypeFromString(""), ProviderType::S3);
-        QCOMPARE(providerTypeFromString("gopher"), ProviderType::S3);
-        QCOMPARE(providerTypeFromString("SFTP"), ProviderType::S3);   // the tokens are lowercase
-
-        QCOMPARE(providerDisplayName(ProviderType::S3), QStringLiteral("S3"));
-        QCOMPARE(providerDisplayName(ProviderType::Sftp), QStringLiteral("SFTP"));
-        QCOMPARE(providerDisplayName(ProviderType::Ftp), QStringLiteral("FTP"));
-    }
-
-    void sftpAuthModeStringRoundTrip()
-    {
-        QCOMPARE(sftpAuthModeToString(SftpAuthMode::Password), QStringLiteral("password"));
-        QCOMPARE(sftpAuthModeToString(SftpAuthMode::PrivateKey), QStringLiteral("key"));
-        for (const SftpAuthMode m : {SftpAuthMode::Password, SftpAuthMode::PrivateKey})
-            QCOMPARE(sftpAuthModeFromString(sftpAuthModeToString(m)), m);
-        QCOMPARE(sftpAuthModeFromString(QString()), SftpAuthMode::Password);
-        QCOMPARE(sftpAuthModeFromString("nonsense"), SftpAuthMode::Password);
-    }
-
-    void ftpEncryptionStringRoundTrip()
-    {
-        QCOMPARE(ftpEncryptionToString(FtpEncryption::None), QStringLiteral("none"));
-        QCOMPARE(ftpEncryptionToString(FtpEncryption::Explicit), QStringLiteral("explicit"));
-        QCOMPARE(ftpEncryptionToString(FtpEncryption::Implicit), QStringLiteral("implicit"));
-        for (const FtpEncryption e : {FtpEncryption::None, FtpEncryption::Explicit,
-                                      FtpEncryption::Implicit})
-            QCOMPARE(ftpEncryptionFromString(ftpEncryptionToString(e)), e);
-        // Missing/unknown must land on the SECURE default, never on plain FTP.
-        QCOMPARE(ftpEncryptionFromString(QString()), FtpEncryption::Explicit);
-        QCOMPARE(ftpEncryptionFromString("nonsense"), FtpEncryption::Explicit);
+        QCOMPARE(providerDisplayName("s3"), QStringLiteral("S3"));
+        QCOMPARE(providerDisplayName("sftp"), QStringLiteral("SFTP"));
+        QCOMPARE(providerDisplayName("ftp"), QStringLiteral("FTP"));
+        QVERIFY(providerDisplayName("gopher").isEmpty());
     }
 
     void keychainServicesAreDistinctPerType()
     {
-        const QString s3 = keychainServiceFor(ProviderType::S3);
-        const QString sftp = keychainServiceFor(ProviderType::Sftp);
-        const QString ftp = keychainServiceFor(ProviderType::Ftp);
+        const QString s3 = keychainServiceFor("s3");
+        const QString sftp = keychainServiceFor("sftp");
+        const QString ftp = keychainServiceFor("ftp");
         QVERIFY(!s3.isEmpty());
         QVERIFY(!sftp.isEmpty());
         QVERIFY(!ftp.isEmpty());
@@ -148,71 +113,86 @@ private slots:
         UploadProfile s3;
         s3.id = UploadProfiles::newId();
         s3.name = "R2";
-        s3.type = ProviderType::S3;
-        s3.endpoint = "acct.r2.cloudflarestorage.com";
-        s3.region = "auto";
-        s3.bucket = "clips";
-        s3.accessKeyId = "AKIA123";
-        s3.keyPrefix = "screenshots/";
-        s3.forcePathStyle = true;
+        s3.type = "s3";
+        s3.values = {{"endpoint", "acct.r2.cloudflarestorage.com"}, {"region", "auto"},
+                     {"bucket", "clips"}, {"accessKeyId", "AKIA123"},
+                     {"keyPrefix", "screenshots/"}, {"forcePathStyle", true}};
         s3.publicBaseUrl = "https://pub-x.r2.dev";
 
         UploadProfile sftp;
         sftp.id = UploadProfiles::newId();
         sftp.name = "Box";
-        sftp.type = ProviderType::Sftp;
-        sftp.host = "sftp.example.com";
-        sftp.port = 2222;
-        sftp.username = "darko";
-        sftp.remoteDir = "/var/www/uploads";
-        sftp.sftpAuth = SftpAuthMode::PrivateKey;
-        sftp.privateKeyPath = "/home/darko/.ssh/id_ed25519";
+        sftp.type = "sftp";
+        sftp.values = {{"host", "sftp.example.com"}, {"port", 2222}, {"username", "darko"},
+                       {"remoteDir", "/var/www/uploads"}, {"sftpAuthMode", "key"},
+                       {"privateKeyPath", "/home/darko/.ssh/id_ed25519"}};
         sftp.publicBaseUrl = "https://cdn.example.com";
 
         UploadProfile ftp;
         ftp.id = UploadProfiles::newId();
         ftp.name = "Legacy host";
-        ftp.type = ProviderType::Ftp;
-        ftp.host = "ftp.example.com";
-        ftp.port = 990;
-        ftp.username = "";                              // anonymous
-        ftp.remoteDir = "public_html/shots";
-        ftp.ftpEncryption = FtpEncryption::Implicit;
+        ftp.type = "ftp";
+        ftp.values = {{"host", "ftp.example.com"}, {"port", 990},
+                      {"username", ""},                         // anonymous
+                      {"remoteDir", "public_html/shots"}, {"ftpsMode", "implicit"}};
 
         UploadProfiles::setAll({s3, sftp, ftp}, sftp.id);
         QCOMPARE(UploadProfiles::all().size(), 3);
         QCOMPARE(UploadProfiles::defaultId(), sftp.id);
 
         const UploadProfile rs3 = UploadProfiles::byId(s3.id);
-        QCOMPARE(rs3.type, ProviderType::S3);
+        QCOMPARE(rs3.type, QStringLiteral("s3"));
         QCOMPARE(rs3.name, QStringLiteral("R2"));
-        QCOMPARE(rs3.endpoint, QStringLiteral("acct.r2.cloudflarestorage.com"));
-        QCOMPARE(rs3.region, QStringLiteral("auto"));
-        QCOMPARE(rs3.bucket, QStringLiteral("clips"));
-        QCOMPARE(rs3.accessKeyId, QStringLiteral("AKIA123"));
-        QCOMPARE(rs3.keyPrefix, QStringLiteral("screenshots/"));
-        QVERIFY(rs3.forcePathStyle);
+        QCOMPARE(rs3.text("endpoint"), QStringLiteral("acct.r2.cloudflarestorage.com"));
+        QCOMPARE(rs3.text("region"), QStringLiteral("auto"));
+        QCOMPARE(rs3.text("bucket"), QStringLiteral("clips"));
+        QCOMPARE(rs3.text("accessKeyId"), QStringLiteral("AKIA123"));
+        QCOMPARE(rs3.text("keyPrefix"), QStringLiteral("screenshots/"));
+        QVERIFY(rs3.flag("forcePathStyle"));
         QCOMPARE(rs3.publicBaseUrl, QStringLiteral("https://pub-x.r2.dev"));
 
         const UploadProfile rsftp = UploadProfiles::byId(sftp.id);
-        QCOMPARE(rsftp.type, ProviderType::Sftp);
-        QCOMPARE(rsftp.host, QStringLiteral("sftp.example.com"));
-        QCOMPARE(rsftp.port, 2222);
-        QCOMPARE(rsftp.username, QStringLiteral("darko"));
-        QCOMPARE(rsftp.remoteDir, QStringLiteral("/var/www/uploads"));
-        QCOMPARE(rsftp.sftpAuth, SftpAuthMode::PrivateKey);
-        QCOMPARE(rsftp.privateKeyPath, QStringLiteral("/home/darko/.ssh/id_ed25519"));
+        QCOMPARE(rsftp.type, QStringLiteral("sftp"));
+        QCOMPARE(rsftp.text("host"), QStringLiteral("sftp.example.com"));
+        QCOMPARE(rsftp.number("port"), 2222);
+        QCOMPARE(rsftp.text("username"), QStringLiteral("darko"));
+        QCOMPARE(rsftp.text("remoteDir"), QStringLiteral("/var/www/uploads"));
+        QCOMPARE(rsftp.text("sftpAuthMode"), QStringLiteral("key"));
+        QCOMPARE(rsftp.text("privateKeyPath"), QStringLiteral("/home/darko/.ssh/id_ed25519"));
         QCOMPARE(rsftp.publicBaseUrl, QStringLiteral("https://cdn.example.com"));
-        QCOMPARE(rsftp.ftpEncryption, FtpEncryption::Explicit);   // untouched default
 
         const UploadProfile rftp = UploadProfiles::byId(ftp.id);
-        QCOMPARE(rftp.type, ProviderType::Ftp);
-        QCOMPARE(rftp.host, QStringLiteral("ftp.example.com"));
-        QCOMPARE(rftp.port, 990);
-        QVERIFY(rftp.username.isEmpty());
-        QCOMPARE(rftp.remoteDir, QStringLiteral("public_html/shots"));
-        QCOMPARE(rftp.ftpEncryption, FtpEncryption::Implicit);
-        QCOMPARE(rftp.sftpAuth, SftpAuthMode::Password);          // untouched default
+        QCOMPARE(rftp.type, QStringLiteral("ftp"));
+        QCOMPARE(rftp.text("host"), QStringLiteral("ftp.example.com"));
+        QCOMPARE(rftp.number("port"), 990);
+        QVERIFY(rftp.text("username").isEmpty());
+        QCOMPARE(rftp.text("remoteDir"), QStringLiteral("public_html/shots"));
+        QCOMPARE(rftp.text("ftpsMode"), QStringLiteral("implicit"));
+    }
+
+    // Choices persist as their tokens, and a token outside the list reads as the default.
+    void choicesPersistAsTheirTokens()
+    {
+        UploadProfile sftp;
+        sftp.id = "s1";
+        sftp.type = "sftp";
+        sftp.values = {{"sftpAuthMode", "key"}};
+        UploadProfile ftp;
+        ftp.id = "f1";
+        ftp.type = "ftp";
+        ftp.values = {{"ftpsMode", "none"}};
+        UploadProfiles::setAll({sftp, ftp}, sftp.id);
+        const QString json = Core::Settings::uploadProfilesJson();
+        QVERIFY(json.contains(QStringLiteral(R"("sftpAuthMode":"key")")));
+        QVERIFY(json.contains(QStringLiteral(R"("ftpsMode":"none")")));
+
+        Core::Settings::setUploadProfilesJson(QStringLiteral(
+            R"([{"id":"s1","type":"sftp","sftpAuthMode":"nonsense"},)"
+            R"({"id":"f1","type":"ftp","ftpsMode":"nonsense"},{"id":"f2","type":"ftp"}])"));
+        QCOMPARE(UploadProfiles::byId("s1").text("sftpAuthMode"), QStringLiteral("password"));
+        // Missing/unknown must land on the SECURE default, never on plain FTP.
+        QCOMPARE(UploadProfiles::byId("f1").text("ftpsMode"), QStringLiteral("explicit"));
+        QCOMPARE(UploadProfiles::byId("f2").text("ftpsMode"), QStringLiteral("explicit"));
     }
 
     // --- back-compat with profiles written before the type discriminator -----
@@ -230,38 +210,34 @@ private slots:
         const QVector<UploadProfile> v = UploadProfiles::all();
         QCOMPARE(v.size(), 1);
         const UploadProfile &p = v.first();
-        QCOMPARE(p.type, ProviderType::S3);          // the whole point
+        QCOMPARE(p.type, QStringLiteral("s3"));     // the whole point
         QCOMPARE(p.id, QStringLiteral("legacy-1"));
         QCOMPARE(p.name, QStringLiteral("Old S3"));
-        QCOMPARE(p.endpoint, QStringLiteral("s3.amazonaws.com"));
-        QCOMPARE(p.region, QStringLiteral("eu-central-1"));
-        QCOMPARE(p.bucket, QStringLiteral("shots"));
-        QCOMPARE(p.accessKeyId, QStringLiteral("AKIALEGACY"));
-        QCOMPARE(p.keyPrefix, QStringLiteral("screenshots/"));
+        QCOMPARE(p.text("endpoint"), QStringLiteral("s3.amazonaws.com"));
+        QCOMPARE(p.text("region"), QStringLiteral("eu-central-1"));
+        QCOMPARE(p.text("bucket"), QStringLiteral("shots"));
+        QCOMPARE(p.text("accessKeyId"), QStringLiteral("AKIALEGACY"));
+        QCOMPARE(p.text("keyPrefix"), QStringLiteral("screenshots/"));
         QCOMPARE(p.publicBaseUrl, QStringLiteral("https://cdn.example.com"));
-        QVERIFY(p.forcePathStyle);
-        // The absent new fields land on their defaults.
-        QVERIFY(p.host.isEmpty());
-        QCOMPARE(p.port, 0);
-        QVERIFY(p.username.isEmpty());
-        QVERIFY(p.remoteDir.isEmpty());
-        QVERIFY(p.privateKeyPath.isEmpty());
-        QCOMPARE(p.sftpAuth, SftpAuthMode::Password);
-        QCOMPARE(p.ftpEncryption, FtpEncryption::Explicit);
+        QVERIFY(p.flag("forcePathStyle"));
+        // Only the provider's own settings are kept.
+        QCOMPARE(p.values.size(), 6);
         // ... and rewriting it keeps the S3 identity.
         UploadProfiles::setAll({p}, p.id);
-        QCOMPARE(UploadProfiles::byId("legacy-1").type, ProviderType::S3);
-        QCOMPARE(UploadProfiles::byId("legacy-1").bucket, QStringLiteral("shots"));
+        QCOMPARE(UploadProfiles::byId("legacy-1").type, QStringLiteral("s3"));
+        QCOMPARE(UploadProfiles::byId("legacy-1").text("bucket"), QStringLiteral("shots"));
     }
 
     void unknownTypeReadsAsS3()
     {
         Core::Settings::setUploadProfilesJson(QStringLiteral(
-            R"([{"id":"g1","name":"Gopher","type":"gopher","bucket":"shots"}])"));
+            R"([{"id":"g1","name":"Gopher","type":"gopher","bucket":"shots"},)"
+            R"({"id":"u1","type":"SFTP","host":"h"}])"));
         const QVector<UploadProfile> v = UploadProfiles::all();
-        QCOMPARE(v.size(), 1);
-        QCOMPARE(v.first().type, ProviderType::S3);
-        QCOMPARE(v.first().bucket, QStringLiteral("shots"));
+        QCOMPARE(v.size(), 2);
+        QCOMPARE(v.first().type, QStringLiteral("s3"));
+        QCOMPARE(v.first().text("bucket"), QStringLiteral("shots"));
+        QCOMPARE(v.last().type, QStringLiteral("s3"));   // the tokens are lowercase
     }
 
     // --- KnownHosts: the SFTP host-key pin store -----------------------------

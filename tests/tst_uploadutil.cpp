@@ -2,31 +2,15 @@
 #include <QRegularExpression>
 
 #include "upload/Util.h"
-#include "upload/UploadConfig.h"
 
 using namespace Upload;
 
 // The shared remote-name / path / URL helpers. Pure string work - no network, no
 // keychain, no optional dependency - so every assertion here holds in every build
-// (with or without HAVE_LIBCURL / HAVE_LIBSSH2). The UploadConfig instances are
-// hand-built; forProfile() (and therefore the keychain) is never called.
+// (with or without HAVE_LIBCURL / HAVE_LIBSSH2).
 class tst_UploadUtil : public QObject
 {
     Q_OBJECT
-
-    // A credential-bearing FTP config, so the URL builders can be checked to leak nothing.
-    static UploadConfig ftpConfig(const QString &host, int port, FtpEncryption enc)
-    {
-        UploadConfig c;
-        c.enabled = true;
-        c.type = ProviderType::Ftp;
-        c.host = host;
-        c.port = port;
-        c.ftpEncryption = enc;
-        c.username = "bob";
-        c.secretKey = "hunter2";
-        return c;
-    }
 
 private slots:
     // --- sanitizeHint -------------------------------------------------------
@@ -120,24 +104,19 @@ private slots:
 
     void buildFtpUrlSchemePerEncryption()
     {
-        // Explicit TLS is negotiated in-band (AUTH TLS), so the scheme stays ftp://;
+        // Explicit TLS is negotiated in-band (AUTH TLS), so it shares plain FTP's ftp://;
         // only implicit TLS gets its own scheme.
-        QCOMPARE(Util::buildFtpUrl(ftpConfig("h", 0, FtpEncryption::None), "f.png"),
-                 QStringLiteral("ftp://h/f.png"));
-        QCOMPARE(Util::buildFtpUrl(ftpConfig("h", 0, FtpEncryption::Explicit), "f.png"),
-                 QStringLiteral("ftp://h/f.png"));
-        QCOMPARE(Util::buildFtpUrl(ftpConfig("h", 0, FtpEncryption::Implicit), "f.png"),
-                 QStringLiteral("ftps://h/f.png"));
+        QCOMPARE(Util::buildFtpUrl("h", 0, false, "f.png"), QStringLiteral("ftp://h/f.png"));
+        QCOMPARE(Util::buildFtpUrl("h", 0, true, "f.png"), QStringLiteral("ftps://h/f.png"));
     }
 
     void buildFtpUrlPortOnlyWhenSet()
     {
         // port 0 = "protocol default" and must not appear in the URL at all.
-        QCOMPARE(Util::buildFtpUrl(ftpConfig("h", 0, FtpEncryption::Explicit), "f.png"),
-                 QStringLiteral("ftp://h/f.png"));
-        QCOMPARE(Util::buildFtpUrl(ftpConfig("h", 2121, FtpEncryption::Explicit), "f.png"),
+        QCOMPARE(Util::buildFtpUrl("h", 0, false, "f.png"), QStringLiteral("ftp://h/f.png"));
+        QCOMPARE(Util::buildFtpUrl("h", 2121, false, "f.png"),
                  QStringLiteral("ftp://h:2121/f.png"));
-        QCOMPARE(Util::buildFtpUrl(ftpConfig("h", 990, FtpEncryption::Implicit), "f.png"),
+        QCOMPARE(Util::buildFtpUrl("h", 990, true, "f.png"),
                  QStringLiteral("ftps://h:990/f.png"));
     }
 
@@ -146,26 +125,21 @@ private slots:
         // Each segment is percent-encoded (curl's parser rejects raw spaces) while the
         // separators stay literal; a leading '/' becomes "%2F" because curl reads an FTP
         // path as login-dir-relative.
-        QCOMPARE(Util::buildFtpUrl(ftpConfig("h", 2121, FtpEncryption::Explicit),
-                                   "/var/www files/x y.png"),
+        QCOMPARE(Util::buildFtpUrl("h", 2121, false, "/var/www files/x y.png"),
                  QStringLiteral("ftp://h:2121/%2Fvar/www%20files/x%20y.png"));
         // Relative paths keep no marker.
-        QCOMPARE(Util::buildFtpUrl(ftpConfig("h", 0, FtpEncryption::Explicit),
-                                   "up loads/x y.png"),
+        QCOMPARE(Util::buildFtpUrl("h", 0, false, "up loads/x y.png"),
                  QStringLiteral("ftp://h/up%20loads/x%20y.png"));
         // Doubled separators do not survive into the URL.
-        QCOMPARE(Util::buildFtpUrl(ftpConfig("h", 0, FtpEncryption::Explicit), "//a//b.png"),
+        QCOMPARE(Util::buildFtpUrl("h", 0, false, "//a//b.png"),
                  QStringLiteral("ftp://h/%2Fa/b.png"));
     }
 
     void buildFtpUrlNeverCarriesCredentials()
     {
-        // Credentials go to CURLOPT_USERNAME/PASSWORD; a URL may be logged or shown to
-        // the user as the fallback link, so it must stay clean.
-        const UploadConfig cfg = ftpConfig("h", 21, FtpEncryption::Explicit);
-        const QString url = Util::buildFtpUrl(cfg, "/pub/x.png");
-        QVERIFY(!url.contains("bob"));
-        QVERIFY(!url.contains("hunter2"));
+        // Credentials go to CURLOPT_USERNAME/PASSWORD, never into the builder; a URL may
+        // be logged or shown to the user as the fallback link, so it must stay clean.
+        const QString url = Util::buildFtpUrl("h", 21, false, "/pub/x.png");
         QVERIFY(!url.contains(QLatin1Char('@')));
         QCOMPARE(url, QStringLiteral("ftp://h:21/%2Fpub/x.png"));
     }

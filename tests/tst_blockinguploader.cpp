@@ -83,7 +83,8 @@ private slots:
         file.close();
 
         UploadConfig cfg;
-        cfg.remoteDir = QStringLiteral("/dir");
+        cfg.type = QStringLiteral("sftp");
+        cfg.values.insert(QStringLiteral("remoteDir"), QStringLiteral("/dir"));
         cfg.publicBaseUrl = base;
         ScriptedUploader::Outcome outcome;
         outcome.status = Status(status);

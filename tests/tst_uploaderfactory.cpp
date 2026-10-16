@@ -10,8 +10,6 @@
 
 using namespace Upload;
 
-Q_DECLARE_METATYPE(Upload::ProviderType)
-
 // Factory surface only - never a live upload() on a real backend, so no network. Every
 // destination here is complete without a keychain secret (S3 is built by hand), so the
 // profile-store cases stay keychain-free and work on the stub-keychain platforms too.
@@ -25,40 +23,37 @@ class tst_UploaderFactory : public QObject
     }
 
     // SFTP with key auth and anonymous FTP need no stored secret.
-    static UploadConfig complete(ProviderType type)
+    static UploadConfig complete(const QString &type)
     {
         UploadConfig c;
         c.id = UploadProfiles::newId();
         c.name = QStringLiteral("B");
         c.enabled = true;
         c.type = type;
-        c.host = QStringLiteral("files.example.com");
-        c.username = type == ProviderType::Sftp ? QStringLiteral("darko") : QString();
-        c.sftpAuth = SftpAuthMode::PrivateKey;
-        c.privateKeyPath = QStringLiteral("/home/darko/.ssh/id_ed25519");
-        c.endpoint = QStringLiteral("s3.example.com");
-        c.region = QStringLiteral("us-east-1");
-        c.bucket = QStringLiteral("shots");
-        c.accessKeyId = QStringLiteral("AKIA");
+        c.values = {{"host", "files.example.com"},
+                    {"username", type == QLatin1String("sftp") ? "darko" : ""},
+                    {"sftpAuthMode", "key"}, {"privateKeyPath", "/home/darko/.ssh/id_ed25519"},
+                    {"endpoint", "s3.example.com"}, {"region", "us-east-1"},
+                    {"bucket", "shots"}, {"accessKeyId", "AKIA"}};
         c.secretKey = QStringLiteral("sekrit");
         return c;
     }
 
     static void backendRows(bool withS3)
     {
-        QTest::addColumn<ProviderType>("type");
+        QTest::addColumn<QString>("type");
         QTest::addColumn<QString>("expected");
         if (withS3)
-            QTest::newRow("s3") << ProviderType::S3 << "Upload::S3Uploader";
+            QTest::newRow("s3") << QStringLiteral("s3") << "Upload::S3Uploader";
 #ifdef HAVE_LIBSSH2
-        QTest::newRow("sftp") << ProviderType::Sftp << "Upload::SftpUploader";
+        QTest::newRow("sftp") << QStringLiteral("sftp") << "Upload::SftpUploader";
 #else
-        QTest::newRow("sftp") << ProviderType::Sftp << "Upload::StubUploader";
+        QTest::newRow("sftp") << QStringLiteral("sftp") << "Upload::StubUploader";
 #endif
 #ifdef HAVE_LIBCURL
-        QTest::newRow("ftp") << ProviderType::Ftp << "Upload::FtpUploader";
+        QTest::newRow("ftp") << QStringLiteral("ftp") << "Upload::FtpUploader";
 #else
-        QTest::newRow("ftp") << ProviderType::Ftp << "Upload::StubUploader";
+        QTest::newRow("ftp") << QStringLiteral("ftp") << "Upload::StubUploader";
 #endif
     }
 
@@ -82,7 +77,7 @@ private slots:
     void picksTheBackendPerType_data() { backendRows(true); }
     void picksTheBackendPerType()
     {
-        QFETCH(ProviderType, type);
+        QFETCH(QString, type);
         QFETCH(QString, expected);
         const bool stub = expected == QStringLiteral("Upload::StubUploader");
         QCOMPARE(UploaderFactory::isAvailable(type), !stub);
@@ -123,7 +118,7 @@ private slots:
     void createUsesTheRequestedProfile_data() { backendRows(false); }
     void createUsesTheRequestedProfile()
     {
-        QFETCH(ProviderType, type);
+        QFETCH(QString, type);
         QFETCH(QString, expected);
         Core::Settings::setUploadEnabled(true);
         UploadProfile incomplete;

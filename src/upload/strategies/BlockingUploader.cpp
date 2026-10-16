@@ -37,7 +37,8 @@ void BlockingUploader::start(const QString &localPath, const QString &keyHint, b
 
     Job job;
     job.remoteName = Util::uniqueRemoteName(keyHint);
-    job.remotePath = Util::buildRemotePath(m_config.remoteDir, job.remoteName);
+    job.remotePath = Util::buildRemotePath(m_config.text(QStringLiteral("remoteDir")),
+                                             job.remoteName);
     job.testing = testing;
     // An explicit base maps the whole remote tree, so it joins the full remote path - minus
     // the absolute marker, which would double the separator. Without one the subclass's

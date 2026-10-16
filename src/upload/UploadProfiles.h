@@ -2,57 +2,36 @@
 #define UPLOAD_UPLOADPROFILES_H
 
 #include <QString>
+#include <QVariant>
+#include <QVariantMap>
 #include <QVector>
 
 namespace Upload {
 
-// Which transport a destination speaks. Persisted as a string, and a missing/unknown
-// value reads back as S3, so profiles written before this enum existed round-trip intact.
-enum class ProviderType { S3, Sftp, Ftp };
-enum class SftpAuthMode { Password, PrivateKey };
-enum class FtpEncryption { None, Explicit, Implicit };   // plain / AUTH TLS / ftps:// (990)
-
-QString       providerTypeToString(ProviderType t);      // "s3" | "sftp" | "ftp"
-ProviderType  providerTypeFromString(const QString &s);  // unknown/missing -> S3
-QString       providerDisplayName(ProviderType t);       // "S3" | "SFTP" | "FTP" (UI labels)
-QString       sftpAuthModeToString(SftpAuthMode m);      // "password" | "key"
-SftpAuthMode  sftpAuthModeFromString(const QString &s);
-QString       ftpEncryptionToString(FtpEncryption e);    // "none" | "explicit" | "implicit"
-FtpEncryption ftpEncryptionFromString(const QString &s);
-// The Core::KeychainStore service id holding this type's secret (account = profile id).
-QString       keychainServiceFor(ProviderType t);
-
 /**
  * One saved upload destination. The non-secret config plus a stable `id` (the keychain
- * account for this profile's secret). Mirrors Editor::Image::BackdropPreset. `type`
- * picks which field group applies; the others are simply unused (dedicated fields per
- * type rather than overloaded ones, so nothing is ambiguous at a glance).
+ * account for this profile's secret). Mirrors Editor::Image::BackdropPreset. `type` names
+ * the ProviderSpec, whose fields say what `values` holds.
  */
 struct UploadProfile {
     QString id;              // QUuid (Id128); also the keychain account for the secret
     QString name;            // user-facing label
-    ProviderType type = ProviderType::S3;
+    // The ProviderSpec id. Profiles saved before the key existed were all S3, so a
+    // missing or unknown type reads as S3.
+    QString type = QStringLiteral("s3");
+    QString publicBaseUrl;   // every type: override for the returned link (required for R2)
+    QVariantMap values;      // the provider's own settings, keyed by FieldSpec::key
 
-    // S3
-    QString endpoint;        // host only, e.g. "s3.amazonaws.com"
-    QString region;          // "us-east-1", "auto" (R2), ...
-    QString bucket;
-    QString accessKeyId;
-    QString keyPrefix;       // e.g. "screenshots/"
-    bool forcePathStyle = false;
-
-    // SFTP / FTP
-    QString host;
-    int port = 0;            // 0 = the protocol default (22 / 21 / 990 for implicit FTPS)
-    QString username;        // FTP: empty = anonymous
-    QString remoteDir;       // leading "/" = absolute, else relative to the login dir
-    SftpAuthMode sftpAuth = SftpAuthMode::Password;
-    QString privateKeyPath;  // SFTP key auth; the (optional) passphrase is the secret
-    FtpEncryption ftpEncryption = FtpEncryption::Explicit;   // secure default
-
-    // Shared by every type
-    QString publicBaseUrl;   // override for the returned link (required for R2)
+    // A provider setting; a missing key reads as the field's defaultValue.
+    [[nodiscard]] QVariant value(const QString &key) const;
+    [[nodiscard]] QString text(const QString &key) const { return value(key).toString(); }
+    [[nodiscard]] int number(const QString &key) const { return value(key).toInt(); }
+    [[nodiscard]] bool flag(const QString &key) const { return value(key).toBool(); }
 };
+
+QString providerDisplayName(const QString &type);   // "S3" | "SFTP" | "FTP" (UI labels)
+// The Core::KeychainStore service id holding this type's secret (account = profile id).
+QString keychainServiceFor(const QString &type);
 
 // "Name - SFTP", starred when it is the default: the transport matters when picking.
 QString profileLabel(const UploadProfile &p, bool isDefault);

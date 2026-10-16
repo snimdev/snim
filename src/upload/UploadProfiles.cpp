@@ -9,62 +9,28 @@
 #include <QObject>
 #include <QUuid>
 #include <algorithm>
+#include <optional>
 
 namespace Upload {
 
-QString providerTypeToString(ProviderType t)
+QVariant UploadProfile::value(const QString &key) const
 {
-    switch (t) {
-    case ProviderType::Sftp: return QStringLiteral("sftp");
-    case ProviderType::Ftp:  return QStringLiteral("ftp");
-    case ProviderType::S3:   break;
-    }
-    return QStringLiteral("s3");
+    if (const auto it = values.constFind(key); it != values.cend())
+        return *it;
+    const ProviderSpec *spec = ProviderRegistry::find(type);
+    const FieldSpec *field = spec ? spec->field(key) : nullptr;
+    return field ? field->defaultValue : QVariant();
 }
 
-ProviderType providerTypeFromString(const QString &s)
+QString providerDisplayName(const QString &type)
 {
-    if (s == QLatin1String("sftp")) return ProviderType::Sftp;
-    if (s == QLatin1String("ftp"))  return ProviderType::Ftp;
-    return ProviderType::S3;   // also the missing/unknown case (back-compat)
-}
-
-QString providerDisplayName(ProviderType t)
-{
-    const ProviderSpec *spec = ProviderRegistry::find(providerTypeToString(t));
+    const ProviderSpec *spec = ProviderRegistry::find(type);
     return spec ? spec->displayName : QString();
 }
 
-QString sftpAuthModeToString(SftpAuthMode m)
+QString keychainServiceFor(const QString &type)
 {
-    return m == SftpAuthMode::PrivateKey ? QStringLiteral("key") : QStringLiteral("password");
-}
-
-SftpAuthMode sftpAuthModeFromString(const QString &s)
-{
-    return s == QLatin1String("key") ? SftpAuthMode::PrivateKey : SftpAuthMode::Password;
-}
-
-QString ftpEncryptionToString(FtpEncryption e)
-{
-    switch (e) {
-    case FtpEncryption::None:     return QStringLiteral("none");
-    case FtpEncryption::Implicit: return QStringLiteral("implicit");
-    case FtpEncryption::Explicit: break;
-    }
-    return QStringLiteral("explicit");
-}
-
-FtpEncryption ftpEncryptionFromString(const QString &s)
-{
-    if (s == QLatin1String("none"))     return FtpEncryption::None;
-    if (s == QLatin1String("implicit")) return FtpEncryption::Implicit;
-    return FtpEncryption::Explicit;   // secure default for missing/unknown
-}
-
-QString keychainServiceFor(ProviderType t)
-{
-    const ProviderSpec *spec = ProviderRegistry::find(providerTypeToString(t));
+    const ProviderSpec *spec = ProviderRegistry::find(type);
     return spec ? spec->keychainService : QString();
 }
 
@@ -81,26 +47,57 @@ namespace Upload::UploadProfiles {
 
 namespace {
 
+// A stored value in the field's JSON shape; a Choice outside its list reads as absent.
+std::optional<QVariant> fieldFromJson(const FieldSpec &f, const QJsonValue &v)
+{
+    switch (f.kind) {
+    case FieldKind::Port:
+        return v.toInt();
+    case FieldKind::Flag:
+        return v.toBool();
+    case FieldKind::Choice: {
+        const QString s = v.toString();
+        const bool known = std::any_of(f.choices.cbegin(), f.choices.cend(),
+                                       [&s](const auto &c) { return c.first == s; });
+        return known ? std::optional<QVariant>(s) : std::nullopt;
+    }
+    case FieldKind::Text:
+    case FieldKind::FilePath:
+    case FieldKind::Secret:
+        break;
+    }
+    return v.toString();
+}
+
+QJsonValue fieldToJson(const FieldSpec &f, const QVariant &v)
+{
+    switch (f.kind) {
+    case FieldKind::Port: return v.toInt();
+    case FieldKind::Flag: return v.toBool();
+    default:              return v.toString();
+    }
+}
+
+// The provider's fields sit flat beside id/name/type, under the same keys and in the
+// same value shapes as ever, so older files load and rewrite compatibly.
 UploadProfile fromJson(const QJsonObject &o)
 {
     UploadProfile p;
     p.id = o.value("id").toString();
     p.name = o.value("name").toString();
-    p.type = providerTypeFromString(o.value("type").toString());   // absent -> S3
-    p.endpoint = o.value("endpoint").toString();
-    p.region = o.value("region").toString();
-    p.bucket = o.value("bucket").toString();
-    p.accessKeyId = o.value("accessKeyId").toString();
-    p.keyPrefix = o.value("keyPrefix").toString();
-    p.forcePathStyle = o.value("forcePathStyle").toBool();
-    p.host = o.value("host").toString();
-    p.port = o.value("port").toInt();
-    p.username = o.value("username").toString();
-    p.remoteDir = o.value("remoteDir").toString();
-    p.sftpAuth = sftpAuthModeFromString(o.value("sftpAuthMode").toString());
-    p.privateKeyPath = o.value("privateKeyPath").toString();
-    p.ftpEncryption = ftpEncryptionFromString(o.value("ftpsMode").toString());
+    const QString type = o.value("type").toString();
+    const ProviderSpec *spec = ProviderRegistry::find(type);
+    if (spec)
+        p.type = type;
+    else
+        spec = ProviderRegistry::find(p.type);   // absent or unknown -> S3
     p.publicBaseUrl = o.value("publicBaseUrl").toString();
+    for (const FieldSpec &f : spec->fields) {
+        if (f.kind == FieldKind::Secret || !o.contains(f.key))
+            continue;
+        if (const auto v = fieldFromJson(f, o.value(f.key)))
+            p.values.insert(f.key, *v);
+    }
     return p;
 }
 
@@ -109,21 +106,12 @@ QJsonObject toJson(const UploadProfile &p)
     QJsonObject o;
     o["id"] = p.id;
     o["name"] = p.name;
-    o["type"] = providerTypeToString(p.type);
-    o["endpoint"] = p.endpoint;
-    o["region"] = p.region;
-    o["bucket"] = p.bucket;
-    o["accessKeyId"] = p.accessKeyId;
-    o["keyPrefix"] = p.keyPrefix;
-    o["forcePathStyle"] = p.forcePathStyle;
-    o["host"] = p.host;
-    o["port"] = p.port;
-    o["username"] = p.username;
-    o["remoteDir"] = p.remoteDir;
-    o["sftpAuthMode"] = sftpAuthModeToString(p.sftpAuth);
-    o["privateKeyPath"] = p.privateKeyPath;
-    o["ftpsMode"] = ftpEncryptionToString(p.ftpEncryption);
+    o["type"] = p.type;
     o["publicBaseUrl"] = p.publicBaseUrl;
+    if (const ProviderSpec *spec = ProviderRegistry::find(p.type))
+        for (const FieldSpec &f : spec->fields)
+            if (f.kind != FieldKind::Secret)
+                o[f.key] = fieldToJson(f, p.value(f.key));
     return o;
 }
 

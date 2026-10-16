@@ -27,7 +27,7 @@ struct UploadConfig : UploadProfile {
     // configured SFTP profile in a build without libssh2 still passes here and gets a
     // precise "not included in this build" failure instead of a vague "not configured".
     [[nodiscard]] bool isComplete() const {
-        const ProviderSpec *spec = ProviderRegistry::find(providerTypeToString(type));
+        const ProviderSpec *spec = ProviderRegistry::find(type);
         return enabled && spec && spec->isComplete(*this);
     }
 

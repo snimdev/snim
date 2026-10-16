@@ -29,7 +29,7 @@ public:
                                                      QObject *parent = nullptr);
     // Compile-time availability ("was this backend built in"), NOT configuredness - the
     // settings UI uses it to grey out provider types it could never run.
-    static bool isAvailable(ProviderType type);
+    static bool isAvailable(const QString &type);
 };
 
 } // namespace Upload

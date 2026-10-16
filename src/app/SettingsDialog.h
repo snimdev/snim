@@ -87,7 +87,7 @@ private:
     void clearUploadPages();                   // blank every provider page's fields
     void onUploadSelectionChanged(int row);
     // The provider type is fixed at creation, so it is an argument of Add, not a field.
-    void onUploadAddProfile(Upload::ProviderType type);
+    void onUploadAddProfile(const QString &type);
     void onUploadRemoveProfile();
     void onUploadSetDefault();
     // Test the destination as currently typed (saved or not) by uploading a probe file
@@ -96,7 +96,7 @@ private:
     // Auth-mode combo -> secret row label + private-key row visibility. Pure UI: it never
     // touches m_uploadWorking (the working copy is flushed on selection change / Apply).
     void updateSftpAuthMode();
-    [[nodiscard]] QLineEdit *secretEditFor(Upload::ProviderType type) const;
+    [[nodiscard]] QLineEdit *secretEditFor(const QString &type) const;
     void pickColor(QColor &color, const QString &title, QColorDialog::ColorDialogOptions options);
     void updateColorButtons();                 // paint both swatches from the two colors
 
