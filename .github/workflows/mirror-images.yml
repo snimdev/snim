@@ -18,6 +18,8 @@ jobs:
 
     strategy:
       fail-fast: false
+      # One at a time: parallel copies hit the source registry's rate limit together.
+      max-parallel: 1
       matrix:
         image: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:12', 'debian:13', 'fedora:latest']
 
@@ -33,8 +35,11 @@ jobs:
           IMAGE: ${{ matrix.image }}
         run: |
           target="ghcr.io/${GITHUB_REPOSITORY_OWNER}/install-check:${IMAGE/:/-}"
+          # ECR Public first, then Docker Hub: each rate-limits on its own.
           for attempt in 1 2 3; do
-            docker buildx imagetools create --tag "$target" "public.ecr.aws/docker/library/$IMAGE" && exit 0
+            for source in public.ecr.aws/docker/library docker.io/library; do
+              docker buildx imagetools create --tag "$target" "$source/$IMAGE" && exit 0
+            done
             sleep $((attempt * 60))
           done
           exit 1
