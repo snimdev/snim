@@ -45,7 +45,7 @@ Screen recording on Linux needs PipeWire and `xdg-desktop-portal`.
 
 ## Build from source
 
-You need CMake 3.31 or newer, Ninja, a C++20 compiler and the Qt 6 development packages.
+You need CMake 3.31 or newer, Ninja, a C++20 compiler and Qt 6.5 or newer. A distribution's Qt can be too old: Ubuntu 24.04 ships 6.4.
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
@@ -54,7 +54,9 @@ cmake --build build --target check   # build and run the tests
 ./build/snim                         # macOS: ./build/Snim.app/Contents/MacOS/Snim
 ```
 
-- **Optional dependencies** are detected automatically: Tesseract (OCR), GStreamer (recording on Linux), LayerShellQt (the recording frame on Wayland), libcurl (FTP uploads) and libssh2 (SFTP uploads). Without one, its feature is left out and the build still works.
+- **Required libraries**: libwebp with libwebpmux (WebP export), giflib 5.1 or newer (GIF export) and libimagequant (GIF palettes).
+- **Optional dependencies** are detected automatically: Tesseract (OCR), GStreamer (recording on Linux), LayerShellQt (the recording frame on Wayland), XCB (window picking and recording on X11), wayland-client and wayland-scanner (native Wayland screencopy), libcurl (FTP uploads) and libssh2 (SFTP uploads). Without one, its feature is left out and the build still works. The configure summary suggests an install command for anything missing.
+- **Tests** need Qt Test, and a few Linux tests also `dbus-run-session` (they are left out without it). `-DSNIM_BUILD_TESTS=OFF` skips the suite.
 - **macOS with Homebrew Qt**: add `-DCMAKE_PREFIX_PATH="$(brew --prefix qt)"` when configuring.
 - **Windows**: dependencies come from vcpkg. From an x64 Native Tools prompt, with `VCPKG_ROOT` set and Qt 6.11 `msvc2022_64` on `CMAKE_PREFIX_PATH`, run `cmake --preset windows-msvc`, then `cmake --build --preset windows-msvc`.
 
