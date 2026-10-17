@@ -7,9 +7,6 @@ namespace Core::Version {
 // Full version, which on an untagged build carries a git describe suffix.
 inline constexpr char kVersion[] = "@SNIM_VERSION@";
 
-// Only the leading X.Y.Z, for anything that rejects a suffix.
-inline constexpr char kVersionNumeric[] = "@SNIM_VERSION_NUMERIC@";
-
 } // namespace Core::Version
 
 #endif // CORE_VERSION_H

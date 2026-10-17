@@ -281,6 +281,7 @@ target_sources(snim_lib PRIVATE
         editor/annotations/commands/EditorCommands.h
         editor/annotations/DrawingGraphicsView.cpp
         editor/annotations/DrawingGraphicsView.h
+        editor/annotations/tools/ITool.h
         editor/annotations/tools/ToolItem.cpp
         editor/annotations/tools/ToolItem.h
         editor/annotations/CanvasShadow.cpp
@@ -323,13 +324,13 @@ target_sources(snim_lib PRIVATE
         editor/image/BackdropMemento.h
         editor/image/BackdropPresets.cpp
         editor/image/BackdropPresets.h
-        # The stub exporter hosts the factory and is the fallback for the platform ones below.
         editor/video/TrimState.cpp
         editor/video/TrimState.h
         editor/video/TrimTimeline.cpp
         editor/video/TrimTimeline.h
         editor/video/VideoEditor.cpp
         editor/video/VideoEditor.h
+        # VideoExporter::create picks the platform exporter below and falls back to the stub.
         editor/video/VideoExporter.h
         editor/video/VideoExporter.cpp
         editor/video/AnimationParams.h
@@ -403,6 +404,7 @@ target_sources(snim_lib PRIVATE
         record/RecordingGeometry.h
         record/PcmMixBuffer.h
         record/PauseAwareClock.h
+        record/StreamTimestamp.h
         record/RecordingStrategy.cpp
         record/RecordingStrategy.h
         record/RecordingFactory.cpp

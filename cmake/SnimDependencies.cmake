@@ -1,4 +1,5 @@
-# Every non-Qt dependency: sets the <PREFIX>_AVAILABLE switches and the global HAVE_* defines.
+# Finds every non-Qt dependency. Most set <PREFIX>_AVAILABLE and a few also a global HAVE_*
+# define; a missing required one stops the configure.
 
 include(FeatureSummary)
 
@@ -158,13 +159,14 @@ snim_find_dependency(LIBSSH2 NAME libssh2 FEATURE "SFTP uploads"
         HOMEBREW
         INSTALL "brew install libssh2 / sudo apt install libssh2-1-dev")
 
-# The animated encoder needs libwebpmux too, so a partial find is not usable.
+# The animated encoder needs libwebpmux too, so a partial find is not usable. pkg-config
+# reports <prefix>/include/webp; the parents let <webp/encode.h> resolve.
 snim_find_dependency(LIBWEBP LIBWEBPMUX NAME libwebp FEATURE "Animated WebP export" REQUIRED
         CONFIG WebP WebP::webp WebP::libwebpmux
         PKG_CONFIG libwebp libwebpmux
         HEADER WebP_INCLUDE_DIR webp/encode.h
         LIBRARIES WebPMux_LIBRARY webpmux WebP_LIBRARY webp
-        HOMEBREW
+        HOMEBREW INCLUDE_PARENTS
         INSTALL "sudo apt install libwebp-dev / sudo dnf install libwebp-devel / brew install webp")
 
 # 5.1 is the first giflib with the current API.

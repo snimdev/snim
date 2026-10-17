@@ -80,11 +80,9 @@ foreach(_snim_dep TESSERACT LIBCURL LIBSSH2)
         snim_link_dependency(snim_lib ${_snim_dep})
     endif()
 endforeach()
-# libwebp's pkg-config reports <prefix>/include/webp; the parents let <webp/encode.h> resolve.
-snim_with_parent_dirs(_webp_inc ${LIBWEBP_INCLUDE_DIRS})
-target_include_directories(snim_lib PRIVATE ${_webp_inc})
-target_link_directories(snim_lib PUBLIC ${LIBWEBP_LIBRARY_DIRS})
-target_link_libraries(snim_lib PUBLIC ${LIBWEBPMUX_LIBRARIES} ${LIBWEBP_LIBRARIES} GIF::GIF)
+snim_link_dependency(snim_lib LIBWEBPMUX)
+snim_link_dependency(snim_lib LIBWEBP)
+target_link_libraries(snim_lib PUBLIC GIF::GIF)
 snim_link_dependency(snim_lib IMAGEQUANT)
 
 # The qrc stays on the executable: in the static lib AUTORCC's initializer would be stripped.

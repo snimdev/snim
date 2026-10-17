@@ -1,9 +1,8 @@
 find_package(Qt6 COMPONENTS Test REQUIRED)
 
-# Each entry is a single-file Qt Test (QTEST_MAIN). They link the app's static
-# library + Qt6::Test and run headless via the offscreen platform (set per-test
-# below; CI also exports QT_QPA_PLATFORM=offscreen as a belt-and-suspenders).
-# The list grows tier by tier as tests are added.
+# Each entry is a Qt Test built from its own .cpp, plus any sources added below (the qrc,
+# GstSupport.cpp). They link the app's static library + Qt6::Test and run headless via the
+# offscreen platform (set per-test below; CI also exports QT_QPA_PLATFORM=offscreen).
 set(SNIM_TESTS
         tst_settings
         tst_filenames
@@ -80,13 +79,13 @@ set(SNIM_TESTS
         tst_videoeditor_smoke
 )
 
-# The dlopened Linux modules only exist where they are built.
+# GStreamer builds only: the dlopened Linux modules, GstSupport and the ScreenCast portal.
 if(GSTREAMER_AVAILABLE)
     list(APPEND SNIM_TESTS tst_linuxrecordermodule tst_gstvideoexporter tst_recordingrecovery
             tst_screencasttoken tst_screencastrequest tst_gstsupport)
 endif()
 
-# Windows only: the real Credential Manager round trip and the FFmpeg media layer.
+# Windows only: the real Credential Manager round trip, the FFmpeg media layer and the recorder.
 if(WIN32)
     list(APPEND SNIM_TESTS tst_keychainstore tst_h264encoderchain tst_ffmpegencoder
             tst_windowsrecorder)
@@ -199,6 +198,10 @@ add_custom_target(check
         USES_TERMINAL
         COMMENT "Running all Snim tests")
 add_dependencies(check ${SNIM_TESTS} ${SNIM_BUS_TESTS})
+# snim_no_shared_ffmpeg inspects snim.exe itself, so check must build the app too.
+if(WIN32)
+    add_dependencies(check Snim)
+endif()
 
 # Manual ScreenCast capture and recording checks against the real portal; never run by ctest.
 if(GSTREAMER_AVAILABLE)
