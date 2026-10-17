@@ -4,7 +4,7 @@
 #
 #   resources/icons/hicolor/<N>x<N>/apps/dev.snim.Snim.png   (Linux, installed by CMake)
 #   resources/AppIcon.icns                                   (macOS bundle icon)
-#   resources/snim.ico                                       (Windows exe icon, via snim.rc)
+#   resources/snim.ico                                       (Windows exe icon via snim.rc, installer via snim.iss)
 #
 # All outputs are committed, so this only needs rerunning when the SVG changes.
 #
@@ -31,7 +31,7 @@ if ! command -v rsvg-convert >/dev/null 2>&1; then
 fi
 
 render() {
-    # render <size> <output-png>
+    # render <width> <height> <output-png>
     rsvg-convert --width "$1" --height "$2" --output "$3" "$SVG"
 }
 

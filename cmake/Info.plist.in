@@ -35,7 +35,7 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Snim needs Microphone access to record your narration.</string>
     <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
+    <string>15.0</string>
     <!-- Menu-bar (agent) app: lives in the tray, no Dock icon. Set to false
          (or remove) if you want Snim to appear in the Dock and app switcher. -->
     <key>LSUIElement</key>

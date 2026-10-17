@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Cuts a release by tagging main and pushing the tag; the release workflow does
-# everything else (build, Linux packages, DMG, notes, GitHub release).
+# everything else (build, Linux packages, Flatpak, DMG, Windows installer, notes,
+# GitHub release).
 #
 # Usage: scripts/release.sh beta|rc|stable|major|minor|patch
 #   beta    next beta: v1.0.0-beta.3 -> v1.0.0-beta.4, v1.0.0 -> v1.0.1-beta.1

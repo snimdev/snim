@@ -145,8 +145,10 @@ modules:
     sources:
       - type: dir
         path: ../..
-        # The CI build and state dirs live in the checkout
+        # Build and state dirs in the checkout, CI's then local ones; skip takes no globs
         skip:
           - .flatpak-builder
           - flatpak_app
           - repo
+          - build
+          - cmake-build-debug

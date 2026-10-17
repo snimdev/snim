@@ -1,4 +1,4 @@
-; Build with: ISCC /DAppVersion=1.0.0-alpha.1 /DAppVersionNumeric=1.0.0 /DSourceDir=<install prefix> /O<outdir> snim.iss
+; Build with: ISCC /DAppVersion=1.0.0-rc.1 /DAppVersionNumeric=1.0.0 /DSourceDir=<install prefix> /O<outdir> snim.iss
 
 #ifndef AppVersion
   #error Pass /DAppVersion=<version>
@@ -15,7 +15,7 @@
 AppId={{6BF06980-5D1A-42D7-AD5D-67A4640D9701}
 AppName=Snim
 AppVersion={#AppVersion}
-AppPublisher=darkog
+AppPublisher=Darko Gjorgjijoski
 AppPublisherURL=https://snim.dev
 AppSupportURL=https://snim.dev
 AppUpdatesURL=https://snim.dev/download

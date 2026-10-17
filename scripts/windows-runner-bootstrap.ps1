@@ -275,8 +275,8 @@ Write-Host @"
   1. Reboot once if Build Tools or long paths were just installed, then check the runner shows Idle under
      github.com/organizations/snimdev/settings/actions/runners (runner group must allow the snim repo).
   2. In github.com/snimdev/snim/settings/variables/actions set the repository variable
-       WINDOWS_RUNNER = ["self-hosted","windows","x64","snim-win"]
+       WINDOWS_RUNNER = ["self-hosted","$Labels"]
   3. Re-run the Windows checks on the open pull request. The first build is cold (vcpkg builds every
      dependency into $CacheRoot\vcpkg-cache); later ones reuse it.
-  To move the caches, set SNIM_VCPKG_CACHE and SNIM_VCPKG_DOWNLOADS in $RunnerDir\.env and restart the runner service.
+  To move the caches, set SNIM_VCPKG_CACHE, SNIM_VCPKG_DOWNLOADS and SNIM_QT_DIR in $RunnerDir\.env and restart the runner service.
 "@

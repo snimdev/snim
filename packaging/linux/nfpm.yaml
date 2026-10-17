@@ -3,7 +3,7 @@
 # arm64) set.
 name: snim
 version: ${SNIM_VERSION}
-# Turns 1.0.0-beta.1 into 1.0.0~beta.1, which sorts below 1.0.0 in dpkg and rpm.
+# Turns 1.0.0-rc.1 into 1.0.0~rc.1, which sorts below 1.0.0 in dpkg and rpm.
 version_schema: semver
 arch: ${SNIM_ARCH}
 platform: linux
@@ -33,7 +33,7 @@ contents:
     dst: /usr/share/applications/dev.snim.Snim.desktop
   - src: AppDir/usr/share/icons/hicolor/*/apps/dev.snim.Snim.*
     dst: /usr/share/icons/hicolor
-  # A link rather than a copy, so packaging works whether or not the build installs metainfo.
+  # The build installs it into the AppDir (cmake/PackagingLinux.cmake); link it rather than copy it.
   - src: /opt/snim/usr/share/metainfo/dev.snim.Snim.metainfo.xml
     dst: /usr/share/metainfo/dev.snim.Snim.metainfo.xml
     type: symlink

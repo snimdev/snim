@@ -89,7 +89,7 @@ the tarball, install `gstreamer1.0-plugins-good`, `gstreamer1.0-plugins-bad` and
 `gstreamer1-plugins-bad-free`, `gstreamer1-plugin-openh264` and `pipewire-gstreamer` (Fedora).
 EOF
 
-    # A hyphen in the tag means a prerelease (v1.0.0-beta.1), never a plain release.
+    # A hyphen in the tag means a prerelease (v1.0.0-rc.1), never a plain release.
     case "$TAG" in
         *-*)
             printf '\nThis is a prerelease, published for early testing: expect rough edges.\n'
@@ -128,7 +128,7 @@ trap 'rm -f "$SUBJECTS"' EXIT
 git log --no-merges --format='%s' "$RANGE" > "$SUBJECTS"
 
 # `Area: ` prefixes only; a colon inside a sentence must not become a heading.
-PREFIX_RE='^[A-Z][A-Za-z0-9+/ -]*: '
+PREFIX_RE='^[A-Z][A-Za-z0-9+ -]*: '
 
 printf 'Snim %s.\n' "$TAG"
 
