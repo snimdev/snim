@@ -1,0 +1,40 @@
+name: Mirror images
+
+# Copies the release install checks' base images into ghcr.io: anonymous pulls from
+# Docker Hub and ECR Public are rate-limited on the shared runners, pulls from ghcr.io are not.
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+jobs:
+  mirror:
+    name: Mirror ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:12', 'debian:13', 'fedora:latest']
+
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy every platform of the image
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          target="ghcr.io/${GITHUB_REPOSITORY_OWNER}/install-check:${IMAGE/:/-}"
+          for attempt in 1 2 3; do
+            docker buildx imagetools create --tag "$target" "public.ecr.aws/docker/library/$IMAGE" && exit 0
+            sleep $((attempt * 60))
+          done
+          exit 1
