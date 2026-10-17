@@ -1,4 +1,4 @@
-/* === Snim Image Editor - Clean Modern Style === */
+/* === Snim editors (image and video, applied in EditorChrome.cpp) === */
 
 /* Toolbar */
 QToolBar {
@@ -71,31 +71,7 @@ QSplitter::handle:vertical {
     height: 6px;
 }
 
-/* Layer list */
-QListWidget {
-    border: 1px solid palette(mid);
-    border-radius: 6px;
-    background: palette(base);
-    outline: none;
-    padding: 2px;
-}
-
-QListWidget::item {
-    padding: 4px 6px;
-    border-radius: 4px;
-    margin: 1px 2px;
-}
-
-QListWidget::item:selected {
-    background: palette(highlight);
-    color: palette(highlighted-text);
-}
-
-QListWidget::item:hover:!selected {
-    background: palette(midlight);
-}
-
-/* Scrollbars — thin overlay */
+/* Scrollbars: thin overlay */
 QScrollBar:vertical {
     width: 8px;
     background: transparent;
