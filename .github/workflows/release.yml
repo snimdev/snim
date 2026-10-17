@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 jobs:
   linux-bundle:
@@ -317,8 +318,13 @@ jobs:
     name: Install on ${{ matrix.image }} (${{ matrix.arch }})
     needs: [linux-bundle]
     runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
-    # Docker's official images via ECR Public: Docker Hub rate-limits the shared runners.
-    container: public.ecr.aws/docker/library/${{ matrix.image }}
+    # Docker's official images, mirrored to ghcr.io by mirror-images.yml: Docker Hub and
+    # ECR Public rate-limit anonymous pulls on the shared runners.
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/install-check:${{ matrix.tag }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 20
 
     strategy:
@@ -335,14 +341,19 @@ jobs:
         include:
           # No recommends or weak deps: the checks below must pass on the package's hard dependencies alone.
           - image: ubuntu:22.04
+            tag: ubuntu-22.04
             install: apt-get update && apt-get install -y --no-install-recommends ./snim_*.deb
           - image: ubuntu:24.04
+            tag: ubuntu-24.04
             install: apt-get update && apt-get install -y --no-install-recommends ./snim_*.deb
           - image: debian:12
+            tag: debian-12
             install: apt-get update && apt-get install -y --no-install-recommends ./snim_*.deb
           - image: debian:13
+            tag: debian-13
             install: apt-get update && apt-get install -y --no-install-recommends ./snim_*.deb
           - image: fedora:latest
+            tag: fedora-latest
             install: dnf install -y --setopt=install_weak_deps=False ./snim-*.rpm
 
     steps:
