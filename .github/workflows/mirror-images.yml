@@ -21,6 +21,7 @@ jobs:
       # One at a time: parallel copies hit the source registry's rate limit together.
       max-parallel: 1
       matrix:
+        # The portability job in release.yml must list the same images.
         image: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:12', 'debian:13', 'fedora:latest']
 
     steps:

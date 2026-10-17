@@ -251,9 +251,8 @@ jobs:
             done
             [ -n "$keep" ] || rm -rf "$doc"
           done
-          # A bundle without the xdg-shell integration is exactly what alpha.2 shipped:
-          # the wayland plugin fails to load, the app runs under XWayland, and nothing
-          # says so but a debug line.
+          # Without the xdg-shell integration the wayland plugin fails to load, the app
+          # runs under XWayland, and nothing says so but a debug line.
           if [ ! -e AppDir/usr/plugins/wayland-shell-integration/libxdg-shell.so ]; then
             echo "::error title=No Wayland shell integration::AppDir/usr/plugins/wayland-shell-integration/libxdg-shell.so is missing, so the bundle would silently run under XWayland"
             ls -R AppDir/usr/plugins || true
@@ -635,7 +634,7 @@ jobs:
 
   windows:
     name: Installer and zip (Windows x64)
-    # Off until a Windows runner exists: setting the WINDOWS_RUNNER repo variable turns it on.
+    # Runs on the self-hosted runner the WINDOWS_RUNNER repo variable names; skipped without it.
     if: vars.WINDOWS_RUNNER != ''
     runs-on: ${{ vars.WINDOWS_RUNNER && fromJSON(vars.WINDOWS_RUNNER) || 'windows-2022' }}
     timeout-minutes: 120  # a cold vcpkg cache builds every dependency, FFmpeg included
@@ -650,7 +649,7 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           if ($env:EVENT -eq 'push') { $version = $env:GITHUB_REF_NAME -replace '^v', '' } else { $version = $env:INPUT_VERSION }
-          # The installer's file version takes numbers only, so 1.0.0-alpha.9 stamps 1.0.0.
+          # The installer's file version takes numbers only, so 1.0.0-rc.1 stamps 1.0.0.
           if ($version -notmatch '^(\d+\.\d+\.\d+)') {
             Write-Output "::error title=Unusable version::'$version' does not start with X.Y.Z"
             exit 1
@@ -873,7 +872,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           FLAGS=(--title "Snim $VERSION" --notes-file notes.md)
-          # A hyphen in the version means a prerelease tag (v1.0.0-alpha.1), so flag it as one.
+          # A hyphen in the version means a prerelease tag (v1.0.0-rc.1), so flag it as one.
           case "$VERSION" in
             *-*) FLAGS+=(--prerelease) ;;
           esac

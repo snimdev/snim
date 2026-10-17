@@ -1,3 +1,4 @@
+# scripts/release.sh looks runs up by this name and mirrors the paths-ignore below.
 name: CI
 
 on:
@@ -44,7 +45,7 @@ jobs:
 
       - name: Install dependencies
         # qt6 + tesseract (OCR) + webp, giflib, libimagequant (animation export) +
-        # ninja/cmake. cmake is pinned via brew so it satisfies cmake_minimum_required.
+        # ninja/cmake. cmake comes from brew so it satisfies cmake_minimum_required.
         run: brew install qt tesseract webp giflib libimagequant ninja cmake ccache
 
       - name: Restore the ccache
@@ -56,6 +57,10 @@ jobs:
           path: ${{ github.workspace }}/.ccache
           key: ccache-${{ runner.os }}-
           restore-keys: ccache-${{ runner.os }}-
+
+      - name: Reset ccache statistics
+        # The restored cache carries earlier runs' counters; the stats below cover this build only.
+        run: ccache -z
 
       - name: Configure
         run: >
@@ -172,6 +177,10 @@ jobs:
           key: ccache-${{ runner.os }}-${{ runner.arch }}-
           restore-keys: ccache-${{ runner.os }}-${{ runner.arch }}-
 
+      - name: Reset ccache statistics
+        # The restored cache carries earlier runs' counters; the stats below cover this build only.
+        run: ccache -z
+
       - name: Configure
         run: >
           cmake -S . -B build -G Ninja
@@ -202,7 +211,7 @@ jobs:
 
   windows:
     name: Build & test (Windows)
-    # Off until a Windows runner exists: setting the WINDOWS_RUNNER repo variable turns it on.
+    # Runs on the self-hosted runner the WINDOWS_RUNNER repo variable names; skipped without it.
     # Like macOS, a fork's pull request never reaches the self-hosted machine.
     if: >-
       vars.WINDOWS_RUNNER != '' && (github.event_name == 'push' ||
