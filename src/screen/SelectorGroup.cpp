@@ -94,7 +94,8 @@ void SelectorGroup::tearDown()
 {
     for (AreaSelector *selector : std::as_const(m_selectors)) {
         selector->blockSignals(true);   // the other overlays must not answer as well
-        selector->disconnect();
+        // A wildcard would also cut destroyed(), stranding it in the accessibility cache.
+        selector->disconnect(this);
         selector->close();
         selector->deleteLater();
     }

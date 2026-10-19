@@ -1,4 +1,5 @@
 #include <QtTest>
+#include <QAccessible>
 #include <QApplication>
 #include <QPointer>
 #include <QScreen>
@@ -185,6 +186,28 @@ private slots:
         QCOMPARE(group->selectors().size(), 2);
         QVERIFY(!group->selectors().first()->isFullScreen());
         group->selectors().first()->cancelSelection();
+    }
+
+    void aCancelDropsTheOverlaysFromTheAccessibleCache()
+    {
+        // A stale entry here crashed the next group, whose overlay reused the freed address.
+        const QPointer<SelectorGroup> group = open();
+        QVERIFY(group);
+        QList<QPointer<AreaSelector>> selectors;
+        QList<QAccessible::Id> ids;
+        for (AreaSelector *selector : group->selectors()) {
+            QAccessibleInterface *iface = QAccessible::queryAccessibleInterface(selector);
+            QVERIFY(iface);
+            selectors.append(selector);
+            ids.append(QAccessible::uniqueId(iface));
+        }
+        QTest::keyClick(selectors.first(), Qt::Key_Escape);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QVERIFY(!group);
+        for (const QPointer<AreaSelector> &selector : std::as_const(selectors))
+            QVERIFY(!selector);
+        for (QAccessible::Id id : std::as_const(ids))
+            QCOMPARE(QAccessible::accessibleInterface(id), nullptr);
     }
 
     void destroyingTheGroupClosesItsOverlays()
