@@ -265,6 +265,7 @@ jobs:
         run: cmake --build --preset windows-msvc
 
       - name: Test
+        id: test
         working-directory: build
         # Windows has no rpath: the tests find Qt and the vcpkg DLLs through PATH.
         run: |
@@ -272,6 +273,34 @@ jobs:
           $env:QT_QPA_PLATFORM = "offscreen"
           # --timeout kills a hung test's process tree instead of leaving it orphaned
           ctest --output-on-failure --timeout 120
+
+      - name: Rerun the failed tests with their QtTest logs
+        if: failure() && steps.test.outcome == 'failure'
+        timeout-minutes: 10  # the rerun has no ctest --timeout
+        working-directory: build
+        # ctest shows none of a failed test's QtTest output here, so -o writes it to a file.
+        run: |
+          $tests = (ctest --show-only=json-v1 | ConvertFrom-Json).tests
+          $env:PATH = "$env:QT_ROOT_DIR\bin;$pwd\vcpkg_installed\x64-windows-snim\bin;$env:PATH"
+          foreach ($line in Get-Content Testing\Temporary\LastTestsFailed.log) {
+            $name = ($line -split ':', 2)[1]
+            $test = $tests | Where-Object name -eq $name
+            $env:QT_QPA_PLATFORM = 'offscreen'
+            foreach ($pair in ($test.properties | Where-Object name -eq 'ENVIRONMENT').value) {
+              $key, $value = $pair -split '=', 2
+              Set-Item "env:$key" $value
+            }
+            $exe, $rest = $test.command
+            $log = "$env:RUNNER_TEMP\$name.txt"
+            Write-Output "::group::$name"
+            Set-Location ($test.properties | Where-Object name -eq 'WORKING_DIRECTORY').value
+            & $exe @rest -o "$log,txt"
+            Write-Output ('{0} exited with 0x{1:X8}' -f $name, $LASTEXITCODE)
+            if (Test-Path $log) { Get-Content $log } else { Write-Output "$name wrote no QtTest log" }
+            Write-Output '::endgroup::'
+          }
+          # Test already failed the job; this step only reports.
+          exit 0
 
       - name: Stage a windeployqt bundle
         id: bundle
