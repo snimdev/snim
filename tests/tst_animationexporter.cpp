@@ -7,6 +7,7 @@
 #include <QElapsedTimer>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QTimer>
 #include <algorithm>
 
@@ -349,6 +350,43 @@ private slots:
         QVERIFY(!QFile::exists(output));
         // Not just the output: the encoder writes through a QSaveFile temp in the same
         // directory, and an abandoned thread would leave it behind.
+        QVERIFY(QDir(dir.path()).entryList(QDir::Files).isEmpty());
+    }
+
+    void cancelAfterTheFileIsWrittenLeavesNoFile_data() { addFormatRows(); }
+    void cancelAfterTheFileIsWrittenLeavesNoFile()
+    {
+        QFETCH(QString, extension);
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString output = dir.filePath("clip." + extension);
+
+        // Cancelling just as the export completes: the worker has committed the file, but
+        // its result is still queued here, so the cancel wins and no file may remain.
+        auto fake = std::make_unique<FakeGrabber>();
+        auto *raw = fake.get();
+        AnimationExporter exporter(std::move(fake));
+        QSignalSpy finished(&exporter, &AnimationExporter::finished);
+        QSignalSpy failed(&exporter, &AnimationExporter::failed);
+
+        exporter.start(formatFor(extension), kRecording, output, 0, 300, kCheap);
+        // Only the grabber's burst: the frames and finish() reach the worker, while every
+        // signal the worker sends back stays queued here.
+        QCoreApplication::sendPostedEvents(raw, QEvent::MetaCall);
+
+        // QSaveFile creates the final path only on commit.
+        QElapsedTimer waited;
+        waited.start();
+        while (!QFile::exists(output)) {
+            QVERIFY2(waited.elapsed() < 10000, "the worker never committed the file");
+            QThread::msleep(5);
+        }
+
+        exporter.cancel();
+        QTest::qWait(150);
+        QCOMPARE(finished.count(), 0);
+        QCOMPARE(failed.count(), 0);
+        QVERIFY(!QFile::exists(output));
         QVERIFY(QDir(dir.path()).entryList(QDir::Files).isEmpty());
     }
 

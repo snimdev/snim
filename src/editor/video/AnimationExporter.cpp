@@ -22,6 +22,9 @@ constexpr int kLowWaterFrames = 2;
  *
  * Every call arrives as a queued post from the exporter, so the frames are encoded in
  * the order they were grabbed.
+ *
+ * It owns the file it commits until the exporter claims it with keepOutput(), so a
+ * cancel at any point, even after the commit, leaves nothing behind.
  */
 class AnimationEncodeWorker : public QObject
 {
@@ -30,6 +33,13 @@ class AnimationEncodeWorker : public QObject
 public:
     explicit AnimationEncodeWorker(AnimationFormat format)
         : m_encoder(AnimationEncoder::create(format)) {}
+
+    // Deleted on the GUI thread after the join, which is what makes the plain bools safe.
+    ~AnimationEncodeWorker() override
+    {
+        if (m_committed && !m_kept)
+            QFile::remove(m_path);
+    }
 
     void begin(const QString &path, const QSize &size, const AnimationParams &params)
     {
@@ -66,14 +76,14 @@ public:
             breakWith(error);
             return;
         }
-        // A cancel can land after the check above, by which point the file is committed,
-        // so the finished export is thrown away rather than left behind.
-        if (m_aborted.load(std::memory_order_relaxed)) {
-            QFile::remove(m_path);
+        m_committed = true;
+        // A cancel can land after the check above; the destructor then removes the file.
+        if (m_aborted.load(std::memory_order_relaxed))
             return;
-        }
         emit wrote(m_path);
     }
+
+    void keepOutput() { m_kept = true; }
 
     // Called from the GUI thread while the worker may still be encoding, so the frames
     // already queued behind it are dropped instead of encoded for nobody.
@@ -102,6 +112,8 @@ private:
     std::unique_ptr<AnimationEncoder> m_encoder;
     QString m_path;
     bool m_broken = false;                 // worker thread only
+    bool m_committed = false;              // worker thread, read after the join
+    bool m_kept = false;                   // GUI thread only
     std::atomic<bool> m_aborted{false};    // written by the GUI thread
 };
 
@@ -164,7 +176,7 @@ void AnimationExporter::stopWorker()
     m_worker->disconnect(this);
     m_thread->quit();
     m_thread->wait();           // blocks for at most the frame being encoded right now
-    delete m_worker;            // and with it the encoder, so no partial file is left
+    delete m_worker;            // and with it any partial or unclaimed file
     delete m_thread;
     m_worker = nullptr;
     m_thread = nullptr;
@@ -252,8 +264,9 @@ void AnimationExporter::throttle()
 
 void AnimationExporter::onWrote(const QString &outputPath)
 {
-    if (!m_running)
+    if (!m_running || !m_worker)
         return;
+    m_worker->keepOutput();   // claimed before cancel() destroys the worker
     cancel();
     emit finished(outputPath);
 }
