@@ -1023,9 +1023,9 @@ jobs:
 
       - name: Mint a snim-bot token
         id: token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.SNIM_BOT_APP_ID }}
+          client-id: Iv23lif0xEx7HKvSfolw  # snim-bot
           private-key: ${{ secrets.SNIM_BOT_PRIVATE_KEY }}
           owner: snimdev
           repositories: homebrew-tap
