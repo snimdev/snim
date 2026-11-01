@@ -15,6 +15,11 @@ on:
         type: boolean
         required: false
         default: false
+      bump-tap-dry-run:
+        description: 'Dry-run the Homebrew cask bump against the latest stable release'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -969,3 +974,100 @@ jobs:
           bash scripts/flatpak-repo.sh publish "r2:$R2_BUCKET/flatpak" "$REPO_NAME" \
             bundles/Snim-x86_64.flatpak bundles/Snim-aarch64.flatpak
           rm -rf "$GNUPGHOME"
+
+  homebrew-tap:
+    name: Bump the Homebrew cask
+    needs: [release]
+    # A stable tag bumps the cask after its release; a manual run only dry-runs it.
+    if: >-
+      !cancelled() && (
+        (github.event_name == 'push' && needs.release.result == 'success' && !contains(github.ref_name, '-')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.bump-tap-dry-run)
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Resolve version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            # A dry run has no release of its own, so it takes the latest stable one.
+            TAG="$(gh release view -R snimdev/snim --json tagName --jq .tagName)"
+            VERSION="${TAG#v}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error title=Not a stable version::'$VERSION' is not X.Y.Z"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Read the DMG checksum
+        id: checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release download "v$VERSION" -R snimdev/snim -p sha256sums.txt -D "$RUNNER_TEMP"
+          DMG="Snim-$VERSION-macos-arm64.dmg"
+          SHA256="$(awk -v dmg="$DMG" '$2 == dmg { print $1 }' "$RUNNER_TEMP/sha256sums.txt")"
+          if ! [[ "$SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error title=No DMG checksum::sha256sums.txt of v$VERSION has no line for $DMG"
+            exit 1
+          fi
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Mint a snim-bot token
+        id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.SNIM_BOT_APP_ID }}
+          private-key: ${{ secrets.SNIM_BOT_PRIVATE_KEY }}
+          owner: snimdev
+          repositories: homebrew-tap
+          permission-contents: write
+
+      - uses: actions/checkout@v5
+        with:
+          repository: snimdev/homebrew-tap
+          token: ${{ steps.token.outputs.token }}
+          path: homebrew-tap
+
+      - name: Update the cask
+        id: cask
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA256: ${{ steps.checksum.outputs.sha256 }}
+        run: |
+          CASK=Casks/snim.rb
+          if grep -qxF "  version \"$VERSION\"" "$CASK" && grep -qxF "  sha256 \"$SHA256\"" "$CASK"; then
+            echo "The cask is already at $VERSION with that checksum."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sed -i -E \
+            -e "s/^  version \"[^\"]*\"$/  version \"$VERSION\"/" \
+            -e "s/^  sha256 \"[^\"]*\"$/  sha256 \"$SHA256\"/" "$CASK"
+          if [ "$(grep -cxF "  version \"$VERSION\"" "$CASK")" != 1 ] || [ "$(grep -cxF "  sha256 \"$SHA256\"" "$CASK")" != 1 ]; then
+            echo "::error title=Cask not updated::$CASK has no single version or sha256 line to set"
+            git diff
+            exit 1
+          fi
+          git diff
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push
+        if: steps.cask.outputs.changed == 'true' && github.event_name == 'push'
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name 'snim-bot[bot]'
+          git config user.email '350915281+snim-bot[bot]@users.noreply.github.com'
+          git commit -m "Bump the cask to $VERSION" Casks/snim.rb
+          git push origin HEAD:main
