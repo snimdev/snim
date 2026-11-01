@@ -586,6 +586,28 @@ jobs:
           export TESSDATA_PREFIX="$(brew --prefix)/share/tessdata"
           ctest --output-on-failure --timeout 120
 
+      - name: Import the signing certificate
+        # Hosted runners have no Developer ID, so a temporary keychain carries it.
+        env:
+          P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$P12" ]; then
+            echo "No MACOS_CERTIFICATE_P12, using the runner's keychain"
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/snim-signing.keychain-db"
+          pw="$(openssl rand -base64 32)"
+          printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$pw" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$pw" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$pw" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          echo "SNIM_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
       - name: Deploy the bundle
         # Signs with the Developer ID when MACOS_SIGN_IDENTITY is set, ad-hoc otherwise.
         env:
@@ -607,17 +629,28 @@ jobs:
 
       - name: Notarize and staple the DMG
         if: vars.MACOS_SIGN_IDENTITY != ''
-        # Uses the `snim` notarytool keychain profile stored on the self-hosted Mac.
+        # Uses the App Store Connect API key when MACOS_NOTARY_KEY is set, the `snim` keychain profile otherwise.
         env:
           DMG: Snim-${{ steps.version.outputs.version }}-macos-arm64.dmg
+          NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
         run: |
+          if [ -n "$NOTARY_KEY" ]; then
+            key="$RUNNER_TEMP/AuthKey.p8"
+            printf '%s\n' "$NOTARY_KEY" > "$key"
+            chmod 600 "$key"
+            auth=(--key "$key" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
+          else
+            auth=(--keychain-profile snim)
+          fi
           result="$RUNNER_TEMP/notarize.json"
-          xcrun notarytool submit "$DMG" --keychain-profile snim --wait --output-format json > "$result" || true
+          xcrun notarytool submit "$DMG" "${auth[@]}" --wait --output-format json > "$result" || true
           cat "$result"
           id="$(plutil -extract id raw "$result" 2>/dev/null || true)"
           status="$(plutil -extract status raw "$result" 2>/dev/null || true)"
           if [ "$status" != "Accepted" ]; then
-            [ -z "$id" ] || xcrun notarytool log "$id" --keychain-profile snim || true
+            [ -z "$id" ] || xcrun notarytool log "$id" "${auth[@]}" || true
             echo "::error title=Notarization failed::submission '${id:-none}' ended with status '${status:-unknown}'"
             exit 1
           fi
@@ -631,6 +664,15 @@ jobs:
           path: Snim-*-macos-arm64.dmg
           if-no-files-found: error
           retention-days: 3
+
+      - name: Remove signing credentials
+        # Self-hosted runners reuse RUNNER_TEMP, so nothing may outlive the job.
+        if: always()
+        run: |
+          if [ -n "${SNIM_KEYCHAIN:-}" ] && [ -f "$SNIM_KEYCHAIN" ]; then
+            security delete-keychain "$SNIM_KEYCHAIN"
+          fi
+          rm -f "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/cert.p12"
 
   windows:
     name: Installer and zip (Windows x64)
