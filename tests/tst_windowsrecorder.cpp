@@ -94,7 +94,8 @@ private slots:
         QCOMPARE(finished.first().first().toString(), path);
 
         const Mp4Info info = readMp4(path);
-        QCOMPARE(info.brand, QByteArray("isom"));
+        // Fragmented on purpose, so a crash keeps what was recorded; FFmpeg brands that iso5.
+        QCOMPARE(info.brand, QByteArray("iso5"));
         const Mp4Track *video = trackOf(info, "vide");
         QVERIFY(video);
         QVERIFY2(video->durationMs >= 1800 && video->durationMs <= 3500,
