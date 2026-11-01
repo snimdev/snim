@@ -74,6 +74,22 @@ bool encodeOneSecond(FfmpegEncoder &encoder, int width, int height, int channels
     return encoder.finish();
 }
 
+// Both tracks and the movie span the second encodeOneSecond fed in.
+void verifyOneSecond(const Mp4Info &info)
+{
+    QCOMPARE(info.tracks.size(), 2);
+    const Mp4Track *video = trackOf(info, "vide");
+    const Mp4Track *audio = trackOf(info, "soun");
+    QVERIFY(video);
+    QVERIFY(audio);
+    QVERIFY2(qAbs(video->durationMs - 1000) <= kVideoToleranceMs,
+             qPrintable(QString::number(video->durationMs)));
+    QVERIFY2(qAbs(audio->durationMs - 1000) <= kAudioToleranceMs,
+             qPrintable(QString::number(audio->durationMs)));
+    QVERIFY2(qAbs(info.durationMs - 1000) <= kAudioToleranceMs,
+             qPrintable(QString::number(info.durationMs)));
+}
+
 } // namespace
 
 // Encodes synthetic clips and reads the boxes back. libx264 is forced, so CI machines
@@ -102,18 +118,7 @@ private slots:
         const qsizetype mdat = info.topLevel.indexOf("mdat");
         QVERIFY2(moov >= 0 && mdat >= 0 && moov < mdat,
                  qPrintable(QString::fromLatin1(info.topLevel.join(' '))));
-
-        QCOMPARE(info.tracks.size(), 2);
-        const Mp4Track *video = trackOf(info, "vide");
-        const Mp4Track *audio = trackOf(info, "soun");
-        QVERIFY(video);
-        QVERIFY(audio);
-        QVERIFY2(qAbs(video->durationMs - 1000) <= kVideoToleranceMs,
-                 qPrintable(QString::number(video->durationMs)));
-        QVERIFY2(qAbs(audio->durationMs - 1000) <= kAudioToleranceMs,
-                 qPrintable(QString::number(audio->durationMs)));
-        QVERIFY2(qAbs(info.durationMs - 1000) <= kAudioToleranceMs,
-                 qPrintable(QString::number(info.durationMs)));
+        verifyOneSecond(info);
     }
 
     void writesQuickTimeForMov()
@@ -139,11 +144,13 @@ private slots:
         QVERIFY2(encodeOneSecond(encoder, 160, 120, kChannels), qPrintable(encoder.errorString()));
 
         const Mp4Info info = readMp4(path);
+        QCOMPARE(info.brand, QByteArray("iso5"));
         const qsizetype moov = info.topLevel.indexOf("moov");
         const qsizetype moof = info.topLevel.indexOf("moof");
         QVERIFY2(moov >= 0 && moof > moov,
                  qPrintable(QString::fromLatin1(info.topLevel.join(' '))));
-        QCOMPARE(info.tracks.size(), 2);
+        // empty_moov leaves the header durations at 0, so these come from the fragments.
+        verifyOneSecond(info);
     }
 
     void writesVideoOnlyWithoutChannels()
