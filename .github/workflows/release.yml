@@ -676,9 +676,7 @@ jobs:
 
   windows:
     name: Installer and zip (Windows x64)
-    # Runs on the self-hosted runner the WINDOWS_RUNNER repo variable names; skipped without it.
-    if: vars.WINDOWS_RUNNER != ''
-    runs-on: ${{ vars.WINDOWS_RUNNER && fromJSON(vars.WINDOWS_RUNNER) || 'windows-2022' }}
+    runs-on: windows-2022
     timeout-minutes: 120  # a cold vcpkg cache builds every dependency, FFmpeg included
 
     steps:
@@ -717,16 +715,7 @@ jobs:
           git -C $root fetch --quiet --depth 1 https://github.com/microsoft/vcpkg $baseline
           git -C $root checkout --quiet FETCH_HEAD
           & "$root\bootstrap-vcpkg.bat" -disableMetrics
-          if ($env:RUNNER_ENVIRONMENT -eq 'self-hosted') {
-            # A persistent local cache (see scripts/windows-runner-bootstrap.ps1) replaces actions/cache.
-            $cache = if ($env:SNIM_VCPKG_CACHE) { $env:SNIM_VCPKG_CACHE } else { 'C:\snim-ci\vcpkg-cache' }
-            # Source archives too, so a package rebuild skips the download.
-            $downloads = if ($env:SNIM_VCPKG_DOWNLOADS) { $env:SNIM_VCPKG_DOWNLOADS } else { 'C:\snim-ci\vcpkg-downloads' }
-            New-Item -ItemType Directory -Force $downloads | Out-Null
-            "VCPKG_DOWNLOADS=$downloads" >> $env:GITHUB_ENV
-          } else {
-            $cache = "$env:RUNNER_TEMP\vcpkg-cache"
-          }
+          $cache = "$env:RUNNER_TEMP\vcpkg-cache"
           New-Item -ItemType Directory -Force $cache | Out-Null
           "VCPKG_ROOT=$root" >> $env:GITHUB_ENV
           "VCPKG_BINARY_SOURCES=clear;files,$cache,readwrite" >> $env:GITHUB_ENV
@@ -734,7 +723,6 @@ jobs:
           "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
 
       - name: Cache vcpkg packages
-        if: runner.environment != 'self-hosted'
         uses: actions/cache@v5
         with:
           path: ${{ steps.vcpkg.outputs.cache }}
@@ -774,10 +762,6 @@ jobs:
         run: |
           $candidates = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe", "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe")
           $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $iscc -and $env:RUNNER_ENVIRONMENT -eq 'self-hosted') {
-            Write-Output "::error title=No Inno Setup::ISCC.exe is not installed on this self-hosted runner; run scripts/windows-runner-bootstrap.ps1 on it"
-            exit 1
-          }
           if (-not $iscc) {
             choco install innosetup --no-progress -y
             $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
@@ -879,13 +863,8 @@ jobs:
   release:
     name: Publish the GitHub release
     needs: [linux-bundle, flatpak, macos-dmg, portability, windows]
-    # workflow_dispatch builds the artifacts but never publishes a release. A skipped
-    # Windows job (no runner configured) still ships Linux and macOS.
-    if: >-
-      !cancelled() && github.event_name == 'push' &&
-      needs.linux-bundle.result == 'success' && needs.macos-dmg.result == 'success' &&
-      needs.portability.result == 'success' && needs.flatpak.result == 'success' &&
-      contains(fromJSON('["success", "skipped"]'), needs.windows.result)
+    # workflow_dispatch builds the artifacts but never publishes a release.
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -910,7 +889,6 @@ jobs:
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
-          WINDOWS_RESULT: ${{ needs.windows.result }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           FLAGS=(--title "Snim $VERSION" --notes-file notes.md)
@@ -928,13 +906,9 @@ jobs:
             "artifacts/snim-$VERSION.aarch64.rpm"
             "artifacts/Snim-aarch64.flatpak"
             "artifacts/Snim-$VERSION-macos-arm64.dmg"
+            "artifacts/Snim-$VERSION-windows-x64-setup.exe"
+            "artifacts/Snim-$VERSION-windows-x64.zip"
           )
-          if [ "$WINDOWS_RESULT" = success ]; then
-            FILES+=(
-              "artifacts/Snim-$VERSION-windows-x64-setup.exe"
-              "artifacts/Snim-$VERSION-windows-x64.zip"
-            )
-          fi
           gh release create "$GITHUB_REF_NAME" "${FLAGS[@]}" "${FILES[@]}" "artifacts/sha256sums.txt"
 
   flatpak-repo:
