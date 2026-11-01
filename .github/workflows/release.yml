@@ -722,8 +722,9 @@ jobs:
           "cache=$cache" >> $env:GITHUB_OUTPUT
           "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
 
-      - name: Cache vcpkg packages
-        uses: actions/cache@v5
+      - name: Restore the vcpkg cache
+        # Restore only: a cache saved from a tag is scoped to that tag, so no other run could use it.
+        uses: actions/cache/restore@v5
         with:
           path: ${{ steps.vcpkg.outputs.cache }}
           key: vcpkg-${{ runner.os }}-${{ steps.vcpkg.outputs.image }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/vcpkg-ports/**', 'cmake/vcpkg-triplets/**') }}
