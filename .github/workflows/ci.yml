@@ -241,8 +241,9 @@ jobs:
           "cache=$cache" >> $env:GITHUB_OUTPUT
           "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
 
-      - name: Cache vcpkg packages
-        uses: actions/cache@v5
+      - name: Restore the vcpkg cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v5
         with:
           path: ${{ steps.vcpkg.outputs.cache }}
           key: vcpkg-${{ runner.os }}-${{ steps.vcpkg.outputs.image }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'cmake/vcpkg-ports/**', 'cmake/vcpkg-triplets/**') }}
@@ -251,6 +252,14 @@ jobs:
       - name: Configure
         # vcpkg installs the manifest's dependencies during this step.
         run: cmake --preset windows-msvc -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      - name: Save the vcpkg cache
+        # Before the build, so a failing test cannot discard it; on pull requests too, as the key rarely misses.
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.vcpkg.outputs.cache }}
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build
         run: cmake --build --preset windows-msvc
