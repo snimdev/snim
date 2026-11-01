@@ -75,7 +75,7 @@ To send a pull request:
 3. Run `cmake --build build --target check` before you push.
 4. Write each commit message as one short line, `Area: What it does`, for example `Editor: Name Snim in the editor window titles`.
 
-Pull requests from forks are built and tested on Linux. The macOS and Windows builds run on the maintainer's own machines, so they only run once a change is merged: if you change code for those platforms, say how you tested it. A first-time contributor's CI run waits for a maintainer to approve it.
+Pull requests are built and tested on Linux, macOS and Windows. A first-time contributor's CI run waits for a maintainer to approve it.
 
 By contributing, you agree that your work is released under the same license as Snim.
 

@@ -21,12 +21,8 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & test (macOS)
-    # A fork's pull request never runs here: it would be a stranger's code on a self-hosted Mac.
-    if: >-
-      github.event_name == 'push' || (!github.event.pull_request.draft &&
-      github.event.pull_request.head.repo.full_name == github.repository)
-    # The MACOS_RUNNER repo variable (a JSON label list) moves it to a self-hosted Mac.
-    runs-on: ${{ vars.MACOS_RUNNER && fromJSON(vars.MACOS_RUNNER) || 'macos-15' }}
+    if: github.event_name == 'push' || !github.event.pull_request.draft
+    runs-on: macos-15
     timeout-minutes: 30  # backstop so a hung step can't run to the 6h default
 
     # brew install runs a full brew update first unless told not to, which is most
@@ -34,7 +30,7 @@ jobs:
     env:
       HOMEBREW_NO_AUTO_UPDATE: 1
       HOMEBREW_NO_INSTALL_CLEANUP: 1
-      HOMEBREW_NO_INSTALL_UPGRADE: 1   # a self-hosted Mac keeps its own versions
+      HOMEBREW_NO_INSTALL_UPGRADE: 1
       HOMEBREW_NO_ANALYTICS: 1
       # Set explicitly: ccache's default cache location differs between versions.
       CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -211,13 +207,8 @@ jobs:
 
   windows:
     name: Build & test (Windows)
-    # Runs on the self-hosted runner the WINDOWS_RUNNER repo variable names; skipped without it.
-    # Like macOS, a fork's pull request never reaches the self-hosted machine.
-    if: >-
-      vars.WINDOWS_RUNNER != '' && (github.event_name == 'push' ||
-      (!github.event.pull_request.draft &&
-      github.event.pull_request.head.repo.full_name == github.repository))
-    runs-on: ${{ vars.WINDOWS_RUNNER && fromJSON(vars.WINDOWS_RUNNER) || 'windows-2022' }}
+    if: github.event_name == 'push' || !github.event.pull_request.draft
+    runs-on: windows-2022
     timeout-minutes: 120  # a cold vcpkg cache builds every dependency, FFmpeg included
 
     steps:
@@ -243,16 +234,7 @@ jobs:
           git -C $root fetch --quiet --depth 1 https://github.com/microsoft/vcpkg $baseline
           git -C $root checkout --quiet FETCH_HEAD
           & "$root\bootstrap-vcpkg.bat" -disableMetrics
-          if ($env:RUNNER_ENVIRONMENT -eq 'self-hosted') {
-            # A persistent local cache (see scripts/windows-runner-bootstrap.ps1) replaces actions/cache.
-            $cache = if ($env:SNIM_VCPKG_CACHE) { $env:SNIM_VCPKG_CACHE } else { 'C:\snim-ci\vcpkg-cache' }
-            # Source archives too, so a package rebuild skips the download.
-            $downloads = if ($env:SNIM_VCPKG_DOWNLOADS) { $env:SNIM_VCPKG_DOWNLOADS } else { 'C:\snim-ci\vcpkg-downloads' }
-            New-Item -ItemType Directory -Force $downloads | Out-Null
-            "VCPKG_DOWNLOADS=$downloads" >> $env:GITHUB_ENV
-          } else {
-            $cache = "$env:RUNNER_TEMP\vcpkg-cache"
-          }
+          $cache = "$env:RUNNER_TEMP\vcpkg-cache"
           New-Item -ItemType Directory -Force $cache | Out-Null
           "VCPKG_ROOT=$root" >> $env:GITHUB_ENV
           "VCPKG_BINARY_SOURCES=clear;files,$cache,readwrite" >> $env:GITHUB_ENV
@@ -260,7 +242,6 @@ jobs:
           "image=$env:ImageVersion" >> $env:GITHUB_OUTPUT
 
       - name: Cache vcpkg packages
-        if: runner.environment != 'self-hosted'
         uses: actions/cache@v5
         with:
           path: ${{ steps.vcpkg.outputs.cache }}
