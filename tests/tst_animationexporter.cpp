@@ -81,7 +81,8 @@ bool qtCanRead(const QString &extension)
 class FakeGrabber : public VideoFrameGrabber
 {
 public:
-    enum class Mode { Frames, Fail, FinishWithoutFrames, HangAfterFirstFrame };
+    // PacedFrames delivers one frame per event and honours pause(), like the real grabber.
+    enum class Mode { Frames, PacedFrames, Fail, FinishWithoutFrames, HangAfterFirstFrame };
 
     explicit FakeGrabber(Mode mode = Mode::Frames, QObject *parent = nullptr)
         : VideoFrameGrabber(parent), m_mode(mode) {}
@@ -96,6 +97,14 @@ public:
         ++startCount;
 
         const QVector<qint64> plan = planAnimationFrames(inMs, outMs, fps);
+        if (m_mode == Mode::PacedFrames) {
+            m_plan = plan;
+            m_next = 0;
+            m_pacing = true;
+            m_paused = false;
+            scheduleStep();
+            return;
+        }
         QMetaObject::invokeMethod(this, [this, plan] {
             if (m_mode == Mode::Fail) {
                 emit failed(QStringLiteral("the fake decoder exploded"));
@@ -116,9 +125,25 @@ public:
         }, Qt::QueuedConnection);
     }
 
-    void cancel() override { ++cancelCount; }
-    void pause() override { ++pauseCount; }
-    void resume() override { ++resumeCount; }
+    void cancel() override
+    {
+        ++cancelCount;
+        m_pacing = false;
+    }
+
+    void pause() override
+    {
+        ++pauseCount;
+        m_paused = true;
+    }
+
+    void resume() override
+    {
+        ++resumeCount;
+        m_paused = false;
+        if (m_pacing)
+            scheduleStep();
+    }
 
     QSize frameSize{32, 24};   // raised by the tests that want a costly encode
     QString startedInput;
@@ -132,7 +157,35 @@ public:
     int resumeCount = 0;
 
 private:
+    void step()
+    {
+        m_stepQueued = false;
+        if (!m_pacing || m_paused)
+            return;
+        if (m_next == m_plan.size()) {
+            m_pacing = false;
+            emit finished();
+            return;
+        }
+        const int i = m_next++;
+        emit frameReady(patternFrame(i, frameSize), m_plan.at(i));
+        scheduleStep();
+    }
+
+    void scheduleStep()
+    {
+        if (m_stepQueued)
+            return;   // a resume() while a step is pending must not start a second chain
+        m_stepQueued = true;
+        QMetaObject::invokeMethod(this, [this] { step(); }, Qt::QueuedConnection);
+    }
+
     Mode m_mode;
+    QVector<qint64> m_plan;
+    int m_next = 0;
+    bool m_pacing = false;
+    bool m_paused = false;
+    bool m_stepQueued = false;
 };
 
 } // namespace
@@ -330,15 +383,18 @@ private slots:
 
         // Cancelling while the worker is genuinely mid-frame: the thread has to be joined
         // before cancel() returns, or a late signal or a leftover QSaveFile temp escapes.
-        auto fake = std::make_unique<FakeGrabber>();
+        auto fake = std::make_unique<FakeGrabber>(FakeGrabber::Mode::PacedFrames);
         fake->frameSize = QSize(640, 480);
         AnimationExporter exporter(std::move(fake));
         QSignalSpy finished(&exporter, &AnimationExporter::finished);
         QSignalSpy failed(&exporter, &AnimationExporter::failed);
         QSignalSpy progress(&exporter, &AnimationExporter::progress);
 
-        exporter.start(formatFor(extension), kRecording, output, 0, 1500, kCheap);
-        QTRY_VERIFY(progress.count() >= 2);
+        exporter.start(formatFor(extension), kRecording, output, 0, 3000, kCheap);
+        // One wait delivers at most the 8 frames in flight, so the count cannot overshoot.
+        while (progress.count() < 2)
+            QVERIFY2(progress.wait(5000), "the encode never progressed");
+        // The worker stays within 8 frames of this count, so finish() is not queued yet.
         QVERIFY(progress.count() < 15);   // still mid-run, or this proves nothing
 
         exporter.cancel();
