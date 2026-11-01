@@ -10,6 +10,12 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Set up Python
+      # aqtinstall's 7z dependencies have Windows wheels only up to 3.14; newer versions build from source and fail.
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.14'
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
@@ -17,5 +23,6 @@ runs:
         arch: 'win64_msvc2022_64'
         modules: ${{ inputs.modules }}
         cache: true
+        setup-python: false
         # aqtinstall 3.3.0 cannot read the Qt 6.11 Windows layout; drop once a later release ships.
         aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
